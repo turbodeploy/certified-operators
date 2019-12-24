@@ -117,7 +117,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
                                                       @Nonnull final StatsQueryContext context) throws OperationFailedException {
 
-        if (!context.isGlobalScope() && context.getQueryScope().getEntities().isEmpty()) {
+        if (!context.isGlobalScope() && context.getQueryScope().getExpandedOids().isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -157,7 +157,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     // This step is required because vvAttachedToVM can include VVs outside the current scope-
                     // we get VMs connected from VVs in scope, then VVs connected to those VMs- this has the potential to be
                     // a superset of the VVs we started with (VMs can be connected to more than one VV simultaneously)
-                    numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getEntities(), vvAttachedToVM).size());
+                    numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getExpandedOids(), vvAttachedToVM).size());
                 }
 
                 Map<String, Long> vvAttachmentCountMap = ImmutableMap.<String, Long>builder()
@@ -290,7 +290,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             return builder;
         } else {
             return SearchProtoUtil
-                .makeSearchParameters(SearchProtoUtil.idFilter(context.getQueryScope().getEntities()));
+                .makeSearchParameters(SearchProtoUtil.idFilter(context.getQueryScope().getExpandedOids()));
         }
     }
 

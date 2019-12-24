@@ -150,7 +150,9 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.includeCurrent()).thenReturn(false);
 
         // These entities in the scope.
-        final StatsQueryScope queryScope = StatsQueryScope.some(Collections.singleton(1L));
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
@@ -184,10 +186,12 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.includeCurrent()).thenReturn(false);
 
         // These entities in the scope.
-        final StatsQueryScope queryScope = StatsQueryScope.all(ImmutableGlobalScope.builder()
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.of(ImmutableGlobalScope.builder()
             .addEntityTypes(UIEntityType.VIRTUAL_MACHINE)
             .environmentType(EnvironmentType.CLOUD)
-            .build());
+            .build()));
+        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // normalize vm to vm
@@ -229,7 +233,9 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.includeCurrent()).thenReturn(false);
 
         // These entities in the scope.
-        final StatsQueryScope queryScope = StatsQueryScope.some(Collections.singleton(1L));
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
@@ -273,7 +279,9 @@ public class HistoricalCommodityStatsSubQueryTest {
             .build()));
 
         // These entities in the scope.
-        final StatsQueryScope queryScope = StatsQueryScope.some(Collections.singleton(1L));
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT

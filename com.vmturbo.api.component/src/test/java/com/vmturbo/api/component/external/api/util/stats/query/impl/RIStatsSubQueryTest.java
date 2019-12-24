@@ -111,7 +111,9 @@ public class RIStatsSubQueryTest {
         Set<UIEntityType> inputScopeTypes = new HashSet<>();
         inputScopeTypes.add(UIEntityType.REGION);
         when(context.getInputScope().getScopeTypes()).thenReturn(Optional.of(inputScopeTypes));
-        StatsQueryScope queryScope = StatsQueryScope.some(SCOPE_ENTITIES);
+        StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(queryScope.getExpandedOids()).thenReturn(SCOPE_ENTITIES);
         when(context.getQueryScope()).thenReturn(queryScope);
     }
 

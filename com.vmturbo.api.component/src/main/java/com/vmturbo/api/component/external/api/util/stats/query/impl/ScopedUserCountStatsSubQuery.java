@@ -103,7 +103,7 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
             .collect(Collectors.toList());
 
         final Map<Integer, Long> entityTypeCount =
-            repositoryApi.entitiesRequest(context.getQueryScope().getEntities())
+            repositoryApi.entitiesRequest(context.getQueryScope().getExpandedOids())
                 .restrictTypes(entityTypes)
                 .getMinimalEntities()
                 .map(MinimalEntity::getEntityType)

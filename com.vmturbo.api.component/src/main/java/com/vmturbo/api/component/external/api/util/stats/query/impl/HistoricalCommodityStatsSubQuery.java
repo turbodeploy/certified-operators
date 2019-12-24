@@ -124,7 +124,7 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
                 statsMapper.normalizeRelatedType(type.apiStr())));
             entityStatsRequest.setGlobalFilter(globalFilter);
         } else {
-            entityStatsRequest.addAllEntities(context.getQueryScope().getEntities());
+            entityStatsRequest.addAllEntities(context.getQueryScope().getExpandedOids());
         }
 
         return entityStatsRequest.build();

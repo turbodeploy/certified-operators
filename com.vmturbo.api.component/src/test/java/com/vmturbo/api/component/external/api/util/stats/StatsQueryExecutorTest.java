@@ -75,7 +75,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.emptySet());
+        when(expandedScope.getScopeOids()).thenReturn(Collections.emptySet());
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.emptySet());
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
 
         assertThat(executor.getAggregateStats(scope, period), is(Collections.emptyList()));
@@ -86,7 +87,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // One of the queries is applicable.
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -115,7 +117,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -153,7 +156,8 @@ public class StatsQueryExecutorTest {
         when(statsQueryContext.getRequestedStats()).thenReturn(new HashSet<>(period.getStatistics()));
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -199,7 +203,8 @@ public class StatsQueryExecutorTest {
         when(statsQueryContext.getRequestedStats()).thenReturn(new HashSet<>(period.getStatistics()));
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -240,7 +245,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -270,7 +276,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // Both queries applicable
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -300,7 +307,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // One of the queries is applicable.
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -357,7 +365,8 @@ public class StatsQueryExecutorTest {
     public void testGetStatsWithNoEpoch() throws OperationFailedException {
         // ARRANGE
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
 
         // One of the queries is applicable.
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);

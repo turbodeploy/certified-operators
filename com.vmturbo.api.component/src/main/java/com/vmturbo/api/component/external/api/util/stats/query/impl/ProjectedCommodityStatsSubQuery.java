@@ -52,7 +52,7 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
                                                       @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder()
-            .addAllEntities(context.getQueryScope().getEntities());
+            .addAllEntities(context.getQueryScope().getExpandedOids());
         stats.forEach(statApiInputDTO -> {
             // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
             // and extend the Projected Stats API to serve the additional functionality.

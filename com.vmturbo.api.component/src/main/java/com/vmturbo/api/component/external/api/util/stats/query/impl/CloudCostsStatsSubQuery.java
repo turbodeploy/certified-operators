@@ -33,6 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -91,6 +92,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         StringConstants.NUM_DBS, Collections.singletonList(UIEntityType.DATABASE.apiStr()),
         StringConstants.NUM_DBSS, Collections.singletonList(UIEntityType.DATABASE_SERVER.apiStr()),
         StringConstants.NUM_WORKLOADS, new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR)
+    );
+
+    private static final Set<UIEntityType> ENTITY_TYPES_TO_GET_COST_BY_FILTER = ImmutableSet.of(
+        UIEntityType.BUSINESS_ACCOUNT, UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE
     );
     /**
      * Cloud target constant to match UI request, also used in test case
@@ -205,11 +210,15 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 context.getInputScope().isCloud()) {
             final Set<Long> cloudEntityOids;
             if (context.getInputScope().isPlan()) {
-                cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getEntities(),
+                cloudEntityOids =
+                    supplyChainFetcherFactory.expandScope(context.getQueryScope().getExpandedOids(),
                     new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR));
             } else {
-                // Do we need to get the related workload entities here too?
-                cloudEntityOids = context.getQueryScope().getEntities();
+                if (shouldQueryUsingFilter(context.getInputScope())) {
+                    cloudEntityOids = context.getQueryScope().getScopeOids();
+                } else {
+                    cloudEntityOids = context.getQueryScope().getExpandedOids();
+                }
             }
             List<CloudCostStatRecord> cloudCostStatRecords = getCloudStatRecordList(requestedStats,
                 cloudEntityOids, requestGroupBySet, context);
@@ -289,6 +298,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             statsResponse = Collections.emptyList();
         }
         return statsResponse;
+    }
+
+    private boolean shouldQueryUsingFilter(ApiId inputScope) {
+        return inputScope.getScopeTypes().isPresent()
+            && inputScope.getScopeTypes().get().size() == 1
+            && ENTITY_TYPES_TO_GET_COST_BY_FILTER
+            .contains(inputScope.getScopeTypes().get().iterator().next());
     }
 
     /**
@@ -541,7 +557,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     private List<StatApiDTO> getNumWorkloadStatSnapshot(@Nonnull final Set<StatApiInputDTO> statsFilters,
                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        final Set<Long> scopeIds = context.getQueryScope().getEntities();
+        final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
         List<StatApiDTO> stats = Lists.newArrayList();
         for (StatApiInputDTO statApiInputDTO : statsFilters) {
             List<String> entityTypes = WORKLOAD_NAME_TO_ENTITY_TYPES.get(statApiInputDTO.getName());
@@ -589,7 +605,26 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
         //TODO consider create default Cloud group (probably in Group component). Currently the only group
         if (!entityStatOids.isEmpty()) {
-            builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
+            if (shouldQueryUsingFilter(context.getInputScope())) {
+                UIEntityType scopeType =
+                    context.getInputScope().getScopeTypes().get().iterator().next();
+                switch (scopeType) {
+                    case BUSINESS_ACCOUNT:
+                        builder.setAccountFilter(Cost.AccountFilter.newBuilder()
+                             .addAllAccountId(entityStatOids));
+                         break;
+                    case REGION:
+                        builder.setRegionFilter(Cost.RegionFilter.newBuilder()
+                            .addAllRegionId(entityStatOids));
+                        break;
+                    case AVAILABILITY_ZONE:
+                        builder.setAvailabilityZoneFilter(Cost.AvailabilityZoneFilter.newBuilder()
+                            .addAllAvailabilityZoneId(entityStatOids));
+                }
+            } else {
+                builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
+            }
+
         }
         if (isGroupByComponentRequest(requestGroupBySet)) {
             builder.setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT);

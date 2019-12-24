@@ -128,8 +128,11 @@ public class ProjectedCommodityStatsSubQueryTest {
             .startTime(1_000)
             .endTime(3_000)
             .build();
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
         final StatsQueryContext context = mock(StatsQueryContext.class);
-        when(context.getQueryScope()).thenReturn(StatsQueryScope.some(Collections.singleton(1L)));
+        when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
 
         // Just something unique

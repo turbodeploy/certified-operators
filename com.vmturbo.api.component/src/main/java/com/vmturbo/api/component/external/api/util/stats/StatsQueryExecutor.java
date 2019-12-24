@@ -108,7 +108,7 @@ public class StatsQueryExecutor {
         final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, inputDTO.getStatistics());
 
         // Check if there is anything in the scope.
-        if (!expandedScope.getGlobalScope().isPresent() && expandedScope.getEntities().isEmpty()
+        if (!expandedScope.getGlobalScope().isPresent() && expandedScope.getScopeOids().isEmpty()
             && !scopeHasBusinessAccounts(scope)) {
             // In case that the scope is a business account / billing family / group of business
             // accounts, the expanded scope will be empty and the input scope will be used directly

@@ -191,7 +191,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class, Mockito.RETURNS_DEEP_STUBS);
         Mockito.when(context.getPlanInstance()).thenReturn(Optional.of(planInstance));
         Mockito.when(context.getInputScope().oid()).thenReturn(22222L);
-        Mockito.when(context.getQueryScope().getEntities()).thenReturn(SCOPE);
+        Mockito.when(context.getQueryScope().getExpandedOids()).thenReturn(SCOPE);
         MultiEntityRequest request = Mockito.mock(MultiEntityRequest.class);
         Mockito.when(repositoryApi.entitiesRequest(Matchers.anySet())).thenReturn(request);
         Mockito.when(request.contextId(22222L)).thenReturn(request);

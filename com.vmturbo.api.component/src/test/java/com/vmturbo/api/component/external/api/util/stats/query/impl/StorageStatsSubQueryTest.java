@@ -356,7 +356,7 @@ public class StorageStatsSubQueryTest {
 
         // Setup Context for Global Scope
         StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
-        when(statsQueryScope.getEntities())
+        when(statsQueryScope.getExpandedOids())
             .thenReturn(vvPartialEntities.stream().mapToLong(pe -> pe.getOid()).boxed().collect(Collectors.toSet()));
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.isGlobalScope()).thenReturn(false);
@@ -437,7 +437,7 @@ public class StorageStatsSubQueryTest {
     @Test
     public void testGetAggregateStatsNoGroupBy() throws OperationFailedException {
         StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
-        when(statsQueryScope.getEntities())
+        when(statsQueryScope.getExpandedOids())
             .thenReturn(ImmutableSet.of(123L, 456L, 789L));
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.isGlobalScope()).thenReturn(false);
@@ -493,7 +493,7 @@ public class StorageStatsSubQueryTest {
 
         // Setup scope for context
         StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
-        when(statsQueryScope.getEntities())
+        when(statsQueryScope.getExpandedOids())
             .thenReturn(vvPartialEntities.stream().mapToLong(pe -> pe.getOid()).boxed().collect(Collectors.toSet()));
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.isGlobalScope()).thenReturn(false);
@@ -668,7 +668,7 @@ public class StorageStatsSubQueryTest {
 
     private StatsQueryContext setupOidsScope(@Nullable Set<Long> entityOids) {
         StatsQueryContext scope = setupGlobalScope();
-        when(scope.getQueryScope().getEntities()).thenReturn(entityOids);
+        when(scope.getQueryScope().getExpandedOids()).thenReturn(entityOids);
         return scope;
     }
 }

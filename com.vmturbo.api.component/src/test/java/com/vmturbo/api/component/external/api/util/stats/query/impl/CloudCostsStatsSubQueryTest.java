@@ -209,7 +209,7 @@ public class CloudCostsStatsSubQueryTest {
         SearchRequest searchRequest = mock(SearchRequest.class);
         when(repositoryApi.newSearchRequest(any(Search.SearchParameters.class)))
             .thenReturn(searchRequest);
-        //when(searchRequest.getEntities()).thenReturn(attachedVVEntities.stream());
+        //when(searchRequest.getExpandedOids()).thenReturn(attachedVVEntities.stream());
         when(searchRequest.getOids()).thenReturn(attachedVVEntities.stream().mapToLong(e -> e.getOid()).boxed().collect(Collectors.toSet()));
 
 
@@ -486,6 +486,8 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(
+            Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -514,7 +516,7 @@ public class CloudCostsStatsSubQueryTest {
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
         // Behaviors associated to query scope
-        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+        when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
 
 
         // ACT
@@ -525,7 +527,7 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
             .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
                 .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
-            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setAccountFilter(Cost.AccountFilter.newBuilder().addAccountId(5L).build())
             .setRequestProjected(true)
            .build()
         ));
@@ -543,6 +545,7 @@ public class CloudCostsStatsSubQueryTest {
         requestedStats.iterator().next().setRelatedEntityType(null);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -566,7 +569,7 @@ public class CloudCostsStatsSubQueryTest {
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
         // Behaviors associated to query scope
-        when(queryScope.getEntities()).thenReturn(Collections.emptySet());
+        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
 
 
         // ACT
@@ -590,6 +593,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -615,7 +619,7 @@ public class CloudCostsStatsSubQueryTest {
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
         // Behaviors associated to query scope
-        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+        when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
 
 
         // ACT
@@ -626,7 +630,7 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
             .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
                 .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
-            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setRegionFilter(Cost.RegionFilter.newBuilder().addRegionId(5L).build())
             .setRequestProjected(true)
             .build()
         ));
@@ -643,6 +647,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -673,7 +678,7 @@ public class CloudCostsStatsSubQueryTest {
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
         // Behaviors associated to query scope
-        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+        when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
 
 
         // ACT
@@ -684,7 +689,7 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
             .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
                 .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
-            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setAccountFilter(Cost.AccountFilter.newBuilder().addAccountId(5L).build())
             .setRequestProjected(true)
             .build()
         ));
@@ -701,6 +706,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -731,7 +737,7 @@ public class CloudCostsStatsSubQueryTest {
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
         // Behaviors associated to query scope
-        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+        when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
 
 
         // ACT
@@ -742,7 +748,7 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
             .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
                 .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
-            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setRegionFilter(Cost.RegionFilter.newBuilder().addRegionId(5L).build())
             .setRequestProjected(true)
             .build()
         ));
@@ -766,6 +772,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(vmCostStatApi);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -796,7 +803,7 @@ public class CloudCostsStatsSubQueryTest {
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
         // Behaviors associated to query scope
-        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(5L));
 
 
         // ACT

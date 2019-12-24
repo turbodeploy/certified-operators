@@ -363,7 +363,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                         break;
                     default:
                         reqBuilder.setEntityFilter(EntityFilter.newBuilder()
-                                .addAllEntityId(context.getQueryScope().getEntities()));
+                                .addAllEntityId(context.getQueryScope().getExpandedOids()));
                         break;
                 }
             } else if (!context.isGlobalScope()) {

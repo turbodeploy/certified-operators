@@ -9,13 +9,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
@@ -79,113 +79,167 @@ public class StatsQueryScopeExpander {
     }
 
     /**
-     * The expanded scope of a stats query.
+     * The scope of a stats query.
      */
-    public static class StatsQueryScope {
-        private final Set<Long> scope;
-        private final Optional<GlobalScope> all;
-
-        /**
-         * Do not use directly! Use {@link StatsQueryScope#getGlobalScope()} or {@link StatsQueryScope#some(Set)}.
-         */
-        private StatsQueryScope(final Set<Long> scope, final Optional<GlobalScope> all) {
-            this.scope = scope;
-            this.all = all;
-        }
-
+    public interface StatsQueryScope {
         /**
          * If the scope is global, returns a {@link GlobalScope} describing the global scope.
+         *
+         * @return the global scope.
          */
-        public Optional<GlobalScope> getGlobalScope() {
-            return all;
-        }
+        Optional<GlobalScope> getGlobalScope();
 
         /**
          * Returns the specific entities in the expanded scope.
          * Note - if {@link StatsQueryScope#getGlobalScope()} is non-empty, this will be empty. But it may
          * also be empty if the expanded scope contains nothing.
+         *
+         * @return the expanded entities
          */
         @Nonnull
-        public Set<Long> getEntities() {
-            return scope;
-        }
+        Set<Long> getExpandedOids();
 
+        /**
+         * Returns the entities  in the scope. This will be a single entity if the scope is
+         * single entity or members of group if the scope is group. This is versus
+         * {@link StatsQueryScope#getExpandedOids()} where some entity types (e.g., accounts) are
+         * replaced with entities they contain.
+         *
+         * @return the immediate entities.
+         */
         @Nonnull
-        public static StatsQueryScope all(@Nonnull final GlobalScope globalScope) {
-            return new StatsQueryScope(Collections.emptySet(), Optional.of(globalScope));
-        }
-
-        @Nonnull
-        public static StatsQueryScope some(@Nonnull final Set<Long> scope) {
-            return new StatsQueryScope(scope, Optional.empty());
-        }
+        Set<Long> getScopeOids();
     }
 
-    @Nonnull
-    public StatsQueryScope expandScope(@Nonnull final ApiId scope,
-                                       @Nonnull final List<StatApiInputDTO> statistics) throws OperationFailedException {
-        // expand any ServiceEntities that should be replaced by related ServiceEntities,
-        // e.g. DataCenter is replaced by the PhysicalMachines in the DataCenter
-        // and perform supply chain traversal to fetch connected entities
-        // whose type is included in the "relatedEntityType" fields of the present query
-        final List<UIEntityType> relatedTypes = CollectionUtils.emptyIfNull(statistics).stream()
-            .map(StatApiInputDTO::getRelatedEntityType)
-            .filter(Objects::nonNull)
-            .map(UIEntityType::fromString)
-            .collect(Collectors.toList());
+    /**
+     * This class represents an implementation of {@link StatsQueryScope} which
+     * populates the different fields as needed rather than populate them initially.
+     */
+    private static class StatQueryScopeLazyLoader implements StatsQueryScope {
+        private final GlobalScope globalScope;
+        private final Set<Long> scopeOids;
+        @GuardedBy("lock")
+        private Set<Long> expandedOids = null;
+        private final Object lock = new Object();
 
-        // Full market.
-        if (scope.isRealtimeMarket()) {
-            if (userSessionContext.isUserScoped()) {
-                return StatsQueryScope.some(userSessionContext
-                    .getUserAccessScope().accessibleOids().toSet());
+        private final StatsQueryScopeExpander expander;
+        private final ApiId scope;
+        private final Set<UIEntityType> relatedTypes;
+
+        StatQueryScopeLazyLoader(@Nonnull final StatsQueryScopeExpander expander,
+                                        @Nonnull final ApiId scope,
+                                        @Nullable final GlobalScope globalScope,
+                                        @Nullable final Set<Long> scopeOids,
+                                        @Nonnull final Set<UIEntityType> relatedTypes) {
+            this.expander = expander;
+            this.scope = scope;
+            this.relatedTypes = relatedTypes;
+            this.globalScope = globalScope;
+            if (globalScope != null || CollectionUtils.isEmpty(scopeOids)) {
+                this.scopeOids = Collections.emptySet();
+                this.expandedOids = Collections.emptySet();
             } else {
-                return StatsQueryScope.all(ImmutableGlobalScope.builder()
-                    .entityTypes(relatedTypes)
-                    .build());
+                this.scopeOids = scopeOids;
+                if (scope.isRealtimeMarket()) {
+                    this.expandedOids = scopeOids;
+                }
             }
         }
 
-        final Set<Long> immediateOidsInScope;
+
+        @Override
+        public Optional<GlobalScope> getGlobalScope() {
+            return Optional.ofNullable(globalScope);
+        }
+
+        @Nonnull
+        @Override
+        public Set<Long> getScopeOids() {
+            return Collections.unmodifiableSet(scopeOids);
+        }
+
+        @Nonnull
+        @Override
+        public Set<Long> getExpandedOids() {
+            synchronized (lock) {
+                if (expandedOids == null) {
+                    expandedOids = expander.findExpandedOids(scopeOids, scope, relatedTypes);
+                }
+                return Collections.unmodifiableSet(expandedOids);
+            }
+        }
+    }
+
+    /**
+     * Returns a {@link GlobalScope} object if the scope is an instance of global scope. A global
+     * scope is
+     * a scope that can potentially have all the entities there where those got filtered by type or
+     * other things.
+     *
+     * @param scope the input scope.
+     * @param relatedTypes the types that should be filter.
+     * @return if the scope is a global scope the {@link GlobalScope} object otherwise null.
+     */
+    @Nullable
+    private GlobalScope findGlobalScope(ApiId scope, Set<UIEntityType> relatedTypes) {
+        // Full market.
+        if (scope.isRealtimeMarket()) {
+            if (!userSessionContext.isUserScoped()) {
+                return ImmutableGlobalScope.builder()
+                    .entityTypes(relatedTypes)
+                    .build();
+            } else {
+                return null;
+            }
+        }
+
         if (scope.isGlobalTempGroup()) {
             // If it's a global temp group group, we don't worry about fully expanding it.
             List<UIEntityType> entityTypes = relatedTypes.isEmpty() ?
                 new ArrayList<>(scope.getCachedGroupInfo().get().getEntityTypes()) :
-                relatedTypes;
-            return StatsQueryScope.all(ImmutableGlobalScope.builder()
+                new ArrayList<>(relatedTypes);
+            return ImmutableGlobalScope.builder()
                 .entityTypes(entityTypes)
                 .environmentType(scope.getCachedGroupInfo().get().getGlobalEnvType())
-                .build());
+                .build();
         }
-        if (scope.isGroup()) {
-            immediateOidsInScope = groupExpander.expandOids(Collections.singleton(scope.oid()));
-            if (immediateOidsInScope.size() == 0) {
-                return StatsQueryScope.some(immediateOidsInScope);
-            }
-        } else if (scope.isTarget()) {
-            immediateOidsInScope = repositoryApi.newSearchRequest(
-                SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.discoveredBy(scope.oid()))
-                    .build())
-                .getOids();
-        } else if (scope.isPlan()) {
-            Set<Long> explicitPlanScope = scope.getPlanInstance()
+
+        if (scope.isPlan()) {
+            final Set<Long>  explicitPlanScope = scope.getPlanInstance()
                 .map(MarketMapper::getPlanScopeIds)
                 .orElse(Collections.emptySet());
+
             // If the plan is not scoped, it must be defined on the entire market, so
             // the expanded scope is "all".
             if (explicitPlanScope.isEmpty()) {
-                return StatsQueryScope.all(ImmutableGlobalScope.builder()
+                return ImmutableGlobalScope.builder()
                     .entityTypes(relatedTypes)
-                    .build());
-            } else {
-                immediateOidsInScope = explicitPlanScope;
+                    .build();
             }
-        } else {
-            immediateOidsInScope = Sets.newHashSet(scope.oid());
         }
 
-        final Set<Long> expandedOidsInScope;
+        return null;
+    }
+
+    /**
+     * Gets the expanded entity oids in the scope based on the immediate oids in that scope. The
+     * expanded entities are only apply to a number of entities entity types (e.g., accounts) which
+     * are replaced by a number of other entities.
+     *
+     * @param immediateOidsInScope the immediate oids in the scope.
+     * @param scope the input scope.
+     * @param relatedTypes the related types that we care about.
+     * @return the expanded oids.
+     */
+    @Nonnull
+    private Set<Long> findExpandedOids(@Nonnull final Set<Long> immediateOidsInScope,
+                                       @Nonnull final ApiId scope,
+                                       @Nonnull final Set<UIEntityType> relatedTypes) {
+        if (immediateOidsInScope.size() == 0) {
+            return immediateOidsInScope;
+        }
+
+        Set<Long> expandedOidsInScope;
 
         if (shouldConnectedVmBeSeparatelyAdded(scope, relatedTypes)) {
             // case where VM oids need to be added separately to the scope, i.e. for Volume commodity queries
@@ -197,22 +251,55 @@ public class StatsQueryScopeExpander {
             // We replace the proxy entities after first finding related type entities, so that the
             // supply chain search for related entities has the correct starting point (the original
             // entities in the request, rather than the replacement entities).
-            expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
-                supplyChainFetcherFactory.expandScope(immediateOidsInScope, relatedTypes.stream()
-                    .map(UIEntityType::apiStr)
-                    .collect(Collectors.toList())));
+            try {
+                expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
+                    supplyChainFetcherFactory.expandScope(immediateOidsInScope, relatedTypes.stream()
+                        .map(UIEntityType::apiStr)
+                        .collect(Collectors.toList())));
+            } catch (OperationFailedException ex) {
+                logger.error("The operation to get the expanded entities associated with list of " +
+                        "OIDs `%`, with types `%` failed. Going with unexpanded entities.",
+                    immediateOidsInScope.stream().map(String::valueOf).collect(Collectors.joining(",")),
+                    relatedTypes.stream().map(UIEntityType::apiStr).collect(Collectors.joining(",")), ex);
+                expandedOidsInScope = immediateOidsInScope;
+            }
         } else {
             expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
                 immediateOidsInScope);
         }
 
-        // if the user is scoped and this is not a plan, we need to check if the user has
-        // access to the resulting entity set.
         if (!scope.isPlan()) {
             UserScopeUtils.checkAccess(userSessionContext, expandedOidsInScope);
         }
+        return expandedOidsInScope;
+    }
 
-        return StatsQueryScope.some(expandedOidsInScope);
+    /**
+     * Expands input scope given the input stats.
+     *
+     * @param scope the input scope.
+     * @param statistics the requested stats.
+     * @return expanded scope represented by a {@link StatsQueryScope} object.
+     */
+    @Nonnull
+    public StatsQueryScope expandScope(@Nonnull final ApiId scope,
+                                       @Nonnull final List<StatApiInputDTO> statistics) {
+        final Set<UIEntityType> relatedTypes = CollectionUtils.emptyIfNull(statistics).stream()
+            .map(StatApiInputDTO::getRelatedEntityType)
+            .filter(Objects::nonNull)
+            .map(UIEntityType::fromString)
+            .collect(Collectors.toSet());
+
+        final GlobalScope globalScope = findGlobalScope(scope, relatedTypes);
+        final Set<Long> scopeOids;
+
+        if (globalScope == null) {
+            scopeOids = scope.getScopeOids(userSessionContext);
+        } else {
+            scopeOids = null;
+        }
+
+        return new StatQueryScopeLazyLoader(this, scope, globalScope, scopeOids, relatedTypes);
     }
 
     private Set<Long> findConnectedVmOids(@Nonnull final Set<Long> volumeOids) {
@@ -230,7 +317,7 @@ public class StatsQueryScopeExpander {
     }
 
     private boolean shouldConnectedVmBeSeparatelyAdded(@Nonnull final ApiId scope,
-                                                       @Nonnull final List<UIEntityType> relatedTypes) {
+                                                       @Nonnull final Set<UIEntityType> relatedTypes) {
         return relatedTypes.size() == 1 && relatedTypes.contains(UIEntityType.VIRTUAL_MACHINE) &&
             scope.getScopeTypes()
                 .filter(set -> set.contains(UIEntityType.VIRTUAL_VOLUME))

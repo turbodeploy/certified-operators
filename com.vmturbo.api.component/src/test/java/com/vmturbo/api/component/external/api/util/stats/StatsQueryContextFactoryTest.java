@@ -56,7 +56,7 @@ public class StatsQueryContextFactoryTest {
             .thenReturn(Collections.singletonList(targetInfo));
 
         ApiId scope = mock(ApiId.class);
-        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
         StatPeriodApiInputDTO inputDTO = new StatPeriodApiInputDTO();
         inputDTO.setStartDate(DateTimeUtil.toString(clock.millis() - 5000));
         inputDTO.setEndDate(DateTimeUtil.toString(clock.millis() + 5000));
@@ -67,7 +67,7 @@ public class StatsQueryContextFactoryTest {
         final StatsQueryContext context = factory.newContext(scope, expandedScope, inputDTO);
 
         assertThat(context.getInputScope(), is(scope));
-        assertThat(context.getQueryScope().getEntities(), is(Collections.singleton(1L)));
+        assertThat(context.getQueryScope().getExpandedOids(), is(Collections.singleton(1L)));
         assertThat(context.getTimeWindow(), is(Optional.of(ImmutableTimeWindow.builder()
             .startTime(clock.millis() - 5000)
             .endTime(clock.millis() + 5000)

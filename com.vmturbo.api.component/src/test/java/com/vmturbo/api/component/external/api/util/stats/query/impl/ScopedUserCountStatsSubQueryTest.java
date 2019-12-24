@@ -87,7 +87,10 @@ public class ScopedUserCountStatsSubQueryTest {
         long millis=System.currentTimeMillis();
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(context.getQueryScope()).thenReturn(StatsQueryScope.some(entities));
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(queryScope.getExpandedOids()).thenReturn(entities);
+        when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getSessionContext()).thenReturn(userSessionContext);
         when(context.requestProjected()).thenReturn(true);
         when(context.getCurTime()).thenReturn(millis);

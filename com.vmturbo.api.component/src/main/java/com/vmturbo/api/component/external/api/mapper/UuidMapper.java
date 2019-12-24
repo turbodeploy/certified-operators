@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -16,7 +15,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
@@ -29,12 +27,11 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -42,6 +39,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
@@ -318,6 +316,9 @@ public class UuidMapper {
 
         private final SetOnce<Boolean> isPlan = new SetOnce<>();
 
+        private Set<Long> targetOids = null;
+        private final Object targetOidsLock = new Object();
+
         /**
          * If this is a group, it will be set to a {@link CachedGroupInfo}.
          * If this is decisively NOT a group, it will be set to an empty {@link Optional}.
@@ -386,6 +387,62 @@ public class UuidMapper {
 
             return getCachedEntityInfo().map(CachedEntityInfo::getEntityType)
                 .map(Collections::singleton);
+        }
+
+        /**
+         * Get the entity oids in this scope.
+         *
+         * @param userSessionContext if not null makes sure user has access to the scope.
+         * @return the set of entity oids.
+         */
+        @Nonnull
+        public Set<Long> getScopeOids(@Nullable UserSessionContext userSessionContext) {
+            final Set<Long> result;
+            if (isRealtimeMarket()) {
+                if (userSessionContext != null && userSessionContext.isUserScoped()) {
+                    result = userSessionContext
+                        .getUserAccessScope().accessibleOids().toSet();
+                } else {
+                    // There is not a point of getting all market oids
+                    result = Collections.emptySet();
+                }
+            } else if (isEntity()) {
+                result = Collections.singleton(oid);
+            } else if (isGroup()) {
+                result = getCachedGroupInfo().get().getEntityIds();
+            } else if (isPlan()) {
+                result = getPlanInstance()
+                    .map(MarketMapper::getPlanScopeIds)
+                    .orElse(Collections.emptySet());
+            } else if (isTarget()) {
+                synchronized (targetOidsLock) {
+                    if (targetOids == null) {
+                        targetOids = repositoryApi.newSearchRequest(
+                            SearchProtoUtil.makeSearchParameters(
+                                SearchProtoUtil.discoveredBy(oid()))
+                                .build())
+                            .getOids();
+                    }
+                    result = Collections.unmodifiableSet(targetOids);
+                }
+            } else {
+                result = Collections.emptySet();
+            }
+
+            if (userSessionContext != null && !isRealtimeMarket() && !isPlan()) {
+                UserScopeUtils.checkAccess(userSessionContext, result);
+            }
+            return result;
+        }
+
+        /**
+         * Get the entity oids in this scope.
+         *
+         * @return the set of entity oids.
+         */
+        @Nonnull
+        public Set<Long> getScopeOids() {
+            return getScopeOids(null);
         }
 
         @Nonnull
