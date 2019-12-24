@@ -12,6 +12,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
@@ -98,6 +100,11 @@ public class GroupConfig {
         return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
+    @Bean
+    public ScheduleServiceBlockingStub scheduleServiceClient() {
+        return ScheduleServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
     /**
      * Async stub for the setting policy.
      * @return Async Setting Policy Service client.
@@ -145,6 +152,7 @@ public class GroupConfig {
                     groupServiceBlockingStub(),
                     settingServiceClient(),
                     settingServiceClientAsync(),
+                    scheduleServiceClient(),
                     entitySettingsChunksSize);
     }
 

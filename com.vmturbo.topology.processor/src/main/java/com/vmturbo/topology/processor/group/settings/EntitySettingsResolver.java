@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -37,6 +38,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
@@ -85,6 +89,8 @@ public class EntitySettingsResolver {
 
     private final SettingPolicyServiceStub settingPolicyServiceAsyncStub;
 
+    private final ScheduleServiceBlockingStub scheduleServiceBlockingStub;
+
     private final int chunkSize;
 
     // settingSpecName -> SettingResolver
@@ -93,23 +99,25 @@ public class EntitySettingsResolver {
 
     /**
      * Create a new settings manager.
-     *
-     * @param settingPolicyServiceClient The service to use to retrieve setting policy definitions.
+     *  @param settingPolicyServiceClient The service to use to retrieve setting policy definitions.
      * @param groupServiceClient The service to use to retrieve group definitions.
      * @param settingServiceClient The service to use to retrieve setting service definitions.
      * @param settingPolicyServiceAsyncStub The service to use to retrieve setting service
-     *                                      definitions asynchronously.
+*                                      definitions asynchronously.
+     * @param scheduleServiceBlockingStub The service to use to retrieve schedules.
      * @param chunkSize Size of chunks for uploading entity settings to the group component.
      */
     public EntitySettingsResolver(@Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceClient,
                                   @Nonnull final GroupServiceBlockingStub groupServiceClient,
                                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                   @Nonnull final SettingPolicyServiceStub settingPolicyServiceAsyncStub,
+                                  @Nonnull final ScheduleServiceBlockingStub scheduleServiceBlockingStub,
                                   final int chunkSize) {
         this.settingPolicyServiceClient = Objects.requireNonNull(settingPolicyServiceClient);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
         this.settingPolicyServiceAsyncStub = Objects.requireNonNull(settingPolicyServiceAsyncStub);
+        this.scheduleServiceBlockingStub = Objects.requireNonNull(scheduleServiceBlockingStub);
         this.chunkSize = chunkSize;
         this.settingSpecNameToSettingResolver = ImmutableMap.of(
             EntitySettingSpecs.ExcludedTemplates.getSettingName(),
@@ -168,8 +176,9 @@ public class EntitySettingsResolver {
         // SettingSpecName -> SettingSpec
         final Map<String, SettingSpec> settingSpecNameToSettingSpecs = getAllSettingSpecs();
 
-        // resolver to determine if a schedule applies at the canonical moment (i.e. right now)
-        final ScheduleResolver scheduleResolver = new ScheduleResolver(Instant.now());
+        // collect all schedules used by setting policies. Only user polices can have schedules
+        final Map<Long, Schedule> schedules = getSchedules(userAndDiscoveredSettingPolicies,
+            Instant.now());
 
         // For each group, resolve it to get its entities. Then apply the settings
         // from the SettingPolicies associated with the group to the resolved entities
@@ -181,8 +190,8 @@ public class EntitySettingsResolver {
                 final Grouping group = groups.get(groupId);
                 if (group != null ) {
                     final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
-                    resolveAllEntitySettings(allEntitiesInGroup, settingPolicies, scheduleResolver,
-                        userSettingsByEntityAndName, settingSpecNameToSettingSpecs);
+                    resolveAllEntitySettings(allEntitiesInGroup, settingPolicies,
+                        userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules);
                 } else {
                     logger.error("Group {} does not exist.", groupId);
                 }
@@ -226,19 +235,18 @@ public class EntitySettingsResolver {
      *
      * @param entities List of entity OIDs
      * @param settingPolicies List of settings policies to be applied to the entities
-     * @param scheduleResolver Used to determine if a settings policy schedule applies when
-     *             the settings are being resolved.
      * @param userSettingsByEntityAndName The return parameter which
      *             maps an entityId with its associated settings indexed by the
      *             settingsSpecName
      * @param settingSpecNameToSettingSpecs Map of SettingSpecName to SettingSpecs
+     * @param schedules Schedules used by settings policies
      */
     @VisibleForTesting
     void resolveAllEntitySettings(@Nonnull final Set<Long> entities,
                                   @Nonnull final List<SettingPolicy> settingPolicies,
-                                  @Nonnull final ScheduleResolver scheduleResolver,
                                   @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
-                                  @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs) {
+                                  @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs,
+                                  @Nonnull final Map<Long, Schedule> schedules) {
         checkNotNull(userSettingsByEntityAndName);
 
         for (Long oid: entities) {
@@ -247,12 +255,12 @@ public class EntitySettingsResolver {
                 userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
 
             for (SettingPolicy sp : settingPolicies) {
-                if (inEffectNow(sp, scheduleResolver)) {
+                if (inEffectNow(sp, schedules)) {
                     SettingPolicy.Type nextType = sp.getSettingPolicyType();
                     sp.getInfo().getSettingsList().forEach(nextSetting -> {
                         final String specName = nextSetting.getSettingSpecName();
                         final long nextSettingPolicyId = sp.getId();
-                        final boolean hasSchedule = sp.getInfo().hasDeprecatedSchedule();
+                        final boolean hasSchedule = sp.getInfo().hasScheduleId();
                         if (!settingsByName.containsKey(specName)) {
                             settingsByName.put(specName, new SettingAndPolicyIdRecord(
                                 nextSetting, nextSettingPolicyId, nextType, hasSchedule));
@@ -275,13 +283,24 @@ public class EntitySettingsResolver {
      * effect) or if it has a schedule and the schedule applies now.
      *
      * @param sp a setting policy with or without a schedule
-     * @param scheduleResolver resolves whether a schedule applies
+     * @param schedules a map of schedules used by setting policies
      * @return whether the policy is in effect
      */
-    private static boolean inEffectNow(SettingPolicy sp, ScheduleResolver scheduleResolver) {
-        return !sp.getInfo().hasDeprecatedSchedule()
-                || scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getDeprecatedSchedule());
+    private boolean inEffectNow(@Nonnull final SettingPolicy sp,
+                                @Nonnull final Map<Long, Schedule> schedules) {
+        if (!sp.getInfo().hasScheduleId()) {
+            return true;
+        }
+        final long scheduleId = sp.getInfo().getScheduleId();
+        if (!schedules.containsKey(scheduleId)) {
+            logger.error("Unexpectedly scheule ID {} not found in list if schedules used by " +
+                "setting policy {}", () -> scheduleId, () -> sp.getId());
+        } else {
+            return schedules.get(scheduleId).hasActive();
+        }
+        return false;
     }
+
 
     /**
      * Create EntitySettings message.
@@ -504,6 +523,31 @@ public class EntitySettingsResolver {
             });
 
         return groups;
+    }
+
+    /**
+     * Get all schedules used by settings policies upfront.
+     *
+     * @param settingPolicies Setting policies to resolve
+     * @param resolutionInstant Instant to resolve sschedule
+     * @return Map of {@link Schedule} keyed by schedule ID
+     */
+    @Nonnull
+    private Map<Long, Schedule> getSchedules(@Nonnull final List<SettingPolicy> settingPolicies,
+                                             @Nonnull  final Instant resolutionInstant) {
+        List<Long> scheduleIds = settingPolicies.stream().filter(sPolicy ->
+            sPolicy.getInfo().hasScheduleId())
+            .map(settingPolicy -> settingPolicy.getInfo().getScheduleId())
+            .collect(Collectors.toList());
+        final Map<Long, Schedule> scheduleMap = Maps.newHashMap();
+        if (!scheduleIds.isEmpty()) {
+            scheduleServiceBlockingStub.getSchedules(GetSchedulesRequest.newBuilder()
+                .addAllOid(scheduleIds)
+                .setRefTime(resolutionInstant.toEpochMilli())
+                .build())
+                .forEachRemaining(schedule -> scheduleMap.put(schedule.getId(), schedule));
+        }
+        return scheduleMap;
     }
 
     /**

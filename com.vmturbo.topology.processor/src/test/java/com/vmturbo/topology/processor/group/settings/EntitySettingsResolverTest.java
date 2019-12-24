@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
@@ -49,6 +50,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
+import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
@@ -59,8 +66,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingTo
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.OneTime;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -106,6 +111,8 @@ public class EntitySettingsResolverTest {
 
     private SettingServiceBlockingStub settingServiceClient;
 
+    private ScheduleServiceBlockingStub scheduleServiceClient;
+
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
 
     private final SettingPolicyServiceMole testSettingPolicyService =
@@ -113,6 +120,9 @@ public class EntitySettingsResolverTest {
 
     private final SettingServiceMole testSettingService =
         spy(new SettingServiceMole());
+
+    private final ScheduleServiceMole testScheduleService =
+        spy(new ScheduleServiceMole());
 
     private final SettingOverrides settingOverrides = mock(SettingOverrides.class);
 
@@ -197,27 +207,35 @@ public class EntitySettingsResolverTest {
             .put(SPEC_4, SettingSpec.newBuilder(SPEC_BIGGER_TIEBREAKER).setName(SPEC_4).build())
             .build();
 
-    private static final ScheduleResolver scheduleResolver = mock(ScheduleResolver.class);
-    private static final Schedule APPLIES_NOW = createOneTimeSchedule(4815162342L, 20);
-    private static final Schedule NOT_NOW = createOneTimeSchedule(11235813L, 20);
+    //private static final ScheduleResolver scheduleResolver = mock(ScheduleResolver.class);
+    private static final Schedule APPLIES_NOW =
+        createOneTimeSchedule(11L, 4815162342L, 4815169500L)
+        .toBuilder()
+        .setActive(Active.getDefaultInstance())
+        .build();
+    private static final Schedule NOT_NOW = createOneTimeSchedule(22L, 11235813L,  11242980L);
     private static final int CHUNK_SIZE = 1;
+    /*
     static {
-        when(scheduleResolver.appliesAtResolutionInstant(APPLIES_NOW)).thenReturn(true);
-        when(scheduleResolver.appliesAtResolutionInstant(NOT_NOW)).thenReturn(false);
-    }
-
+        when(scheduleResolver.appliesAtResolutionInstant(eq(APPLIES_NOW.getId()),
+            any(ScheduleServiceBlockingStub.class))).thenReturn(true);
+        when(scheduleResolver.appliesAtResolutionInstant(eq(NOT_NOW.getId()),
+            any(ScheduleServiceBlockingStub.class))).thenReturn(false);
+    }*/
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
-            testSettingPolicyService, testSettingService);
+            testSettingPolicyService, testSettingService, testScheduleService);
 
     @Before
     public void setup() {
         settingPolicyServiceClient = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        scheduleServiceClient = ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel());
         settingPolicyServiceClientAsync = SettingPolicyServiceGrpc.newStub(grpcServer.getChannel());
         entitySettingsResolver = new EntitySettingsResolver(settingPolicyServiceClient,
-            groupServiceClient, settingServiceClient, settingPolicyServiceClientAsync, CHUNK_SIZE);
+            groupServiceClient, settingServiceClient, settingPolicyServiceClientAsync,
+            scheduleServiceClient, CHUNK_SIZE);
     }
 
     /**
@@ -390,14 +408,14 @@ public class EntitySettingsResolverTest {
             Collections.singletonMap(specName, EntitySettingSpecs.ExcludedTemplates.getSettingSpec());
 
         entitySettingsResolver.resolveAllEntitySettings(Sets.newHashSet(entityOid2, entityOid3),
-            Collections.singletonList(settingPolicy2), scheduleResolver,
-            entitySettingsBySettingNameMap, settingNameToSettingSpecs);
+            Collections.singletonList(settingPolicy2),
+            entitySettingsBySettingNameMap, settingNameToSettingSpecs, Collections.emptyMap());
         entitySettingsResolver.resolveAllEntitySettings(Sets.newHashSet(entityOid1, entityOid2),
-            Collections.singletonList(settingPolicy1), scheduleResolver,
-            entitySettingsBySettingNameMap, settingNameToSettingSpecs);
+            Collections.singletonList(settingPolicy1),
+            entitySettingsBySettingNameMap, settingNameToSettingSpecs, Collections.emptyMap());
         entitySettingsResolver.resolveAllEntitySettings(Sets.newHashSet(entityOid3),
-            Collections.singletonList(settingPolicy3), scheduleResolver,
-            entitySettingsBySettingNameMap, settingNameToSettingSpecs);
+            Collections.singletonList(settingPolicy3),
+            entitySettingsBySettingNameMap, settingNameToSettingSpecs, Collections.emptyMap());
 
         SettingAndPolicyIdRecord record1 = entitySettingsBySettingNameMap.get(entityOid1).get(specName);
         assertEquals(SettingPolicy.Type.DISCOVERED, record1.getType());
@@ -429,7 +447,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Collections.singletonList(settingPolicy1);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, settingSpecs);
+            entitySettingsBySettingNameMap, settingSpecs, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -449,7 +467,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Collections.singletonList(settingPolicyNotNow);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, settingSpecs);
+            entitySettingsBySettingNameMap, settingSpecs, Collections.emptyMap());
 
         assertTrue(settingSpecs.isEmpty());
         entitySettingsBySettingNameMap.values().forEach(map -> assertTrue(map.isEmpty()));
@@ -468,7 +486,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
             Collections.singletonList(settingPolicyNow1),
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -480,7 +498,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
             Collections.singletonList(settingPolicyNow2),
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         appliedSettings = new ArrayList<>(entitySettingsBySettingNameMap.get(entityOid1).values());
 
@@ -505,7 +523,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Lists.newArrayList(settingPolicyNotNow, settingPolicyNow);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -514,7 +532,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
             Collections.singletonList(settingPolicyNow),
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         entitySettingsBySettingNameMap.forEach((id, map) ->
             assertFalse(map.containsKey("settingSpec4")));
@@ -536,7 +554,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Lists.newArrayList(settingPolicyWithSchedule, settingPolicy3);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS,getSchedules());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -545,7 +563,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
             Collections.singletonList(settingPolicy2),
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -570,7 +588,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Lists.newArrayList(settingPolicyNotNow, settingPolicy2);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -591,7 +609,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Collections.singletonList(settingPolicy1);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -602,7 +620,7 @@ public class EntitySettingsResolverTest {
         // settings with the same specs but different values.
         entitySettingsResolver.resolveAllEntitySettings(entities,
             Collections.singletonList(settingPolicy1a),
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -628,7 +646,7 @@ public class EntitySettingsResolverTest {
         List<SettingPolicy> policies = Lists.newArrayList(settingPolicy1, settingPolicy4);
 
         entitySettingsResolver.resolveAllEntitySettings(entities, policies,
-            scheduleResolver, entitySettingsBySettingNameMap, SPECS);
+            entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -821,11 +839,13 @@ public class EntitySettingsResolverTest {
             .build();
     }
 
-    private static Schedule createOneTimeSchedule(long startTime, int duration) {
+    private static Schedule createOneTimeSchedule(long schduleId, long startTime, long endTime) {
         return Schedule.newBuilder()
+                .setId(schduleId)
                 .setOneTime(OneTime.getDefaultInstance())
                 .setStartTime(startTime)
-                .setMinutes(duration)
+                .setEndTime(endTime)
+                .setTimezoneId("timeZoneId")
                 .build();
     }
 
@@ -919,6 +939,14 @@ public class EntitySettingsResolverTest {
     }
 
     private SettingPolicy addSchedule(SettingPolicy policy, Schedule schedule) {
-        return policy.toBuilder().setInfo(policy.getInfo().toBuilder().setDeprecatedSchedule(schedule)).build();
+        return policy.toBuilder().setInfo(policy.getInfo().toBuilder().setScheduleId(
+            schedule.getId())).build();
+    }
+
+    private Map<Long, Schedule> getSchedules() {
+        Map<Long, Schedule> schedules = Maps.newHashMap();
+        schedules.put(APPLIES_NOW.getId(), APPLIES_NOW);
+        schedules.put(NOT_NOW.getId(), NOT_NOW);
+        return schedules;
     }
 }
