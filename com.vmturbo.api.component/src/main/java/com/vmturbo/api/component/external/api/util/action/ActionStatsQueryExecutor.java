@@ -16,17 +16,18 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -78,12 +79,14 @@ public class ActionStatsQueryExecutor {
                                     @Nonnull final GroupExpander groupExpander,
                                     @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                     @Nonnull final UserSessionContext userSessionContext,
-                                    @Nonnull final RepositoryApi repositoryApi) {
+                                    @Nonnull final RepositoryApi repositoryApi,
+                                    @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
         this(actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
-            new HistoricalQueryMapper(actionSpecMapper),
-            new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory, userSessionContext, repositoryApi),
+            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler),
+            new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory,
+                    userSessionContext, repositoryApi, buyRiScopeHandler),
             new ActionStatsMapper(clock, actionSpecMapper),
             repositoryApi);
     }

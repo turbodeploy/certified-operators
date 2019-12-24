@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -30,6 +32,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -39,7 +42,6 @@ import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.Ent
 import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.GroupByExtractor;
 import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.ScopeFilterExtractor;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
@@ -90,7 +92,8 @@ public class CurrentQueryMapperTest {
         final ActionGroupFilter actionGroupFilter = ActionGroupFilter.newBuilder()
             .addActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
             .build();
-        when(actionGroupFilterExtractor.extractActionGroupFilter(query))
+        final ApiId scopeId = ApiTestUtils.mockEntityId("1");
+        when(actionGroupFilterExtractor.extractActionGroupFilter(query, scopeId))
             .thenReturn(actionGroupFilter);
         final List<GroupBy> groupByList = Arrays.asList(GroupBy.ACTION_CATEGORY, GroupBy.ACTION_STATE);
         when(groupByExtractor.extractGroupByCriteria(query))
@@ -98,10 +101,8 @@ public class CurrentQueryMapperTest {
         final ScopeFilter scopeFilter = ScopeFilter.newBuilder()
             .setTopologyContextId(123L)
             .build();
-        final ApiId scopeId = ApiTestUtils.mockEntityId("1");
         when(scopeFilterExtractor.extractScopeFilters(query))
             .thenReturn(ImmutableMap.of(scopeId, scopeFilter));
-
 
         // ACT
         final Map<ApiId, CurrentActionStatsQuery> result = queryMapper.mapToCurrentQueries(query);
@@ -128,8 +129,8 @@ public class CurrentQueryMapperTest {
         when(groupExpander.expandOids(originalScope)).thenReturn(expandedScope);
         when(supplyChainFetcherFactory.expandGroupingServiceEntities(expandedScope)).thenReturn(expandedScope);
 
-        final EntityScope entityScope = scopeFactory.createEntityScope(
-                originalScope, Collections.emptySet(), Optional.empty(), userScope);
+        final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
+                Collections.emptySet(), Optional.empty(), userScope, Collections.emptySet());
 
         verify(groupExpander).expandOids(originalScope);
         verify(userScope).filter(expandedScope);
@@ -196,20 +197,23 @@ public class CurrentQueryMapperTest {
 
         // Test scope with just cloud env type
         final EntityScope entityScopeCloud = scopeFactory.createEntityScope(
-                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.CLOUD), userScope);
+                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.CLOUD),
+                userScope, Collections.emptySet());
         Assert.assertEquals(2, entityScopeCloud.getOidsList().size());
         assertThat(entityScopeCloud.getOidsList(), containsInAnyOrder(cloudScope.toArray()));
 
         // Test scope with just on prem env type
         final EntityScope entityScopeOnPrem = scopeFactory.createEntityScope(
-                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.ON_PREM), userScope);
+                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.ON_PREM),
+                userScope, Collections.emptySet());
         assertThat(entityScopeOnPrem.getOidsList(), containsInAnyOrder(onPremScope.toArray()));
         Assert.assertEquals(2, entityScopeOnPrem.getOidsList().size());
 
 
         // Test scope with hybrid env type
         final EntityScope entityScopeHybrid = scopeFactory.createEntityScope(
-                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.HYBRID), userScope);
+                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.HYBRID),
+                userScope, Collections.emptySet());
         assertThat(entityScopeHybrid.getOidsList(), containsInAnyOrder(fullScope.toArray()));
         Assert.assertEquals(4, entityScopeHybrid.getOidsList().size());
     }
@@ -238,7 +242,8 @@ public class CurrentQueryMapperTest {
         final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
             relatedTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            userScope);
+            userScope,
+            Collections.emptySet());
 
         verify(nodeFetcherBuilder).entityTypes(Collections.singletonList(
             UIEntityType.VIRTUAL_MACHINE.apiStr()));
@@ -247,7 +252,6 @@ public class CurrentQueryMapperTest {
         verify(nodeFetcherBuilder).environmentType(EnvironmentType.ON_PREM);
 
         assertThat(entityScope.getOidsList(), containsInAnyOrder(relatedVms.toArray()));
-
     }
 
     @Test
@@ -257,8 +261,9 @@ public class CurrentQueryMapperTest {
         when(entityAccessScope.containsAll()).thenReturn(true);
 
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         final ApiId mktId = ApiTestUtils.mockRealtimeId("7", 7);
@@ -283,8 +288,9 @@ public class CurrentQueryMapperTest {
         when(entityAccessScope.containsAll()).thenReturn(true);
 
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         final ApiId mktId = ApiTestUtils.mockRealtimeId("7", 7);
@@ -313,8 +319,9 @@ public class CurrentQueryMapperTest {
         when(entityAccessScope.accessibleOids()).thenReturn(new ArrayOidSet(accessibleOids));
 
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         final ApiId mktId = ApiTestUtils.mockRealtimeId("7", 7);
@@ -327,7 +334,7 @@ public class CurrentQueryMapperTest {
             .addOids(1029)
             .build();
 
-        when(entityScopeFactory.createEntityScope(any(), any(), any(), any()))
+        when(entityScopeFactory.createEntityScope(any(), any(), any(), any(), any()))
             .thenReturn(entityScope);
 
         final Map<ApiId, ScopeFilter> result = scopeFilterExtractor.extractScopeFilters(query);
@@ -336,7 +343,8 @@ public class CurrentQueryMapperTest {
             Sets.newHashSet(accessibleOids),
             relatedEntityTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            entityAccessScope);
+            entityAccessScope,
+            Collections.emptySet());
 
         assertThat(result.keySet(), contains(mktId));
         assertThat(result.get(mktId), is(ScopeFilter.newBuilder()
@@ -351,8 +359,9 @@ public class CurrentQueryMapperTest {
         when(userSessionContext.getUserAccessScope()).thenReturn(entityAccessScope);
 
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getEnvironmentType()).thenReturn(Optional.of(EnvironmentType.ON_PREM));
         final Set<Integer> relatedTypes = Sets.newHashSet(10, 11);
@@ -366,7 +375,7 @@ public class CurrentQueryMapperTest {
             .addOids(1029)
             .build();
 
-        when(entityScopeFactory.createEntityScope(any(), any(), any(), any()))
+        when(entityScopeFactory.createEntityScope(any(), any(), any(), any(), any()))
             .thenReturn(entityScope);
 
         final Map<ApiId, ScopeFilter> filters = scopeFilterExtractor.extractScopeFilters(query);
@@ -374,12 +383,14 @@ public class CurrentQueryMapperTest {
             Collections.singleton(1L),
             relatedTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            entityAccessScope);
+            entityAccessScope,
+            Collections.emptySet());
         verify(entityScopeFactory).createEntityScope(
             Collections.singleton(2L),
             relatedTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            entityAccessScope);
+            entityAccessScope,
+            Collections.emptySet());
 
         assertThat(filters.keySet(), containsInAnyOrder(e1Id, e2Id));
         assertThat(filters.get(e1Id), is(ScopeFilter.newBuilder()
@@ -401,11 +412,12 @@ public class CurrentQueryMapperTest {
         when(actionSpecMapper.mapApiModeToXl(ActionMode.COLLECTION))
             .thenReturn(Optional.empty());
 
-        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(actionSpecMapper);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+            actionSpecMapper, buyRiScopeHandler);
         final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
-            ImmutableActionStatsQuery.builder()
-                .actionInput(inputDTO)
-                .build());
+            makeQuery(inputDTO),
+            ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionModeList(),
             containsInAnyOrder(ActionDTO.ActionMode.AUTOMATIC, ActionDTO.ActionMode.MANUAL));
     }
@@ -423,11 +435,12 @@ public class CurrentQueryMapperTest {
         when(actionSpecMapper.mapApiStateToXl(ActionState.ACCOUNTING))
             .thenReturn(Optional.empty());
 
-        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(actionSpecMapper);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+            actionSpecMapper, buyRiScopeHandler);
         final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
-            ImmutableActionStatsQuery.builder()
-                .actionInput(inputDTO)
-                .build());
+            makeQuery(inputDTO),
+            ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionStateList(),
             containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.READY));
     }
@@ -437,14 +450,32 @@ public class CurrentQueryMapperTest {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setActionTypeList(Arrays.asList(ActionType.SUSPEND,
             ActionType.MOVE, ActionType.RESERVE_ON_DS));
-        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(actionSpecMapper);
+        final BuyRiScopeHandler buyRiScopeHandler = new BuyRiScopeHandler();
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+            actionSpecMapper, buyRiScopeHandler);
         final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
-            ImmutableActionStatsQuery.builder()
-                .actionInput(inputDTO)
-                .build());
+            makeQuery(inputDTO),
+            ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionTypeList(),
             containsInAnyOrder(ActionDTO.ActionType.MOVE, ActionDTO.ActionType.SUSPEND,
-                ActionDTO.ActionType.DEACTIVATE,ActionDTO.ActionType.NONE));
+                ActionDTO.ActionType.DEACTIVATE, ActionDTO.ActionType.NONE));
+    }
+
+    @Test
+    public void testActionGroupFilterExtractorTypeWithBuyRI() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setActionTypeList(Arrays.asList(ActionType.SUSPEND, ActionType.MOVE));
+        final Set<ActionDTO.ActionType> buyRiActionTypes = ImmutableSet.of(
+                ActionDTO.ActionType.BUY_RI);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        when(buyRiScopeHandler.extractActionTypes(any(), any())).thenReturn(buyRiActionTypes);
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertThat(groupFilter.getActionTypeList(),
+                is(Collections.singletonList(ActionDTO.ActionType.BUY_RI)));
     }
 
     @Test
@@ -458,11 +489,12 @@ public class CurrentQueryMapperTest {
         when(actionSpecMapper.mapApiActionCategoryToXl("foo"))
             .thenReturn(Optional.empty());
 
-        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(actionSpecMapper);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+            actionSpecMapper, buyRiScopeHandler);
         final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
-            ImmutableActionStatsQuery.builder()
-                .actionInput(inputDTO)
-                .build());
+            makeQuery(inputDTO),
+            ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionCategoryList(),
             containsInAnyOrder(ActionCategory.PERFORMANCE_ASSURANCE, ActionCategory.COMPLIANCE));
     }
@@ -521,15 +553,24 @@ public class CurrentQueryMapperTest {
             .actionInput(actionInput)
             .build();
 
-        EntityScopeFactory entityScopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi);
-        ScopeFilterExtractor scopeFitlerExtrator = new ScopeFilterExtractor(userSessionContext, entityScopeFactory);
-        Map<ApiId, ScopeFilter> scopeFilters = scopeFitlerExtrator.extractScopeFilters(actionStatsQuery);
+        EntityScopeFactory entityScopeFactory = new EntityScopeFactory(groupExpander,
+                supplyChainFetcherFactory, repositoryApi);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        ScopeFilterExtractor scopeFilterExtractor = new ScopeFilterExtractor(userSessionContext,
+                entityScopeFactory, buyRiScopeHandler);
+        Map<ApiId, ScopeFilter> scopeFilters = scopeFilterExtractor.extractScopeFilters(actionStatsQuery);
         Assert.assertEquals(1, scopeFilters.size());
         Assert.assertTrue(scopeFilters.containsKey(apiId));
         ScopeFilter actual = scopeFilters.get(apiId);
         Assert.assertTrue(actual.hasGlobal());
         Assert.assertEquals(EnvironmentType.CLOUD, actual.getGlobal().getEnvironmentType());
-        Assert.assertEquals(ImmutableSet.of(UIEntityType.VIRTUAL_MACHINE.typeNumber()), new HashSet<>(actual.getGlobal().getEntityTypeList()));
+        Assert.assertEquals(ImmutableSet.of(UIEntityType.VIRTUAL_MACHINE.typeNumber()),
+                new HashSet<>(actual.getGlobal().getEntityTypeList()));
     }
 
+    private static ActionStatsQuery makeQuery(@Nonnull final ActionApiInputDTO inputDTO) {
+        return ImmutableActionStatsQuery.builder()
+                .actionInput(inputDTO)
+                .build();
+    }
 }

@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -13,16 +14,18 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
-import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -54,7 +57,6 @@ public class HistoricalQueryMapperTest {
 
         inputDto.setActionModeList(Arrays.asList(ActionMode.AUTOMATIC, ActionMode.MANUAL));
         inputDto.setActionStateList(Arrays.asList(ActionState.ACCEPTED, ActionState.IN_PROGRESS));
-        inputDto.setActionTypeList(Arrays.asList(ActionType.MOVE, ActionType.RESIZE));
         inputDto.setRiskSubCategoryList(Arrays.asList("effImpr", "compliance"));
 
         final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
@@ -72,6 +74,10 @@ public class HistoricalQueryMapperTest {
         when(actionSpecMapper.mapApiActionCategoryToXl("compliance"))
             .thenReturn(Optional.of(ActionCategory.COMPLIANCE));
 
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        when(buyRiScopeHandler.extractActionTypes(any(), any()))
+                .thenReturn(ImmutableSet.of(ActionDTO.ActionType.MOVE, ActionDTO.ActionType.RESIZE));
+
         inputDto.setEnvironmentType(EnvironmentType.CLOUD);
         inputDto.setRelatedEntityTypes(Collections.singletonList("PhysicalMachine"));
         inputDto.setGroupBy(Collections.singletonList(StringConstants.RISK_SUB_CATEGORY));
@@ -84,7 +90,8 @@ public class HistoricalQueryMapperTest {
 
         // Act
         final Map<ApiId, HistoricalActionStatsQuery> grpcQueries =
-            new HistoricalQueryMapper(actionSpecMapper).mapToHistoricalQueries(query);
+            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler)
+                    .mapToHistoricalQueries(query);
 
         // Assert
         assertThat(grpcQueries.keySet(), contains(apiId));
@@ -120,7 +127,8 @@ public class HistoricalQueryMapperTest {
             .entityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .actionInput(new ActionApiInputDTO())
             .build();
-        final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(mock(ActionSpecMapper.class))
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
+                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class))
             .extractMgmtUnitSubgroupFilter(query);
         assertTrue(filters.get(mktScope).getMarket());
         assertThat(filters.get(mktScope).getEntityTypeList(),
@@ -144,7 +152,8 @@ public class HistoricalQueryMapperTest {
             .addScopes(mktScope)
             .actionInput(new ActionApiInputDTO())
             .build();
-        final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(mock(ActionSpecMapper.class))
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
+                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class))
             .extractMgmtUnitSubgroupFilter(query);
         assertTrue(filters.get(mktScope).getMarket());
 

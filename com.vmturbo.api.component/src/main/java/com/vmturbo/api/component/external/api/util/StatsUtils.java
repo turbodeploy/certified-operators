@@ -2,23 +2,19 @@ package com.vmturbo.api.component.external.api.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Collections;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class StatsUtils {
@@ -106,34 +102,5 @@ public class StatsUtils {
         public int getPrecision() {
             return precision;
         }
-    }
-
-    /**
-     * Determines if the buy RI discount should be included in the costs queried for the input
-     * scope.
-     * @param inputScope the input scope.
-     * @return true if the RI buy should be included, false otherwise.
-     */
-    public static boolean shouldIncludeBuyRiDiscount(UuidMapper.ApiId inputScope) {
-        // The buy RI discount should be shown in the realtime market scope
-        if (inputScope.isRealtimeMarket()) {
-            return true;
-        } else if (inputScope.isEntity()) {
-            // The buy RI discount should be shown in scope of a region
-            return inputScope.getScopeTypes().get().equals(Collections.singleton(UIEntityType.REGION));
-        } else if (inputScope.isGroup()) {
-            final UuidMapper.CachedGroupInfo groupInfo = inputScope.getCachedGroupInfo().get();
-
-            // If it is a group of region we should not exclude the buy RI discount
-            if (groupInfo.getEntityTypes().equals(Collections.singleton(UIEntityType.REGION))) {
-                return true;
-            }
-
-            // Otherwise only return true if this is a billing family or group of billing family
-            return groupInfo.getGroupType() == CommonDTO.GroupDTO.GroupType.BILLING_FAMILY
-                || groupInfo.getNestedGroupTypes()
-                .equals(Collections.singleton(CommonDTO.GroupDTO.GroupType.BILLING_FAMILY));
-        }
-        return false;
     }
 }

@@ -19,11 +19,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.ListUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -32,9 +27,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.util.StatsUtils;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -95,7 +95,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     /**
      * Cloud target constant to match UI request, also used in test case
      */
-    public static final String TARGET = "target";
+    private static final String TARGET = "target";
 
     /**
      * Cloud service constant to match UI request, also used in test cases
@@ -105,7 +105,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     /**
      * Cloud service provider constant to match UI request, also used in test cases
      */
-    public static final String CSP = "CSP";
+    private static final String CSP = "CSP";
 
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
@@ -121,27 +121,22 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
-    private final CloudStatRecordAggregator recordAggregator;
+    private final CloudStatRecordAggregator recordAggregator = new CloudStatRecordAggregator();
 
     private final ThinTargetCache thinTargetCache;
 
-    public CloudCostsStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
-                                   @Nonnull final CostServiceBlockingStub costServiceRpc,
-                                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                                   @Nonnull final ThinTargetCache thinTargetCache) {
-        this(repositoryApi, costServiceRpc, supplyChainFetcherFactory, thinTargetCache, new CloudStatRecordAggregator());
-    }
+    private final BuyRiScopeHandler buyRiScopeHandler;
 
     public CloudCostsStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
                                    @Nonnull final CostServiceBlockingStub costServiceRpc,
                                    @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                    @Nonnull final ThinTargetCache thinTargetCache,
-                                   @Nonnull final CloudStatRecordAggregator aggregator) {
+                                   @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
         this.repositoryApi = repositoryApi;
         this.costServiceRpc = costServiceRpc;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.thinTargetCache = thinTargetCache;
-        this.recordAggregator = aggregator;
+        this.buyRiScopeHandler = buyRiScopeHandler;
     }
 
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
@@ -585,7 +580,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 .build());
         }
 
-        if (!StatsUtils.shouldIncludeBuyRiDiscount(context.getInputScope())) {
+        if (!buyRiScopeHandler.shouldIncludeBuyRiDiscount(context.getInputScope())) {
             builder.setCostSourceFilter(GetCloudCostStatsRequest.CostSourceFilter.newBuilder()
                 .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
                 .setExclusionFilter(true)

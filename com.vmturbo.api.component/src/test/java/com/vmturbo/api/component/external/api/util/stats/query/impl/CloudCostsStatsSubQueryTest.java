@@ -37,6 +37,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -111,7 +112,8 @@ public class CloudCostsStatsSubQueryTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = Mockito.spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc, supplyChainFetcherFactory, thinTargetCache));
+        query = Mockito.spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
+                supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler()));
     }
 
     @Test

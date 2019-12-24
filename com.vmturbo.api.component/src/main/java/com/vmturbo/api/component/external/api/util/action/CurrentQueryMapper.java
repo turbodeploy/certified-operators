@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util.action;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -23,8 +22,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -59,11 +58,13 @@ class CurrentQueryMapper {
                        @Nonnull final GroupExpander groupExpander,
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final UserSessionContext userSessionContext,
-                       @Nonnull final RepositoryApi repositoryApi) {
-        this(new ActionGroupFilterExtractor(actionSpecMapper),
+                       @Nonnull final RepositoryApi repositoryApi,
+                       @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
+        this(new ActionGroupFilterExtractor(actionSpecMapper, buyRiScopeHandler),
             new GroupByExtractor(),
             new ScopeFilterExtractor(userSessionContext,
-                new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi)));
+                new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi),
+                    buyRiScopeHandler));
     }
 
     @VisibleForTesting
@@ -88,16 +89,14 @@ class CurrentQueryMapper {
     public Map<ApiId, CurrentActionStatsQuery> mapToCurrentQueries(@Nonnull final ActionStatsQuery query)
             throws OperationFailedException {
 
-        final CurrentActionStatsQuery.ActionGroupFilter actionGroupFilter =
-            actionGroupFilterExtractor.extractActionGroupFilter(query);
-
         final List<GroupBy> groupBy = groupByExtractor.extractGroupByCriteria(query);
 
         final Map<ApiId, ScopeFilter> filtersByScope = scopeFilterExtractor.extractScopeFilters(query);
 
         return filtersByScope.entrySet().stream()
             .collect(Collectors.toMap(Entry::getKey, e -> CurrentActionStatsQuery.newBuilder()
-                .setActionGroupFilter(actionGroupFilter)
+                .setActionGroupFilter(actionGroupFilterExtractor.extractActionGroupFilter(
+                        query, e.getKey()))
                 .setScopeFilter(e.getValue())
                 .addAllGroupBy(groupBy)
                 .build()));
@@ -110,13 +109,18 @@ class CurrentQueryMapper {
     @VisibleForTesting
     static class ActionGroupFilterExtractor {
         private final ActionSpecMapper actionSpecMapper;
+        private final BuyRiScopeHandler buyRiScopeHandler;
 
-        ActionGroupFilterExtractor(@Nonnull final ActionSpecMapper actionSpecMapper) {
+        ActionGroupFilterExtractor(@Nonnull final ActionSpecMapper actionSpecMapper,
+                                   @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
             this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
+            this.buyRiScopeHandler = Objects.requireNonNull(buyRiScopeHandler);
         }
 
         @Nonnull
-        CurrentActionStatsQuery.ActionGroupFilter extractActionGroupFilter(@Nonnull final ActionStatsQuery query) {
+        CurrentActionStatsQuery.ActionGroupFilter extractActionGroupFilter(
+                @Nonnull final ActionStatsQuery query,
+                @Nonnull final ApiId scope) {
             final CurrentActionStatsQuery.ActionGroupFilter.Builder agFilterBldr =
                 CurrentActionStatsQuery.ActionGroupFilter.newBuilder()
                     .setVisible(true);
@@ -144,10 +148,8 @@ class CurrentQueryMapper {
                 .map(Optional::get)
                 .forEach(agFilterBldr::addActionCategory);
 
-            CollectionUtils.emptyIfNull(query.actionInput().getActionTypeList()).stream()
-                .map(ActionTypeMapper::fromApi)
-                .flatMap(Collection::stream)
-                .forEach(agFilterBldr::addActionType);
+            agFilterBldr.addAllActionType(buyRiScopeHandler.extractActionTypes(
+                    query.actionInput(), scope));
 
             return agFilterBldr.build();
         }
@@ -183,6 +185,8 @@ class CurrentQueryMapper {
          *                           query to figure out what's ACTUALLY in the scope.
          * @param environmentType The environment type to restrict the scope to.
          * @param userScope The {@link EntityAccessScope} object for the current user.
+         * @param buyRiEntities Additional entities that must be added to the request to return
+         * Buy RI actions in the scope.
          * @return The {@link EntityScope} to use for the query.
          * @throws OperationFailedException If one of the underlying RPC calls goes wrong.
          */
@@ -190,7 +194,8 @@ class CurrentQueryMapper {
         EntityScope createEntityScope(@Nonnull final Set<Long> oids,
                   @Nonnull final Set<Integer> relatedEntityTypes,
                   @Nonnull final Optional<EnvironmentType> environmentType,
-                  @Nonnull final EntityAccessScope userScope) throws OperationFailedException {
+                  @Nonnull final EntityAccessScope userScope,
+                  @Nonnull final Set<Long> buyRiEntities) throws OperationFailedException {
             final Set<Long> allEntitiesInScope;
             if (relatedEntityTypes.isEmpty()) {
                 // Expand groups that are in scope
@@ -220,7 +225,7 @@ class CurrentQueryMapper {
                             .map(UIEntityType::apiStr)
                             .collect(Collectors.toList()));
                 oids.stream()
-                    .map(oid -> oid.toString())
+                    .map(Object::toString)
                     .forEach(builder::addSeedUuid);
 
                 environmentType.ifPresent(builder::environmentType);
@@ -236,10 +241,9 @@ class CurrentQueryMapper {
             final Set<Long> entitiesInUserScope = userScope.filter(
                 supplyChainFetcherFactory.expandGroupingServiceEntities(allEntitiesInScope));
             return EntityScope.newBuilder()
-                .addAllOids(entitiesInUserScope)
+                .addAllOids(Sets.union(entitiesInUserScope, buyRiEntities))
                 .build();
         }
-
     }
 
     /**
@@ -252,10 +256,14 @@ class CurrentQueryMapper {
 
         private final EntityScopeFactory entityScopeFactory;
 
+        private final BuyRiScopeHandler buyRiScopeHandler;
+
         ScopeFilterExtractor(@Nonnull final UserSessionContext userSessionContext,
-                             @Nonnull final EntityScopeFactory entityScopeFactory) {
+                             @Nonnull final EntityScopeFactory entityScopeFactory,
+                             @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
             this.userSessionContext = Objects.requireNonNull(userSessionContext);
             this.entityScopeFactory = Objects.requireNonNull(entityScopeFactory);
+            this.buyRiScopeHandler = Objects.requireNonNull(buyRiScopeHandler);
         }
 
         /**
@@ -272,13 +280,13 @@ class CurrentQueryMapper {
         public Map<ApiId, ScopeFilter> extractScopeFilters(@Nonnull final ActionStatsQuery query)
                 throws OperationFailedException {
             final Set<Integer> relatedEntityTypes = query.getRelatedEntityTypes();
-            final ScopeFilter.Builder scopeBuilder = ScopeFilter.newBuilder();
 
             final EntityAccessScope userScope = userSessionContext.getUserAccessScope();
 
             final Map<ApiId, ScopeFilter> filtersByScope =
                 new HashMap<>(query.scopes().size());
             for (final ApiId scope : query.scopes()) {
+                final ScopeFilter.Builder scopeBuilder = ScopeFilter.newBuilder();
                 if (scope.isRealtimeMarket() || scope.isPlan()) {
                     scopeBuilder.setTopologyContextId(scope.oid());
                     if (userScope.containsAll() || scope.isPlan()) {
@@ -292,7 +300,8 @@ class CurrentQueryMapper {
                             Sets.newHashSet(userScope.accessibleOids()),
                             relatedEntityTypes,
                             query.getEnvironmentType(),
-                            userScope));
+                            userScope,
+                            Collections.emptySet()));
                     }
                 } else if (scope.isGlobalTempGroup()) {
                     // this is an optimization because evaluating the entities in the global scope,
@@ -325,12 +334,12 @@ class CurrentQueryMapper {
                 } else {
                     // Right now there is no way to specify an entity scope within a plan,
                     // so we leave the context ID unset (default = realtime).
-
                     scopeBuilder.setEntityList(entityScopeFactory.createEntityScope(
                         Collections.singleton(scope.oid()),
                         relatedEntityTypes,
                         query.getEnvironmentType(),
-                        userScope));
+                        userScope,
+                        buyRiScopeHandler.extractBuyRiEntities(scope)));
                 }
 
                 filtersByScope.put(scope, scopeBuilder.build());

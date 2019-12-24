@@ -305,9 +305,8 @@ public class EntitiesService implements IEntitiesService {
     public ActionPaginationResponse getActionsByEntityUuid(String uuid,
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
-        return
-            actionSearchUtil.getActionsByEntityUuids(Collections.singleton(uuidMapper.fromUuid(uuid)),
-                inputDto, paginationRequest);
+        return actionSearchUtil.getActionsByEntity(uuidMapper.fromUuid(uuid), inputDto,
+                paginationRequest);
     }
 
     @Override

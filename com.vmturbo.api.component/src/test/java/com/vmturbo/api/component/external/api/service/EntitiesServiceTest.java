@@ -174,11 +174,9 @@ public class EntitiesServiceTest {
 
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
-     *
-     * @throws Exception should not happen.
      */
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         // mock target and probe info
         final AccountValue accountValue =
             new InputField("nameOrAddress", TARGET_DISPLAY_NAME, Optional.empty());
@@ -198,7 +196,7 @@ public class EntitiesServiceTest {
         final ActionSearchUtil actionSearchUtil =
             new ActionSearchUtil(
                 actionOrchestratorRpcService, actionSpecMapper,
-                paginationMapper, supplyChainFetcherFactory, groupExpander, repositoryApi, CONTEXT_ID);
+                paginationMapper, supplyChainFetcherFactory, groupExpander, CONTEXT_ID);
 
         when(groupExpander.expandOids(any()))
             .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
@@ -448,7 +446,7 @@ public class EntitiesServiceTest {
         when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong()))
             .thenReturn(Collections.singletonList(actionApiDTO));
         final ActionApiInputDTO trivialQuery = new ActionApiInputDTO();
-        when(actionSpecMapper.createActionFilter(Matchers.eq(trivialQuery), any()))
+        when(actionSpecMapper.createActionFilter(Matchers.eq(trivialQuery), any(), any()))
             .thenReturn(ActionQueryFilter.getDefaultInstance());
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
@@ -474,7 +472,7 @@ public class EntitiesServiceTest {
         // check that the result is the faked translation
         Assert.assertEquals(actionApiDTO, result);
 
-        Long regionId = 2L;
+        long regionId = 2L;
         ApiId regionApiId = mock(ApiId.class);
         when(regionApiId.oid()).thenReturn(regionId);
         when(regionApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
@@ -487,7 +485,7 @@ public class EntitiesServiceTest {
                 .build();
 
         RepositoryApi.MultiEntityRequest minimalEntityRegionRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityRegion));
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(Long.valueOf(regionId)))).thenReturn(minimalEntityRegionRequest);
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(regionId))).thenReturn(minimalEntityRegionRequest);
 
         when(supplyChainFetcherFactory.expandScope(Sets.newHashSet(regionId), new ArrayList<>())).thenReturn(Sets.newHashSet(VM_ID, regionId));
 

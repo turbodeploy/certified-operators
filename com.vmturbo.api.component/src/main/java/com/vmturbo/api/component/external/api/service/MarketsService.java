@@ -413,8 +413,8 @@ public class MarketsService implements IMarketsService {
         handleInvalidCases(inputDto.getStartTime(), inputDto.getEndTime());
         adjustEndTime(inputDto);
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, Optional.empty());
+        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
+                inputDto, Optional.empty(), apiId);
         final FilteredActionResponse response = actionRpcService.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(apiId.oid())

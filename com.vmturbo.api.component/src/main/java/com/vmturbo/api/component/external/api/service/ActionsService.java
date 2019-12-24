@@ -7,12 +7,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
@@ -25,14 +23,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
@@ -49,16 +45,9 @@ import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Service Layer to implement Actions.
@@ -113,7 +102,6 @@ public class ActionsService implements IActionsService {
     @Override
     public ActionApiDTO getActionByUuid(String uuid) throws Exception {
         log.debug("Fetching actions for: {}", uuid);
-        long actionId = Long.valueOf(uuid);
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
         if (!action.hasActionSpec()) {
             throw new UnknownObjectException("Action with given action uuid: " + uuid + " not found");
@@ -122,12 +110,12 @@ public class ActionsService implements IActionsService {
         log.debug("Mapping actions for: {}", uuid);
         final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
                 realtimeTopologyContextId);
-        log.trace("Result: {}", () -> answer.toString());
+        log.trace("Result: {}", answer::toString);
         return answer;
     }
 
     @Override
-    public LogEntryApiDTO getNotificationByUuid(String uuid) throws Exception {
+    public LogEntryApiDTO getNotificationByUuid(String uuid) {
         throw new NotImplementedException();
     }
 
@@ -157,7 +145,7 @@ public class ActionsService implements IActionsService {
         }
     }
 
-    private final SingleActionRequest actionRequest(String actionId) {
+    private SingleActionRequest actionRequest(String actionId) {
         return SingleActionRequest.newBuilder()
             .setTopologyContextId(realtimeTopologyContextId)
             .setActionId(Long.valueOf(actionId))
@@ -167,7 +155,7 @@ public class ActionsService implements IActionsService {
     @Override
     public List<String> getAvailActionModes(String actionType, String seType) {
         // return an immutable list containing the "name()" string for each {@link ActionMode}
-        return Arrays.asList(ActionMode.values()).stream()
+        return Arrays.stream(ActionMode.values())
                 .map(ActionMode::name)
                 .collect(Collectors.toList());
     }
@@ -205,7 +193,8 @@ public class ActionsService implements IActionsService {
                         try {
                             return uuidMapper.fromUuid(uuid);
                         } catch (OperationFailedException e) {
-                            logger.error("Failed to map uuid {} to Api ID. Error: {}", e.getLocalizedMessage());
+                            logger.error("Failed to map uuid {} to Api ID. Error: {}", uuid,
+                                    e.getLocalizedMessage());
                             return null;
                         }
                     })
@@ -268,111 +257,14 @@ public class ActionsService implements IActionsService {
     }
 
     /**
-     * Get action counts for given group uuid.
-     * @param uuid of the group.
-     * @param actionScopesApiInputDTO contains filter criteria for getting action stats.
-     * @param groupMembers  are set of uuids of members of the given group uuid.
-     * @return entity stats for all members in the group.
-     */
-    @Nonnull
-    private EntityStatsApiDTO getActionStatsByUuidsQueryForGroup(String uuid,
-                    ActionScopesApiInputDTO actionScopesApiInputDTO,
-                    Optional<Set<Long>> groupMembers) {
-        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-        entityStatsApiDTO.setUuid(uuid);
-        entityStatsApiDTO.setStats(getActionCountStatsForEntities(actionScopesApiInputDTO.getActionInput(),
-                        groupMembers));
-        return entityStatsApiDTO;
-    }
-
-    /**
      * Get a list of actions by multiple uuids using query parameters.
      *
      * @param actionScopesApiInputDTO The object used to query the actions
      * @return a list of actions by multiple uuids using query parameters
-     * @throws Exception
      */
     @Override
-    public List<EntityActionsApiDTO> getActionsByUuidsQuery(ActionScopesApiInputDTO actionScopesApiInputDTO)
-        throws Exception {
+    public List<EntityActionsApiDTO> getActionsByUuidsQuery(ActionScopesApiInputDTO actionScopesApiInputDTO) {
         return new ArrayList<>();
-    }
-
-    /**
-     * Send request to action orchestrator and get action counts by each entity.
-     *
-     * @param actionApiInputDTO contains filter criteria for getting action stats.
-     * @param entityIds a list of entity ids.
-     * @param entityStatsMap A map from entity id to EntityStatsApiDTO.
-     */
-    private void getActionCountStatsByUuid(@Nullable ActionApiInputDTO actionApiInputDTO,
-                                           @Nonnull final Set<Long> entityIds,
-                                           @Nonnull Map<Long, EntityStatsApiDTO> entityStatsMap) {
-        final ActionQueryFilter filter =
-            actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(entityIds));
-        final GetActionCountsByEntityResponse response =
-            actionOrchestratorRpc.getActionCountsByEntity(GetActionCountsByEntityRequest.newBuilder()
-                .setTopologyContextId(realtimeTopologyContextId)
-                .setFilter(filter)
-                .build());
-        response.getActionCountsByEntityList().stream()
-            .forEach(actionCountsByEntity -> {
-                final Long entityId = actionCountsByEntity.getEntityId();
-                // we only want to keep requested entities
-                if (entityStatsMap.containsKey(entityId)) {
-                    entityStatsMap.get(entityId).getStats()
-                        .addAll(convertCountsByTypeToApi(actionApiInputDTO.getGroupBy(),
-                            actionCountsByEntity.getCountsByTypeList()));
-                }
-            });
-    }
-
-    /**
-     *
-     * Send request to action orchestrator and get action counts for entities in group.
-     *
-     * @param inputDto contains filter criteria for getting action stats.
-     * @param entityIds set of entityIds
-     * @return stats collected for entities in group.
-     */
-    @Nonnull
-    private List<StatSnapshotApiDTO> getActionCountStatsForEntities(ActionApiInputDTO inputDto, Optional<Set<Long>> entityIds) {
-        final ActionQueryFilter filter =
-                actionSpecMapper.createLiveActionFilter(inputDto, entityIds);
-        final GetActionCountsResponse response =
-                actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
-                    .setTopologyContextId(realtimeTopologyContextId)
-                    .setFilter(filter)
-                    .build());
-        return ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList());
-    }
-
-    /**
-     * For different groupBy type, convert its action orchestrator response to StatSnapshotApiDTO.
-     *
-     * @param groupTypes a list of types need to group by.
-     * @param typeCounts Response from action orchestrator contains all group by counts.
-     * @return list of StatSnapshotApiDTO
-     */
-    private List<StatSnapshotApiDTO> convertCountsByTypeToApi(@Nullable final List<String> groupTypes,
-                                                              @Nonnull final List<TypeCount> typeCounts) {
-        if (groupTypes == null) {
-            return new ArrayList<>();
-        }
-        final List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
-        groupTypes.stream().forEach(groupByType -> {
-            // TODO: Implement more groupBy types for gathering action stats.
-            // Right now, we only implement group by action types.
-            switch (groupByType) {
-                case StringConstants.ACTION_TYPES:
-                    statSnapshotApiDTOS.addAll(ActionCountsMapper.countsByTypeToApi(typeCounts));
-                    break;
-                default:
-                    throw new NotImplementedException("Action stats groupBy " + groupByType +
-                        " is not implemented yet.");
-            }
-        });
-        return statSnapshotApiDTOS;
     }
 
     /**

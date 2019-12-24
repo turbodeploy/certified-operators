@@ -20,10 +20,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.web.bind.annotation.PathVariable;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
@@ -31,6 +27,10 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
@@ -394,14 +394,14 @@ public class TargetsService implements ITargetsService {
      */
     @Override
     public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO) throws Exception {
-        final List<ServiceEntityApiDTO> serviceEntityList =  getEntitiesByTargetUuid(uuid);
+        final List<ServiceEntityApiDTO> serviceEntityList = getEntitiesByTargetUuid(uuid);
         // Preparing entities uuid set to be passed to the action filter.
         final Set<Long> uuidSet = serviceEntityList.stream()
             .map(ServiceEntityApiDTO::getUuid)
             .map(Long::parseLong)
             .collect(Collectors.toSet());
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
-            actionApiInputDTO, Optional.of(uuidSet));
+            actionApiInputDTO, Optional.of(uuidSet), null);
         final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
             FilteredActionRequest.newBuilder()
                 .setTopologyContextId(realtimeTopologyContextId)

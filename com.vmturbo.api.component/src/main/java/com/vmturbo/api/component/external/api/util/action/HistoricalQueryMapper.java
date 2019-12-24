@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util.action;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -10,15 +9,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -38,9 +37,12 @@ class HistoricalQueryMapper {
     private static final Logger logger = LogManager.getLogger();
 
     private final ActionSpecMapper actionSpecMapper;
+    private final BuyRiScopeHandler buyRiScopeHandler;
 
-    HistoricalQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper) {
+    HistoricalQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper,
+                          @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
         this.actionSpecMapper = actionSpecMapper;
+        this.buyRiScopeHandler = buyRiScopeHandler;
     }
 
     @Nonnull
@@ -54,9 +56,7 @@ class HistoricalQueryMapper {
             .setStartTime(DateTimeUtil.parseTime(query.actionInput().getStartTime()))
             .setEndTime(DateTimeUtil.parseTime(query.actionInput().getEndTime()))
             .build();
-        final ActionGroupFilter actionGroupFilter = extractActionGroupFilter(query);
-        final Optional<GroupBy> groupByOps =
-            extractGroupByCriteria(query);
+        final Optional<GroupBy> groupByOps = extractGroupByCriteria(query);
         final Map<ApiId, MgmtUnitSubgroupFilter> filtersByScope =
             extractMgmtUnitSubgroupFilter(query);
 
@@ -64,7 +64,7 @@ class HistoricalQueryMapper {
             .collect(Collectors.toMap(Entry::getKey, entry -> {
                 final HistoricalActionStatsQuery.Builder grpcQueryBuilder =
                     HistoricalActionStatsQuery.newBuilder()
-                        .setActionGroupFilter(actionGroupFilter)
+                        .setActionGroupFilter(extractActionGroupFilter(query, entry.getKey()))
                         .setMgmtUnitSubgroupFilter(entry.getValue())
                         .setTimeRange(timeRange);
 
@@ -74,7 +74,7 @@ class HistoricalQueryMapper {
     }
 
     @Nonnull
-    Optional<GroupBy> extractGroupByCriteria(@Nonnull final ActionStatsQuery query) {
+    private Optional<GroupBy> extractGroupByCriteria(@Nonnull final ActionStatsQuery query) {
         final List<String> groupByFields = query.actionInput().getGroupBy();
         if (!CollectionUtils.isEmpty(groupByFields)) {
             if (groupByFields.size() > 1) {
@@ -99,7 +99,9 @@ class HistoricalQueryMapper {
     }
 
     @Nonnull
-    ActionGroupFilter extractActionGroupFilter(@Nonnull final ActionStatsQuery query) {
+    private ActionGroupFilter extractActionGroupFilter(
+            @Nonnull final ActionStatsQuery query,
+            @Nonnull final ApiId scope) {
         final ActionGroupFilter.Builder agFilterBldr = ActionGroupFilter.newBuilder();
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionModeList()).stream()
@@ -120,10 +122,8 @@ class HistoricalQueryMapper {
             .map(Optional::get)
             .forEach(agFilterBldr::addActionCategory);
 
-        CollectionUtils.emptyIfNull(query.actionInput().getActionTypeList()).stream()
-            .map(ActionTypeMapper::fromApi)
-            .flatMap(Collection::stream)
-            .forEach(agFilterBldr::addActionType);
+        agFilterBldr.addAllActionType(buyRiScopeHandler.extractActionTypes(
+                query.actionInput(), scope));
 
         return agFilterBldr.build();
     }

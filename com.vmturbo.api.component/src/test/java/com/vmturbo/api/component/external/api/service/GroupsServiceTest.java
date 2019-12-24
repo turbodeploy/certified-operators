@@ -138,10 +138,10 @@ public class GroupsServiceTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    public static final String NE_MATCH_TYPE = "NE";
-    public static final String EQ_MATCH_TYPE = "EQ";
-    public static final String GROUP_FILTER_TYPE = "groupsByName";
-    public static final String CLUSTER_FILTER_TYPE = "clustersByName";
+    private static final String NE_MATCH_TYPE = "NE";
+    private static final String EQ_MATCH_TYPE = "EQ";
+    private static final String GROUP_FILTER_TYPE = "groupsByName";
+    private static final String CLUSTER_FILTER_TYPE = "clustersByName";
     private GroupsService groupsService;
 
     private static final String GROUP_TEST_PATTERN = "groupTestString";
@@ -222,7 +222,7 @@ public class GroupsServiceTest {
                 new ActionSearchUtil(
                         actionOrchestratorRpcService, actionSpecMapper,
                         paginationMapper, supplyChainFetcherFactory, groupExpander,
-                        mock(RepositoryApi.class), CONTEXT_ID);
+                        CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
         groupsService =

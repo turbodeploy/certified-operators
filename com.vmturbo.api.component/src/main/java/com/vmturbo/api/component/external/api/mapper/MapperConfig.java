@@ -29,6 +29,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMap
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
@@ -82,11 +83,8 @@ public class MapperConfig {
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.riBuyContextFetchStub(),
             communicationConfig.costServiceBlockingStub(),
-            serviceConfig.statsQueryExecutor(),
-            uuidMapper(),
             communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
-            communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
-            communicationConfig.repositoryApi(),
+            mapperConfig.buyRiScopeHandler(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -319,22 +317,27 @@ public class MapperConfig {
     public StorageAspectMapper storageAspectMapper() {
         return new StorageAspectMapper();
     }
+
     @Bean
     public PortsAspectMapper portsAspectMapper() {
         return new PortsAspectMapper(communicationConfig.repositoryApi());
     }
+
     @Bean
     public DiskArrayAspectMapper diskArrayAspectMapper() {
         return new DiskArrayAspectMapper();
     }
+
     @Bean
     public LogicalPoolAspectMapper logicalPoolAspectMapper() {
         return new LogicalPoolAspectMapper();
     }
+
     @Bean
     public StorageControllerAspectMapper storageControllerAspectMapper() {
         return new StorageControllerAspectMapper();
     }
+
     @Bean
     public DatabaseAspectMapper databaseAspectMapper() {
         return new DatabaseAspectMapper();
@@ -358,6 +361,11 @@ public class MapperConfig {
     @Bean
     public WorkflowMapper workflowMapper() {
         return new WorkflowMapper();
+    }
+
+    @Bean
+    public BuyRiScopeHandler buyRiScopeHandler() {
+        return new BuyRiScopeHandler();
     }
 
     @Bean(destroyMethod = "shutdownNow")

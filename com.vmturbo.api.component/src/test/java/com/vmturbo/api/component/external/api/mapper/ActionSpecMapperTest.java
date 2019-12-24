@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -47,15 +47,15 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -105,7 +105,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.CostSource
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -155,11 +154,9 @@ public class ActionSpecMapperTest {
     private static final String SOURCE = "Source";
     private static final String DESTINATION = "Destination";
     private static final String DEFAULT_EXPLANATION = "default explanation";
-    private static final String DEFAULT_PREREQUISITE_DESCRIPTON = "default pre-requisite description";
+    private static final String DEFAULT_PRE_REQUISITE_DESCRIPTION = "default pre-requisite description";
 
     private static final long TARGET_ID = 10L;
-    private static final String TARGET_DISPLAY_NAME = "target display name";
-    private static final String PROBE_TYPE = "probe type";
     private static final long DATACENTER1_ID = 100L;
     private static final String DC1_NAME = "DC-1";
     private static final long DATACENTER2_ID = 200L;
@@ -167,10 +164,6 @@ public class ActionSpecMapperTest {
     private static final String TARGET_VENDOR_ID = "qqq";
 
     private ActionSpecMapper mapper;
-
-    private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
-
-    private VirtualVolumeAspectMapper volumeAspectMapper;
 
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
@@ -192,19 +185,17 @@ public class ActionSpecMapperTest {
     @Rule
     public GrpcTestServer supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
 
-    private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
-
-    private SupplyChainServiceBlockingStub supplyChainService;
-
     private ReservedInstanceMapper reservedInstanceMapper = mock(ReservedInstanceMapper.class);
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
-    private final StatsQueryExecutor statsQueryExecutor = mock(StatsQueryExecutor.class);
-
-    private final UuidMapper uuidMapper = mock(UuidMapper.class);
+    private final ActionApiInputDTO emptyInputDto = new ActionApiInputDTO();
+    private final ApiId scopeWithBuyRiActions = mock(ApiId.class);
+    private final Set<ActionDTO.ActionType> buyRiActionTypes = ImmutableSet.of(
+            ActionDTO.ActionType.BUY_RI);
+    private final Set<Long> buyRiOids = ImmutableSet.of(999L);
 
     @Before
     public void setup() {
@@ -217,16 +208,17 @@ public class ActionSpecMapperTest {
                     .setName(POLICY_NAME)))
                 .build());
         Mockito.when(policyMole.getAllPolicies(any())).thenReturn(policyResponses);
-        policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        PolicyServiceGrpc.PolicyServiceBlockingStub policyService =
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
             makeGetMultiSupplyChainResponse(1L, DATACENTER1_ID),
             makeGetMultiSupplyChainResponse(2L, DATACENTER2_ID),
             makeGetMultiSupplyChainResponse(3L, DATACENTER2_ID));
         Mockito.when(supplyChainMole.getMultiSupplyChains(any())).thenReturn(supplyChainResponses);
-        supplyChainService = SupplyChainServiceGrpc
-            .newBlockingStub(supplyChainGrpcServer.getChannel());
+        SupplyChainServiceBlockingStub supplyChainService =
+                SupplyChainServiceGrpc.newBlockingStub(supplyChainGrpcServer.getChannel());
 
-        volumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
+        VirtualVolumeAspectMapper volumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
 
         final MultiEntityRequest emptyReq = ApiTestUtils.mockMultiEntityReqEmpty();
 
@@ -244,19 +236,26 @@ public class ActionSpecMapperTest {
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
-                ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
                 reservedInstanceUtilizationCoverageServiceBlockingStub =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
-                Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
-                mock(EntityAspectMapper.class), volumeAspectMapper, REAL_TIME_TOPOLOGY_CONTEXT_ID,
-                null, null, serviceEntityMapper, supplyChainService);
+        ActionSpecMappingContextFactory actionSpecMappingContextFactory =
+                new ActionSpecMappingContextFactory(policyService,
+                        Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
+                        repositoryApi, mock(EntityAspectMapper.class), volumeAspectMapper,
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
+                        supplyChainService);
+
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+        when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
+                .thenReturn(buyRiActionTypes);
+        when(buyRiScopeHandler.extractBuyRiEntities(scopeWithBuyRiActions))
+                .thenReturn(buyRiOids);
+
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
-                statsQueryExecutor, uuidMapper, reservedInstanceUtilizationCoverageServiceBlockingStub,
-                reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+                reservedInstanceUtilizationCoverageServiceBlockingStub, buyRiScopeHandler,
+                REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
 
     @Test
@@ -368,7 +367,7 @@ public class ActionSpecMapperTest {
 
         // The outer/main action should be an initial placement with no source.
         assertEquals(ActionType.START, actionApiDTO.getActionType());
-        assertEquals(null, actionApiDTO.getCurrentValue());
+        assertNull(actionApiDTO.getCurrentValue());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
     }
 
@@ -1184,7 +1183,7 @@ public class ActionSpecMapperTest {
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
                 .setMove(moveExplanation2).build())), CONTEXT_ID);
         Assert.assertEquals(DEFAULT_EXPLANATION, dtos2.get(0).getRisk().getDescription());
-        Assert.assertEquals(Collections.singletonList(DEFAULT_PREREQUISITE_DESCRIPTON),
+        Assert.assertEquals(Collections.singletonList(DEFAULT_PRE_REQUISITE_DESCRIPTION),
             dtos2.get(0).getPrerequisites());
     }
 
@@ -1289,9 +1288,8 @@ public class ActionSpecMapperTest {
     @Test
     public void testCreateActionFilterNoInvolvedEntities() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        final Optional<Set<Long>> involvedEntities = Optional.empty();
 
-        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, involvedEntities);
+        final ActionQueryFilter filter = createFilter(inputDto);
 
         assertFalse(filter.hasInvolvedEntities());
     }
@@ -1302,20 +1300,9 @@ public class ActionSpecMapperTest {
         inputDto.setStartTime(DateTimeUtil.toString(1_000_000));
         inputDto.setEndTime(DateTimeUtil.toString(2_000_000));
 
-        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty());
+        final ActionQueryFilter filter = createFilter(inputDto);
         assertThat(filter.getStartDate(), is(1_000_000L));
         assertThat(filter.getEndDate(), is(2_000_000L));
-    }
-
-    @Test
-    public void testCreateLiveActionFilterIgnoresDates() {
-        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        inputDto.setStartTime(DateTimeUtil.toString(1_000_000));
-        inputDto.setEndTime(DateTimeUtil.toString(1_000_000));
-
-        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
-        assertFalse(filter.hasStartDate());
-        assertFalse(filter.hasEndDate());
     }
 
     @Test
@@ -1323,7 +1310,7 @@ public class ActionSpecMapperTest {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setEnvironmentType(EnvironmentType.CLOUD);
 
-        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
+        final ActionQueryFilter filter = createFilter(inputDto);
         assertThat(filter.getEnvironmentType(), is(EnvironmentTypeEnum.EnvironmentType.CLOUD));
     }
 
@@ -1332,7 +1319,7 @@ public class ActionSpecMapperTest {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setEnvironmentType(EnvironmentType.ONPREM);
 
-        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
+        final ActionQueryFilter filter = createFilter(inputDto);
         assertThat(filter.getEnvironmentType(), is(EnvironmentTypeEnum.EnvironmentType.ON_PREM));
     }
 
@@ -1340,8 +1327,7 @@ public class ActionSpecMapperTest {
     public void testCreateActionFilterEnvTypeUnset() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
 
-        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
-        assertFalse(filter.hasEnvironmentType());
+        final ActionQueryFilter filter = createFilter(inputDto);
         assertFalse(filter.hasEnvironmentType());
     }
 
@@ -1351,11 +1337,33 @@ public class ActionSpecMapperTest {
         final Set<Long> oids = Sets.newHashSet(1L, 2L, 3L);
         final Optional<Set<Long>> involvedEntities = Optional.of(oids);
 
-        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, involvedEntities);
+        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, involvedEntities, null);
 
         assertTrue(filter.hasInvolvedEntities());
-        assertEquals(new HashSet<Long>(oids),
-                     new HashSet<Long>(filter.getInvolvedEntities().getOidsList()));
+        assertEquals(new HashSet<>(oids),
+                     new HashSet<>(filter.getInvolvedEntities().getOidsList()));
+    }
+
+    @Test
+    public void testCreateActionFilterWithBuyRis() {
+        final ActionQueryFilter filter = mapper.createActionFilter(emptyInputDto, Optional.empty(),
+                scopeWithBuyRiActions);
+
+        assertTrue(filter.hasInvolvedEntities());
+        assertEquals(buyRiOids, new HashSet<>(filter.getInvolvedEntities().getOidsList()));
+        assertEquals(buyRiActionTypes, new HashSet<>(filter.getTypesList()));
+    }
+
+    @Test
+    public void testCreateActionFilterWithInvolvedEntitiesAndBuyRis() {
+        final Set<Long> involvedEntities = ImmutableSet.of(1L, 2L);
+
+        final ActionQueryFilter filter = mapper.createActionFilter(emptyInputDto,
+                Optional.of(involvedEntities), scopeWithBuyRiActions);
+
+        assertTrue(filter.hasInvolvedEntities());
+        assertEquals(Sets.union(buyRiOids, involvedEntities),
+                new HashSet<>(filter.getInvolvedEntities().getOidsList()));
     }
 
     /**
@@ -1368,7 +1376,7 @@ public class ActionSpecMapperTest {
         inputDto.setRelatedEntityTypes(Arrays.asList(UIEntityType.VIRTUAL_MACHINE.apiStr(),
             UIEntityType.PHYSICAL_MACHINE.apiStr()));
 
-        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty());
+        final ActionQueryFilter filter = createFilter(inputDto);
 
         assertThat(filter.getEntityTypeList(),
             containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
@@ -1383,7 +1391,7 @@ public class ActionSpecMapperTest {
     public void testCreateActionFilterWithNoStateFilter() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
 
-        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty());
+        final ActionQueryFilter filter = createFilter(inputDto);
         Assert.assertThat(filter.getStatesList(),
             containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
     }
@@ -1392,7 +1400,7 @@ public class ActionSpecMapperTest {
     // when "inputDto" is null, we should automatically insert the operational action states.
     @Test
     public void testCreateActionFilterWithNoStateFilterAndNoInputDTO() {
-        final ActionQueryFilter filter = mapper.createActionFilter(null, Optional.empty());
+        final ActionQueryFilter filter = createFilter(null);
         Assert.assertThat(filter.getStatesList(),
                 containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
     }
@@ -1474,7 +1482,7 @@ public class ActionSpecMapperTest {
         List<com.vmturbo.api.enums.ActionState> actionStates = new ArrayList<>();
         actionStates.add(state);
         inputDto.setActionStateList(actionStates);
-        mapper.createActionFilter(inputDto, Optional.empty());
+        createFilter(inputDto);
     }
 
     @Test
@@ -1569,44 +1577,6 @@ public class ActionSpecMapperTest {
         return allocateInfo;
     }
 
-    /**
-     * Build a map from OID (a Long) to a optional of {@link ServiceEntityApiDTO} with that OID.
-     *
-     * note:  the returned map is Immutable.
-     *
-     * @param dtos an array of {@link ServiceEntityApiDTO} to put into the map
-     * @return an {@link ImmutableMap} from OID to {@link ServiceEntityApiDTO}
-     */
-    private Map<Long, Optional<ServiceEntityApiDTO>> oidToEntityMap(
-            ServiceEntityApiDTO ...dtos) {
-
-        Map<Long, Optional<ServiceEntityApiDTO>> answer = new HashMap<>();
-
-        for (ServiceEntityApiDTO dto : dtos) {
-            answer.put(Long.valueOf(dto.getUuid()), Optional.of(dto));
-        }
-        return answer;
-    }
-
-
-    /**
-     * Create a new instances of {@link ServiceEntityApiDTO} and initialize the displayName,
-     * uuid, and class name fields.
-     *
-     * @param displayName the displayName for the new SE
-     * @param oid the OID, to be converted to String and set as the uuid
-     * @param className the class name for the new SE
-     * @return a service entity DTO
-     */
-    private ServiceEntityApiDTO entityApiDTO(@Nonnull final String displayName, long oid,
-                                             @Nonnull String className) {
-        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        seDTO.setDisplayName(displayName);
-        seDTO.setUuid(Long.toString(oid));
-        seDTO.setClassName(className);
-        return seDTO;
-    }
-
     private ApiPartialEntity topologyEntityDTO(@Nonnull final String displayName, long oid,
                                                int entityType) {
         ApiPartialEntity e = ApiPartialEntity.newBuilder()
@@ -1640,7 +1610,7 @@ public class ActionSpecMapperTest {
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(true)
             .setExplanation(DEFAULT_EXPLANATION)
-            .addPrerequisiteDescription(DEFAULT_PREREQUISITE_DESCRIPTON);
+            .addPrerequisiteDescription(DEFAULT_PRE_REQUISITE_DESCRIPTION);
 
         decision.ifPresent(builder::setDecision);
         return builder.build();
@@ -1664,13 +1634,6 @@ public class ActionSpecMapperTest {
         return ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
     }
 
-    private void checkTarget(TargetApiDTO targetApiDTO) {
-        Assert.assertNotNull(targetApiDTO);
-        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(targetApiDTO.getUuid()));
-        Assert.assertEquals(TARGET_DISPLAY_NAME, targetApiDTO.getDisplayName());
-        Assert.assertEquals(PROBE_TYPE, targetApiDTO.getType());
-    }
-
     private GetMultiSupplyChainsResponse makeGetMultiSupplyChainResponse(long entityOid,
                                                                          long dataCenterOid) {
         return GetMultiSupplyChainsResponse.newBuilder().setSeedOid(entityOid).setSupplyChain(SupplyChain
@@ -1684,5 +1647,9 @@ public class ActionSpecMapperTest {
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();
+    }
+
+    private ActionQueryFilter createFilter(final ActionApiInputDTO inputDto) {
+        return mapper.createActionFilter(inputDto, Optional.empty(), null);
     }
 }

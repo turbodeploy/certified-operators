@@ -310,6 +310,7 @@ public class ApiTestUtils {
         when(apiId.isGroup()).thenReturn(isGroup);
         when(apiId.isRealtimeMarket()).thenReturn(isRealtime);
         when(apiId.isEntity()).thenReturn(isEntity);
+        when(apiId.getScopeTypes()).thenReturn(Optional.empty());
 
         uuidMapperOpt.ifPresent(uuidMapper -> {
             try {

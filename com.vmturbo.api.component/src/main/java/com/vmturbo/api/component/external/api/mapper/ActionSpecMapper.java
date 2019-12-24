@@ -43,13 +43,13 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -112,7 +112,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
@@ -186,13 +185,7 @@ public class ActionSpecMapper {
 
     private final CostServiceBlockingStub costServiceBlockingStub;
 
-    private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub;
-
-    private final RepositoryApi repositoryApi;
-
-    private final StatsQueryExecutor statsQueryExecutor;
-
-    private final UuidMapper uuidMapper;
+    private final BuyRiScopeHandler buyRiScopeHandler;
 
     /**
      * The set of action states for operational actions (ie actions that have not
@@ -209,11 +202,8 @@ public class ActionSpecMapper {
                             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
                             @Nullable final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                             @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
-                            @Nonnull final StatsQueryExecutor statsQueryExecutor,
-                            @Nonnull final UuidMapper uuidMapper,
                             @Nonnull final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub reservedInstanceUtilizationCoverageServiceBlockingStub,
-                            @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub,
-                            @Nonnull final RepositoryApi repositoryApi,
+                            @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
                             final long realtimeTopologyContextId) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
@@ -222,10 +212,7 @@ public class ActionSpecMapper {
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.riStub = riStub;
         this.reservedInstanceUtilizationCoverageServiceBlockingStub = reservedInstanceUtilizationCoverageServiceBlockingStub;
-        this.statsQueryExecutor = statsQueryExecutor;
-        this.uuidMapper = uuidMapper;
-        this.reservedInstanceBoughtServiceBlockingStub = reservedInstanceBoughtServiceBlockingStub;
-        this.repositoryApi = repositoryApi;
+        this.buyRiScopeHandler = buyRiScopeHandler;
     }
 
     /**
@@ -1325,39 +1312,20 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Similar to {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional)}, but
-     * ignores the start/end date in the request - the returned query will only request the current
-     * "live" actions.
-     *
-     * @param inputDto See {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional)}.
-     * @param involvedEntities See {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional)}.
- * @return The {@link ActionQueryFilter} instance.
-     */
-    public ActionQueryFilter createLiveActionFilter(@Nullable final ActionApiInputDTO inputDto,
-                                                    @Nonnull final Optional<Set<Long>> involvedEntities) {
-        return createActionFilterBuilder(inputDto, involvedEntities)
-            .clearStartDate()
-            .clearEndDate()
-            .build();
-    }
-
-    /**
-     * Creates an {@link ActionQueryFilter} instance based on a given {@link ActionApiInputDTO}
-     * and an oid collection of involved entities.
+     * Creates an {@link ActionQueryFilter} instance based on a given {@link ActionApiInputDTO},
+     * an oid collection of involved entities and selected scope.
      *
      * @param inputDto The {@link ActionApiInputDTO} instance, where only action states are used.
      * @param involvedEntities The oid collection of involved entities.
+     * @param scopeId {@code ApiId} for scoped entity.
      * @return The {@link ActionQueryFilter} instance.
      */
     public ActionQueryFilter createActionFilter(@Nullable final ActionApiInputDTO inputDto,
-                                                @Nonnull final Optional<Set<Long>> involvedEntities) {
-        return createActionFilterBuilder(inputDto, involvedEntities).build();
-    }
-
-    private ActionQueryFilter.Builder createActionFilterBuilder(@Nullable final ActionApiInputDTO inputDto,
-                                                                @Nonnull final Optional<Set<Long>> involvedEntities) {
+                                                @Nonnull final Optional<Set<Long>> involvedEntities,
+                                                @Nullable final ApiId scopeId) {
         ActionQueryFilter.Builder queryBuilder = ActionQueryFilter.newBuilder()
             .setVisible(true);
+
         if (inputDto != null) {
             // TODO (roman, Dec 28 2016): This is only implementing a small subset of
             // query options. Need to do another pass, including handling
@@ -1385,11 +1353,7 @@ public class ActionSpecMapper {
                     .forEach(queryBuilder::addModes);
             }
 
-            if (CollectionUtils.isNotEmpty(inputDto.getActionTypeList())) {
-                inputDto.getActionTypeList().stream()
-                    .map(ActionTypeMapper::fromApi)
-                    .forEach(queryBuilder::addAllTypes);
-            }
+            queryBuilder.addAllTypes(buyRiScopeHandler.extractActionTypes(inputDto, scopeId));
 
             if (CollectionUtils.isNotEmpty(inputDto.getRiskSubCategoryList())) {
                 inputDto.getRiskSubCategoryList().forEach(apiCategory -> {
@@ -1427,11 +1391,16 @@ public class ActionSpecMapper {
             Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
         }
 
-        involvedEntities.ifPresent(entities -> queryBuilder.setInvolvedEntities(
-            InvolvedEntities.newBuilder()
-                .addAllOids(entities)));
+        // Set involved entities from user input and Buy RI scope
+        final Set<Long> allInvolvedEntities = new HashSet<>(
+                buyRiScopeHandler.extractBuyRiEntities(scopeId));
+        involvedEntities.ifPresent(allInvolvedEntities::addAll);
+        if (!allInvolvedEntities.isEmpty()) {
+            queryBuilder.setInvolvedEntities(InvolvedEntities.newBuilder()
+                    .addAllOids(allInvolvedEntities));
+        }
 
-        return queryBuilder;
+        return queryBuilder.build();
     }
 
     @Nonnull

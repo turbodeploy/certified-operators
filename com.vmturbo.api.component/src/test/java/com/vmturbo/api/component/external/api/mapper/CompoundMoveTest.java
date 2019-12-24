@@ -28,7 +28,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -112,12 +111,7 @@ public class CompoundMoveTest {
     private static final long DATACENTER2_ID = 51;
     private static final String DC2_NAME = "DC-2";
 
-
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
-
-    private final StatsQueryExecutor statsQueryExecutor = mock(StatsQueryExecutor.class);
-
-    private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     @Before
     public void setup() throws Exception {
@@ -157,15 +151,18 @@ public class CompoundMoveTest {
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
-                ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
                 reservedInstanceUtilizationCoverageServiceBlockingStub =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
-            mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, costServiceBlockingStub,
-                statsQueryExecutor, uuidMapper, reservedInstanceUtilizationCoverageServiceBlockingStub,
-                reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        mapper = new ActionSpecMapper(
+                actionSpecMappingContextFactory,
+                serviceEntityMapper,
+                mock(ReservedInstanceMapper.class),
+                riBuyContextFetchServiceStub,
+                costServiceBlockingStub,
+                reservedInstanceUtilizationCoverageServiceBlockingStub,
+                mock(BuyRiScopeHandler.class),
+                REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 
         final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -197,7 +194,6 @@ public class CompoundMoveTest {
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();
     }
-
 
     private ApiPartialEntity topologyEntityDTO(@Nonnull final String displayName, long oid,
                                                int entityType) {

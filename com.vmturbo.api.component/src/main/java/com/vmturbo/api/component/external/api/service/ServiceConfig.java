@@ -606,7 +606,8 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.supplyChainFetcher(),
             userSessionContext(),
-            communicationConfig.repositoryApi());
+            communicationConfig.repositoryApi(),
+            mapperConfig.buyRiScopeHandler());
     }
 
     @Bean
@@ -615,7 +616,8 @@ public class ServiceConfig {
             new CloudCostsStatsSubQuery(communicationConfig.repositoryApi(),
                 communicationConfig.costServiceBlockingStub(),
                 communicationConfig.supplyChainFetcher(),
-                communicationConfig.thinTargetCache());
+                communicationConfig.thinTargetCache(),
+                mapperConfig.buyRiScopeHandler());
         statsQueryExecutor().addSubquery(cloudCostsStatsQuery);
         return cloudCostsStatsQuery;
     }
@@ -738,7 +740,6 @@ public class ServiceConfig {
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
-            communicationConfig.repositoryApi(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 

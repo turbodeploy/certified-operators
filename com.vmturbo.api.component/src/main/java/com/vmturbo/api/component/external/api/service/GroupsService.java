@@ -164,7 +164,7 @@ public class GroupsService implements IGroupsService {
     private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
             "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
-    public static Set<String> NESTED_GROUP_TYPES =
+    public static final Set<String> NESTED_GROUP_TYPES =
         ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
                 StringConstants.VIRTUAL_MACHINE_CLUSTER);
 
@@ -392,9 +392,8 @@ public class GroupsService implements IGroupsService {
     public ActionPaginationResponse getActionsByGroupUuid(String uuid,
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
-        return
-            actionSearchUtil.getActionsByEntityUuids(Collections.singleton(uuidMapper.fromUuid(uuid)),
-                inputDto, paginationRequest);
+        return actionSearchUtil.getActionsByEntity(uuidMapper.fromUuid(uuid), inputDto,
+                paginationRequest);
     }
 
     @Override
