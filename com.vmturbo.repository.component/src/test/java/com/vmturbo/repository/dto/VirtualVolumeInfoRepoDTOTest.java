@@ -38,6 +38,7 @@ public class VirtualVolumeInfoRepoDTOTest {
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncryption(true)
+                        .setIsEphemeral(true)
                         .build())
                 .build();
 
@@ -56,6 +57,7 @@ public class VirtualVolumeInfoRepoDTOTest {
         assertEquals(Integer.valueOf(AttachmentState.ATTACHED.getNumber()),
                 testVirtualVolumeRepoDTO.getAttachmentState());
         assertTrue(testVirtualVolumeRepoDTO.getEncryption());
+        assertTrue(testVirtualVolumeRepoDTO.getEphemeral());
     }
 
     /**
@@ -77,6 +79,7 @@ public class VirtualVolumeInfoRepoDTOTest {
         assertNull(testVirtualVolumeInfoRepoDTO.getSnapshotId());
         assertNull(testVirtualVolumeInfoRepoDTO.getAttachmentState());
         assertNull(testVirtualVolumeInfoRepoDTO.getEncryption());
+        assertNull(testVirtualVolumeInfoRepoDTO.getEphemeral());
     }
 
     /**
@@ -92,6 +95,7 @@ public class VirtualVolumeInfoRepoDTOTest {
         testDto.setSnapshotId(SNAPSHOT_ID);
         testDto.setAttachmentState(AttachmentState.ATTACHED.getNumber());
         testDto.setEncryption(true);
+        testDto.setEphemeral(true);
         VirtualVolumeInfo expected = VirtualVolumeInfo.newBuilder()
                 .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
                 .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
@@ -99,6 +103,7 @@ public class VirtualVolumeInfoRepoDTOTest {
                 .setSnapshotId(SNAPSHOT_ID)
                 .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
+                .setIsEphemeral(true)
                 .build();
         // act
         TypeSpecificInfo result = testDto.createTypeSpecificInfo();

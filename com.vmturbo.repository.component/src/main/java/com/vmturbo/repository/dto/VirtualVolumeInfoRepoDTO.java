@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -17,7 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Red
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
- * Class that encapsulates the virtual volume data from TopologyEntityDTO.TypeSpecificInfo
+ * Class that encapsulates the virtual volume data from TopologyEntityDTO.TypeSpecificInfo.
  */
 @JsonInclude(Include.NON_EMPTY)
 public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
@@ -35,6 +36,8 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private Boolean encryption;
 
     private Integer attachmentState;
+
+    private Boolean ephemeral;
 
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
@@ -60,6 +63,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (virtualVolumeInfo.hasAttachmentState()) {
             setAttachmentState(virtualVolumeInfo.getAttachmentState().getNumber());
+        }
+        if (virtualVolumeInfo.hasIsEphemeral()) {
+            setEphemeral(virtualVolumeInfo.getIsEphemeral());
         }
         setFiles(virtualVolumeInfo.getFilesList());
         serviceEntityRepoDTO.setVirtualVolumeInfoRepoDTO(this);
@@ -91,6 +97,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getEncryption() != null) {
             virtualVolumeInfoBuilder.setEncryption(getEncryption());
+        }
+        if (getEphemeral() != null) {
+            virtualVolumeInfoBuilder.setIsEphemeral(ephemeral);
         }
         return TypeSpecificInfo.newBuilder()
             .setVirtualVolume(virtualVolumeInfoBuilder)
@@ -146,6 +155,25 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.encryption = encryption;
     }
 
+    /**
+     * Returns whether volume is ephemeral or not.
+     *
+     * @return whether volume is ephemeral or not.
+     */
+    @Nullable
+    public Boolean getEphemeral() {
+        return ephemeral;
+    }
+
+    /**
+     * Sets ephemeral flag for the volume.
+     *
+     * @param ephemeral value to set.
+     */
+    public void setEphemeral(@Nullable Boolean ephemeral) {
+        this.ephemeral = ephemeral;
+    }
+
     public Integer getAttachmentState() {
         return attachmentState;
     }
@@ -178,14 +206,10 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     @Override
     public String toString() {
-        return "VirtualVolumeInfoRepoDTO{"
-                + "storageAccessCapacity=" + storageAccessCapacity
-                + ", storageAmountCapacity=" + storageAmountCapacity
-                + ", redundancyType=" + redundancyType
-                + ", files=" + files
-                + ", snapshotId=" + snapshotId
-                + ", attachmentState=" + attachmentState
-                + ", encryption=" + encryption
-                + '}';
+        return String.format(
+                        "%s [storageAccessCapacity=%s, storageAmountCapacity=%s, redundancyType=%s, snapshotId=%s, files=%s, encryption=%s, attachmentState=%s, ephemeral=%s]",
+                        getClass().getSimpleName(), this.storageAccessCapacity,
+                        this.storageAmountCapacity, this.redundancyType, this.snapshotId,
+                        this.files, this.encryption, this.attachmentState, this.ephemeral);
     }
 }
