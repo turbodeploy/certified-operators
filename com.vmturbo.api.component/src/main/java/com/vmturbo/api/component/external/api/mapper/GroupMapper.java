@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -550,7 +549,7 @@ public class GroupMapper {
     private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers) {
         BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
         Set<Long> oidsToQuery = new HashSet<>(groupAndMembers.members());
-        List<BusinessUnitApiDTO> businessUnitApiDTOList = new ArrayList<>();
+        Map<String, String> accountIdToDisplayNameMap = new HashMap<>();
         Map<String, String> uuidToDisplayNameMap = new HashMap<>();
         float cost = 0f;
 
@@ -570,14 +569,19 @@ public class GroupMapper {
             String accountId = businessUnit.getAccountId();
             if (businessUnit.isMaster()) {
                 billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
+                billingFamilyApiDTO.setMasterAccountId(accountId == null ? "" : accountId);
             }
 
-            businessUnitApiDTOList.add(businessUnit);
+            if (accountId != null) {
+                accountIdToDisplayNameMap.put(accountId, displayName);
+            } else {
+                accountIdToDisplayNameMap.put("", displayName);
+            }
         }
 
         billingFamilyApiDTO.setCostPrice(cost);
         billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
-        billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
+        billingFamilyApiDTO.setAccountIdToDisplayNameMap(accountIdToDisplayNameMap);
 
         return billingFamilyApiDTO;
     }
