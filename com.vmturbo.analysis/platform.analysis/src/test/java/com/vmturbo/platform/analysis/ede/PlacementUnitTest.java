@@ -55,7 +55,6 @@ public class PlacementUnitTest {
         testGroupLeaderAlwaysMoves(false);
     }
 
-    @Test
     public void testGroupLeaderAlwaysMoves_ShopTogether() {
         testGroupLeaderAlwaysMoves(true);
     }
