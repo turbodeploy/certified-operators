@@ -10,6 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -43,7 +44,7 @@ public class VmInstanceStorePolicyApplicator
     @Override
     protected void populateInstanceStoreCommodities(@Nonnull Builder entity) {
         final CommoditiesBoughtFromProvider.Builder computeTierProvider =
-                        getComputeTierProvider(entity, EntityType.COMPUTE_TIER);
+                        getProvider(entity, EntityType.COMPUTE_TIER);
         if (computeTierProvider == null) {
             // Normal use-case for on-prem VMs
             return;
@@ -58,15 +59,16 @@ public class VmInstanceStorePolicyApplicator
                                         computeTierProvider, computeTierInfo));
     }
 
-    private CommoditiesBoughtFromProvider.Builder getComputeTierProvider(@Nonnull Builder entity,
+    @Nullable
+    private CommoditiesBoughtFromProvider.Builder getProvider(@Nonnull Builder entity,
                     @Nonnull EntityType providerType) {
         final Collection<CommoditiesBoughtFromProvider.Builder> boughtFromComputeTiers =
                         entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
                                         .filter(provider -> provider.getProviderEntityType()
                                                         == providerType.getNumber())
                                         .collect(Collectors.toSet());
-        final int amountOfComputeTierProviders = boughtFromComputeTiers.size();
-        if (amountOfComputeTierProviders == 0) {
+        final int numberOfComputeTierProviders = boughtFromComputeTiers.size();
+        if (numberOfComputeTierProviders == 0) {
             // Normal use-case for on-prem VMs
             getLogger().debug("There are no '{}' providers for '{}'", providerType,
                             entity.getOid());
@@ -74,7 +76,7 @@ public class VmInstanceStorePolicyApplicator
         }
         final CommoditiesBoughtFromProvider.Builder result =
                         boughtFromComputeTiers.iterator().next();
-        if (amountOfComputeTierProviders > 1) {
+        if (numberOfComputeTierProviders > 1) {
             getLogger().warn(
                             "There are more than one '{}' provider for '{}', using first one '{}'.",
                             providerType, entity.getOid(), result.getProviderId());

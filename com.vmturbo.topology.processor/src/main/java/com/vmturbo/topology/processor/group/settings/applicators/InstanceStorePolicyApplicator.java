@@ -72,7 +72,8 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
      * @param commodityTypeSetter sets appropriate commodity type for the specific
      *                 commodity builder instance.
      * @param valueSetter sets value for the specific commodity builder instance.
-     * @param builderTransformer transforms commodity builder that needs to be
+     * @param builderTransformer transforms commodity builder after its creation,
+     *                 should do operations specific to descendant applicators.
      * @param commodityTypeGetter extracts information about commodity type.
      */
     protected InstanceStorePolicyApplicator(@Nonnull EntityType entityType,
@@ -212,10 +213,10 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
     }
 
     /**
-     * Returns amount of the disks, available for the {@link ComputeTierInfo} instance.
+     * Returns number of the disks, available for the {@link ComputeTierInfo} instance.
      *
      * @param computeTierInfo which reflects template information.
-     * @return amount of the disks, available for template.
+     * @return number of the disks, available for template.
      */
     @Nonnull
     private static Optional<? extends Number> getNumInstanceDisks(

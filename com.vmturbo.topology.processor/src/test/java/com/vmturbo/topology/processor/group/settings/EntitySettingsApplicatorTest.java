@@ -24,7 +24,6 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -518,9 +517,8 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Checks that when instance store aware scaling setting is enabled than compute tier instance
-     * which has instance store disks, will have 3 additional commodities after setting
-     * application.
+     * Checks all cases when instance store aware scaling setting will not cause addition of
+     * commodities to target entity.
      */
     @Test
     public void checkSettingHasNoEffect() {
@@ -666,7 +664,6 @@ public class EntitySettingsApplicatorTest {
      * Checks that when instance store aware scaling setting is enabled than VM instance which has
      * instance store disks, will have 3 additional commodities after setting application.
      */
-    @Ignore
     @Test
     public void checkVmInstanceStoreSettings() {
         final long computeTierOid = 777_777L;
@@ -691,12 +688,16 @@ public class EntitySettingsApplicatorTest {
                         secondTierOid, topologyEntityBuilder(computeTierSecond)));
         applySettings(TOPOLOGY_INFO, applicator, graph, entity.getOid(),
                         INSTANCE_STORE_AWARE_SCALING_SETTING);
-        final CommoditiesBoughtFromProvider computeTierUpdatedProvider =
+        /*
+          Any of compute tier provider can have new instance store commodities. It depends on
+          the order in entity.getCommoditiesBoughtFromProvidersList().
+         */
+        final Collection<CommodityBoughtDTO> boughtCommodities =
                         entity.getCommoditiesBoughtFromProvidersList().stream()
-                                        .filter(p -> p.getProviderId() == computeTierOid)
-                                        .findFirst().get();
-        final List<CommodityBoughtDTO> boughtCommodities =
-                        computeTierUpdatedProvider.getCommodityBoughtList();
+                                        .filter(p -> p.getProviderEntityType()
+                                                        == EntityType.COMPUTE_TIER_VALUE)
+                                        .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                                        .flatMap(Collection::stream).collect(Collectors.toSet());
         Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(3));
         Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.INSTANCE_DISK_SIZE),
                         CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));

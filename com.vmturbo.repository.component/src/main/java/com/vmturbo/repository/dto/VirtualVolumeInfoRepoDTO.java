@@ -195,13 +195,14 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 && Objects.equals(files, that.files)
                 && Objects.equals(snapshotId, that.snapshotId)
                 && Objects.equals(attachmentState, that.attachmentState)
-                && Objects.equals(encryption, that.encryption));
+                && Objects.equals(encryption, that.encryption)
+                && Objects.equals(ephemeral, that.ephemeral));
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files,
-                snapshotId, attachmentState, encryption);
+                snapshotId, attachmentState, encryption, ephemeral);
     }
 
     @Override
