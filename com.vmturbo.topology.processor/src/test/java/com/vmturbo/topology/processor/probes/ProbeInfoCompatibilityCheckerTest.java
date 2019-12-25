@@ -176,7 +176,7 @@ public class ProbeInfoCompatibilityCheckerTest {
                 .addNonVolatileProperties(PropertyMetadata.newBuilder()
                     .setName("id")))
             .build();
-        assertFalse(checker.areCompatible(existingInfo, newInfo));
+        assertTrue(checker.areCompatible(existingInfo, newInfo));
     }
 
     private static ProbeInfo.Builder probeInfoBuilder() {
