@@ -375,8 +375,8 @@ public class GroupMapper {
         outputDTO.setEntitiesCount(groupAndMembers.entities().size());
         outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
 
-//        calculateEstimatedCostForCloudEnv(groupAndMembers, environmentType).ifPresent(
-//                outputDTO::setCostPrice);
+        calculateEstimatedCostForCloudEnv(groupAndMembers, environmentType).ifPresent(
+                outputDTO::setCostPrice);
 
         // only populate severity if required and if the group is not empty, since it's expensive
         if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
