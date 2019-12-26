@@ -147,7 +147,7 @@ public class CloudTopologyConverter {
         // since riData does not come along with the topologyEntityDTOs, RiDiscountedMarketTier creation
         // happens outside the for loop processing topologyEntityDTOs
         Map<TraderTO.Builder, MarketTier> traderTOBuildersForRis =
-                riConverter.createMarketTierTraderTOs(cloudCostData, topology, businessAccounts);
+                riConverter.createMarketTierTraderTOs(cloudCostData, topology, accountPricingDataByBusinessAccountOid);
         traderTOBuilders.addAll(traderTOBuildersForRis.keySet());
         computeMarketTierBuilders.addAll(traderTOBuildersForRis.keySet());
         // Add all the traderTO oids to MarketTier mappings to

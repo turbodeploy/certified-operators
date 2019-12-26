@@ -19,7 +19,6 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +45,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -70,6 +72,11 @@ public class ReservedInstanceConverterTest {
 
     private static final int couponCapacity = 8;
     private static final double delta = 0.001;
+    private static final long accountPricingOid = 1234L;
+    private static final long businessAccountOid = 5678L;
+    AccountPricingData accountPricingData = mock(AccountPricingData.class);
+    MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    Map<Long, AccountPricingData> accountPricingDataByBusinessAccountMap = new HashMap<>();
 
     /**
      * Initializes ReservedInstanceConverter instance.
@@ -81,7 +88,7 @@ public class ReservedInstanceConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 new HashMap<>(), false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class));
-        final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, null);
+        final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
         converter = new ReservedInstanceConverter(info, commodityConverter, costDTOCreator, mock(TierExcluder.class));
     }
 
@@ -182,6 +189,22 @@ public class ReservedInstanceConverterTest {
         Assert.assertFalse(costTuple.hasZoneId());
     }
 
+    @Test
+    public void testFractionalRICostInCbtpCostDto() {
+        accountPricingDataByBusinessAccountMap.put(businessAccountOid, accountPricingData);
+        ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, true).build();
+        when(marketPriceTable.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
+        final TraderTO traderTO = traders.iterator().next();
+        final CostDTO costDTO = traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
+        Assert.assertTrue(costDTO.hasCbtpResourceBundle());
+        final CbtpCostDTO cbtpCostDTO = costDTO.getCbtpResourceBundle();
+        Assert.assertTrue(cbtpCostDTO.hasCostTuple());
+        final CostTuple costTuple = cbtpCostDTO.getCostTuple();
+        Assert.assertEquals(7.0E-8, costTuple.getPrice(), 10^-9);
+        accountPricingDataByBusinessAccountMap.clear();
+    }
+
     /**
      * Test that coupon commodity sold used value is set correctly.
      */
@@ -232,7 +255,7 @@ public class ReservedInstanceConverterTest {
                 TIER_ID, mockComputeTier(),
                 TIER_ID_2, mockComputeTier(TIER_ID_2, false));
         return converter.createMarketTierTraderTOs(cloudCostData,
-                        topology, new HashSet<>()).keySet().stream().map(TraderTO.Builder::build)
+                        topology, accountPricingDataByBusinessAccountMap).keySet().stream().map(TraderTO.Builder::build)
                 .collect(Collectors.toList());
     }
 
@@ -253,6 +276,7 @@ public class ReservedInstanceConverterTest {
         if (zonal) {
             boughtInfoBuilder.setAvailabilityZoneId(zoneId);
         }
+        boughtInfoBuilder.setBusinessAccountId(businessAccountOid);
         boughtInfoBuilder.setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
                 .newBuilder().setNumberOfCoupons(couponCapacity).build());
         boughtRiBuilder.setReservedInstanceBoughtInfo(boughtInfoBuilder.build());

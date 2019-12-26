@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -54,7 +55,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull CloudCostData cloudCostData,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts) {
+            Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid) {
 
         ReservedInstanceAggregator aggregator = new ReservedInstanceAggregator(cloudCostData, topology);
         // create RI aggregates from the RIs bought
@@ -80,7 +81,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setRiskBased(RiskBased.newBuilder()
                                     .setCloudCost(costDTOCreator
-                                            .createCbtpCostDTO(riAggregate.getRiKey()))
+                                            .createCbtpCostDTO(riAggregate.getRiKey(), accountPricingDataByBusinessAccountOid, region, computeTier))
                                     .build()))
                     .setQuoteFactor(1)
                     .build();

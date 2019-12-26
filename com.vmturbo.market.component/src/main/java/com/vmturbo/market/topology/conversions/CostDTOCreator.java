@@ -1,6 +1,5 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +40,7 @@ public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
     private final MarketPriceTable marketPriceTable;
     private final CommodityConverter commodityConverter;
+    private static final double riCostDeprecationFactor = 0.00001;
 
     public CostDTOCreator(CommodityConverter commodityConverter, MarketPriceTable marketPriceTable) {
         this.commodityConverter = commodityConverter;
@@ -249,21 +249,44 @@ public class CostDTOCreator {
     /**
      * Create the CBTP cost dto.
      *
-     * @param reservedInstanceKey of the RI for which the CostDTO is created.
-     * @return the CBTP cost DTO.
+     * @param reservedInstanceKey reservedInstanceKey of the RI for which the CostDTO is created.
+     * @param accountPricingDataByBusinessAccountOid The accountPricing to use for the specific business account.
+     * @param region The region the RIDiscountedMarketTier is being created for.
+     * @param computeTier The compute tier based on which the price of the RIDiscountedMarketTier is calculated.
+     *
+     * @return The CBTP cost dto.
      */
-    CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey) {
+    CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey, Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid,
+                              TopologyEntityDTO region, TopologyEntityDTO computeTier) {
+        Optional<ComputePrice> templatePrice = Optional.empty();
+        AccountPricingData accountPricingData = accountPricingDataByBusinessAccountOid.get(reservedInstanceKey.getAccount());
+        if (accountPricingData != null) {
+            ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(computeTier, region.getOid(), accountPricingData);
+            templatePrice = priceBundle.getPrices().stream().filter(s ->s.getOsType().equals(reservedInstanceKey.getOs())).findFirst();
+        }
         return CostDTO.newBuilder().setCbtpResourceBundle(
                 CbtpCostDTO.newBuilder().setCouponBaseType(
                         CommodityDTO.CommodityType
                                 .COUPON_VALUE)
                         .setDiscountPercentage(1)
-                        .setCostTuple(addLocationInfo(CostTuple.newBuilder(), reservedInstanceKey))
+                        .setCostTuple(addLocationAndPriceInfo(CostTuple.newBuilder(), reservedInstanceKey, templatePrice))
                         .build()).build();
     }
 
-    private CostDTOs.CostDTO.CostTuple.Builder addLocationInfo(
-            CostDTOs.CostDTO.CostTuple.Builder builder, final ReservedInstanceKey riKey) {
+    /**
+     * Add the location and pricing info to the RI discounted market tier cost dto.
+     *
+     * @param builder The CostDTO builder
+     * @param riKey reservedInstanceKey of the RI for which the CostDTO is created.
+     * @param price The pricing of the corresponding on demand compute tier template.
+     *
+     * @return The Cost DTO builder with the parameters set.
+     */
+    private CostDTOs.CostDTO.CostTuple.Builder addLocationAndPriceInfo(
+            CostDTOs.CostDTO.CostTuple.Builder builder, final ReservedInstanceKey riKey, Optional<ComputePrice> price) {
+        if (price.isPresent()) {
+            builder.setPrice(price.get().getHourlyPrice() * riCostDeprecationFactor);
+        }
         return riKey.getZoneId() != 0 ? builder.setZoneId(riKey.getZoneId())
                 : builder.setRegionId(riKey.getRegionId());
     }
