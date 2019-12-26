@@ -336,18 +336,18 @@ public class SearchService implements ISearchService {
         // handling to handle target, market, entity, or group for all use cases.
         if (StringUtils.isNotEmpty(groupType)) {
             // if 'groupType' is specified, this MUST be a search over GROUPs
-            return groupsService.getPaginatedGroupApiDTOs(
+            return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, groupType, environmentType, scopes);
+                paginationRequest, groupType, environmentType);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (typesHashSet.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
                 // all Groups(supertype).
-                return groupsService.getPaginatedGroupApiDTOs(
+                return groupsService.getPaginatedGroupApiDTOS(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                    paginationRequest, null, environmentType, scopes);
+                    paginationRequest, null, environmentType);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 // TODO(OM-49616): return the proper search filters and handle the query string properly
@@ -458,10 +458,9 @@ public class SearchService implements ISearchService {
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
         final String className = StringUtils.defaultIfEmpty(inputDTO.getClassName(), "");
         if (GROUP.equals(className)) {
-            return groupsService.getPaginatedGroupApiDTOs(
+            return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType(),
-                inputDTO.getScope());
+                paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType());
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
