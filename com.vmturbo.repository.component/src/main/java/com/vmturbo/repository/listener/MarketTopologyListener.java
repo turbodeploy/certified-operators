@@ -204,6 +204,10 @@ public class MarketTopologyListener implements
                     "Topology ID: {} and Topology Type: {}",
                 topologyInfo.getTopologyContextId(),
                 topologyInfo.getTopologyId(), topologyInfo.getTopologyType(), e);
+        } catch (Exception e) {
+            logger.error("Failure in processing of plan analysis topology plan ID : " +
+                    topologyInfo.getTopologyContextId() + " topology ID : " +
+                    topologyInfo.getTopologyId(), e);
         }
     }
 
@@ -220,19 +224,27 @@ public class MarketTopologyListener implements
                                                 @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator)
             throws CommunicationException, InterruptedException {
 
-        final long topologyId = topologyInfo.getTopologyId();
-        final long topologyContextId = topologyInfo.getTopologyContextId();
-        logger.info("Received SOURCE topology {} for context {} topology DTOs from Market component",
-                topologyId, topologyContextId);
+        try {
+            final long topologyId = topologyInfo.getTopologyId();
+            final long topologyContextId = topologyInfo.getTopologyContextId();
+            logger.info("Received SOURCE topology {} for context {} topology DTOs from Market component",
+                    topologyId, topologyContextId);
 
-        final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
-                .labels(SharedMetrics.SOURCE_LABEL)
-                .startTimer();
-        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
-        final TopologyCreator<TopologyEntityDTO> topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
+            final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
+                    .labels(SharedMetrics.SOURCE_LABEL)
+                    .startTimer();
+            final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
+            final TopologyCreator<TopologyEntityDTO> topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
 
-        TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
-                tid, topologyCreator, notificationSender);
+            TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
+                    tid, topologyCreator, notificationSender);
+        } catch (Exception e) {
+            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.FAILED_LABEL).increment();
+            notificationSender.onSourceTopologyFailure(topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(),
+                    "Error receiving plan analysis for topology id " + topologyInfo.getTopologyId() +
+                            " and plan id " + topologyInfo.getTopologyContextId()  + " : " + e.getMessage());
+            throw e;
+        }
     }
 
 }

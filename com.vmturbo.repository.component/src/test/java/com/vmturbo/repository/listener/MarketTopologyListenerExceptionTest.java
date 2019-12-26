@@ -1,7 +1,9 @@
 package com.vmturbo.repository.listener;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -9,14 +11,14 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Optional;
 
+import com.arangodb.ArangoDBException;
+import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -157,6 +159,29 @@ public class MarketTopologyListenerExceptionTest {
         verifyMocks();
         verify(apiBackend).onProjectedTopologyFailure(
                 eq(projectedTopologyId), eq(topologyContextId), any(String.class));
+    }
+
+    /**
+     * Verify correct handling of {@link Exception}.
+     * @throws Exception when something goes wrong
+     */
+    @Test
+    public void testOnPlanAnalysisTopologyArangoException() throws Exception {
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(srcTopologyId)
+                .setTopologyContextId(topologyContextId)
+                .setCreationTime(creationTime)
+                .build();
+        String exceptionMsg = "ArangoDB failed!";
+        when(topologyManager.newSourceTopologyCreator(any(), any()))
+                .thenThrow(new ArangoDBException(exceptionMsg));
+
+        marketTopologyListener.onPlanAnalysisTopology(
+                    topologyInfo,
+                    mock(RemoteIterator.class));
+
+        verify(apiBackend).onSourceTopologyFailure(
+                eq(srcTopologyId), eq(topologyContextId), contains(exceptionMsg));
     }
 
     private void verifyMocks() throws Exception {
