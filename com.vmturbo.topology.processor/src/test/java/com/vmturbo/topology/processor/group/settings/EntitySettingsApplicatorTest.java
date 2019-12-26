@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -590,19 +591,34 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void checkComputeTierInstanceStoreSettings() {
         final Builder entity = createComputeTier(0L);
-        applySettings(TOPOLOGY_INFO, entity, INSTANCE_STORE_AWARE_SCALING_SETTING);
-        final List<CommoditySoldDTO> soldCommodities = entity.getCommoditySoldListList();
+        final long entityOid = entity.getOid();
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(entityOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .build();
+        final TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder().setOid(777_778L)
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        final long vmOid = vm.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
+                        .newGraph(ImmutableMap.of(vmOid, topologyEntityBuilder(vm), entity.getOid(),
+                                        topologyEntityBuilder(entity)));
+        final Map<Long, EntitySettings> entitySettings = ImmutableMap.of(vmOid,
+                        createSettings(vmOid, INSTANCE_STORE_AWARE_SCALING_SETTING), entityOid,
+                        createSettings(entityOid, INSTANCE_STORE_AWARE_SCALING_SETTING));
+        applySettings(graph, TOPOLOGY_INFO, entitySettings);
+        final List<CommoditySoldDTO.Builder> soldCommodities = entity.getCommoditySoldListBuilderList();
         final Set<CommodityType> commodityTypes =
-                        soldCommodities.stream().map(CommoditySoldDTO::getCommodityType)
+                        soldCommodities.stream().map(CommoditySoldDTO.Builder::getCommodityType)
                                         .map(TopologyDTO.CommodityType::getType)
                                         .map(CommodityType::forNumber).collect(Collectors.toSet());
         Assert.assertThat(soldCommodities.size(), CoreMatchers.is(3));
         Assert.assertThat(commodityTypes, Matchers.containsInAnyOrder(CommodityType.NUM_DISK,
                         CommodityType.INSTANCE_DISK_TYPE, CommodityType.INSTANCE_DISK_SIZE));
-        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO::getIsResizeable)
+        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO.Builder::getIsResizeable)
                                         .collect(Collectors.toSet()),
                         CoreMatchers.is(Collections.singleton(false)));
-        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO::getActive)
+        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO.Builder::getActive)
                                         .collect(Collectors.toSet()),
                         CoreMatchers.is(Collections.singleton(true)));
         Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_SIZE),
@@ -614,6 +630,27 @@ public class EntitySettingsApplicatorTest {
                                         == CommodityType.INSTANCE_DISK_TYPE_VALUE)
                         .getCommodityType().getKey();
         Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
+    }
+
+    private void applySettings(TopologyGraph<TopologyEntity> graph, TopologyInfo topologyInfo,
+                    final Map<Long, EntitySettings> entitySettings) {
+        final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
+        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, entitySettings,
+                        Collections.singletonMap(DEFAULT_SETTING_ID, policy));
+        applicator.applySettings(topologyInfo, graphWithSettings);
+    }
+
+    private EntitySettings createSettings(final long entityId, Setting... settings) {
+        final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
+                        .setEntityOid(entityId)
+                        .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
+        for (Setting setting : settings) {
+            settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
+                            .setSetting(setting)
+                            .addSettingPolicyId(1L)
+                            .build());
+        }
+        return settingsBuilder.build();
     }
 
     /**
@@ -726,7 +763,7 @@ public class EntitySettingsApplicatorTest {
         Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
     }
 
-    private static double getCommodityCapacity(Collection<CommoditySoldDTO> commodities,
+    private static double getCommodityCapacity(Collection<CommoditySoldDTO.Builder> commodities,
                     CommodityType commodityType) {
         return findCommodity(commodities,
                         c -> c.getCommodityType().getType() == commodityType.getNumber())

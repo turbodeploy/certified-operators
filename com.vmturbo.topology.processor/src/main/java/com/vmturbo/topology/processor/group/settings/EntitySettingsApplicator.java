@@ -38,8 +38,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.settings.applicators.ComputeTierInstanceStorePolicyApplicator;
-import com.vmturbo.topology.processor.group.settings.applicators.VmInstanceStorePolicyApplicator;
+import com.vmturbo.topology.processor.group.settings.applicators.ComputeTierInstanceStoreCommoditiesCreator;
+import com.vmturbo.topology.processor.group.settings.applicators.InstanceStoreSettingApplicator;
+import com.vmturbo.topology.processor.group.settings.applicators.VmInstanceStoreCommoditiesCreator;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 
 /**
@@ -155,8 +156,9 @@ public class EntitySettingsApplicator {
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM),
-                new ComputeTierInstanceStorePolicyApplicator(),
-                new VmInstanceStorePolicyApplicator(graphWithSettings.getTopologyGraph()));
+                new InstanceStoreSettingApplicator(graphWithSettings.getTopologyGraph(),
+                                        new VmInstanceStoreCommoditiesCreator(),
+                                        new ComputeTierInstanceStoreCommoditiesCreator()));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(

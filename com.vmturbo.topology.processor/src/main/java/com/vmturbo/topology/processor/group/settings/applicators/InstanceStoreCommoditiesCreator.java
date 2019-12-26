@@ -5,6 +5,8 @@
 package com.vmturbo.topology.processor.group.settings.applicators;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -18,23 +20,16 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.util.units.MemoryUnit;
 import com.vmturbo.mediation.util.units.ValueWithUnitFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
-import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator.SingleSettingApplicator;
 
 /**
- * {@link InstanceStorePolicyApplicator} provides a common implementation of the instance store
+ * {@link InstanceStoreCommoditiesCreator} provides a common implementation of the instance store
  * policy setting application. Creates three commodities:
  * <ul>
  *     <li>Disk number;</li>
@@ -45,18 +40,28 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator.Si
  * @param <B> type of the commodity builder which will be used to add commodities to
  *                 entity.
  */
-public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingApplicator {
+public abstract class InstanceStoreCommoditiesCreator<B> {
+    /**
+     * Checks whether {@link ComputeTierInfo} instance has information about instance disk type.
+     */
+    protected static final Predicate<ComputeTierInfo> INSTANCE_DISK_TYPE_PREDICATE =
+                    (cti) -> cti.hasInstanceDiskType()
+                                    && cti.getInstanceDiskType() != InstanceDiskType.NONE;
+    /**
+     * Checks whether {@link ComputeTierInfo} instance has information about number of instance
+     * disks.
+     */
+    protected static final Predicate<ComputeTierInfo> INSTANCE_NUM_DISKS_PREDICATE =
+                    (cti) -> cti.hasNumInstanceDisks() && cti.getNumInstanceDisks() > 0;
+    /**
+     * Checks whether {@link ComputeTierInfo} instance has information about instance disk size.
+     */
+    protected static final Predicate<ComputeTierInfo> INSTANCE_DISK_SIZE_PREDICATE =
+                    (cti) -> cti.hasInstanceDiskSizeGb() && cti.getInstanceDiskSizeGb() > 0;
     private static final Collection<Integer> INSTANCE_COMMODITY_TYPES =
                     ImmutableSet.of(CommodityDTO.CommodityType.INSTANCE_DISK_SIZE_VALUE,
-                                    CommodityDTO.CommodityType.NUM_DISK_VALUE,
                                     CommodityDTO.CommodityType.INSTANCE_DISK_TYPE_VALUE);
-    private static final Collection<Predicate<ComputeTierInfo>> INSTANCE_STORE_PREDICATES =
-                    ImmutableSet.of(ComputeTierInfo::hasInstanceDiskType,
-                                    ComputeTierInfo::hasNumInstanceDisks,
-                                    ComputeTierInfo::hasInstanceDiskSizeGb);
-    private final Logger logger = LogManager.getLogger(getClass());
 
-    private final EntityType entityType;
     private final Supplier<B> builderCreator;
     private final BiConsumer<B, CommodityType> commodityTypeSetter;
     private final BiConsumer<B, Number> valueSetter;
@@ -64,9 +69,8 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
     private final Function<B, Integer> commodityTypeGetter;
 
     /**
-     * Creates {@link InstanceStorePolicyApplicator} instance.
+     * Creates {@link InstanceStoreCommoditiesCreator} instance.
      *
-     * @param entityType type of the entity for which this applicator should work.
      * @param builderCreator creates commodity builder that will be added to the
      *                 entity.
      * @param commodityTypeSetter sets appropriate commodity type for the specific
@@ -76,72 +80,16 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
      *                 should do operations specific to descendant applicators.
      * @param commodityTypeGetter extracts information about commodity type.
      */
-    protected InstanceStorePolicyApplicator(@Nonnull EntityType entityType,
-                    @Nonnull Supplier<B> builderCreator,
+    protected InstanceStoreCommoditiesCreator(@Nonnull Supplier<B> builderCreator,
                     @Nonnull BiConsumer<B, CommodityType> commodityTypeSetter,
                     @Nonnull BiConsumer<B, Number> valueSetter,
                     @Nonnull Function<B, B> builderTransformer,
                     @Nonnull Function<B, Integer> commodityTypeGetter) {
-        super(EntitySettingSpecs.InstanceStoreAwareScaling);
-        this.entityType = Objects.requireNonNull(entityType);
         this.builderCreator = Objects.requireNonNull(builderCreator);
         this.commodityTypeSetter = Objects.requireNonNull(commodityTypeSetter);
         this.valueSetter = Objects.requireNonNull(valueSetter);
         this.builderTransformer = Objects.requireNonNull(builderTransformer);
         this.commodityTypeGetter = Objects.requireNonNull(commodityTypeGetter);
-    }
-
-    /**
-     * Applies setting for the specified entity. In case the setting is applicable for the entity.
-     *
-     * @param entity for which we want to try to apply the setting.
-     * @param setting that we want to apply for the entity.
-     */
-    @Override
-    protected void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
-        if (isApplicable(entity, setting)) {
-            populateInstanceStoreCommodities(entity);
-        }
-    }
-
-    /**
-     * Checks whether specified setting is applicable for the entity.
-     *
-     * @param entity for which we want to try to apply the setting.
-     * @param setting that we want to apply for the entity.
-     * @return {@code true} in case setting is applicable for entity, otherwise returns
-     *                 {@code false}.
-     */
-    protected boolean isApplicable(@Nonnull Builder entity, @Nonnull Setting setting) {
-        // Check that setting is active and enabled
-        if (!setting.hasBooleanSettingValue()) {
-            return false;
-        }
-        if (!setting.getBooleanSettingValue().getValue()) {
-            return false;
-        }
-        // Check whether entity has the proper type
-        return entity.getEntityType() == entityType.getNumber();
-    }
-
-    /**
-     * Checks whether entity has a compute tier info related to it or not.
-     *
-     * @param entity which we want to check availability of the compute tier info.
-     * @return {@code true} in case entity has compute tier info associated with it,
-     *                 otherwise returns {@code false}.
-     */
-    protected static boolean hasComputeTierInfo(@Nonnull Builder entity) {
-        // Check that entity has type specific info
-        if (!entity.hasTypeSpecificInfo()) {
-            return false;
-        }
-        // Checks that entity has appropriate type specific info instance
-        if (!entity.getTypeSpecificInfo().hasComputeTier()) {
-            return false;
-        }
-        final ComputeTierInfo computeTier = entity.getTypeSpecificInfo().getComputeTier();
-        return INSTANCE_STORE_PREDICATES.stream().allMatch(p -> p.test(computeTier));
     }
 
     /**
@@ -151,49 +99,30 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
      *                 collection in the entityToUpdate.
      * @param entityToUpdate entity which commodities collection need to be
      *                 updated.
-     * @param commodityAdder adds commodities to entity which we are going to update.
      * @param computeTierInfo information about computer tier which will provide
      *                 information required for instance store commodity creation process.
      * @param <E> type of the entity which commodities collection will be updated.
+     * @return number of commodity builders that have been created.
      */
-    protected <E> void addCommodities(@Nonnull Function<E, Collection<B>> commoditiesExtractor,
-                    @Nonnull BiConsumer<E, B> commodityAdder,
+    @Nonnull
+    public <E> Collection<B> create(@Nonnull Function<E, Collection<B>> commoditiesExtractor,
                     @Nonnull E entityToUpdate, @Nonnull ComputeTierInfo computeTierInfo) {
         final Collection<B> commodities = commoditiesExtractor.apply(entityToUpdate);
         if (commodities.stream().anyMatch(c -> INSTANCE_COMMODITY_TYPES
                         .contains(commodityTypeGetter.apply(c)))) {
-            return;
+            return Collections.emptySet();
         }
-        getInstanceStoreDiskSize(computeTierInfo).ifPresent(value -> commodityAdder
-                        .accept(entityToUpdate, createCommodityBuilder(
-                                        CommodityDTO.CommodityType.INSTANCE_DISK_SIZE, null,
+        final Collection<B> result = new HashSet<>();
+        getInstanceStoreDiskSize(computeTierInfo).ifPresent(value -> result
+                        .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_SIZE,
+                                        null, value.doubleValue())));
+        getNumInstanceDisks(computeTierInfo).ifPresent(value -> result
+                        .add(createCommodityBuilder(CommodityDTO.CommodityType.NUM_DISK, null,
                                         value.doubleValue())));
-        getNumInstanceDisks(computeTierInfo).ifPresent(value -> commodityAdder
-                        .accept(entityToUpdate,
-                                        createCommodityBuilder(CommodityDTO.CommodityType.NUM_DISK,
-                                                        null, value.doubleValue())));
-        getInstanceStoreDiskType(computeTierInfo).ifPresent(value -> commodityAdder
-                        .accept(entityToUpdate, createCommodityBuilder(
-                                        CommodityDTO.CommodityType.INSTANCE_DISK_TYPE, value,
-                                        null)));
-    }
-
-    /**
-     * Populates instance store related commodities into the entity.
-     *
-     * @param entity which should be populated with instance store related
-     *                 commodities.
-     */
-    protected abstract void populateInstanceStoreCommodities(@Nonnull Builder entity);
-
-    /**
-     * Returns logger instance available for applicator.
-     *
-     * @return logger instance.
-     */
-    @Nonnull
-    protected Logger getLogger() {
-        return logger;
+        getInstanceStoreDiskType(computeTierInfo).ifPresent(value -> result
+                        .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_TYPE,
+                                        value, null)));
+        return Collections.unmodifiableCollection(result);
     }
 
     /**
@@ -204,12 +133,10 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
      */
     private static Optional<? extends Number> getInstanceStoreDiskSize(
                     @Nonnull ComputeTierInfo computeTierInfo) {
-        if (computeTierInfo.hasInstanceDiskSizeGb()) {
-            return Optional.of(computeTierInfo.getInstanceDiskSizeGb())
-                            .map(sizeGb -> ValueWithUnitFactory.gigaBytes(sizeGb)
-                                            .convertTo(MemoryUnit.MegaByte));
-        }
-        return Optional.empty();
+        return Optional.of(computeTierInfo).filter(INSTANCE_DISK_SIZE_PREDICATE)
+                        .map(ComputeTierInfo::getInstanceDiskSizeGb)
+                        .map(sizeGb -> ValueWithUnitFactory.gigaBytes(sizeGb)
+                                        .convertTo(MemoryUnit.MegaByte));
     }
 
     /**
@@ -221,10 +148,8 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
     @Nonnull
     private static Optional<? extends Number> getNumInstanceDisks(
                     @Nonnull ComputeTierInfo computeTierInfo) {
-        if (computeTierInfo.hasNumInstanceDisks()) {
-            return Optional.of(computeTierInfo.getNumInstanceDisks());
-        }
-        return Optional.empty();
+        return Optional.of(computeTierInfo).filter(INSTANCE_NUM_DISKS_PREDICATE)
+                        .map(ComputeTierInfo::getNumInstanceDisks);
     }
 
     /**
@@ -236,10 +161,8 @@ public abstract class InstanceStorePolicyApplicator<B> extends SingleSettingAppl
     @Nonnull
     private static Optional<String> getInstanceStoreDiskType(
                     @Nonnull ComputeTierInfo computeTierInfo) {
-        final Optional<InstanceDiskType> result = computeTierInfo.hasInstanceDiskType() ?
-                        Optional.of(computeTierInfo.getInstanceDiskType()) :
-                        Optional.empty();
-        return result.map(Enum::name);
+        return Optional.of(computeTierInfo).filter(INSTANCE_DISK_TYPE_PREDICATE)
+                        .map(ComputeTierInfo::getInstanceDiskType).map(Enum::name);
     }
 
     /**
