@@ -1,7 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -77,12 +80,16 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
      * @return The scope OIDs of this filter or and empty list if this is a global filter. The order
      * of the list is irrelevant. The returned list is not modifiable.
      */
-    public List<Long> getScopeOids() {
+    public Collection<List<Long>> getStartingOidsPerScope() {
+        return Stream.of(accountFilter.getAccountIdList(),
+                entityFilter.getEntityIdList(), locationScopeStartingIds())
+                .collect(Collectors.toSet());
+    }
+
+    private List<Long> locationScopeStartingIds() {
         return ImmutableList.<Long>builder()
                 .addAll(regionFilter.getRegionIdList())
-                .addAll(accountFilter.getAccountIdList())
                 .addAll(availabilityZoneFilter.getAvailabilityZoneIdList())
-                .addAll(entityFilter.getEntityIdList())
                 .build();
     }
 

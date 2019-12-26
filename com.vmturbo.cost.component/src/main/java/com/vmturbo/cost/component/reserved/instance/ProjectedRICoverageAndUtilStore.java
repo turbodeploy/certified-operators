@@ -2,21 +2,26 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -29,7 +34,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -138,43 +142,41 @@ public class ProjectedRICoverageAndUtilStore {
     @Nonnull
     public Map<Long, EntityReservedInstanceCoverage>
                     getScopedProjectedEntitiesRICoverages(ReservedInstanceCoverageFilter filter) {
-        // Do the RPC before getting the lock, since the RPC can take a long time.
-        final List<Long> scopeIds = filter.getScopeOids();
-
-        // If this is a global scope, shortcircuit and avoid the query to the repository
-        if (scopeIds.isEmpty()) {
+        final Collection<List<Long>> startingOidsPerScope = filter.getStartingOidsPerScope();
+        // If this is a global scope, short circuit and avoid the query to the repository
+        if (startingOidsPerScope.stream().allMatch(CollectionUtils::isEmpty)) {
             return Collections.unmodifiableMap(projectedEntitiesRICoverage);
         } else {
-            // getEntityOidsByType gets all entities in the real time topology if scopeIds is empty.
-            Map<EntityType, Set<Long>> scopeMap = repositoryClient.getEntityOidsByType(scopeIds,
-                    topologyContextId, supplyChainServiceBlockingStub);
-            // this may return null if there are no VMs in scope, check below.
-            Set<Long> scopedOids = scopeMap.getOrDefault(EntityType.VIRTUAL_MACHINE, Collections.emptySet());
-            //TODO: add support for database VMs, make sure DATABASE is correct EntityType for them
-            //scopedOids.addAll(scopeMap.get(EntityType.DATABASE));
+            final Stream<Map<EntityType, Set<Long>>> entitiesPerScope =
+                    repositoryClient.getEntitiesByTypePerScope(startingOidsPerScope,
+                    supplyChainServiceBlockingStub);
 
-            synchronized (lockObject) {
-                if (scopedOids == null) {
-                    logger.debug("projectedEntitiesRICoverage.size() {}, scopeIds.size() {}"
-                                    + ", no entities found in scope",
-                            projectedEntitiesRICoverage::size, scopeIds::size);
-                    return Collections.EMPTY_MAP;
-                }
-                Map<Long, EntityReservedInstanceCoverage> filteredMap = new HashMap<>();
-                logger.debug("projectedEntitiesRICoverage.size() {}, scopeIds.size() {}"
-                                + ", scopedOids.size() {}", projectedEntitiesRICoverage::size,
-                        scopeIds::size, scopedOids::size);
-                for (Long anOid : scopedOids) {
-                    EntityReservedInstanceCoverage value = projectedEntitiesRICoverage.get(anOid);
-                    if (value != null) {
-                        filteredMap.put(anOid, value);
-                        logger.info("For VM OID {} found projected coverage {}", anOid, value);
-                    } else {
-                        logger.info("For VM OID {} no projected coverage found", anOid);
-                    }
-                }
-                return Collections.unmodifiableMap(filteredMap);
+            final Set<Long> scopedVmOids = entitiesPerScope
+                    .map(m -> m.getOrDefault(EntityType.VIRTUAL_MACHINE, Collections.emptySet()))
+                    .reduce(Sets::intersection)
+                    .map(Collection::stream)
+                    .map(stream -> stream.collect(Collectors.toSet()))
+                    .orElse(new HashSet<>());
+
+            if (scopedVmOids.isEmpty()) {
+                logger.debug("No VMs found in scope. startingOidsPerScope: {}",
+                        () -> startingOidsPerScope);
+                return Collections.emptyMap();
             }
+            final Map<Long, EntityReservedInstanceCoverage> projectedEntityRICoverages;
+            synchronized (lockObject) {
+                logger.debug("projectedEntitiesRICoverage.size() {}, startingOidsPerScope {}"
+                                + ", scopedVmOids.size() {}", projectedEntitiesRICoverage::size,
+                        () -> startingOidsPerScope, scopedVmOids::size);
+                projectedEntityRICoverages = scopedVmOids.stream()
+                        .map(projectedEntitiesRICoverage::get)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId,
+                                Function.identity()));
+
+                logger.debug("projectedEntityRICoverages: {}", () -> projectedEntityRICoverages);
+            }
+            return projectedEntityRICoverages;
         }
     }
 
