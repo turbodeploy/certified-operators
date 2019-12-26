@@ -40,6 +40,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
@@ -48,6 +49,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
@@ -60,6 +62,8 @@ import com.vmturbo.components.common.utils.StringConstants;
 public class ReservedInstancesService implements IReservedInstancesService {
 
     private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService;
+
+    private final PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
 
     private final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService;
 
@@ -79,6 +83,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
+            @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
             @Nonnull final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService,
             @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
@@ -88,6 +93,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
             @Nonnull final UuidMapper uuidMapper) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
+        this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
         this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
@@ -178,14 +184,11 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         .orElseThrow(() -> new UnknownObjectException("Unknown scope id: " + scopeId))
                         .getEntityType();
 
-                final GetReservedInstanceBoughtByTopologyRequest request =
-                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
-                                .setTopologyType(TopologyType.PLAN)
-                                .setScopeEntityType(scopeEntityType)
-                                .addAllScopeSeedOids(scopeIds)
+                final GetPlanReservedInstanceBoughtRequest request =
+                            GetPlanReservedInstanceBoughtRequest.newBuilder()
+                                .setPlanId(plan.getPlanId())
                                 .build();
-                return reservedInstanceService.getReservedInstanceBoughtByTopology(request)
-                        .getReservedInstanceBoughtList();
+                return planReservedInstanceService.getPlanReservedInstanceBought(request).getReservedInstanceBoughtsList();
             } else { // this must be a realtime scope
 
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -108,6 +109,27 @@ public class PlanReservedInstanceStore {
                         .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID
                                         .eq(planId)).execute();
         return rowsDeleted;
+
+    }
+
+    /**
+     * Returns reserved instance bought list for the specified plan.
+     *
+     * @param planId plan ID.
+     * @return list of {@link ReservedInstanceBought}.
+     */
+    public List<ReservedInstanceBought> getReservedInstanceBoughtByPlanId(long planId) {
+        final List<PlanReservedInstanceBoughtRecord> records = dsl.selectFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
+                        .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
+                        .fetch();
+        return records.stream().map(this::toReservedInstanceBoughtProto).collect(Collectors.toList());
+    }
+
+    private ReservedInstanceBought toReservedInstanceBoughtProto(PlanReservedInstanceBoughtRecord record) {
+        return ReservedInstanceBought.newBuilder()
+                        .setId(record.getId())
+                        .setReservedInstanceBoughtInfo(record.getReservedInstanceBoughtInfo())
+                        .build();
 
     }
 }

@@ -383,6 +383,7 @@ public class ServiceConfig {
     public ReservedInstancesService reservedInstancesService() {
         return new ReservedInstancesService(
             communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
+            communicationConfig.planReservedInstanceServiceBlockingStub(),
             communicationConfig.reservedInstanceSpecServiceBlockingStub(),
             communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
             mapperConfig.reservedInstanceMapper(),

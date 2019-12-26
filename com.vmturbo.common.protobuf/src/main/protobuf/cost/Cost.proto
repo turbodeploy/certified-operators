@@ -732,6 +732,13 @@ message GetPlanReservedInstanceBoughtCountByTemplateResponse {
     map<string, int64> reserved_instance_count_map = 1;
 }
 
+// A request to get reserved instance bought by some filter condition. If both region
+// and availability zone filters are provided, they will be OR'd. EIther filter
+// will be AND'd with the account filter (if configured)
+message GetPlanReservedInstanceBoughtRequest {
+    optional int64 planId = 1;
+}
+
 // A request to get reserved instance specs
 message GetReservedInstanceSpecByIdsRequest {
     // A list of reserved instance specs id need to retrieve.
@@ -1140,7 +1147,7 @@ service BuyRIAnalysisService {
 service PlanReservedInstanceService {
     // Get reserved instance bought by some filter condition, such as filter by region, availability zones
     // or account.
-    rpc GetPlanReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
+    rpc GetPlanReservedInstanceBought(GetPlanReservedInstanceBoughtRequest) returns
     (GetReservedInstanceBoughtByFilterResponse);
 
     // Get reserved instance count in the users inventory by template type for the plan
