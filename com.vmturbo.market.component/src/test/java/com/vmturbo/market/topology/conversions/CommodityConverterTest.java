@@ -3,9 +3,13 @@ package com.vmturbo.market.topology.conversions;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.collect.Table;
 
@@ -49,17 +53,19 @@ public class CommodityConverterTest {
     BiCliquer dsBasedBicliquer;
     Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     CommodityConverter converterToTest;
+    ConsistentScalingHelper consistentScalingHelper;
     @Before
     public void setup() {
         // Arrange
         commodityTypeAllocator = new NumericIDAllocator();
-        commoditySpecMap = Mockito.mock(Map.class);
+        commoditySpecMap = mock(Map.class);
         includeGuaranteedBuyer = false;
-        dsBasedBicliquer = Mockito.mock(BiCliquer.class);
-        numConsumersOfSoldCommTable = Mockito.mock(Table.class);
+        dsBasedBicliquer = mock(BiCliquer.class);
+        numConsumersOfSoldCommTable = mock(Table.class);
+        consistentScalingHelper = new ConsistentScalingHelper(null);
         converterToTest = new CommodityConverter(commodityTypeAllocator,
                 commoditySpecMap, includeGuaranteedBuyer,  dsBasedBicliquer,
-                numConsumersOfSoldCommTable, new ConversionErrorCounts());
+                numConsumersOfSoldCommTable, new ConversionErrorCounts(), consistentScalingHelper);
     }
 
     /**

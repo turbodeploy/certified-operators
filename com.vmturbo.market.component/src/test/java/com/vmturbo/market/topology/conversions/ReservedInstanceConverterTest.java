@@ -80,7 +80,7 @@ public class ReservedInstanceConverterTest {
         final TopologyInfo info = TopologyInfo.newBuilder().build();
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 new HashMap<>(), false, new BiCliquer(), HashBasedTable.create(),
-                new ConversionErrorCounts());
+                new ConversionErrorCounts(), mock(ConsistentScalingHelper.class));
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, null);
         converter = new ReservedInstanceConverter(info, commodityConverter, costDTOCreator, mock(TierExcluder.class));
     }

@@ -57,6 +57,7 @@ import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
@@ -156,7 +157,8 @@ public class Stages {
         @Nonnull
         @Override
         public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
-            discoveredGroupUploader.uploadDiscoveredGroups(input);
+            discoveredGroupUploader.uploadDiscoveredGroups(input,
+                    getContext().getConsistentScalingManager());
             // TODO (roman, Oct 23 2018): Provide some additional information regarding
             // the group upload - e.g. how many groups got uploaded, did anything get skipped,
             // and so on.
@@ -897,21 +899,26 @@ public class Stages {
         private final SettingOverrides settingOverrides;
 
         private final EntitySettingsResolver entitySettingsResolver;
+        private final ConsistentScalingManager consistentScalingManager;
 
         private SettingsResolutionStage(@Nonnull final EntitySettingsResolver entitySettingsResolver,
-                                        @Nonnull final List<ScenarioChange> scenarioChanges) {
+                                        @Nonnull final List<ScenarioChange> scenarioChanges, final ConsistentScalingManager consistentScalingManager) {
             this.entitySettingsResolver = entitySettingsResolver;
             this.settingOverrides = new SettingOverrides(scenarioChanges);
+            this.consistentScalingManager = consistentScalingManager;
         }
 
-        public static SettingsResolutionStage live(@Nonnull final EntitySettingsResolver entitySettingsResolver) {
-            return new SettingsResolutionStage(entitySettingsResolver, Collections.emptyList());
+        public static SettingsResolutionStage live(@Nonnull final EntitySettingsResolver entitySettingsResolver,
+                                                   @Nonnull final ConsistentScalingManager consistentScalingManager) {
+            return new SettingsResolutionStage(entitySettingsResolver, Collections.emptyList(), consistentScalingManager);
         }
 
         public static SettingsResolutionStage plan(
             @Nonnull final EntitySettingsResolver entitySettingsResolver,
-            @Nonnull final List<ScenarioChange> scenarioChanges) {
-            return new SettingsResolutionStage(entitySettingsResolver, scenarioChanges);
+            @Nonnull final List<ScenarioChange> scenarioChanges,
+            @Nonnull final ConsistentScalingManager consistentScalingManager) {
+            return new SettingsResolutionStage(entitySettingsResolver, scenarioChanges,
+                    consistentScalingManager);
         }
 
         @Nonnull
@@ -919,7 +926,7 @@ public class Stages {
         public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
                 getContext().getGroupResolver(), topologyGraph,
-                settingOverrides, getContext().getTopologyInfo());
+                settingOverrides, getContext().getTopologyInfo(), consistentScalingManager);
             return StageResult.withResult(graphWithSettings)
                 // TODO (roman, Oct 23 2018): Provide some information about number of
                 // setting policies applied.

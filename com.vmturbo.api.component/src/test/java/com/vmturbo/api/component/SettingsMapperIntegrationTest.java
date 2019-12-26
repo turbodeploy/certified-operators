@@ -5,6 +5,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
+
 import io.grpc.Channel;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
@@ -43,6 +45,10 @@ public class SettingsMapperIntegrationTest {
 
     private SettingsPoliciesService settingsPoliciesService = Mockito.mock(
             SettingsPoliciesService.class);
+
+    // Set of settings that are intentionally hidden from the UI
+    private final Set<String> invisibleSettings = ImmutableSet.of(
+        EntitySettingSpecs.ScalingGroupMembership.getSettingName());
 
     /**
      * Test ensures, that all the settings from group component are seen in the UI through the
@@ -85,6 +91,7 @@ public class SettingsMapperIntegrationTest {
                 .collect(Collectors.toSet());
         final Set<String> enumSettingsNames = Stream.of(EntitySettingSpecs.values())
                 .map(EntitySettingSpecs::getSettingName)
+            .filter(name -> !invisibleSettings.contains(name))
                 .collect(Collectors.toSet());
         enumSettingsNames.addAll(
             Stream.of(GlobalSettingSpecs.values())

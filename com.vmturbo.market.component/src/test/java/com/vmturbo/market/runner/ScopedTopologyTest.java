@@ -73,6 +73,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TierExcluder;
@@ -119,6 +120,9 @@ public class ScopedTopologyTest {
     private CloudCostData ccd = mock(CloudCostData.class);
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
+
     @Rule
     private GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService, testSettingService);
 
@@ -163,7 +167,9 @@ public class ScopedTopologyTest {
             priceTableFactory,
             wastedFilesAnalysisFactory,
             buyRIImpactAnalysisFactory,
-            tierExcluderFactory, mock(AnalysisRICoverageListener.class));
+            tierExcluderFactory,
+            mock(AnalysisRICoverageListener.class),
+            consistentScalingHelperFactory);
     }
 
     /**
@@ -182,7 +188,7 @@ public class ScopedTopologyTest {
 
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -204,7 +210,8 @@ public class ScopedTopologyTest {
 
         final TopologyConverter converter =
                 new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
-                    CommodityIndex.newFactory(), tierExcluderFactory);
+                    CommodityIndex.newFactory(), tierExcluderFactory,
+                    consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -223,7 +230,8 @@ public class ScopedTopologyTest {
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -243,7 +251,8 @@ public class ScopedTopologyTest {
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -264,7 +273,8 @@ public class ScopedTopologyTest {
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
         // add an additional VM, which should be considered unplaced
         topologyDTOBuilderSet.add(TopologyEntityDTO.newBuilder()
                 .setDisplayName("VM-unplaced")
@@ -341,7 +351,7 @@ public class ScopedTopologyTest {
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
                         cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,
                         wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                        mock(AnalysisRICoverageListener.class));
+                        mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory);
             });
 
         Analysis analysis =
@@ -396,7 +406,7 @@ public class ScopedTopologyTest {
 
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -416,7 +426,7 @@ public class ScopedTopologyTest {
 
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -442,7 +452,7 @@ public class ScopedTopologyTest {
 
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,

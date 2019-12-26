@@ -52,6 +52,7 @@ import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -117,8 +118,12 @@ public class StagesTest {
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        ConsistentScalingManager csm = mock(ConsistentScalingManager.class);
+        when(context.getConsistentScalingManager()).thenReturn(csm);
+        stage.setContext(context);
         stage.passthrough(topology);
-        verify(uploader).uploadDiscoveredGroups(topology);
+        verify(uploader).uploadDiscoveredGroups(topology, csm);
     }
 
     /**
@@ -421,7 +426,7 @@ public class StagesTest {
     @Test
     public void testLiveSettingsResolutionStage() throws PipelineStageException {
         final EntitySettingsResolver entitySettingsResolver = mock(EntitySettingsResolver.class);
-        final SettingsResolutionStage stage = SettingsResolutionStage.live(entitySettingsResolver);
+        final SettingsResolutionStage stage = SettingsResolutionStage.live(entitySettingsResolver, null);
 
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final GroupResolver groupResolver = mock(GroupResolver.class);
@@ -439,13 +444,13 @@ public class StagesTest {
 
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
 
-        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any()))
+        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any()))
             .thenReturn(graphWithSettings);
 
         stage.setContext(context);
         stage.execute(topologyGraph);
 
-        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any());
+        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any());
     }
 
     @Test
@@ -620,7 +625,8 @@ public class StagesTest {
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .build();
         final GroupResolver groupResolver = mock(GroupResolver.class);
-        final TopologyPipelineContext context = new TopologyPipelineContext(groupResolver, topologyInfo);
+        final TopologyPipelineContext context = new TopologyPipelineContext(groupResolver,
+            topologyInfo, null);
         stage.setContext(context);
         final Status status = stage.passthrough(createTopologyGraph());
         testServer.close();

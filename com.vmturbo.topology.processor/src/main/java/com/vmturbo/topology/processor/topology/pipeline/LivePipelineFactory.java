@@ -14,6 +14,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -129,6 +130,8 @@ public class LivePipelineFactory {
 
     private final LicenseCheckClient licenseCheckClient;
 
+    private final ConsistentScalingManager consistentScalingManager;
+
     private final ActionConstraintsUploader actionConstraintsUploader;
 
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
@@ -157,6 +160,7 @@ public class LivePipelineFactory {
                                @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
                                @Nonnull HistoryAggregator historyAggregationStage,
                                @Nonnull final LicenseCheckClient licenseCheckClient,
+                               @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final ActionConstraintsUploader actionConstraintsUploader) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
@@ -184,6 +188,7 @@ public class LivePipelineFactory {
         this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
         this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
+        this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.actionConstraintsUploader = actionConstraintsUploader;
     }
 
@@ -209,7 +214,8 @@ public class LivePipelineFactory {
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient),
+                    topologyInfo, consistentScalingManager);
         final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
         managers.add(topoBroadcastManager);
         managers.addAll(additionalBroadcastManagers);
@@ -255,7 +261,7 @@ public class LivePipelineFactory {
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PolicyStage(policyManager))
-                .addStage(SettingsResolutionStage.live(entitySettingsResolver))
+                .addStage(SettingsResolutionStage.live(entitySettingsResolver, consistentScalingManager))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new Stages.MatrixUpdateStage(matrix))

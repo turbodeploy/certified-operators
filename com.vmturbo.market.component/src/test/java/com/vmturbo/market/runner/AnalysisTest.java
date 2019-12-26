@@ -75,6 +75,8 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -129,6 +131,8 @@ public class AnalysisTest {
 
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
     private BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
             mock(BuyRIImpactAnalysisFactory.class);
     private BuyRIImpactAnalysis buyRIImpactAnalysis = mock(BuyRIImpactAnalysis.class);
@@ -147,6 +151,8 @@ public class AnalysisTest {
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         listener = mock(AnalysisRICoverageListener.class);
         cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
+            .thenReturn(mock(ConsistentScalingHelper.class));
         when(buyRIImpactAnalysisFactory.createAnalysis(eq(topologyInfo), any(), any(), any()))
                 .thenReturn(buyRIImpactAnalysis);
     }
@@ -197,7 +203,7 @@ public class AnalysisTest {
             groupServiceClient, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                listener);
+                listener, consistentScalingHelperFactory);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

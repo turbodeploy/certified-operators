@@ -64,6 +64,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
@@ -131,6 +132,8 @@ public class TopologyConverterFromMarketTest {
 
     private static final NumericIDAllocator ID_ALLOCATOR = new NumericIDAllocator();
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
 
     private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
@@ -146,6 +149,11 @@ public class TopologyConverterFromMarketTest {
         topologyCommodity2 =
                 CommodityType.newBuilder().setType(DSPM_TYPE_ID).setKey("blahblah").build();
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+        ConsistentScalingHelper consistentScalingHelper = mock(ConsistentScalingHelper.class);
+        when(consistentScalingHelper.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(consistentScalingHelper.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+        when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
+            .thenReturn(consistentScalingHelper);
         constructTopologyConverter();
     }
 
@@ -162,7 +170,8 @@ public class TopologyConverterFromMarketTest {
             mockCommodityConverter,
             mockCCD,
             CommodityIndex.newFactory(),
-            tierExcluderFactory));
+            tierExcluderFactory,
+            consistentScalingHelperFactory));
     }
 
     /**
@@ -687,7 +696,8 @@ public class TopologyConverterFromMarketTest {
         // converter under test
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory));
+                marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
+            consistentScalingHelperFactory));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -827,7 +837,8 @@ public class TopologyConverterFromMarketTest {
                         TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
-                        tierExcluderFactory));
+                        tierExcluderFactory,
+            consistentScalingHelperFactory));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -1275,7 +1286,8 @@ public class TopologyConverterFromMarketTest {
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory));
+                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
+            consistentScalingHelperFactory));
         converter.cloudTc = mockCloudTc;
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1325,8 +1337,11 @@ public class TopologyConverterFromMarketTest {
                 .isMarketTier(Mockito.eq(CLOUD_NEW_COMPUTE_TIER_OID));
         Mockito.doReturn(Collections.singleton(oldTierDTO)).when(mockCloudTc)
                 .getTopologyEntityDTOProvidersOfType(any(), Mockito.anyInt());
-        Mockito.doReturn(oldVMTO).when(converter).topologyDTOtoTraderTO(Mockito.eq(originalEntityDTO));
+        Mockito.doReturn(oldVMTO).when(converter)
+                .topologyDTOtoTraderTO(Mockito.eq(originalEntityDTO));
         Mockito.doReturn(Optional.empty()).when(mockCloudTc).getComputeTier(any());
+        Mockito.doReturn(Optional.empty()).when(mockCloudTc)
+                .getRiDiscountedMarketTier(Mockito.anyLong());
 
         Map<Long, ProjectedTopologyEntity> projectedTOs =
                 converter.convertFromMarket(Collections.singletonList(vmTO),

@@ -78,6 +78,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -205,6 +206,8 @@ public class Analysis {
 
     private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
 
+    private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
+
     private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
 
     private final AnalysisRICoverageListener listener;
@@ -232,6 +235,7 @@ public class Analysis {
      * @param buyRIImpactAnalysisFactory  buy RI impact analysis factory
      * @param tierExcluderFactory the tier excluder factory
      * @param listener that receives entity ri coverage information availability.
+     * @param consistentScalingHelperFactory CSM helper factory
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -244,7 +248,8 @@ public class Analysis {
                     @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
-                    @Nonnull final AnalysisRICoverageListener listener) {
+                    @Nonnull final AnalysisRICoverageListener listener,
+                    @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -265,6 +270,7 @@ public class Analysis {
         this.marketPriceTableFactory = priceTableFactory;
         this.tierExcluderFactory = tierExcluderFactory;
         this.listener = listener;
+        this.consistentScalingHelperFactory = consistentScalingHelperFactory;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -338,7 +344,7 @@ public class Analysis {
         this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
                 config.getQuoteFactor(), config.getLiveMarketMoveCostFactor(),
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
-                CommodityIndex.newFactory(), tierExcluderFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         state = AnalysisState.IN_PROGRESS;
         startTime = clock.instant();
         logger.info("{} Started", logPrefix);
@@ -960,7 +966,7 @@ public class Analysis {
 
         // this call 'finalizes' the topology, calculating the inverted maps in the 'economy'
         // and makes the following code run more efficiently
-        topology.populateMarketsWithSellers();
+        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // a "work queue" of entities to expand; any given OID is only ever added once -
         // if already in 'scopedTopologyOIDs' it has been considered and won't be re-expanded

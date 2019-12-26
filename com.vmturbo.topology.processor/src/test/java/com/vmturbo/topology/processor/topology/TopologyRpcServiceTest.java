@@ -46,6 +46,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -229,7 +230,8 @@ public class TopologyRpcServiceTest {
             final List<TopoBroadcastManager> broadcastManager =
                 (List<TopoBroadcastManager>)invocation.getArgumentAt(1, List.class);
             final TopologyPipelineContext context =
-                new TopologyPipelineContext(groupResolver, info);
+                new TopologyPipelineContext(groupResolver, info,
+                    mock(ConsistentScalingManager.class));
 
             TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
                 TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)

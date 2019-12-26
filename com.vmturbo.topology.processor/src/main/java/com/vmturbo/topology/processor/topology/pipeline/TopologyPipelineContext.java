@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo.Builder;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 
@@ -26,12 +27,15 @@ public class TopologyPipelineContext {
     private final TopologyInfo.Builder topologyInfoBuilder;
 
     private final StitchingJournalContainer stitchingJournalContainer;
+    private final ConsistentScalingManager consistentScalingManager;
 
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
-                                   @Nonnull final TopologyInfo topologyInfo) {
+                                   @Nonnull final TopologyInfo topologyInfo,
+                                   @Nonnull final ConsistentScalingManager consistentScalingManager) {
         this.groupResolver = Objects.requireNonNull(groupResolver);
         this.topologyInfoBuilder = Objects.requireNonNull(TopologyInfo.newBuilder(topologyInfo));
         this.stitchingJournalContainer = new StitchingJournalContainer();
+        this.consistentScalingManager = consistentScalingManager;
     }
 
     @Nonnull
@@ -55,5 +59,10 @@ public class TopologyPipelineContext {
     @Nonnull
     public StitchingJournalContainer getStitchingJournalContainer() {
         return stitchingJournalContainer;
+    }
+
+    @Nonnull
+    public ConsistentScalingManager getConsistentScalingManager() {
+        return consistentScalingManager;
     }
 }

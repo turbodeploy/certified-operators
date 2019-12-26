@@ -47,6 +47,7 @@ import com.vmturbo.market.runner.cost.MarketCloudCostDataProvider;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
 
@@ -138,7 +139,9 @@ public class MarketRunnerConfig {
                 standardQuoteFactor,
                 liveMarketMoveCostFactor,
                 suspensionThrottlingPerCluster,
-                tierExcluderFactory(), analysisRICoverageListener());
+                tierExcluderFactory(),
+                analysisRICoverageListener(),
+                consistentResizerFactory());
     }
 
     /**
@@ -234,5 +237,14 @@ public class MarketRunnerConfig {
         costClientConfig.costComponent(CostSubscription.forTopic(Topic.COST_STATUS_NOTIFICATION))
                 .addCostNotificationListener(listener);
         return listener;
+    }
+
+    /**
+     * Creates a new {@link ConsistentScalingHelperFactory}.
+     * @return a new {@link ConsistentScalingHelperFactory}
+     */
+    @Nonnull
+    public ConsistentScalingHelperFactory consistentResizerFactory() {
+        return new ConsistentScalingHelperFactory(settingPolicyRpcService());
     }
 }

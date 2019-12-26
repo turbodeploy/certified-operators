@@ -18,6 +18,7 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -68,6 +69,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     HistoryAggregationConfig.class,
     LicenseCheckClientConfig.class,
     TopologyProcessorDBConfig.class,
+    ConsistentScalingConfig.class,
     ActionsConfig.class
 })
 public class TopologyConfig {
@@ -134,6 +136,9 @@ public class TopologyConfig {
 
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
+
+    @Autowired
+    private ConsistentScalingConfig consistentScalingConfig;
 
     @Autowired
     private ActionsConfig actionsConfig;
@@ -238,6 +243,7 @@ public class TopologyConfig {
                 probeActionCapabilitiesApplicatorEditor(),
                 historyAggregationConfig.historyAggregationStage(),
                 licenseCheckClientConfig.licenseCheckClient(),
+                consistentScalingConfig.consistentScalingManager(),
                 actionsConfig.actionConstraintsUploader()
         );
     }
@@ -269,7 +275,8 @@ public class TopologyConfig {
                 matrixInterface(),
                 cachedTopology(),
                 historyAggregationConfig.historyAggregationStage(),
-                dmandOverriddenCommodityEditor()
+                dmandOverriddenCommodityEditor(),
+                consistentScalingConfig.consistentScalingManager()
         );
     }
 

@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -195,6 +196,23 @@ public class CloudTopologyConverter {
     @Nullable
     MarketTier getMarketTier(long traderToOid) {
         return traderTOOidToMarketTier.get(traderToOid);
+    }
+
+    /**
+     * Return value if there is a DiscountedMarketTier corresponding to the traderTOOid
+     *
+     * @param traderToOid the traderToOid for which the corresponding RiDiscountedMarketTier
+     *                    will be found.
+     * @return {@link MarketTier} which corresponds to the traderTO oid
+     */
+    @Nullable
+    Optional<MarketTier> getRiDiscountedMarketTier(long traderToOid) {
+        MarketTier mt = getMarketTier(traderToOid);
+        if (mt != null && mt.hasRIDiscount()) {
+            return Optional.of(mt);
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

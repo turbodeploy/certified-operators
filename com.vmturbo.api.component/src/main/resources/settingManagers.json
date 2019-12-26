@@ -125,8 +125,9 @@
         "resizeVcpuMaxThreshold",
         "resizeVmemMinThreshold",
         "resizeVmemMaxThreshold",
-        "instanceStoreAwareScaling",
-        "ignoreNvmePreRequisite"
+        "consistentResizing",
+        "ignoreNvmePreRequisite",
+        "instanceStoreAwareScaling"
       ]
     },
     "storagesettingsmanager": {

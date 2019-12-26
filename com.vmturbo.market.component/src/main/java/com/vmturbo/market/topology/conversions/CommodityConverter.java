@@ -20,10 +20,13 @@ import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ScalingGroup;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -52,19 +55,22 @@ public class CommodityConverter {
     private int bcBaseType = -1;
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     private final ConversionErrorCounts conversionErrorCounts;
+    private final ConsistentScalingHelper consistentScalingHelper;
 
     CommodityConverter(@Nonnull final NumericIDAllocator commodityTypeAllocator,
                        @Nonnull final Map<String, CommodityType> commoditySpecMap,
                        final boolean includeGuaranteedBuyer,
                        @Nonnull final BiCliquer dsBasedBicliquer,
                        @Nonnull final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable,
-                       @Nonnull final ConversionErrorCounts conversionErrorCounts) {
+                       @Nonnull final ConversionErrorCounts conversionErrorCounts,
+                       @Nonnull final ConsistentScalingHelper consistentScalingHelper) {
         this.commodityTypeAllocator = commodityTypeAllocator;
         this.commoditySpecMap = commoditySpecMap;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.dsBasedBicliquer = dsBasedBicliquer;
         this.numConsumersOfSoldCommTable = numConsumersOfSoldCommTable;
         this.conversionErrorCounts = conversionErrorCounts;
+        this.consistentScalingHelper = consistentScalingHelper;
     }
 
     /**
@@ -92,14 +98,14 @@ public class CommodityConverter {
     /**
      * Creates a {@link CommoditySoldTO} from the {@link TopologyDTO.CommoditySoldDTO}.
      *
-     * @param topologyCommSold the source {@link TopologyDTO.CommoditySoldDTO}
-     * @param dto the {@link TopologyDTO.TopologyEntityDTO} selling the commSold
+     * @param topologyCommSold the source {@link CommoditySoldDTO}
+     * @param dto the {@link TopologyEntityDTO} selling the commSold
      * @return a {@link CommoditySoldTO}
      */
     @Nonnull
     CommodityDTOs.CommoditySoldTO createCommonCommoditySoldTO(
-            @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold,
-            @Nonnull TopologyDTO.TopologyEntityDTO dto) {
+        @Nonnull final CommoditySoldDTO topologyCommSold,
+        @Nonnull TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
         float used = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getUsed,
@@ -161,6 +167,7 @@ public class CommodityConverter {
                              comName, dto.getDisplayName(), used, capacity);
             }
         }
+
         // effective capacity percentage are overloaded with 2 functionality.
         // when the value is less than 100 it is used as utilizationUpperBound which
         // will reduce the effective capacity.

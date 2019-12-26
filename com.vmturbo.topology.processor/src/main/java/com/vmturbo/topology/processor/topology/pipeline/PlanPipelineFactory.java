@@ -16,6 +16,7 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -97,6 +98,8 @@ public class PlanPipelineFactory {
 
     private final EntityValidator entityValidator;
 
+    private final ConsistentScalingManager consistentScalingManager;
+
     private final CommoditiesEditor commoditiesEditor;
 
     private final PlanTopologyScopeEditor planTopologyScopeEditor;
@@ -132,7 +135,8 @@ public class PlanPipelineFactory {
                                @Nonnull final MatrixInterface matrix,
                                @Nonnull final CachedTopology constructTopologyStageCache,
                                @Nonnull HistoryAggregator historyAggregationStage,
-                               @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor) {
+                               @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
+                               @Nonnull final ConsistentScalingManager consistentScalingManager) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -147,6 +151,7 @@ public class PlanPipelineFactory {
         this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
         this.applicationCommodityKeyChanger = Objects.requireNonNull(applicationCommodityKeyChanger);
         this.entityValidator = Objects.requireNonNull(entityValidator);
+        this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
         this.planTopologyScopeEditor = planTopologyScopeEditor;
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
@@ -182,7 +187,7 @@ public class PlanPipelineFactory {
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
         final TopologyPipeline.Builder topoPipelineBuilder =
             TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
         // if the constructed topology is already in the cache from the realtime topology, just
@@ -209,7 +214,7 @@ public class PlanPipelineFactory {
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
-                .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
+                .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingManager))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
@@ -237,7 +242,7 @@ public class PlanPipelineFactory {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
                 .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient))

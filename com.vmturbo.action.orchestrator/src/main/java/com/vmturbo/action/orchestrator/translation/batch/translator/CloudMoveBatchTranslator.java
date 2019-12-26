@@ -100,6 +100,9 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
         final ScaleExplanation.Builder explanation = ScaleExplanation.newBuilder()
                 .addAllChangeProviderExplanation(actionDto.getExplanation().getMove()
                         .getChangeProviderExplanationList());
+        if (move.hasScalingGroupId()) {
+            explanation.setScalingGroupId(move.getScalingGroupId());
+        }
 
         return actionDto.toBuilder()
                 .setExplanation(Explanation.newBuilder().setScale(explanation).build())

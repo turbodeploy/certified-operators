@@ -50,6 +50,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -327,8 +328,10 @@ public class DiscoveredGroupUploader {
      * to the group uploader.
      *
      * @param input topology entities indexed by oid
+     * @param consistentScalingManager consistent scaling manager
      */
-    public void uploadDiscoveredGroups(@Nonnull Map<Long, TopologyEntity.Builder> input) {
+    public void uploadDiscoveredGroups(@Nonnull Map<Long, TopologyEntity.Builder> input,
+                                       @Nonnull ConsistentScalingManager consistentScalingManager) {
         final List<DiscoveredGroupsPoliciesSettings> requests = new ArrayList<>();
 
         // Create requests in a synchronized block to guard against changes to discovered groups/settings/policies
@@ -350,7 +353,8 @@ public class DiscoveredGroupUploader {
                     .filter(group -> GroupType.COMPUTE_HOST_CLUSTER == group.getType())
                     .forEach(cluster -> addDatacenterPrefixToComputeClusterName(input, cluster));
 
-            // create the upload requests
+            // Create the upload requests and register discovered consistent scaling groups.
+            consistentScalingManager.clearDiscoveredGroups();
             // 1. upload all groups first since policies/settings refer to groups
             groupsToUploadByTarget.forEach((targetId, groups) -> {
                 // OM-52323: Probe types are not necessarily in the SDKProbeType enum. For instance,
@@ -370,8 +374,15 @@ public class DiscoveredGroupUploader {
                         DiscoveredGroupsPoliciesSettings.newBuilder()
                                 .setTargetId(targetId)
                                 .setProbeType(probeType);
-                groups.forEach(interpretedDto -> interpretedDto.convertToUploadedGroup()
-                        .ifPresent(req::addUploadedGroups));
+                    groups.forEach(interpretedDto -> {
+                        // Since the consistent scaling setting is not available in the Grouping
+                        // but it is available in the SDK DTO, we need to tell the CSM which
+                        // discovered groups need to be consistently scaled here while the setting
+                        // is available.
+                        consistentScalingManager.addDiscoveredGroup(interpretedDto);
+                        interpretedDto.convertToUploadedGroup()
+                                .ifPresent(req::addUploadedGroups);
+                    });
                 Optional.ofNullable(latestPoliciesByTarget.get(targetId))
                         .map(req::addAllDiscoveredPolicyInfos);
                 Optional.ofNullable(latestSettingPoliciesByTarget.get(targetId))

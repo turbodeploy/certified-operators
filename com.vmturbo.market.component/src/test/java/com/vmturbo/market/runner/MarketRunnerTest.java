@@ -56,6 +56,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -103,6 +104,9 @@ public class MarketRunnerTest {
 
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
@@ -140,7 +144,8 @@ public class MarketRunnerTest {
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                    mock(AnalysisRICoverageListener.class));
+                    mock(AnalysisRICoverageListener.class),
+                    consistentScalingHelperFactory);
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 

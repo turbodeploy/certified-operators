@@ -32,6 +32,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
@@ -106,6 +107,8 @@ public interface AnalysisFactory {
 
         private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
+        private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
+
         public DefaultAnalysisFactory(@Nonnull final GroupServiceBlockingStub groupServiceClient,
                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
                   @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -120,7 +123,8 @@ public interface AnalysisFactory {
                   final float liveMarketMoveCostFactor,
                   final boolean suspensionThrottlingPerCluster,
                   @Nonnull final TierExcluderFactory tierExcluderFactory,
-                  @Nonnull AnalysisRICoverageListener listener) {
+                  @Nonnull AnalysisRICoverageListener listener,
+                  @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -142,6 +146,7 @@ public interface AnalysisFactory {
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
             this.tierExcluderFactory = tierExcluderFactory;
             this.listener = listener;
+            this.consistentScalingHelperFactory = consistentScalingHelperFactory;
         }
 
         /**
@@ -159,10 +164,10 @@ public interface AnalysisFactory {
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
-                    groupServiceClient, clock,
-                    configBuilder.build(), cloudTopologyFactory,
-                    topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
-                    buyRIImpactAnalysisFactory, tierExcluderFactory, listener);
+                groupServiceClient, clock,
+                configBuilder.build(), cloudTopologyFactory,
+                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
+                buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory);
         }
 
         /**

@@ -428,3 +428,4 @@ defaultProperties:
         historyAggregation.grpcStreamTimeoutSec: 300
         # The chunk size for history access streaming operations
         historyAggregation.blobReadWriteChunkSizeKb: 128
+        consistentScalingEnabled: true

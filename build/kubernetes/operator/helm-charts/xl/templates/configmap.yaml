@@ -446,6 +446,8 @@ data:
             historyAggregation.grpcStreamTimeoutSec: 300
             # The chunk size for history access streaming operations
             historyAggregation.blobReadWriteChunkSizeKb: 128
+            # Whether to enable consistent scaling
+            consistentScalingEnabled: true
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

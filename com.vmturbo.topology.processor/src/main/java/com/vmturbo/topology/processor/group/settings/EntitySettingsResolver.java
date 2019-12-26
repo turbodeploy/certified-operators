@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -62,6 +66,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 
@@ -142,6 +147,7 @@ public class EntitySettingsResolver {
      *                         setting policies say. There is currently no scope to the overrides,
      *                         so all overrides are global.
      * @param topologyInfo used to get the topology context id
+     * @param consistentScalingManager consistenet scaling manager
      * @return List of EntitySettings
      *
      */
@@ -149,7 +155,8 @@ public class EntitySettingsResolver {
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final SettingOverrides settingOverrides,
-            @Nonnull final TopologyInfo topologyInfo) {
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final ConsistentScalingManager consistentScalingManager) {
 
         // map from policy ID to settings policy
         final Map<Long, SettingPolicy> policyById =
@@ -190,6 +197,8 @@ public class EntitySettingsResolver {
                 final Grouping group = groups.get(groupId);
                 if (group != null ) {
                     final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
+                    consistentScalingManager.addEntities(group,
+                        topologyGraph.getEntities(allEntitiesInGroup), settingPolicies);
                     resolveAllEntitySettings(allEntitiesInGroup, settingPolicies,
                         userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules);
                 } else {
@@ -201,6 +210,15 @@ public class EntitySettingsResolver {
             }
         });
 
+        // Now that all scaling group members have been identified, call the CSM to build the
+        // scaling groups.
+        consistentScalingManager.buildScalingGroups(topologyGraph, groupResolver);
+        // For each scaling group, apply all of the policies discovered in the group.  This will
+        // not only merge template exclusions, but also all all other settings.  The tiebreaker for
+        // each setting will determine which setting will be used for the entire scaling group.
+        consistentScalingManager.getPoliciesStream()
+            .forEach(p -> resolveAllEntitySettings(p.first, p.second,
+                    userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules));
         final List<SettingPolicy> defaultSettingPolicies =
                 SettingDTOUtil.extractDefaultSettingPolicies(policyById.values());
 
@@ -210,6 +228,12 @@ public class EntitySettingsResolver {
 
         final Map<Long, SettingPolicy> defaultSettingPoliciesById = defaultSettingPolicies.stream()
             .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
+
+         // Add scaling group membership information by creating a setting on each member.  We want
+         // to do this after the default settings are applied in order to avoid the membership
+         // setting removing the default settings.
+        consistentScalingManager.addScalingGroupSettings(userSettingsByEntityAndName);
+        consistentScalingManager.clear();  // Clear all state that doesn't need to persist
 
         // We have applied all the user settings. Now traverse the graph and
         // for each entity, associate its user settings and default setting policy id.
@@ -554,21 +578,21 @@ public class EntitySettingsResolver {
      * Helper class to store the setting and the setting policy ID it is associated with.
      */
     @VisibleForTesting
-    static class SettingAndPolicyIdRecord {
+    public static class SettingAndPolicyIdRecord {
 
         private Setting setting;
-        private List<Long> settingPolicyIdList;
+        private Set<Long> settingPolicyIdList;
         private SettingPolicy.Type type;
         private boolean scheduled;
 
-        SettingAndPolicyIdRecord(@Nonnull final Setting setting, final long settingPolicyId,
+        public SettingAndPolicyIdRecord(@Nonnull final Setting setting, final long settingPolicyId,
                                  @Nonnull final SettingPolicy.Type type, final boolean scheduled) {
             set(setting, settingPolicyId, type, scheduled);
         }
 
         void set(final Setting setting, long settingPolicyId, SettingPolicy.Type type, boolean scheduled) {
             this.setting = setting;
-            this.settingPolicyIdList = new ArrayList<>(1);
+            this.settingPolicyIdList = new HashSet<>(1);
             this.settingPolicyIdList.add(settingPolicyId);
             this.type = type;
             this.scheduled = scheduled;
@@ -578,7 +602,7 @@ public class EntitySettingsResolver {
             return setting;
         }
 
-        List<Long> getSettingPolicyIdList() {
+        Set<Long> getSettingPolicyIdList() {
             return settingPolicyIdList;
         }
 
@@ -708,7 +732,9 @@ public class EntitySettingsResolver {
                     SortedSetOfOidSettingValue.newBuilder().addAllOids(sortedOids)).build());
             // SettingPolicyIds are in a certain order because
             // the order of setting policies associated with every group is certain.
-            existingRecord.addSettingPolicyId(nextSettingPolicyId);
+            if (nextSettingPolicyId != 0L) {
+                existingRecord.addSettingPolicyId(nextSettingPolicyId);
+            }
             return Optional.of(existingRecord);
         };
 

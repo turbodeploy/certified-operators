@@ -202,4 +202,8 @@ public class GroupResolver {
             throw new GroupResolutionException(e);
         }
     }
+
+    public GroupServiceGrpc.GroupServiceBlockingStub getGroupServiceClient() {
+        return groupServiceClient;
+    }
 }

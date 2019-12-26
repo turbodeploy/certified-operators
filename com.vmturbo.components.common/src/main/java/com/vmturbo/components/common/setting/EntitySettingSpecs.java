@@ -302,7 +302,8 @@ public enum EntitySettingSpecs {
      */
     PercentileAggressivenessBusinessUser("percentileAggressivenessBusinessUser",
             SettingConstants.AGGRESSIVENESS,
-            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.BUSINESS_USER), numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
@@ -310,7 +311,8 @@ public enum EntitySettingSpecs {
      */
     PercentileAggressivenessVirtualMachine("percentileAggressivenessVirtualMachine",
             SettingConstants.AGGRESSIVENESS,
-            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
@@ -396,7 +398,7 @@ public enum EntitySettingSpecs {
      * Virtual CPU Increment.
      */
     VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
-            Collections.singletonList("resizeRecommendationsConstants"),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
@@ -405,7 +407,7 @@ public enum EntitySettingSpecs {
      * Virtual Memory Increment.
      */
     VmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
-            Collections.singletonList("resizeRecommendationsConstants"),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
@@ -414,7 +416,7 @@ public enum EntitySettingSpecs {
      * Virtual Storage Increment.
      */
     VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
-            Collections.singletonList("resizeRecommendationsConstants"),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
@@ -423,7 +425,7 @@ public enum EntitySettingSpecs {
      * Excluded Templates.
      */
     ExcludedTemplates("excludedTemplatesOids", "Excluded templates",
-        Collections.singletonList("resizeRecommendationsConstants"),
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
         SettingTiebreaker.UNION,
         EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
         sortedSetOfOid(Type.ENTITY), true),
@@ -432,7 +434,7 @@ public enum EntitySettingSpecs {
      * Storage Increment.
      */
     StorageIncrement("usedIncrement_StAmt", "Increment constant for Storage Amount [GB]",
-            Collections.singletonList("resizeRecommendationsConstants"),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE),
             numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true),
@@ -803,14 +805,31 @@ public enum EntitySettingSpecs {
                 EntityType.STORAGE,
                 EntityType.VIRTUAL_MACHINE),
             string(), true),
+
+    /**
+     * Indicates whether to enforce consistent resizing on a group.  Applies to: VM, Container
+     */
+    EnableConsistentResizing("consistentResizing", "Enable Consistent Resizing",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        new BooleanSettingDataType(false), false),
+
+    /*
+     Indicates the internal scaling group to which an entity belongs.
+     */
+    ScalingGroupMembership("scalingGroupMembership", "Scaling Group Membership",
+        Collections.emptyList(), SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        string(), false),
+
     /**
      * Enforce instance store aware scaling actions for {@link EntityType#VIRTUAL_MACHINE}s.
      */
     InstanceStoreAwareScaling("instanceStoreAwareScaling", "Instance Store Aware Scaling",
-                    Collections.singletonList(
-                                    CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-                    SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-                    new BooleanSettingDataType(false), true);
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        new BooleanSettingDataType(false), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(

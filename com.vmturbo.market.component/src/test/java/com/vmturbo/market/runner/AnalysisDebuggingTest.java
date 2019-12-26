@@ -63,6 +63,7 @@ import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -122,6 +123,9 @@ public class AnalysisDebuggingTest {
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
 
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Rule
@@ -276,7 +280,7 @@ public class AnalysisDebuggingTest {
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                mock(AnalysisRICoverageListener.class));
+                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory);
         return analysis;
     }
 

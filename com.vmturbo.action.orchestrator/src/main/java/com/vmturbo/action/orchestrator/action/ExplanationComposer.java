@@ -31,10 +31,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -229,7 +232,47 @@ public class ExplanationComposer {
                 }
             })
             .forEach(sj::add);
+        getScalingGroupExplanation(explanation).ifPresent(sj::add);
         return sj.toString();
+    }
+
+    /**
+     * If the explanation contains a scaling group ID, append scaling group information to the
+     * action explanation.
+     * @param explanation action explanation
+     * @return Optional containing the scaling group explanation if the explanation contains
+     * scaling group information, else Optional.empty.  If scaling group information is present
+     * but there is no mapping available, the scaling group ID itself is returned.
+     */
+    private static Optional<String> getScalingGroupExplanation(
+        final Explanation explanation) {
+        String scalingGroupName = null;
+        if (explanation.hasMove()) {
+            MoveExplanation moveExplanation = explanation.getMove();
+            if (moveExplanation.hasScalingGroupId()) {
+                scalingGroupName = moveExplanation.getScalingGroupId();
+            }
+        } else if (explanation.hasScale()) {
+            ScaleExplanation scaleExplanation = explanation.getScale();
+            if (scaleExplanation.hasScalingGroupId()) {
+                scalingGroupName = scaleExplanation.getScalingGroupId();
+            }
+        } else if (explanation.hasResize()) {
+            ResizeExplanation resizeExplanation = explanation.getResize();
+            if (resizeExplanation.hasScalingGroupId()) {
+                scalingGroupName = resizeExplanation.getScalingGroupId();
+            }
+        } else if (explanation.hasReconfigure()) {
+            ReconfigureExplanation reconfigureExplanation = explanation.getReconfigure();
+            if (reconfigureExplanation.hasScalingGroupId()) {
+                scalingGroupName = reconfigureExplanation.getScalingGroupId();
+            }
+        }
+        if (scalingGroupName != null) {
+            return Optional.of(" (Scaling Groups: " + scalingGroupName + ")");
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -421,6 +464,7 @@ public class ExplanationComposer {
         else {
             sb.append(commodityType).append(" congestion").append(targetClause);
         }
+        getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
         return sb.toString();
     }
 
@@ -532,15 +576,19 @@ public class ExplanationComposer {
             @Nonnull final ActionDTO.Action action, final boolean keepItShort,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
         final Explanation explanation = action.getExplanation();
-        if (!explanation.getReconfigure().getReasonSettingsList().isEmpty()) {
-            return (keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX) +
-                buildReasonSettingsExplanation(action.getInfo().getReconfigure().getTarget(),
-                    explanation.getReconfigure().getReasonSettingsList(), keepItShort,
-                    settingPolicyIdToSettingPolicyName);
+        final ReconfigureExplanation reconfigExplanation = explanation.getReconfigure();
+        final StringBuilder sb = new StringBuilder();
+        if (!reconfigExplanation.getReasonSettingsList().isEmpty()) {
+            sb.append((keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX))
+                .append(buildReasonSettingsExplanation(action.getInfo().getReconfigure().getTarget(),
+                    reconfigExplanation.getReasonSettingsList(), keepItShort,
+                    settingPolicyIdToSettingPolicyName));
         } else {
-            return buildReconfigureReasonCommodityExplanation(explanation
-                .getReconfigure().getReconfigureCommodityList(), keepItShort);
+            sb.append(buildReconfigureReasonCommodityExplanation(
+                    reconfigExplanation.getReconfigureCommodityList(), keepItShort));
         }
+        getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
+        return sb.toString();
     }
 
     /**

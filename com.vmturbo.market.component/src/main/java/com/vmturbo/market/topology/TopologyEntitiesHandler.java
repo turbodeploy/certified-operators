@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -143,7 +142,7 @@ public class TopologyEntitiesHandler {
         // The markets in the economy must be populated with their sellers after all traders have been
         // added. Map creation is not dependent on it, but for clarity it makes sense to add all
         // sellers into markets after traders have been added.
-        topology.populateMarketsWithSellers();
+        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
         topology.setTopologyId(topologyInfo.getTopologyId());
 
         populateCommodityResizeDependencyMap(topology);

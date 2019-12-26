@@ -20,6 +20,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -459,12 +460,14 @@ public class ActionInterpreter {
             throw new IllegalStateException(
                     "Market returned invalid shopping list for MOVE: " + moveTO);
         } else {
-            return ActionDTO.Move.newBuilder()
-                    .setTarget(
-                            createActionEntity(shoppingList.buyerId, projectedTopology))
+            ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
+                .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
                     .addAllChanges(createChangeProviders(moveTO,
-                            projectedTopology, originalCloudTopology, shoppingList.buyerId))
-                    .build();
+                        projectedTopology, originalCloudTopology, shoppingList.buyerId));
+            if (moveTO.hasScalingGroupId()) {
+                builder.setScalingGroupId(moveTO.getScalingGroupId());
+            }
+            return builder.build();
         }
     }
 
@@ -496,7 +499,9 @@ public class ActionInterpreter {
                 providerIdOptional.ifPresent(providerId ->
                     builder.setSource(createActionEntity(providerId, projectedTopology)));
             }
-
+            if (reconfigureTO.hasScalingGroupId()) {
+                builder.setScalingGroupId(reconfigureTO.getScalingGroupId());
+            }
             return builder.build();
         }
     }
@@ -571,6 +576,9 @@ public class ActionInterpreter {
                 .setOldCapacity(resizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodityType);
         setHotAddRemove(resizeBuilder, resizeCommSold);
+        if (resizeTO.hasScalingGroupId()) {
+            resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
+        }
         return resizeBuilder.build();
     }
 
@@ -684,7 +692,18 @@ public class ActionInterpreter {
                 sourceAzOrRegion = connectedEntities.get(0);
             else
                 logger.error("{} is not connected to any AZ or Region", target.getDisplayName());
-            sourceTier = sourceMarketTier.getTier();
+            if (sourceMarketTier instanceof RiDiscountedMarketTier) {
+                Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> boughtGroupingFromTier =
+                        target.getCommoditiesBoughtFromProvidersList().stream()
+                                .filter(grouping -> grouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                                .findFirst();
+
+                if (boughtGroupingFromTier.isPresent()) {
+                    sourceTier = originalCloudTopology.getEntity(boughtGroupingFromTier.get().getProviderId()).get();
+                }
+            } else {
+                sourceTier = sourceMarketTier.getTier();
+            }
         }
         Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
         // 4 case of moves:
@@ -790,11 +809,15 @@ public class ActionInterpreter {
     private MoveExplanation interpretMoveExplanation(
             @Nonnull ActionTO actionTO, @Nonnull CalculatedSavings savings,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        MoveTO moveTO = actionTO.getMove();
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         // For simple moves, set the sole change provider explanation to be the primary one
         ChangeProviderExplanation.Builder changeProviderExplanation =
-            changeExplanation(actionTO, actionTO.getMove(), savings, projectedTopology, true);
+            changeExplanation(actionTO, moveTO, savings, projectedTopology, true);
         moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
+        if (moveTO.hasScalingGroupId()) {
+            moveExpBuilder.setScalingGroupId(moveTO.getScalingGroupId());
+        }
         return moveExpBuilder.build();
     }
 
@@ -813,6 +836,9 @@ public class ActionInterpreter {
                 .map(commType2ReasonCommodity())
                 .collect(Collectors.toList()));
         tierExcluder.getReasonSettings(actionTO).ifPresent(reconfigureExplanation::addAllReasonSettings);
+        if (reconfigureTO.hasScalingGroupId()) {
+            reconfigureExplanation.setScalingGroupId(reconfigureTO.getScalingGroupId());
+        }
         return reconfigureExplanation.build();
     }
 
@@ -865,8 +891,13 @@ public class ActionInterpreter {
     }
 
     private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {
-        return ResizeExplanation.newBuilder().setStartUtilization(resizeTO.getStartUtilization())
-            .setEndUtilization(resizeTO.getEndUtilization()).build();
+        ResizeExplanation.Builder builder = ResizeExplanation.newBuilder()
+            .setStartUtilization(resizeTO.getStartUtilization())
+            .setEndUtilization(resizeTO.getEndUtilization());
+        if (resizeTO.hasScalingGroupId()) {
+            builder.setScalingGroupId(resizeTO.getScalingGroupId());
+        }
+        return builder.build();
     }
 
     private ActivateExplanation interpretActivateExplanation(ActivateTO activateTO) {

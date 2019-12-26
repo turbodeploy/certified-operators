@@ -86,6 +86,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingResolver;
@@ -215,6 +216,8 @@ public class EntitySettingsResolverTest {
         .build();
     private static final Schedule NOT_NOW = createOneTimeSchedule(22L, 11235813L,  11242980L);
     private static final int CHUNK_SIZE = 1;
+    private static final ConsistentScalingManager consistentScalingManager =
+            mock(ConsistentScalingManager.class);
     /*
     static {
         when(scheduleResolver.appliesAtResolutionInstant(eq(APPLIES_NOW.getId()),
@@ -251,9 +254,10 @@ public class EntitySettingsResolverTest {
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2));
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
+        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
-                topologyGraph, settingOverrides, rtTopologyInfo);
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager);
 
         verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -275,10 +279,12 @@ public class EntitySettingsResolverTest {
         // Only default setting policy used
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.singletonList(defaultSettingPolicy));
+        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(
-                groupResolver, topologyGraph, settingOverrides, rtTopologyInfo);
+                groupResolver, topologyGraph, settingOverrides, rtTopologyInfo,
+                consistentScalingManager);
 
         verify(groupResolver, never()).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -300,10 +306,11 @@ public class EntitySettingsResolverTest {
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2, defaultSettingPolicy));
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
+        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo);
+                settingOverrides, rtTopologyInfo, consistentScalingManager);
 
         verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -326,10 +333,11 @@ public class EntitySettingsResolverTest {
            .thenReturn(Collections.singletonList(settingPolicy2));
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
+        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo);
+                settingOverrides, rtTopologyInfo, consistentScalingManager);
 
         // settingPolicy2 doesn't have groups or ids. So it should't be in the final result
         assertTrue(entitiesSettings.getEntitySettings().stream()
@@ -347,10 +355,11 @@ public class EntitySettingsResolverTest {
            .thenReturn(Collections.emptyList());
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
+        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides, rtTopologyInfo);
+                settingOverrides, rtTopologyInfo, consistentScalingManager);
 
         assertThat(entitiesSettings.getEntitySettings().size(), is(1));
         List<EntitySettings> settings = new ArrayList<>(entitiesSettings.getEntitySettings());
@@ -419,19 +428,19 @@ public class EntitySettingsResolverTest {
 
         SettingAndPolicyIdRecord record1 = entitySettingsBySettingNameMap.get(entityOid1).get(specName);
         assertEquals(SettingPolicy.Type.DISCOVERED, record1.getType());
-        assertEquals(Collections.singletonList(SP1_ID), record1.getSettingPolicyIdList());
+        assertEquals(Collections.singleton(SP1_ID), record1.getSettingPolicyIdList());
         assertEquals(createSortedSetOfOidSetting(specName, Arrays.asList(tier1, tier2)),
             record1.getSetting());
 
         SettingAndPolicyIdRecord record2 = entitySettingsBySettingNameMap.get(entityOid2).get(specName);
         assertEquals(SettingPolicy.Type.USER, record2.getType());
-        assertEquals(Arrays.asList(SP2_ID, SP1_ID), record2.getSettingPolicyIdList());
+        assertEquals(ImmutableSet.of(SP2_ID, SP1_ID), record2.getSettingPolicyIdList());
         assertEquals(createSortedSetOfOidSetting(specName, Arrays.asList(tier1, tier2, tier3)),
             record2.getSetting());
 
         SettingAndPolicyIdRecord record3 = entitySettingsBySettingNameMap.get(entityOid3).get(specName);
         assertEquals(SettingPolicy.Type.USER, record3.getType());
-        assertEquals(Arrays.asList(SP2_ID, SP3_ID), record3.getSettingPolicyIdList());
+        assertEquals(ImmutableSet.of(SP2_ID, SP3_ID), record3.getSettingPolicyIdList());
         assertEquals(createSortedSetOfOidSetting(specName, Arrays.asList(tier2, tier3, tier4)),
             record3.getSetting());
     }
@@ -494,7 +503,7 @@ public class EntitySettingsResolverTest {
         assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
         // Verify that policy1 wins
         assertEquals(appliedSettings.get(0).getSettingPolicyIdList(),
-            Collections.singletonList(settingPolicyNow1.getId()));
+            Collections.singleton(settingPolicyNow1.getId()));
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
             Collections.singletonList(settingPolicyNow2),
@@ -595,7 +604,7 @@ public class EntitySettingsResolverTest {
 
         assertFalse(appliedSettings.isEmpty());
         assertTrue(appliedSettings.stream().allMatch(setting ->
-            setting.getSettingPolicyIdList().equals(Collections.singletonList(SP2_ID))));
+            setting.getSettingPolicyIdList().equals(Collections.singleton(SP2_ID))));
     }
 
     /**
@@ -654,7 +663,7 @@ public class EntitySettingsResolverTest {
         // Even though policy4 has setting2a which has a lower value, since the policy
         // is discovered, policy1 (which is a USER policy) wins.
         assertTrue(appliedSettings.stream().allMatch(setting ->
-            setting.getSettingPolicyIdList().equals(Collections.singletonList(SP1_ID))));
+            setting.getSettingPolicyIdList().equals(Collections.singleton(SP1_ID))));
         assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
     }
 

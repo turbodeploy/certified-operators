@@ -29,11 +29,13 @@ message Explanation {
     // A list of explanations for move action.
     message MoveExplanation {
         repeated ChangeProviderExplanation change_provider_explanation = 1;
+        optional string scaling_group_id = 2;
     }
 
     // An explanation for Scale action.
     message ScaleExplanation {
         repeated ChangeProviderExplanation change_provider_explanation = 1;
+        optional string scaling_group_id = 2;
     }
 
     message ChangeProviderExplanation {
@@ -137,6 +139,7 @@ message Explanation {
     message ResizeExplanation {
         required float start_utilization = 1;
         required float end_utilization = 2;
+        optional string scaling_group_id = 3;
     }
 
     // An activate explanation contains the base type of the most expensive commodity.
@@ -163,6 +166,8 @@ message Explanation {
         // A list of setting policy oids which caused this reconfigure action.
         // For ex. reconfigure actions that can be caused by template exclusion settings.
         repeated int64 reason_settings = 3;
+
+        optional string scaling_group_id = 4;
     }
 
     message ProvisionExplanation {
@@ -248,6 +253,9 @@ message Move {
 
     // Details of the providers changes
     repeated ChangeProvider changes = 2;
+
+    // scaling group ID
+    optional string scaling_group_id = 3;
 }
 
 // Scale an entity. Currently this action type is used to represent Cloud Move actions for
@@ -311,6 +319,9 @@ message Resize {
 
     // whether or not this commodity supports hot remove
     optional bool hot_remove_supported = 7 [default = false];
+
+    // scaling group ID
+    optional string scaling_group_id = 8;
 }
 
 // Activate an existing deactivated entity.
@@ -368,6 +379,9 @@ message Reconfigure {
     optional ActionEntity source = 2;
 
     // TODO (davidblinn, July 2016): We also need to record the shopping list that caused the change.
+
+    // scaling group ID
+    optional string scaling_group_id = 3;
 }
 
 // An action to provision an entity that matches another entity already existing in the system.

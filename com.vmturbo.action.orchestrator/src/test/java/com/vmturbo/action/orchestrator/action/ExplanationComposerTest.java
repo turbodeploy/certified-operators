@@ -263,13 +263,14 @@ public class ExplanationComposerTest {
                         .addReconfigureCommodity(SEGMENTATION).addReconfigureCommodity(NETWORK)))
                     .build();
 
-        ActionDTO.Action reconfigureWithPrefix = ActionDTO.Action.newBuilder()
+        ActionDTO.Action.Builder builder = ActionDTO.Action.newBuilder()
                 .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
                         .setReconfigure(ReconfigureExplanation.newBuilder()
                                         .addReconfigureCommodity(SEGMENTATION)
-                                        .addReconfigureCommodity(NETWORK_WITH_PREFIX_IN_KEY)))
-                .build();
+                                        .addReconfigureCommodity(NETWORK_WITH_PREFIX_IN_KEY)));
+
+        ActionDTO.Action reconfigureWithPrefix = builder.build();
 
         assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
                         "testNetwork1",
@@ -282,6 +283,16 @@ public class ExplanationComposerTest {
                 ExplanationComposer.composeExplanation(reconfigureWithPrefix));
         assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity",
             ExplanationComposer.shortExplanation(reconfigureWithPrefix));
+
+        // Make the reconfigure with prefix  for a member of a scaling group
+        builder.getExplanationBuilder().getReconfigureBuilder().setScalingGroupId("example group");
+        ActionDTO.Action reconfigureWithPrefixCSG = builder.build();
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, " +
+                    "Network Commodity testNetwork2 (Scaling Groups: example group)",
+            ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG));
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, " +
+                    "Network Commodity (Scaling Groups: example group)",
+            ExplanationComposer.shortExplanation(reconfigureWithPrefixCSG));
     }
 
     /**
@@ -383,6 +394,19 @@ public class ExplanationComposerTest {
                 ExplanationComposer.composeExplanation(action.build()));
         assertEquals("VMem congestion",
             ExplanationComposer.shortExplanation(action.build()));
+
+        // Test the resize down again with scaling group information
+        action.getExplanationBuilder().getResizeBuilder()
+            .setScalingGroupId("example scaling group");
+        assertEquals("(^_^)~VMem congestion in Virtual Machine {entity:0:displayName:}" +
+                " (Scaling Groups: example scaling group)",
+            ExplanationComposer.composeExplanation(action.build()));
+        assertEquals("VMem congestion (Scaling Groups: example scaling group)",
+            ExplanationComposer.shortExplanation(action.build()));
+
+        // Test action without Resize action
+        action.getInfoBuilder().clearResize();
+        assertEquals("", ExplanationComposer.composeExplanation(action.build()));
     }
 
     @Test
