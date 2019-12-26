@@ -108,7 +108,7 @@ public class MarketRunner {
                 analysis = analysisMap.get(topologyContextId);
                 logger.info("Analysis {} is already running with topology {}. Discarding {}.",
                         topologyContextId, analysis.getTopologyId(), topologyId);
-                TheMatrix.clearInstance(analysis.getTopologyId());
+                TheMatrix.clearInstance(topologyId);
                 return analysis;
             }
             logger.info("Received analysis {}: topology {}" +
