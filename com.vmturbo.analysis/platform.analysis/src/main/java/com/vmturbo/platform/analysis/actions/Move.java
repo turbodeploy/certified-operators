@@ -463,7 +463,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             move.getDestination() == getSource()) { // Moves cancel each other
             return null;
         } else {
-            Move newMove = new Move(getEconomy(), getTarget(), getSource(), move.getDestination());
+            Move newMove = new Move(getEconomy(), getTarget(), getSource(), move.getDestination(),
+                move.getContext());
             return newMove;
         }
     }
