@@ -71,8 +71,8 @@ public class StorageConverter implements IEntityConverter {
                         // get volume
                         EntityDTO.Builder volume = converter.getNewEntityBuilder(volumeId);
 
-                        if (probeType == SDKProbeType.AWS) {
-                            // connect to AZ for aws
+                        if (probeType == SDKProbeType.AWS || probeType == SDKProbeType.GCP) {
+                            // connect to AZ for aws or gcp
                             if (!volume.getLayeredOverList().contains(azId)) {
                                 volume.addLayeredOver(azId);
                             }

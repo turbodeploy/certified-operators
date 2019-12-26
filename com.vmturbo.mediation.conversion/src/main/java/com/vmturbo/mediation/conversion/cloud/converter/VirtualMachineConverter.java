@@ -109,7 +109,7 @@ public class VirtualMachineConverter implements IEntityConverter {
 
             // check entity type of original provider defined in unmodified EntityDTO
             if (providerEntityType == EntityType.PHYSICAL_MACHINE) {
-                if (probeType == SDKProbeType.AWS) {
+                if (probeType == SDKProbeType.AWS || probeType == SDKProbeType.GCP) {
                     // connect to AZ
                     entity.addLayeredOver(providerId);
                 } else if (probeType == SDKProbeType.AZURE) {
@@ -149,9 +149,9 @@ public class VirtualMachineConverter implements IEntityConverter {
                         volume.addLayeredOver(storageTierId);
                     }
 
-                    // connect volume to az for aws / to region for azure
+                    // connect volume to az for aws or gcp / to region for azure
                     azId.ifPresent(az -> {
-                        if (probeType == SDKProbeType.AWS) {
+                        if (probeType == SDKProbeType.AWS || probeType == SDKProbeType.GCP) {
                             if (!volume.getLayeredOverList().contains(az)) {
                                 volume.addLayeredOver(az);
                             }
@@ -175,9 +175,9 @@ public class VirtualMachineConverter implements IEntityConverter {
             }
         });
 
-        // for AWS, create a new CommodityBought for VM which buys ZONE access commodity from
+        // for AWS or GCP, create a new CommodityBought for VM which buys ZONE access commodity from
         // AZ, and the commodity key is AZ id
-        if (probeType == SDKProbeType.AWS) {
+        if (probeType == SDKProbeType.AWS || probeType == SDKProbeType.GCP) {
             azId.ifPresent(az -> newCommodityBoughtList.add(CommodityBought.newBuilder()
                     .addBought(CommodityDTO.newBuilder()
                             .setCommodityType(CommodityType.ZONE)

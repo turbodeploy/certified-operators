@@ -45,7 +45,9 @@ public class EnvironmentTypeInjector {
         SDKProbeType.AZURE_COST,
         SDKProbeType.AZURE_EA,
         SDKProbeType.AZURE_SERVICE_PRINCIPAL,
-        SDKProbeType.AZURE_STORAGE_BROWSE);
+        SDKProbeType.AZURE_STORAGE_BROWSE,
+        SDKProbeType.GCP,
+        SDKProbeType.GCP_COST);
 
     private static final Logger logger = LogManager.getLogger();
 

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;

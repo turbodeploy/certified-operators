@@ -106,6 +106,11 @@ public class ComputeTierConverter implements IEntityConverter {
                     entity.addLayeredOver(stId);
                 }
             });
+        } else if (probeType == SDKProbeType.GCP) {
+            // GCP: diskType can be Standard, SSD
+            converter.getAllStorageTierIds().forEach(stId -> {
+                    entity.addLayeredOver(stId);
+            });
         }
 
         // create sold commodities, based on commodityProfile defined in entityProfile
