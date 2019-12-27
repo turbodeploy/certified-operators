@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,12 +29,15 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.ActionStats;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
+import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
@@ -58,6 +62,36 @@ public final class Ede {
     public Ede() {}
 
     static final Logger logger = LogManager.getLogger(Ede.class);
+
+    /**
+     * For each shopping list in shoppingLists we compute the
+     * list of providers that has enough capacity for all commodities.
+     * @param shoppingLists the shopping list set of interest
+     * @param economy The snapshot of the economy
+     * @return a map from a VM's OID associated with the shopping list to a set of
+     * provider OIDs that the VM can fit into.
+     */
+    public @NonNull Map<Long, Set<Long>> getProviderLists(
+            Set<ShoppingList> shoppingLists, Economy economy) {
+        Map<Long, Set<Long>>  providerListMap = new HashMap<>();
+        for (ShoppingList shoppingList : shoppingLists) {
+            Set<Long> providerList = new HashSet<>();
+            for (Trader trader : economy.getMarket(shoppingList)
+                    .getActiveSellersAvailableForPlacement()) {
+                Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader);
+                // if  trader is a cbtp convert it to tp
+                if (tp != null) {
+                    trader = tp;
+                }
+                if (ProvisionUtils.canBuyerFitInSeller(shoppingList, trader, economy)) {
+                    providerList.add( economy.getTopology().getTraderOids().get(trader));
+                }
+            }
+            Long buyerID = economy.getTopology().getTraderOids().get(shoppingList.getBuyer());
+            providerListMap.put(buyerID, providerList);
+        }
+        return providerListMap;
+    }
 
     /**
      * Generate Actions.

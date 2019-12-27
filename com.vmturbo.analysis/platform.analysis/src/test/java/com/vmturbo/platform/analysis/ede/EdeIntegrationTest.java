@@ -6,8 +6,11 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +37,8 @@ public class EdeIntegrationTest {
 
     private @NonNull Economy first;
     private @NonNull Topology firstTopology;
-    private @Nonnull Trader vm1, vm2, pm1, pm2;
+    private @Nonnull Trader vm1, vm2, pm1, pm2, pm3;
+    ShoppingList shoppingListOfVm2, shoppingListOfVm1;
 
     private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
 
@@ -47,17 +51,20 @@ public class EdeIntegrationTest {
         vm2 = first.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM);
         pm1 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
         pm2 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
+        pm3 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
         vm1.setDebugInfoNeverUseInCode("VirtualMachine|1");
         vm2.setDebugInfoNeverUseInCode("VirtualMachine|2");
         pm1.setDebugInfoNeverUseInCode("PhysicalMachine|1");
         pm2.setDebugInfoNeverUseInCode("PhysicalMachine|2");
+        pm3.setDebugInfoNeverUseInCode("PhysicalMachine|3");
         traderOids.put(vm1, 1L);
         traderOids.put(vm2, 2L);
         traderOids.put(pm1, 3L);
         traderOids.put(pm2, 4L);
+        traderOids.put(pm3, 5L);
 
-        ShoppingList shoppingListOfVm1 = first.getMarketsAsBuyer(vm1).keySet().iterator().next();
-        ShoppingList shoppingListOfVm2 = first.getMarketsAsBuyer(vm2).keySet().iterator().next();
+        shoppingListOfVm1 = first.getMarketsAsBuyer(vm1).keySet().iterator().next();
+        shoppingListOfVm2 = first.getMarketsAsBuyer(vm2).keySet().iterator().next();
 
         shoppingListOfVm1.setQuantity(0, 40).setPeakQuantity(0, 40).setMovable(true);
         shoppingListOfVm1.move(pm1);
@@ -67,6 +74,7 @@ public class EdeIntegrationTest {
 
         pm1.getCommoditySold(TestUtils.CPU).setCapacity(100).setQuantity(40);
         pm2.getCommoditySold(TestUtils.CPU).setCapacity(100).setQuantity(10);
+        pm3.getCommoditySold(TestUtils.CPU).setCapacity(11).setQuantity(0);
         // to test resize of VCPU on VM1
         vm1.getCommoditySold(TestUtils.VCPU).setCapacity(100).setQuantity(80)
                 .getSettings().setCapacityIncrement(1);
@@ -75,6 +83,8 @@ public class EdeIntegrationTest {
                 .setSuspendable(true).setCloneable(true);
         pm2.getSettings().setMaxDesiredUtil(0.7).setMinDesiredUtil(0.6).setCanAcceptNewCustomers(true)
                 .setSuspendable(true).setCloneable(true);
+        pm3.getSettings().setMaxDesiredUtil(0.7).setMinDesiredUtil(0.6).setCanAcceptNewCustomers(true)
+                .setSuspendable(false).setCloneable(false);
         vm1.getSettings().setMinDesiredUtil(0.6).setMaxDesiredUtil(0.7);
 
         first.getCommodityBought(shoppingListOfVm1, TestUtils.CPU).setQuantity(40);
@@ -95,6 +105,19 @@ public class EdeIntegrationTest {
         unmodifiableTraderOidField.setAccessible(true);
         unmodifiableTraderOidField.set(firstTopology, traderOids);
 
+    }
+
+    @Test
+    public void testProviderList() {
+        Ede engine = new Ede();
+        Set<ShoppingList> shoppingListSet = new HashSet<>();
+        shoppingListSet.add(shoppingListOfVm1);
+        shoppingListSet.add(shoppingListOfVm2);
+        Map<Long, Set<Long>> providerList =
+                engine.getProviderLists(shoppingListSet, first);
+        // pm3 can only fit shoppingListOfVm2
+        assertTrue(providerList.get(1L).size() == 2);
+        assertTrue(providerList.get(2L).size() == 3);
     }
 
     /**
