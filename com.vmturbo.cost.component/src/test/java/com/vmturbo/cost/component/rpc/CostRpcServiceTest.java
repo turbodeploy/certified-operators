@@ -20,10 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -31,6 +27,10 @@ import com.google.common.collect.ImmutableSet;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
@@ -69,7 +69,6 @@ import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
-import com.vmturbo.cost.component.stats.ReservedInstanceStatCleanupScheduler;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -93,7 +92,7 @@ public class CostRpcServiceTest {
     private static final long MID_TIME = TIME + TimeUnit.MINUTES.toMillis(30);
     private static final double DELTA = 0.00001d; // the allowed delta between 'expected' and 'actual'
 
-    final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
@@ -105,7 +104,7 @@ public class CostRpcServiceTest {
                     .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
                     .build())
             .build();
-    final DiscountInfo discountInfo2 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfo2 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
@@ -117,7 +116,7 @@ public class CostRpcServiceTest {
                     .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
                     .build())
             .build();
-    final DiscountInfo discountInfo3 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfo3 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
@@ -130,7 +129,7 @@ public class CostRpcServiceTest {
                     .build())
             .setDisplayName("testname")
             .build();
-    final DiscountInfo discountInfo4 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfo4 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
@@ -142,7 +141,7 @@ public class CostRpcServiceTest {
                     .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
                     .build())
             .build();
-    final DiscountInfo discountInfo5 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfo5 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
@@ -158,7 +157,7 @@ public class CostRpcServiceTest {
                     .newBuilder()
                     .putDiscountPercentageByTierId(ID, DISCOUNT_PERCENTAGE1))
             .build();
-    final DiscountInfo discountInfoAccountOnly1 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfoAccountOnly1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
@@ -166,7 +165,7 @@ public class CostRpcServiceTest {
                     .build())
             .setDisplayName("testname")
             .build();
-    final DiscountInfo discountInfoServiceAndTierOnly1 = DiscountInfo.newBuilder()
+    private final DiscountInfo discountInfoServiceAndTierOnly1 = DiscountInfo.newBuilder()
             .setServiceLevelDiscount(DiscountInfo
                     .ServiceLevelDiscount
                     .newBuilder()
@@ -177,7 +176,7 @@ public class CostRpcServiceTest {
                     .newBuilder()
                     .putDiscountPercentageByTierId(ID, DISCOUNT_PERCENTAGE1))
             .build();
-    final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
+    private final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
                     .setAssociatedServiceId(ASSOCIATED_SERVICE_ID)
@@ -189,7 +188,7 @@ public class CostRpcServiceTest {
                     .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE2).build())
                     .build())
             .build();
-    private final int ASSOCIATED_ENTITY_TYPE1 = 1;
+    private static final int ASSOCIATED_ENTITY_TYPE1 = 1;
     private final ComponentCost componentCost = ComponentCost.newBuilder()
             .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
@@ -219,13 +218,13 @@ public class CostRpcServiceTest {
             .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
             .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
             .build();
-    public DiscountStore discountStore = mock(DiscountStore.class);
+    private DiscountStore discountStore = mock(DiscountStore.class);
 
-    public AccountExpensesStore accountExpenseStore = mock(AccountExpensesStore.class);
+    private AccountExpensesStore accountExpenseStore = mock(AccountExpensesStore.class);
 
-    public EntityCostStore entityCostStore = mock(EntityCostStore.class);
-    public ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
-    public BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
+    private EntityCostStore entityCostStore = mock(EntityCostStore.class);
+    private ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
+    private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
     private Clock clock = new MutableFixedClock(TIME);
@@ -737,6 +736,7 @@ public class CostRpcServiceTest {
             .accountIds(Collections.singleton(55L))
             .regionIds(Collections.singleton(66L))
             .availabilityZoneIds(Collections.singleton(77L))
+            .latestTimestampRequested(true)
             .build()
         ));
     }

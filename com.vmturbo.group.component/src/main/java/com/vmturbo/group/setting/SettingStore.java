@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Functions;
 import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -309,51 +310,67 @@ public class SettingStore implements Diagnosable {
                     .map(Setting::getSettingSpecName)
                     .collect(Collectors.toSet());
 
-                    List<Setting> settingsToAdd = new ArrayList<>();
-            for (Setting existingSettingName : existingPolicy.getInfo().getSettingsList()) {
-                if (!newSettingNames.contains(existingSettingName.getSettingSpecName())) {
-                    /**
-                             * SLA is created behind the scenes, not exposed in the UI.
-                             * TODO If this changes this will have to be revisited.
-                             */
-                            if (existingSettingName.getSettingSpecName().contains("slaCapacity")) {
-                                settingsToAdd.add(existingSettingName);
-                                continue;
-                            }
+            final SettingPolicyInfo defaultSettingPolicy = DefaultSettingPolicyCreator
+                    .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+                    .get(existingPolicy.getInfo().getEntityType());
+            if (defaultSettingPolicy == null) {
+                logger.error("Cannot get default info for policy {}, entity type {}",
+                        newInfo.getName(), existingPolicy.getInfo().getEntityType());
+            }
+            final Map<String, Setting> defaultSettings = defaultSettingPolicy == null
+                    ? Collections.emptyMap()
+                    : defaultSettingPolicy.getSettingsList().stream()
+                    .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+            List<Setting> settingsToAdd = new ArrayList<>();
+            for (Setting existingSetting : existingPolicy.getInfo().getSettingsList()) {
+                final String existingSettingName = existingSetting.getSettingSpecName();
+                if (!newSettingNames.contains(existingSettingName)) {
+                    /*
+                     * SLA is created behind the scenes, not exposed in the UI.
+                     * TODO If this changes this will have to be revisited.
+                     */
+                    if (existingSettingName.contains("slaCapacity")) {
+                        settingsToAdd.add(existingSetting);
+                        continue;
+                    }
 
-                            if (SettingDTOUtil.isDefaultValueSetting(existingSettingName)) {
-                                 // add existingSettingName as default setting to the new policy
-                                settingsToAdd.add(existingSettingName);
-                                continue;
-                            }
+                    final Setting defaultSetting = defaultSettings.get(existingSettingName);
+                    if (defaultSetting == null) {
+                        logger.error("Cannot get default value for setting {} in policy {}",
+                                existingSettingName, newInfo.getName());
+                    } else if (SettingDTOUtil.areValuesEqual(existingSetting, defaultSetting)) {
+                        // Prevent removing setting if its existing value matches default
+                        settingsToAdd.add(existingSetting);
+                        continue;
+                    }
 
-                            /**
+                    /*
                      * TODO (Marco, August 05 2018) OM-48940
                      * ActionWorkflow and ActionScript settings are missing in the ui and
                      * in the payload of the request due to OM-48950.
                      * This workaround will be removed when OM-48950 will be fixed.
                      */
-                    if (!existingSettingName.getSettingSpecName().contains("ActionWorkflow") &&
-                            !existingSettingName.getSettingSpecName().contains("ActionScript")) {
+                    if (!existingSettingName.contains("ActionWorkflow") &&
+                            !existingSettingName.contains("ActionScript")) {
                         throw new InvalidItemException(
                                 "Illegal attempt to remove a default setting " +
-                                        existingSettingName.getSettingSpecName());
+                                        existingSettingName);
                     }
                 }
-                    }
+            }
 
-                    if (!settingsToAdd.isEmpty()) {
-                        // add the default entities that are missing
-                        settingsToAdd.addAll(newInfo.getSettingsList());
+            if (!settingsToAdd.isEmpty()) {
+                // add the default entities that are missing
+                settingsToAdd.addAll(newInfo.getSettingsList());
 
-                        SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
-                            .clearSettings()
-                            .addAllSettings(settingsToAdd)
-                            .build();
+                SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
+                    .clearSettings()
+                    .addAllSettings(settingsToAdd)
+                    .build();
 
-                        return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
-                                        .setInfo(newNewInfo)
-                                        .build());
+                return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
+                                .setInfo(newNewInfo)
+                                .build());
             }
         }
 

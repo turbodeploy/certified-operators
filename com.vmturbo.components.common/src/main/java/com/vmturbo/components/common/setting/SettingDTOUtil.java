@@ -18,10 +18,10 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -229,34 +229,36 @@ public final class SettingDTOUtil {
     }
 
     /**
-     * Has a setting the default value for its type.
+     * Check if two settings have equal values.
      *
-     * @param setting Setting to investigate.
-     * @return true if the setting has the default value for its type.
+     * @param setting1 The first setting.
+     * @param setting2 The second setting.
+     * @return {@code true} if settings have the same values.
      */
-    public static boolean isDefaultValueSetting(Setting setting) {
-        if (SettingProto.Setting.ValueCase.VALUE_NOT_SET.equals(setting.getValueCase())) {
+    public static boolean areValuesEqual(
+            @Nonnull final Setting setting1,
+            @Nonnull final Setting setting2) {
+        if (setting1.getValueCase() != setting2.getValueCase()) {
             return false;
         }
-
-        Setting settingDefault = setting.getDefaultInstanceForType();
-
-        switch (setting.getValueCase()) {
-        case BOOLEAN_SETTING_VALUE:
-            return setting.getBooleanSettingValue().getValue()
-                            == settingDefault.getBooleanSettingValue().getValue();
-        case NUMERIC_SETTING_VALUE:
-            return setting.getNumericSettingValue().getValue()
-                            == settingDefault.getNumericSettingValue().getValue();
-        case STRING_SETTING_VALUE:
-            return Objects.equals(setting.getStringSettingValue().getValue(),
-                            settingDefault.getStringSettingValue().getValue());
-        case ENUM_SETTING_VALUE:
-            return Objects.equals(setting.getEnumSettingValue().getValue(),
-                            settingDefault.getEnumSettingValue().getValue());
-        default:
-            throw new IllegalArgumentException("Illegal setting value type: "
-                + setting.getValueCase());
+        switch (setting1.getValueCase()) {
+            case VALUE_NOT_SET:
+                return false;
+            case BOOLEAN_SETTING_VALUE:
+                return setting1.getBooleanSettingValue().getValue()
+                        == setting2.getBooleanSettingValue().getValue();
+            case NUMERIC_SETTING_VALUE:
+                return setting1.getNumericSettingValue().getValue()
+                        == setting2.getNumericSettingValue().getValue();
+            case STRING_SETTING_VALUE:
+                return Objects.equals(setting1.getStringSettingValue().getValue(),
+                        setting2.getStringSettingValue().getValue());
+            case ENUM_SETTING_VALUE:
+                return Objects.equals(setting1.getEnumSettingValue().getValue(),
+                        setting2.getEnumSettingValue().getValue());
+            default:
+                throw new IllegalArgumentException("Illegal setting value type: "
+                        + setting1.getValueCase());
         }
     }
 

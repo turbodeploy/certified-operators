@@ -344,85 +344,144 @@ public class SettingDTOUtilTest {
         SettingCategoryPath categoryPath = SettingDTOUtil.createSettingCategoryPath(CATEGORY_PATHS);
         // assert
         assertThat(categoryPath, equalTo(expectedCategoryPath));
-
     }
-
 
     /**
-     * Test using the utility method to IsDefaultValueSetting for all types of settings:
-     *   boolean, numeric, string, enum.
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal boolean values.
      */
     @Test
-    public void testIsDefaultValueSetting() {
-        // not set
-        Setting setting = Setting.newBuilder()
-            .setSettingSpecName("name1")
-            .build();
+    public void testAreValuesEqualForEqualBooleans() {
+        final Setting setting1 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
 
-        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting));
-
-        // boolean setting
-        Setting setting1 = Setting.newBuilder()
-            .setSettingSpecName("name1")
-            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
-            .build();
-
-        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting1));
-
-        Setting setting2 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
-                        .build();
-
-        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting2));
-
-        // String setting
-        Setting setting3 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setStringSettingValue(StringSettingValue.getDefaultInstance())
-                        .build();
-
-        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting3));
-
-        Setting setting4 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setStringSettingValue(StringSettingValue.newBuilder().setValue("test").build())
-                        .build();
-
-        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting4));
-
-        // numeric setting
-        Setting setting5 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
-                        .build();
-
-        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting5));
-
-        Setting setting6 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(123).build())
-                        .build();
-
-        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting6));
-
-        // enum setting
-        Setting setting7 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setEnumSettingValue(EnumSettingValue.getDefaultInstance())
-                        .build();
-
-        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting7));
-
-        Setting setting8 = Setting.newBuilder()
-                        .setSettingSpecName("name")
-                        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("test").build())
-                        .build();
-
-        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting8));
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
     }
 
-    private EnumSettingValue createEnumSettingValue(String value) {
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal boolean values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualBooleans() {
+        final Setting setting1 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal numeric values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualNumbers() {
+        final Setting setting1 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal numeric values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualNumbers() {
+        final Setting setting1 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(2))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal string values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualStrings() {
+        final Setting setting1 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal string values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualStrings() {
+        final Setting setting1 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("2"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal enum values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualEnums() {
+        final Setting setting1 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal enum values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualEnums() {
+        final Setting setting1 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("2"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 different value types.
+     */
+    @Test
+    public void testAreValuesEqualForDifferentValueTypes() {
+        final Setting setting1 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    private static EnumSettingValue createEnumSettingValue(String value) {
         return EnumSettingValue.newBuilder()
                 .setValue(value)
                 .build();

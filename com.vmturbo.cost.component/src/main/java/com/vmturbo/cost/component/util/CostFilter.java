@@ -35,9 +35,9 @@ public abstract class CostFilter {
     protected final boolean latestTimeStampRequested;
 
 
-    CostFilter(@Nullable  final Set<Long> entityFilters,
-               @Nullable  final Set<Integer> entityTypeFilters,
-               @Nullable  final Long startDateMillis,
+    CostFilter(@Nullable final Set<Long> entityFilters,
+               @Nullable final Set<Integer> entityTypeFilters,
+               @Nullable final Long startDateMillis,
                @Nullable final Long endDateMillis,
                @Nonnull final TimeFrame timeFrame,
                @Nonnull final String snapshotTime,
@@ -108,7 +108,7 @@ public abstract class CostFilter {
             && Objects.equals(entityFilters, other.entityFilters)
             && Objects.equals(timeFrame, other.timeFrame)
             && Objects.equals(snapshotTime, other.snapshotTime)
-            && (latestTimeStampRequested == latestTimeStampRequested);
+            && (latestTimeStampRequested == other.latestTimeStampRequested);
     }
 
     @Override
@@ -235,7 +235,7 @@ public abstract class CostFilter {
          * @return the builder.
          */
         @Nonnull
-        public B latestTimestampRequested(@Nonnull boolean latestTimeStampRequested) {
+        public B latestTimestampRequested(boolean latestTimeStampRequested) {
             this.latestTimeStampRequested = latestTimeStampRequested;
             return (B)this;
         }
