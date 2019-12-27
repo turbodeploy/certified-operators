@@ -414,7 +414,7 @@ public class ActionSpecMapper {
                 addMoveInfo(actionApiDTO, recommendation, context, ActionType.SCALE);
                 break;
             case ALLOCATE:
-                addAllocateInfo(actionApiDTO, info.getAllocate(), context);
+                addAllocateInfo(actionApiDTO, actionSpec, context);
                 break;
             case RECONFIGURE:
                 addReconfigureInfo(actionApiDTO, info.getReconfigure(), context);
@@ -1020,16 +1020,25 @@ public class ActionSpecMapper {
 
     private void addAllocateInfo(
             @Nonnull final ActionApiDTO actionApiDTO,
-            @Nonnull final Allocate allocate,
+            @Nonnull final ActionSpec allocateActionSpec,
             @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
         // Set action type
         actionApiDTO.setActionType(ActionType.ALLOCATE);
 
         // Set action target
-        final long targetId = allocate.getTarget().getId();
+        ActionDTO.ActionInfo actionInfo = allocateActionSpec.getRecommendation().getInfo();
+        final long targetId = actionInfo.getAllocate().getTarget().getId();
         final ServiceEntityApiDTO target = context.getEntity(targetId);
         actionApiDTO.setTarget(ServiceEntityMapper.copyServiceEntityAPIDTO(target));
+
+        // Set template family in current entity
+        final String templateFamily =
+                allocateActionSpec.getRecommendation().getExplanation().getAllocate().getInstanceSizeFamily();
+        ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+        serviceEntityApiDTO.setDisplayName(templateFamily);
+        serviceEntityApiDTO.setClassName(UIEntityType.COMPUTE_TIER.apiStr());
+        actionApiDTO.setCurrentEntity(serviceEntityApiDTO);
 
         // Set action current and new locations (should be the same for Allocate)
         setCurrentAndNewLocation(targetId, context, actionApiDTO);
