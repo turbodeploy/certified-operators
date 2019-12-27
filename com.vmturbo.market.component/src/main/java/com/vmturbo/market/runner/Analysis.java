@@ -6,9 +6,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
@@ -168,6 +170,9 @@ public class Analysis {
     private Map<Long, ProjectedTopologyEntity> projectedEntities = null;
 
     private Map<Long, CostJournal<TopologyEntityDTO>> projectedEntityCosts = null;
+
+    // VM OID to a set of OIDs of computer tier that the vm can fit in.
+    private Map<Long, Set<Long>> cloudVmOIDToProvidersOIDMap = new HashMap<>();
 
     private final long projectedTopologyId;
 
@@ -342,7 +347,8 @@ public class Analysis {
         final MarketPriceTable marketPriceTable = marketPriceTableFactory.newPriceTable(
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
         this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
-                config.getQuoteFactor(), config.getLiveMarketMoveCostFactor(),
+                config.getQuoteFactor(), config.isEnableSMA(),
+                config.getLiveMarketMoveCostFactor(),
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         state = AnalysisState.IN_PROGRESS;
@@ -437,8 +443,23 @@ public class Analysis {
             }
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             if (!stopAnalysis) {
-                final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+                final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
                         topologyInfo, config, this);
+                final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+                        topologyInfo, config, this, topology);
+                if (config.isEnableSMA()) {
+                    Map<Long, Set<Long>> cloudVmToTpsThatFitMap =
+                            TopologyEntitiesHandler
+                                    .getProviderLists(converter.getCloudVmComputeShoppingListIDs(),
+                                            topology);
+                    for (Entry<Long, Set<Long>> cloudVmToTpsThatFitEntry : cloudVmToTpsThatFitMap.entrySet()) {
+                        Set<Long> providerOIDList = new HashSet<>();
+                        for (Long tpoid : cloudVmToTpsThatFitEntry.getValue()) {
+                            providerOIDList.add(converter.convertTraderTOToTopologyEntityDTO(tpoid));
+                        }
+                        cloudVmOIDToProvidersOIDMap.put(cloudVmToTpsThatFitEntry.getKey(), providerOIDList);
+                    }
+                }
                 // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
                 converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
                 logger.info(logPrefix + "Done performing analysis");

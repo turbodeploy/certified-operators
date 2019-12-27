@@ -152,6 +152,9 @@ public class TopologyConverter {
      */
     private Set<Long> providersOfContainers = Sets.newHashSet();
 
+    // Set of oids of compute shopping list of the cloud vm. one entry per cloud vm.
+    private Set<Long> cloudVmComputeShoppingListIDs = new HashSet<>();
+
     // Store skipped service entities which need to be added back to projected topology and price
     // index messages.
     private Map<Long, TopologyEntityDTO> skippedEntities = Maps.newHashMap();
@@ -164,6 +167,10 @@ public class TopologyConverter {
     // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
+
+    public Set<Long> getCloudVmComputeShoppingListIDs() {
+        return cloudVmComputeShoppingListIDs;
+    }
 
     /**
      * A non-shop-together TopologyConverter.
@@ -194,6 +201,7 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
+        this.enableSMA = false;
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
             shoppingListOidToInfos,
             cloudTc,
@@ -201,6 +209,15 @@ public class TopologyConverter {
             oidToProjectedTraderTOMap,
             cert,
             projectedReservedInstanceCoverage, tierExcluder);
+    }
+
+    /**
+     * get the TopologyEntityDTO OID corresponding to the oid of a TemplateProvider.
+     * @param traderTOOID  oid of a TemplateProvider
+     * @return the OID of corresponding TopologyEntityDTO
+     */
+    public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
+        return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
     }
 
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
@@ -286,12 +303,16 @@ public class TopologyConverter {
 
     private final ConsistentScalingHelper consistentScalingHelper;
 
+    private final boolean enableSMA;
+
     /**
      * Constructor with includeGuaranteedBuyer parameter.
      *
      * @param topologyInfo Information about the topology.
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param quoteFactor to be used by move recommendations.
+     * @param enableSMA the market generates compute scaling action for could vms if false.
+     *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable market price table
      * @param commodityConverter the commodity converter
@@ -303,6 +324,7 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
+                             final boolean enableSMA,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              CommodityConverter commodityConverter,
@@ -314,6 +336,7 @@ public class TopologyConverter {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
+        this.enableSMA = enableSMA;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
@@ -360,7 +383,7 @@ public class TopologyConverter {
                              @NonNull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, liveMarketMoveCostFactor,
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, false, liveMarketMoveCostFactor,
             marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory);
     }
@@ -369,6 +392,7 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
+                             final boolean enableSMA,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull CommodityConverter commodityConverter,
@@ -379,6 +403,7 @@ public class TopologyConverter {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
+        this.enableSMA = enableSMA;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.commodityConverter = commodityConverter;
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
@@ -2165,7 +2190,14 @@ public class TopologyConverter {
         shoppingListOidToInfos.put(id,
             new ShoppingListInfo(id, buyerOid, providerOid, resourceId, providerEntityType,
                     commBoughtGrouping.getCommodityBoughtList()));
-        return economyShoppingListBuilder.build();
+
+        if (enableSMA && includeByType(commBoughtGrouping.getProviderEntityType())
+                && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+            cloudVmComputeShoppingListIDs.add(id);
+            return economyShoppingListBuilder.setMovable(false).build();
+        } else {
+            return economyShoppingListBuilder.build();
+        }
     }
 
     /**

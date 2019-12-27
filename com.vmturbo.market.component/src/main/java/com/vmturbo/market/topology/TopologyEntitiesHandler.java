@@ -2,6 +2,7 @@ package com.vmturbo.market.topology;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -106,28 +108,47 @@ public class TopologyEntitiesHandler {
         .register();
 
     /**
-     * Create an {@link Economy} from a set of {@link TraderTO}s
-     * and return the list of {@link Action}s for those TOs.
+     * For each shoppinglist in cloudVmComputeShoppingList we compute the
+     * list of providers that has enough capacity for all commodities.
+     * @param computeCloudShoppingListIds compute shopping list ids of all cloud vms
+     * @param topology the current topology
+     * @return a map from the oid of the vm associated with the shoppingList to a set of
+     * oids of the providers that can fit the vm.
+     */
+
+    public static Map<Long, Set<Long>> getProviderLists(Set<Long> computeCloudShoppingListIds,
+                                                        Topology topology) {
+        final Ede ede = new Ede();
+        final Economy economy = (Economy)topology.getEconomy();
+        Set<ShoppingList> cloudVmComputeShoppingList = new HashSet<>();
+        BiMap<Long, ShoppingList> shoppingListBiMapInverse = topology
+                .getShoppingListOids().inverse();
+        for (Long shoppingListID : computeCloudShoppingListIds) {
+            cloudVmComputeShoppingList.add(shoppingListBiMapInverse.get(shoppingListID));
+        }
+        return ede.getProviderLists(cloudVmComputeShoppingList, economy);
+    }
+
+    /**
+     * Create an {@link Topology} from a set of {@link TraderTO}s
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
      * @param analysisConfig has information about this round of analysis
      * @param analysis containing reference for replay actions.
-     * @return The list of actions for the TOs.
+     * @return The newly created topology.
      */
-    public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
-                                                  @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                                                  final AnalysisConfig analysisConfig,
-                                                  final Analysis analysis) {
+    public static Topology createTopology(Set<TraderTO> traderTOs,
+                                          @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
+                                          final AnalysisConfig analysisConfig,
+                                          final Analysis analysis) {
         // Sort the traderTOs based on their oids so that the input into analysis is consistent every cycle
         logger.info("Received TOs from marketComponent. Starting sorting of traderTOs.");
         final long sortStart = System.currentTimeMillis();
         SortedMap<Long, TraderTO> sortedTraderTOs = traderTOs.stream().collect(Collectors.toMap(
-            TraderTO::getOid, Function.identity(), (oldTrader, newTrader) -> newTrader, TreeMap::new));
+                TraderTO::getOid, Function.identity(), (oldTrader, newTrader) -> newTrader, TreeMap::new));
         final long sortEnd = System.currentTimeMillis();
         logger.info("Completed sorting of traderTOs. Time taken = {} seconds", ((double)(sortEnd - sortStart)) / 1000);
         logger.info("Starting economy creation on {} traders", sortedTraderTOs.size());
-        final long start = System.nanoTime();
-        final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
         final Topology topology = new Topology();
         for (final TraderTO traderTO : sortedTraderTOs.values()) {
             // If it's a trader that's added specifically for headroom calculation, don't add
@@ -149,7 +170,26 @@ public class TopologyEntitiesHandler {
         populateProducesDependencyMap(topology);
         populateRawMaterialsMap(topology);
         populateCommToAdjustOverheadInClone(topology, analysis);
+        return topology;
+    }
 
+    /**
+     * Create an {@link Economy} from a set of {@link TraderTO}s
+     * and return the list of {@link Action}s for those TOs.
+     * @param traderTOs A set of trader TOs.
+     * @param topologyInfo Information about the topology, including parameters for the analysis.
+     * @param analysisConfig has information about this round of analysis
+     * @param analysis containing reference for replay actions.
+     * @param topology the corresponding topology
+     * @return The list of actions for the TOs.
+     */
+    public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
+                                                  @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
+                                                  final AnalysisConfig analysisConfig,
+                                                  final Analysis analysis,
+                                                  final Topology topology) {
+        final long start = System.nanoTime();
+        final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
         final Economy economy = (Economy)topology.getEconomy();
         analysis.setEconomy(economy);
         economy.setForceStop(analysis.isStopAnalysis());
@@ -269,7 +309,7 @@ public class TopologyEntitiesHandler {
         final String contextType = topologyInfo.hasPlanInfo() ? PLAN_CONTEXT_TYPE_LABEL : LIVE_CONTEXT_TYPE_LABEL;
         ANALYSIS_ECONOMY_SIZE
             .labels(scopeType, contextType)
-            .observe((double)sortedTraderTOs.size());
+            .observe((double)traderTOs.size());
 
         logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());

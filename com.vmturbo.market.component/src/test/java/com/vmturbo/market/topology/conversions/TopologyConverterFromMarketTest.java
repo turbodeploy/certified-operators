@@ -165,6 +165,7 @@ public class TopologyConverterFromMarketTest {
             REALTIME_TOPOLOGY_INFO,
             false,
             MarketAnalysisUtils.QUOTE_FACTOR,
+            false,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             mockCommodityConverter,
@@ -695,7 +696,7 @@ public class TopologyConverterFromMarketTest {
 
         // converter under test
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                false, MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                false, MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory));
 
@@ -835,7 +836,7 @@ public class TopologyConverterFromMarketTest {
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
                         TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
-                        MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                        MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
                         tierExcluderFactory,
             consistentScalingHelperFactory));
@@ -1285,7 +1286,7 @@ public class TopologyConverterFromMarketTest {
                 .setTopologyType(TopologyType.PLAN).build();
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory));
         converter.cloudTc = mockCloudTc;

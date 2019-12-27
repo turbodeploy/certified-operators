@@ -84,6 +84,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -239,8 +240,10 @@ public class TopologyEntitiesHandlerTest {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations).build();
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
+                analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
-                        analysisConfig, analysis);
+                        analysisConfig, analysis, topology);
 
         // All deactivate actions should be set in analysis' replay actions.
         List<Long> deactivatedActionsTarget = results.getActionsList().stream()
@@ -592,8 +595,10 @@ public class TopologyEntitiesHandlerTest {
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations).build();
         // Call analysis
+        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
+                REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                        REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
+                        REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
         logger.info(results.getActionsList());
 
         // Asserts
@@ -699,8 +704,10 @@ public class TopologyEntitiesHandlerTest {
                             .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                             .setMaxPlacementsOverride(maxPlacementIterations).build();
             // Call analysis
+            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
+                    REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
             AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                            REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
+                            REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
             logger.info(results.getActionsList());
 
             // Asserts
@@ -815,8 +822,10 @@ public class TopologyEntitiesHandlerTest {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations).build();
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
+                analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
-                        analysisConfig, analysis);
+                        analysisConfig, analysis, topology);
         return results;
     }
 

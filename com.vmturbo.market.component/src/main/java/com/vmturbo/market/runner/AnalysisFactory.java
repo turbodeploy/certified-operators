@@ -109,6 +109,9 @@ public interface AnalysisFactory {
 
         private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
 
+        // Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
+        private final boolean enableSMA;
+
         public DefaultAnalysisFactory(@Nonnull final GroupServiceBlockingStub groupServiceClient,
                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
                   @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -120,6 +123,7 @@ public interface AnalysisFactory {
                   @Nonnull final Clock clock,
                   final float alleviatePressureQuoteFactor,
                   final float standardQuoteFactor,
+                  final boolean enableSMA,
                   final float liveMarketMoveCostFactor,
                   final boolean suspensionThrottlingPerCluster,
                   @Nonnull final TierExcluderFactory tierExcluderFactory,
@@ -140,6 +144,7 @@ public interface AnalysisFactory {
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
             this.standardQuoteFactor = standardQuoteFactor;
+            this.enableSMA = enableSMA;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.cloudCostDataProvider = cloudCostDataProvider;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
@@ -160,7 +165,7 @@ public interface AnalysisFactory {
             final Map<String, Setting> globalSettings = retrieveSettings();
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
-            final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(quoteFactor,
+            final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(enableSMA, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
@@ -227,6 +232,9 @@ public interface AnalysisFactory {
          */
         private final float quoteFactor;
 
+        // Determines if the market or the SMA  (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
+        private final boolean enableSMA;
+
         /**
          * The move cost factor that additively controls the aggressiveness with which
          * the market recommends moves. Plan markets will use a different move cost factor
@@ -269,7 +277,8 @@ public interface AnalysisFactory {
         /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}
          */
-        private AnalysisConfig(final float quoteFactor,
+        private AnalysisConfig(final boolean enableSMA,
+                              final float quoteFactor,
                               final float liveMarketMoveCostFactor,
                               final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                               final Map<String, Setting> globalSettingsMap,
@@ -285,10 +294,15 @@ public interface AnalysisFactory {
             this.maxPlacementsOverride = maxPlacementsOverride;
             this.rightsizeLowerWatermark = rightsizeLowerWatermark;
             this.rightsizeUpperWatermark = rightsizeUpperWatermark;
+            this.enableSMA = enableSMA;
         }
 
         public float getQuoteFactor() {
             return quoteFactor;
+        }
+
+        public boolean isEnableSMA() {
+            return enableSMA;
         }
 
         public float getLiveMarketMoveCostFactor() {
@@ -344,12 +358,35 @@ public interface AnalysisFactory {
         public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                  @Nonnull final Map<String, Setting> globalSettings) {
-            return new Builder(quoteFactor, liveMarketMoveCostFactor,
+            return newBuilderWithSMA(false, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings);
+        }
+
+        /**
+         * Create a builder for the {@link AnalysisConfig}. Arguments into this function represent
+         * non-customizable aspects of the builder.
+         * Note: If the list of non-customizable aspects gets too long we can have an interface
+         * that hides the non-customizable properties, and have {@link AnalysisConfigCustomizer}
+         * accept that interface instead of the builder class.
+         *
+         * @param enableSMA if true SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms. otherwise market generrates them.
+         * @param quoteFactor See {@link AnalysisConfig#quoteFactor}
+         * @param liveMarketMoveCostFactor See {@link AnalysisConfig#liveMarketMoveCostFactor}
+         * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
+         * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
+         * @return The builder, which can be further customized.
+         */
+        public static Builder newBuilderWithSMA(final boolean enableSMA, final float quoteFactor, final float liveMarketMoveCostFactor,
+                                         @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
+                                         @Nonnull final Map<String, Setting> globalSettings) {
+            return new Builder(enableSMA, quoteFactor, liveMarketMoveCostFactor,
+                    suspensionsThrottlingConfig, globalSettings);
         }
 
         public static class Builder {
             private final float quoteFactor;
+
+            private final boolean enableSMA;
 
             private final float liveMarketMoveCostFactor;
 
@@ -365,7 +402,8 @@ public interface AnalysisFactory {
 
             private float rightsizeUpperWatermark;
 
-            private Builder(final float quoteFactor,
+            private Builder(final boolean enableSMA,
+                            final float quoteFactor,
                             final float liveMarketMoveCostFactor,
                             final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                             @Nonnull final Map<String, Setting> globalSettings) {
@@ -373,6 +411,7 @@ public interface AnalysisFactory {
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
                 this.globalSettings = globalSettings;
+                this.enableSMA = enableSMA;
             }
 
             /**
@@ -426,7 +465,7 @@ public interface AnalysisFactory {
 
             @Nonnull
             public AnalysisConfig build() {
-                return new AnalysisConfig(quoteFactor, liveMarketMoveCostFactor,
+                return new AnalysisConfig(enableSMA, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings,
                     includeVDC, maxPlacementsOverride, rightsizeLowerWatermark,
                     rightsizeUpperWatermark);

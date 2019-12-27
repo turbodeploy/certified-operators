@@ -91,6 +91,9 @@ public class MarketRunnerConfig {
     @Value("${standardQuoteFactor}")
     private float standardQuoteFactor;
 
+    @Value("${enableSMA:false}")
+    private boolean enableSMA;
+
     @Value("${suspensionThrottlingPerCluster}")
     private boolean suspensionThrottlingPerCluster;
 
@@ -137,6 +140,7 @@ public class MarketRunnerConfig {
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
                 standardQuoteFactor,
+                enableSMA,
                 liveMarketMoveCostFactor,
                 suspensionThrottlingPerCluster,
                 tierExcluderFactory(),
