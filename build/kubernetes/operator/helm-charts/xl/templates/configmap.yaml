@@ -114,8 +114,6 @@ data:
         cost:
             identityGeneratorPrefix: 10
             turbonomic.ratecards.persistent.path: /home/turbonomic/data/
-            # This first time interval to trigger buy RI analysis.
-            initialBuyRIAnalysisIntervalHours: 24
             # The normal interval to trigger buy RI analysis after first time run.
             normalBuyRIAnalysisIntervalHours: 336
             # the cost component will receive some large messages over grpc, so we will increase the max
