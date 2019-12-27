@@ -7,19 +7,19 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +43,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -74,6 +74,14 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -97,6 +105,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class SupplyChainFetcherFactoryTest {
@@ -126,11 +135,15 @@ public class SupplyChainFetcherFactoryTest {
     private RepositoryApi repositoryApiBackend = mock(RepositoryApi.class);
     private GroupExpander groupExpander = mock(GroupExpander.class);
 
+    private final CostServiceMole costServiceMole = Mockito.spy(new CostServiceMole());
+
+
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(supplyChainServiceBackend, severityServiceBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(supplyChainServiceBackend,
+            severityServiceBackend, costServiceMole);
 
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         supplyChainRpcService = SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the ActionsService under test
@@ -139,6 +152,7 @@ public class SupplyChainFetcherFactoryTest {
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             repositoryApiBackend,
             groupExpander,
+            CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7);
     }
 
@@ -298,6 +312,179 @@ public class SupplyChainFetcherFactoryTest {
         assertEquals("VirtualDisksAspectApiDTO", mapEntry.getValue().getType());
         assertEquals(virtualDiskApiDTO,
             ((VirtualDisksAspectApiDTO)mapEntry.getValue()).getVirtualDisks().get(0));
+    }
+
+    /**
+     * Test that cost information was requested from cost components and successfully populated.
+     * Because request is full, so we need to have supplyChain with all data about entities
+     * including costs. This query to
+     * {@link com.vmturbo.api.component.external.api.service.SupplyChainsService} used for widgets.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetSupplyChainWithCostInformation() throws Exception {
+        // arrange
+        long vmId = 1L;
+        float costComponent1 = 10;
+        float costComponent2 = 20;
+        setUpForCostTest(vmId, EnvironmentType.CLOUD, costComponent1, costComponent2);
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+                .addSeedUuids(ImmutableList.of(Long.toString(vmId)))
+                .entityDetailType(EntityDetailType.aspects)
+                .entityAspectMapper(entityAspectMapperMock)
+                .fetch();
+
+        final Collection<SupplychainEntryDTO> supplyChainEntryDTOs = result.getSeMap().values();
+        assertFalse(supplyChainEntryDTOs.isEmpty());
+
+        final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap =
+                supplyChainEntryDTOs.iterator().next().getInstances();
+        assertFalse(serviceEntityApiDTOMap.isEmpty());
+
+        final Float costPrice = serviceEntityApiDTOMap.values().iterator().next().getCostPrice();
+        assertEquals(costComponent1 + costComponent2, costPrice, 0);
+    }
+
+    /**
+     * Test that there are no calls to cost component, because we don't need to populate full
+     * information (including cost) when we have request to supplyChain with non cloud entities.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetSupplyChainWithoutCostBecauseOfEnvironmentType() throws Exception {
+        // arrange
+        long vmId = 1L;
+        setUpForCostTest(vmId, EnvironmentType.ONPREM, 0, 0);
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+                .addSeedUuids(ImmutableList.of(Long.toString(vmId)))
+                .entityDetailType(EntityDetailType.aspects)
+                .entityAspectMapper(entityAspectMapperMock)
+                .fetch();
+
+        final Collection<SupplychainEntryDTO> supplyChainEntryDTOs = result.getSeMap().values();
+        assertFalse(supplyChainEntryDTOs.isEmpty());
+
+        final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap =
+                supplyChainEntryDTOs.iterator().next().getInstances();
+        assertFalse(serviceEntityApiDTOMap.isEmpty());
+
+        verify(costServiceMole, Mockito.times(0)).getCloudCostStats(
+                any(GetCloudCostStatsRequest.class));
+        final Float costPrice = serviceEntityApiDTOMap.values().iterator().next().getCostPrice();
+        assertNull(costPrice);
+    }
+
+    /**
+     * Test that there are no calls to cost component, because we don't need to populate full
+     * information (including cost) when we have request to supplyChain service without
+     * {@link EntityDetailType#entity} or {@link EntityDetailType#aspects}.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetSupplyChainWithoutCostBecauseOfEntityDetailType() throws Exception {
+        // arrange
+        long vmId = 1L;
+        setUpForCostTest(vmId, EnvironmentType.CLOUD, 0, 0);
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+                .addSeedUuids(ImmutableList.of(Long.toString(vmId)))
+                .entityAspectMapper(entityAspectMapperMock)
+                .fetch();
+
+        final Collection<SupplychainEntryDTO> supplyChainEntryDTOs = result.getSeMap().values();
+        assertFalse(supplyChainEntryDTOs.isEmpty());
+
+        final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap =
+                supplyChainEntryDTOs.iterator().next().getInstances();
+        assertFalse(serviceEntityApiDTOMap.isEmpty());
+
+        verify(costServiceMole, Mockito.times(0)).getCloudCostStats(
+                any(GetCloudCostStatsRequest.class));
+        final Float costPrice = serviceEntityApiDTOMap.values().iterator().next().getCostPrice();
+        assertNull(costPrice);
+    }
+
+    private void setUpForCostTest(long entityId, EnvironmentType entityEnvType,
+            float costComponent1, float costComponent2) {
+        final ImmutableList<String> searchUuids = ImmutableList.of(String.valueOf(entityId));
+        final String vmName = "vm1";
+        final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
+        final String vm = "VirtualMachine";
+
+        final GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(Grouping.newBuilder()
+                .setId(1)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(
+                                                        UIEntityType.VIRTUAL_MACHINE.typeNumber())))))
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .build());
+        when(groupExpander.getGroupWithMembers(searchUuids.get(0))).thenReturn(
+                Optional.of(groupAndMembers));
+
+        // Set up to return a VirtualMachine
+        final SupplychainApiDTO answer = new SupplychainApiDTO();
+        final SupplychainEntryDTO vmSupplyChainEntryDTO =
+                supplyChainTestUtils.createSupplyChainEntryDTO(vm, entityId);
+        supplyChainTestUtils.addHealthSummary(vmSupplyChainEntryDTO,
+                ImmutableMap.of(entityId, "NORMAL"));
+
+        answer.setSeMap(ImmutableMap.of("VirtualMachine", vmSupplyChainEntryDTO));
+
+        final TopologyDTO.TopologyEntityDTO vmTopologyEntity =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(entityId)
+                        .setDisplayName(vmName)
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .build();
+
+        final ServiceEntityApiDTO vmServiceEntity = new ServiceEntityApiDTO();
+        vmServiceEntity.setUuid(Long.toString(entityId));
+        vmServiceEntity.setEnvironmentType(entityEnvType);
+        vmServiceEntity.setDisplayName(vmName);
+
+        final RepositoryApi.MultiEntityRequest vmRequest =
+                ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity));
+        final RepositoryApi.MultiEntityRequest vmFullEntitiesRequest =
+                ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList(vmTopologyEntity));
+        when(repositoryApiBackend.entitiesRequest(Sets.newHashSet(entityId))).thenReturn(vmRequest,
+                vmFullEntitiesRequest);
+
+        final SupplyChainNode virtualMachine = SupplyChainNode.newBuilder()
+                .setEntityType(VM)
+                .putMembersByState(EntityState.POWERED_ON_VALUE,
+                        MemberList.newBuilder().addMemberOids(1L).build())
+                .build();
+
+        when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L));
+        when(supplyChainServiceBackend.getSupplyChain(any())).thenReturn(
+                GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(
+                                SupplyChain.newBuilder().addSupplyChainNodes(virtualMachine))
+                        .build());
+
+        when(costServiceMole.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                .setEntityFilter(EntityFilter.newBuilder().addEntityId(entityId).build())
+                .build())).thenReturn(GetCloudCostStatsResponse.newBuilder()
+                .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                        .addAllStatRecords(Arrays.asList(StatRecord.newBuilder()
+                                .setValues(StatValue.newBuilder().setTotal(costComponent1).build())
+                                .setAssociatedEntityId(entityId)
+                                .setName("CostComponent1")
+                                .build(), StatRecord.newBuilder()
+                                .setValues(StatValue.newBuilder().setTotal(costComponent2).build())
+                                .setName("CostComponent2")
+                                .setAssociatedEntityId(entityId)
+                                .build()))
+                        .build())
+                .build());
     }
 
     /**

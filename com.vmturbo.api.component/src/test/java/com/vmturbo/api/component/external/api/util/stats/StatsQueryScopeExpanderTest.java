@@ -37,6 +37,8 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -64,8 +66,11 @@ public class StatsQueryScopeExpanderTest {
 
     private final SupplyChainServiceMole supplyChainServiceBackend = Mockito.spy(new SupplyChainServiceMole());
 
+    private final CostServiceMole costServiceMole = Mockito.spy(new CostServiceMole());
+
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(supplyChainServiceBackend, severityServiceBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(supplyChainServiceBackend,
+            severityServiceBackend, costServiceMole);
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
@@ -85,7 +90,7 @@ public class StatsQueryScopeExpanderTest {
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             repositoryApi,
-            groupExpander,
+            groupExpander, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7));
         scopeExpander = new StatsQueryScopeExpander(groupExpander, repositoryApi,
             supplyChainFetcherFactory, userSessionContext);

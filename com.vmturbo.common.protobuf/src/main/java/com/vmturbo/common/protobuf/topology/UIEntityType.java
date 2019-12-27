@@ -87,6 +87,15 @@ public enum UIEntityType {
         UIEntityType.VIRTUAL_VOLUME
     );
 
+    /**
+     * For these entity types exist information about cost in cost component.
+     */
+    public static final ImmutableSet<String> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
+            UIEntityType.VIRTUAL_MACHINE.apiStr(),
+            UIEntityType.DATABASE.apiStr(),
+            UIEntityType.DATABASE_SERVER.apiStr(),
+            UIEntityType.VIRTUAL_VOLUME.apiStr()
+    );
 
 
     /**

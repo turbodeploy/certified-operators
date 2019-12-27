@@ -408,6 +408,7 @@ public class CommunicationConfig {
                 entitySeverityService(),
                 repositoryApi(),
                 groupExpander(),
+                costServiceBlockingStub(),
                 realtimeTopologyContextId);
     }
 

@@ -58,6 +58,10 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
@@ -93,6 +97,8 @@ public class SupplyChainFetcherFactory {
 
     private final EntitySeverityServiceBlockingStub severityRpcService;
 
+    private final CostServiceBlockingStub costServiceBlockingStub;
+
     private final RepositoryApi repositoryApi;
 
     private final GroupExpander groupExpander;
@@ -100,14 +106,14 @@ public class SupplyChainFetcherFactory {
     private final long realtimeTopologyContextId;
 
     public SupplyChainFetcherFactory(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                                     @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceBlockingStub,
-                                     @Nonnull final RepositoryApi repositoryApi,
-                                     @Nonnull final GroupExpander groupExpander,
-                                     final long realtimeTopologyContextId) {
+            @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceBlockingStub, @Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final GroupExpander groupExpander,
+            CostServiceBlockingStub costServiceBlockingStub, final long realtimeTopologyContextId) {
         this.supplyChainRpcService = supplyChainService;
         this.severityRpcService = entitySeverityServiceBlockingStub;
         this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
+        this.costServiceBlockingStub = costServiceBlockingStub;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -366,7 +372,7 @@ public class SupplyChainFetcherFactory {
                 final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId,
                     seedUuids, entityTypes, environmentType, entityDetailType, aspectsToInclude,
                     includeHealthSummary, supplyChainRpcService, severityRpcService, repositoryApi,
-                    groupExpander, entityAspectMapper, enforceUserScope)
+                    groupExpander, entityAspectMapper, enforceUserScope, costServiceBlockingStub)
                     .fetch();
                 return dto;
             } catch (ExecutionException | TimeoutException e) {
@@ -384,7 +390,7 @@ public class SupplyChainFetcherFactory {
                         topologyContextId, seedUuids, entityTypes, environmentType,
                         entityDetailType, aspectsToInclude, includeHealthSummary,
                         supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
-                        entityAspectMapper, enforceUserScope)
+                        entityAspectMapper, enforceUserScope, costServiceBlockingStub)
                         .fetchEntityIds();
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -400,7 +406,8 @@ public class SupplyChainFetcherFactory {
                 return new SupplychainApiDTOFetcher(
                     topologyContextId, seedUuids, entityTypes, environmentType,
                     entityDetailType, aspectsToInclude, includeHealthSummary, supplyChainRpcService,
-                    severityRpcService, repositoryApi, groupExpander, entityAspectMapper, enforceUserScope)
+                    severityRpcService, repositoryApi, groupExpander, entityAspectMapper,
+                        enforceUserScope, costServiceBlockingStub)
                         .fetchStats(groupBy);
             } catch (StatusRuntimeException e) {
                 throw new OperationFailedException("Failed to fetch supply chain stats! Error: " +
@@ -1001,6 +1008,8 @@ public class SupplyChainFetcherFactory {
 
         private final EntitySeverityServiceBlockingStub severityRpcService;
 
+        private final CostServiceBlockingStub costServiceBlockingStub;
+
         private final Boolean includeHealthSummary;
 
         private final RepositoryApi repositoryApi;
@@ -1021,7 +1030,8 @@ public class SupplyChainFetcherFactory {
                                          @Nonnull final RepositoryApi repositoryApi,
                                          @Nonnull final GroupExpander groupExpander,
                                          @Nullable final EntityAspectMapper entityAspectMapper,
-                                         final boolean enforceUserScope) {
+                                         final boolean enforceUserScope,
+                                         @Nonnull final CostServiceBlockingStub costServiceBlockingStub) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope, repositoryApi);
             this.entityDetailType = entityDetailType;
@@ -1032,6 +1042,7 @@ public class SupplyChainFetcherFactory {
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
             this.entityAspectMapper = entityAspectMapper;
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
+            this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
 
             actionOrchestratorAvailable = true;
         }
@@ -1101,6 +1112,9 @@ public class SupplyChainFetcherFactory {
                 compileSupplyChainNode(supplyChainNode, severities, serviceEntityApiDTOS, resultApiDTO);
             }
 
+            // set information about cost to supplyChain entities if it is required and possible
+            populateCostPrice(resultApiDTO);
+
             if (Objects.equals(entityDetailType, EntityDetailType.aspects)) {
                 Set<Entry<String, SupplychainEntryDTO>> seMapEntrySet = resultApiDTO.getSeMap().entrySet();
 
@@ -1167,6 +1181,57 @@ public class SupplyChainFetcherFactory {
                     });
             }
             return resultApiDTO;
+        }
+
+        /**
+         * Inside this method get call to cost component for entities which support following rules:
+         * 1. this is entity with Cloud entityType
+         * 2. for this entityType should exist data in cost component
+         * 3. requested full information(depends on EntityDetailType) about entities
+         * @param apiDTO {@link SupplychainApiDTO}
+         */
+        private void populateCostPrice(SupplychainApiDTO apiDTO) {
+            if (!(entityDetailType == EntityDetailType.aspects ||
+                    entityDetailType == EntityDetailType.entity)) {
+                return;
+            }
+            for (Entry<String, SupplychainEntryDTO> entry : apiDTO.getSeMap().entrySet()) {
+                if (!UIEntityType.ENTITY_TYPES_WITH_COST.contains(entry.getKey())) {
+                    continue;
+                }
+                final Set<Long> entitiesIds = entry.getValue()
+                        .getInstances()
+                        .values()
+                        .stream()
+                        .filter(ent -> ent.getEnvironmentType() ==
+                                com.vmturbo.api.enums.EnvironmentType.CLOUD)
+                        .map(ent -> Long.valueOf(ent.getUuid()))
+                        .collect(Collectors.toSet());
+                if (!entitiesIds.isEmpty()) {
+                    final GetCloudCostStatsResponse costStatsResponse =
+                            costServiceBlockingStub.getCloudCostStats(
+                                    GetCloudCostStatsRequest.newBuilder()
+                                            .setEntityFilter(EntityFilter.newBuilder()
+                                                    .addAllEntityId(entitiesIds)
+                                                    .build())
+                                            .build());
+                    final HashMap<Long, Float> costToEntity = new HashMap<>();
+                    if (!costStatsResponse.getCloudStatRecordList().isEmpty()) {
+                        costStatsResponse.getCloudStatRecordList()
+                                .get(0)
+                                .getStatRecordsList()
+                                .forEach(el -> costToEntity.merge(el.getAssociatedEntityId(),
+                                        el.getValues().getTotal(),
+                                        (costComp1, costComp2) -> costComp1 + costComp2));
+                    }
+                    if (!costToEntity.isEmpty()) {
+                        entry.getValue().getInstances().forEach((s, serviceEntityApiDTO) -> {
+                            final Float costPrice = costToEntity.getOrDefault(Long.valueOf(s), 0F);
+                            serviceEntityApiDTO.setCostPrice(costPrice);
+                        });
+                    }
+                }
+            }
         }
 
         private void fetchSeverityCounts(@Nonnull final MultiEntityRequest severityCountRequest,
