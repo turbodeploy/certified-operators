@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +27,7 @@ import org.jooq.Field;
 import org.jooq.Table;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
@@ -43,7 +45,7 @@ public class EntityCostFilter extends CostFilter {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String CREATED_TIME = "created_time";
+    private static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
 
     private final boolean excludeCostSources;
     private final Set<Integer> costSources;
@@ -54,11 +56,15 @@ public class EntityCostFilter extends CostFilter {
 
     private final List<Condition> conditions;
 
+    @Nullable
+    private final CostGroupBy costGroupBy;
+
     EntityCostFilter(@Nullable final Set<Long> entityFilters,
                      @Nullable final Set<Integer> entityTypeFilters,
                      @Nullable final Long startDateMillis,
                      @Nullable final Long endDateMillis,
                      @Nullable final TimeFrame timeFrame,
+                     @Nonnull Set<String> groupByFields,
                      final boolean excludeCostSources,
                      @Nullable final Set<Integer> costSources,
                      @Nullable final CostCategoryFilter costCategoryFilter,
@@ -74,8 +80,19 @@ public class EntityCostFilter extends CostFilter {
         this.accountIds = accountIds;
         this.availabilityZoneIds = availabilityZoneIds;
         this.regionIds = regionIds;
-
+        this.costGroupBy = createGroupByFieldString(groupByFields);
         this.conditions = generateConditions();
+    }
+
+    @Nullable
+    private CostGroupBy createGroupByFieldString(@Nonnull Set<String> items ) {
+        Set<String> listOfFields = Sets.newHashSet(items);
+        listOfFields.add(getTable().field(CREATED_TIME).getName());
+        return items.isEmpty() ?
+                null :
+                new CostGroupBy(listOfFields.stream().map(columnName -> columnName.toLowerCase(Locale.getDefault()))
+                        .collect(Collectors.toSet()),
+                        timeFrame);
     }
 
     /**
@@ -99,11 +116,11 @@ public class EntityCostFilter extends CostFilter {
                     .between(localStart, localEnd));
         }
 
-        if (entityTypeFilters != null) {
+        if (entityTypeFilters != null && !entityTypeFilters.isEmpty()) {
             conditions.add(table.field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()).in(entityTypeFilters));
         }
 
-        if (entityFilters != null) {
+        if (entityFilters != null && !entityFilters.isEmpty()) {
             conditions.add(table.field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()).in(entityFilters));
         }
 
@@ -121,7 +138,7 @@ public class EntityCostFilter extends CostFilter {
             }
         }
 
-        if (costSources != null) {
+        if (costSources != null && !costSources.isEmpty()) {
             if (getTable() == ENTITY_COST) {
                 if (excludeCostSources) {
                     conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).notIn(costSources));
@@ -329,7 +346,7 @@ public class EntityCostFilter extends CostFilter {
         @Nonnull
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
-                endDateMillis, timeFrame, excludeCostSources, costSources, costCategoryFilter,
+                endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
                 accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested);
         }
 
@@ -395,5 +412,14 @@ public class EntityCostFilter extends CostFilter {
             this.regionIds = new HashSet<>(regionIds);
             return this;
         }
+    }
+
+    /**
+     * GroupBy for {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord}.
+     * @return null if there was no groupBy property in request.
+     */
+    @Nullable
+    public CostGroupBy getCostGroupBy() {
+        return costGroupBy;
     }
 }

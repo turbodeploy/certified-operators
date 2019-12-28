@@ -28,12 +28,6 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,6 +35,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -101,7 +101,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.CostSourceFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
@@ -709,7 +709,9 @@ public class ActionSpecMapperTest {
         assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 1f, 0);
         assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 4f, 0);
         // check buy ri discount is excluded
-        assertThat(costParamCaptor.getValue().getCostSourceFilter(), is(CostSourceFilter.newBuilder()
+        assertThat(costParamCaptor.getValue().getCloudCostStatsQueryList()
+                        .iterator().next().getCostSourceFilter(),
+                is(CostSourceFilter.newBuilder()
             .setExclusionFilter(true)
             .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
             .build()));

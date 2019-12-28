@@ -16,8 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.api.enums.CloudType;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +38,7 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -47,6 +46,7 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
@@ -76,6 +76,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Maps groups between their API DTO representation and their protobuf representation.
@@ -392,10 +393,11 @@ public class GroupMapper {
         if (environmentType == EnvironmentType.CLOUD) {
             final GetCloudCostStatsResponse cloudCostStatsResponse =
                     costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                             .setEntityFilter(Cost.EntityFilter.newBuilder()
                                     .addAllEntityId(groupAndMembers.members())
                                     .build())
-                            .build());
+                            .build()).build());
             final List<CloudCostStatRecord> costStatRecordList =
                     cloudCostStatsResponse.getCloudStatRecordList();
             if (!costStatRecordList.isEmpty()) {

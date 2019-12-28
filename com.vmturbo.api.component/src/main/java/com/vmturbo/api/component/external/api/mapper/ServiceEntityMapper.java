@@ -12,19 +12,20 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -180,8 +181,8 @@ public class ServiceEntityMapper {
     private float requestPrice(long entityUuid) {
         final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         final GetCloudCostStatsRequest cloudCostStatsRequest =
-                        GetCloudCostStatsRequest.newBuilder().setStartDate(clock.millis())
-                                        .setEntityFilter(entityFilter).build();
+                GetCloudCostStatsRequest.newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(entityFilter).build()).build();
         final GetCloudCostStatsResponse response =
                         costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         return (float)response.getCloudStatRecordList().stream()

@@ -40,6 +40,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -514,16 +515,16 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         if (cloudVolumeIds.isEmpty()) {
             return Collections.emptyMap();
         }
-
-        final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder()
-            .setEntityFilter(EntityFilter.newBuilder()
-                .addAllEntityId(cloudVolumeIds)
-                .build());
+        final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder();
+        final CloudCostStatsQuery.Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
+                cloudCostStatsQuery.setEntityFilter(EntityFilter.newBuilder()
+                                .addAllEntityId(cloudVolumeIds)
+                                .build());
         if (topologyContextId != null) {
             // get projected cost
-            request.setRequestProjected(true);
+            cloudCostStatsQuery.setRequestProjected(true);
         }
-
+        request.addCloudCostStatsQuery(cloudCostStatsQuery.build());
         try {
             final List<CloudCostStatRecord> cloudStatRecords = costServiceRpc.getCloudCostStats(request.build())
                 .getCloudStatRecordList();

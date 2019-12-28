@@ -32,16 +32,16 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
@@ -83,7 +83,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
-import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -99,13 +98,13 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.CostSourceFilter;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -1505,25 +1504,24 @@ public class ActionSpecMapper {
     private void setOnDemandCosts(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
-                .newBuilder()
+                .newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
+                        // For cloud scale actions, the action savings will reflect only the savings from
+                        // accepting the specific action, ignoring any potential discount from Buy RI actions.
+                        // Therefore, we want the projected on-demand cost in the actions details to only
+                        // reflect the cost from accepting this action. We filter out BUY_RI_DISCOUNT here
+                        // to be consistent with the action savings calculation and to avoid double counting
+                        // potential savings from Buy RI actions
+                        .setCostSourceFilter(CostSourceFilter.newBuilder()
+                                .setExclusionFilter(true)
+                                .addCostSources(CostSource.BUY_RI_DISCOUNT)
+                                .build())
                 .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                         .setExclusionFilter(false)
                         .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
-                        .build())
-                // For cloud scale actions, the action savings will reflect only the savings from
-                // accepting the specific action, ignoring any potential discount from Buy RI actions.
-                // Therefore, we want the projected on-demand cost in the actions details to only
-                // reflect the cost from accepting this action. We filter out BUY_RI_DISCOUNT here
-                // to be consistent with the action savings calculation and to avoid double counting
-                // potential savings from Buy RI actions
-                .setCostSourceFilter(CostSourceFilter.newBuilder()
-                        .setExclusionFilter(true)
-                        .addCostSources(CostSource.BUY_RI_DISCOUNT)
-                        .build())
-                .setGroupBy(GroupByType.COSTCOMPONENT)
+                        .build()).build())
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();

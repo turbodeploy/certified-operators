@@ -1,10 +1,12 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CostJournal;
@@ -41,6 +43,17 @@ public interface EntityCostStore {
                            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) throws DbException;
 
     /**
+     * Get List of StatRecords based on the the entity cost filter .
+     * It returns Map with entry (timestamp -> List of {@link StatRecord}).
+     * In a timestamp/snapshot, the entity costs with same ids will be combined to one entity cost.
+     *
+     * @param filter entityCostFilter which has resolved start and end dates and appropriated tables
+     * @return Map with entry (timestamp -> List of {@link StatRecord}).
+     * @throws DbException if anything goes wrong in the database
+     */
+    Map<Long, Collection<StatRecord>> getEntityCostStats(@Nonnull CostFilter filter) throws DbException;
+
+    /**
      * Get entity costs based on the the entity cost filter .
      * It returns Map with entry (timestamp -> (entityId -> entity costs)).
      * In a timestamp/snapshot, the entity costs with same ids will be combined to one entity cost.
@@ -49,5 +62,5 @@ public interface EntityCostStore {
      * @return Map with entry (timestamp -> (entityId -> entity costs))
      * @throws DbException if anything goes wrong in the database
      */
-    Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter filter) throws DbException;
+    Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull CostFilter filter) throws DbException;
 }

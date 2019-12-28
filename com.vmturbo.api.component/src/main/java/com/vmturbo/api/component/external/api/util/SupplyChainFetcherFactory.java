@@ -20,6 +20,10 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
@@ -29,10 +33,6 @@ import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
@@ -1211,9 +1212,10 @@ public class SupplyChainFetcherFactory {
                     final GetCloudCostStatsResponse costStatsResponse =
                             costServiceBlockingStub.getCloudCostStats(
                                     GetCloudCostStatsRequest.newBuilder()
+                                            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                                             .setEntityFilter(EntityFilter.newBuilder()
                                                     .addAllEntityId(entitiesIds)
-                                                    .build())
+                                                    .build()).build())
                                             .build());
                     final HashMap<Long, Float> costToEntity = new HashMap<>();
                     if (!costStatsResponse.getCloudStatRecordList().isEmpty()) {

@@ -32,18 +32,18 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -77,6 +77,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
@@ -471,8 +472,9 @@ public class SupplyChainFetcherFactoryTest {
                         .build());
 
         when(costServiceMole.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setEntityFilter(EntityFilter.newBuilder().addEntityId(entityId).build())
-                .build())).thenReturn(GetCloudCostStatsResponse.newBuilder()
+                .build()).build())).thenReturn(GetCloudCostStatsResponse.newBuilder()
                 .addCloudStatRecord(CloudCostStatRecord.newBuilder()
                         .addAllStatRecords(Arrays.asList(StatRecord.newBuilder()
                                 .setValues(StatValue.newBuilder().setTotal(costComponent1).build())

@@ -15,8 +15,9 @@ import javax.annotation.Nullable;
 import org.jooq.Condition;
 import org.jooq.Table;
 
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.google.common.collect.Sets;
 
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 
 /**
  * A abstract class represents the filter object.
@@ -39,7 +40,7 @@ public abstract class CostFilter {
                @Nullable final Set<Integer> entityTypeFilters,
                @Nullable final Long startDateMillis,
                @Nullable final Long endDateMillis,
-               @Nonnull final TimeFrame timeFrame,
+               @Nullable final TimeFrame timeFrame,
                @Nonnull final String snapshotTime,
                final boolean latestTimeStampRequested) {
         this.startDateMillis = startDateMillis;
@@ -56,9 +57,11 @@ public abstract class CostFilter {
      *
      * @return a list of {@link Condition}.
      */
-    abstract public List<Condition> generateConditions();
+    public abstract List<Condition> generateConditions();
 
-    abstract public Condition[] getConditions();
+    public abstract Condition[] getConditions();
+
+    public abstract CostGroupBy getCostGroupBy();
 
     public abstract Table<?> getTable();
 
@@ -84,7 +87,7 @@ public abstract class CostFilter {
 
     @Nonnull
     public TimeFrame getTimeFrame() {
-        return timeFrame;
+        return timeFrame == null ? TimeFrame.LATEST : timeFrame;
     }
 
     /**
@@ -113,8 +116,8 @@ public abstract class CostFilter {
 
     @Override
     public int hashCode() {
-        Function<Set<?>, Integer> setHashCode = (set) -> (set == null) ? 0 : set.stream()
-            .map(Object::hashCode).collect(Collectors.summingInt(Integer::intValue));
+        Function<Set<?>, Integer> setHashCode = (set) -> (set == null) ? 0 : (Integer)set.stream()
+                .map(Object::hashCode).mapToInt(Integer::intValue).sum();
         return Objects.hash(startDateMillis, endDateMillis,
             setHashCode.apply(entityTypeFilters),
             setHashCode.apply(entityFilters),
@@ -158,6 +161,7 @@ public abstract class CostFilter {
         protected Set<Long> entityIds = null;
         protected TimeFrame timeFrame = null;
         protected boolean latestTimeStampRequested = false;
+        protected Set<String> groupByFields = Sets.newHashSet();
 
         /**
          * Returns the new instance of built filter.
@@ -239,5 +243,27 @@ public abstract class CostFilter {
             this.latestTimeStampRequested = latestTimeStampRequested;
             return (B)this;
         }
+
+
+        /**
+         * Sets the groupBy Fields.
+         *
+         * @param groupByFields fields used for grouping while creating SQL.
+         * @return the builder.
+         */
+        @Nonnull
+        public B groupByFields(@Nonnull Set<String> groupByFields) {
+            this.groupByFields = groupByFields;
+            return (B)this;
+        }
+    }
+
+    /**
+     * Checks if the query should only be for latest Entity cost.
+     * @return true if latest.
+     */
+    public boolean isLatest() {
+        return (startDateMillis == null || startDateMillis == 0) &&
+                (endDateMillis == null || endDateMillis == 0);
     }
 }

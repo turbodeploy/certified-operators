@@ -1,36 +1,37 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
-import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.ListUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -49,7 +50,6 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.utils.CompositeEntityTypesSpec;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -57,21 +57,21 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.Builder;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -115,7 +115,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
 
-    private static final String COSTCOMPONENT = "costComponent";
+    //only queries tagged costPrice should be used to retrieved cost.
+    protected static final String COST_PRICE_QUERY_KEY = "costPrice";
+
+    protected static final String COST_COMPONENT = "costComponent";
+
+    //only requestedStats with Numworkload shud be used to calculate numWorkloads.
+    private static final String NUM_WORKLOAD_REQUEST_KEY = "numWorkloads";
 
     private static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE,
         CURRENT_COST_PRICE, StringConstants.RI_COST);
@@ -181,7 +187,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         final Set<String> requestGroupBySet = requestedStats.stream()
             .filter(dto -> dto.getGroupBy() != null)
             .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
-            .collect(Collectors.toSet());
+            .collect(toSet());
 
         final List<StatSnapshotApiDTO> statsResponse;
         if (isTopDownRequest(requestGroupBySet)) {
@@ -205,7 +211,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     typeFunction,
                     valueFunction,
                     cloudServiceDTOs))
-                .collect(Collectors.toList());
+                .collect(toList());
         } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() ||
                 context.getInputScope().isCloud()) {
             final Set<Long> cloudEntityOids;
@@ -220,79 +226,39 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     cloudEntityOids = context.getQueryScope().getExpandedOids();
                 }
             }
-            List<CloudCostStatRecord> cloudCostStatRecords = getCloudStatRecordList(requestedStats,
-                cloudEntityOids, requestGroupBySet, context);
+            /*
+             * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
+             */
+            Set<StatApiInputDTO> requestedCostPriceStats = requestedStats.stream()
+                    .filter(requestedStat -> requestedStat.getName().equals(COST_PRICE_QUERY_KEY)).collect(toSet());
 
-            final boolean isGroupByAttachment = isGroupByAttachment(requestedStats);
-            final boolean isGroupByStorageTier = isGroupByStorageTier(requestedStats);
-
-            // Only aggregate the data when it is
-            // 1. Not grouped by cost component
-            // 2. Not grouped by virtual volume status
-            // 3. Not grouped by virtual volume's storage tier
-            if (!isGroupByComponentRequest(requestGroupBySet) &&
-                !isGroupByAttachment &&
-                !isGroupByStorageTier) {
-                // have to aggregate as needed.
-                cloudCostStatRecords = recordAggregator.aggregate(cloudCostStatRecords,
-                    requestedStats, context);
-            }
-
-
-            // For Virtual Volume, when it is grouped by either attachment or storage tier,
-            //   aggregation need to be handled explicitly
-            if (isGroupByAttachment || isGroupByStorageTier) {
-                List<StatSnapshotApiDTO> statSnapshots = new ArrayList<>();
-                // add List<StatSnapshotApiDTO> if group by attachment
-                if (isGroupByAttachment) {
-                    // Get all the Virtual Volume Oid in the CloudCostStatRecords
-                    Set<StatApiInputDTO> groupByAttachmentStatApiInputDtos = requestedStats.stream().filter(rs -> UIEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(StringConstants.ATTACHMENT))
-                        .collect(Collectors.toSet());
-                    List<StatSnapshotApiDTO> groupByAttachmentStat = getGroupByVVAttachmentStat(cloudCostStatRecords, groupByAttachmentStatApiInputDtos);
-                    if (groupByAttachmentStat != null && groupByAttachmentStat.size() > 0) {
-                        statSnapshots.addAll(groupByAttachmentStat);
-                    }
-                }
-
-                // add List<StatSnapshotApiDTO> if group by storage tier
-                if (isGroupByStorageTier) {
-                    Set<StatApiInputDTO> groupByStorageTierStatApiInputDtos = requestedStats.stream().filter(rs -> UIEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()))
-                        .collect(Collectors.toSet());
-                    List<StatSnapshotApiDTO> groupByStorageTierStat = getGroupByStorageTierStat(cloudCostStatRecords, groupByStorageTierStatApiInputDtos);
-                    if (groupByStorageTierStat != null && groupByStorageTierStat.size() > 0) {
-                        statSnapshots.addAll(groupByStorageTierStat);
-                    }
-                }
-
-                // merge any same date record together in results from group by attachment and group by storage tier
-                statsResponse = mergeStatSnapshotApiDTOWithDate(statSnapshots);
-            } else {
-                List<StatSnapshotApiDTO> statSnapshots = cloudCostStatRecords.stream()
+            List<CloudCostStatRecord> cloudCostStatRecords = getCloudStatRecordList(requestedCostPriceStats,
+                    cloudEntityOids, context);
+            List<StatSnapshotApiDTO> statSnapshots = cloudCostStatRecords.stream()
                     .map(this::toCloudStatSnapshotApiDTO)
-                    .collect(Collectors.toList());
-
-                // add numWorkloads, numVMs, numDBs, numDBSs if requested
-                final List<StatApiDTO> numWorkloadStats =
+                    .sorted(Comparator.comparing(StatSnapshotApiDTO::getDate))
+                    .collect(toList());
+            statsResponse = mergeStatSnapshotApiDTOWithDate(statSnapshots);
+            // add numWorkloads, numVMs, numDBs, numDBSs if requested
+            final List<StatApiDTO> numWorkloadStats =
                     getNumWorkloadStatSnapshot(requestedStats, context);
-                if (!numWorkloadStats.isEmpty()) {
-                    // add the numWorkloads to the same timestamp it it exists.
-                    if (statSnapshots.isEmpty()) {
-                        StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                        context.getTimeWindow()
+            if (!numWorkloadStats.isEmpty()) {
+                // add the numWorkloads to the same timestamp it it exists.
+                if (statSnapshots.isEmpty()) {
+                    StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                    context.getTimeWindow()
                             .ifPresent(window -> statSnapshotApiDTO.setDate(DateTimeUtil.toString(window.endTime())));
-                        statSnapshotApiDTO.setStatistics(numWorkloadStats);
-                        statSnapshots.add(statSnapshotApiDTO);
-                    } else {
-                        // add numWorkloads to all snapshots
-                        statSnapshots.forEach(statSnapshotApiDTO -> {
-                            List<StatApiDTO> statApiDTOs = new ArrayList<>();
-                            statApiDTOs.addAll(statSnapshotApiDTO.getStatistics());
-                            statApiDTOs.addAll(numWorkloadStats);
-                            statSnapshotApiDTO.setStatistics(statApiDTOs);
-                        });
-                    }
+                    statSnapshotApiDTO.setStatistics(numWorkloadStats);
+                    statsResponse.add(statSnapshotApiDTO);
+                } else {
+                    // add numWorkloads to all snapshots
+                    statsResponse.forEach(statSnapshotApiDTO -> {
+                        List<StatApiDTO> statApiDTOs = new ArrayList<>();
+                        statApiDTOs.addAll(statSnapshotApiDTO.getStatistics());
+                        statApiDTOs.addAll(numWorkloadStats);
+                        statSnapshotApiDTO.setStatistics(statApiDTOs);
+                    });
                 }
-                statsResponse = statSnapshots;
             }
         } else {
             statsResponse = Collections.emptyList();
@@ -309,229 +275,21 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     /**
      * Merge any {@link StatSnapshotApiDTO} objects which have the same date to one {@link StatSnapshotApiDTO} object.
+     * truncated times to minutes level to avoid discrepancies. Right now. UI expect only 2 time stamped snapshots.
+     * One current stats and one projected.
      *
      * @param original {@link List} list of {@link StatSnapshotApiDTO}
      * @return {@link List}
      */
     @Nonnull
-    private static List<StatSnapshotApiDTO> mergeStatSnapshotApiDTOWithDate(@Nonnull final List<StatSnapshotApiDTO> original) {
-        Map<String, StatSnapshotApiDTO> dateToSnapshot = new HashMap<>();
-        for (StatSnapshotApiDTO dto : original) {
-            if (dateToSnapshot.containsKey(dto.getDate())) {
-                dateToSnapshot.get(dto.getDate()).getStatistics().addAll(dto.getStatistics());
-            } else {
-                dateToSnapshot.put(dto.getDate(), dto);
-            }
-        }
-
-        return dateToSnapshot.values().stream().collect(Collectors.toList());
-    }
-
-    /**
-     * Group {@link List} of {@link CloudCostStatRecord} objects by Storage Tiers and map to
-     *   {@link StatSnapshotApiDTO} objects.
-     *
-     * @param cloudCostStatRecords {@link List} of {@link CloudCostStatRecord}
-     * @param requestedStats {@link Set} of {@link StatSnapshotApiDTO}
-     * @return {@link List} of {@link StatSnapshotApiDTO}
-     */
-    @Nonnull
-    @VisibleForTesting
-    List<StatSnapshotApiDTO> getGroupByStorageTierStat(@Nonnull List<CloudCostStatRecord> cloudCostStatRecords,
-                                                       @Nonnull Set<StatApiInputDTO> requestedStats) {
-        Set<Long> vvOids = cloudCostStatRecords.stream().flatMapToLong(cloudCostStatRecord ->
-            cloudCostStatRecord.getStatRecordsList().stream()
-                .filter(sr -> sr.getAssociatedEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
-                .mapToLong(sr -> sr.getAssociatedEntityId())
-        ).boxed().collect(Collectors.toSet());
-
-        // get list of attached VVs
-        final Set<PartialEntity.ApiPartialEntity> vvEntities = repositoryApi
-            .newSearchRequest(
-                SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(vvOids))
-                    .build()
-            )
-            .getEntities()
-            .collect(Collectors.toSet());
-
-        Map<Long, List<Long>> storageTierOidToConnectedVVOids = new HashMap<>();
-        vvEntities.forEach(vvEntity -> {
-            Optional<RelatedEntity> storageTierOpt = vvEntity.getConnectedToList().stream()
-                .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
-                .findFirst();
-
-            if (storageTierOpt.isPresent()) {
-                storageTierOidToConnectedVVOids
-                    .computeIfAbsent(storageTierOpt.get().getOid(), k -> new ArrayList<>())
-                    .add(vvEntity.getOid());
-            } else {
-                logger.error("Virtual Volume {} with uuid {} has NO storage tier connected to", vvEntity.getDisplayName(), vvEntity.getOid());
-            }
-        });
-
-        final Function<MinimalEntity, String> getStorageTierDisplayName = storageTierEntity -> {
-            if (Strings.isNullOrEmpty(storageTierEntity.getDisplayName())) {
-                logger.warn("No displayName for storage tier entity {}.  Use oid as displayName instead.", storageTierEntity.getOid());
-                return String.valueOf(storageTierEntity.getOid());
-            } else {
-                return storageTierEntity.getDisplayName();
-            }
-        };
-
-        final Map<String, List<Long>> storageTierDisplayNameToConnectedVVOid = repositoryApi
-            .newSearchRequest(
-                SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(storageTierOidToConnectedVVOids.keySet()))
-                    .build()
-            )
-            .getMinimalEntities()
-            .collect(Collectors.toMap(getStorageTierDisplayName,
-                storageEntity -> storageTierOidToConnectedVVOids.get(storageEntity.getOid())));
-
-        List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
-
-        cloudCostStatRecords.forEach(cloudCostStatRecord -> {
-            Map<String, List<CloudCostStatRecord.StatRecord>> cloudCostStatRecordGroupBySt = new HashMap<>();
-            for (String storageTierName : storageTierDisplayNameToConnectedVVOid.keySet()) {
-                List<CloudCostStatRecord.StatRecord> records = cloudCostStatRecord.getStatRecordsList().stream()
-                    .filter(rec -> storageTierDisplayNameToConnectedVVOid.get(storageTierName).contains(rec.getAssociatedEntityId()))
-                    .collect(Collectors.toList());
-
-                if (CollectionUtils.isNotEmpty(records)) {
-                    cloudCostStatRecordGroupBySt.put(storageTierName, records);
-                }
-            }
-
-            requestedStats.stream().forEach(requestedStat -> {
-                UIEntityType requestEntityType = UIEntityType.fromString(requestedStat.getRelatedEntityType());
-
-                if (UIEntityType.UNKNOWN.equals(requestEntityType)) {
-                    logger.error("Unknown request entityType {}", requestedStat.getRelatedEntityType());
-                } else {
-                    StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                    statSnapshotApiDTO.setDisplayName(requestedStat.getName());
-                    statSnapshotApiDTO.setDate(DateTimeUtil.toString(cloudCostStatRecord.getSnapshotDate()));
-
-
-                    List<StatApiDTO> statApiDTOs = cloudCostStatRecordGroupBySt.entrySet().stream()
-                        .map(entry -> {
-                            CloudCostStatRecord.StatRecord statRecord = recordAggregator.aggregate(entry.getValue(),
-                                Optional.of(Integer.valueOf(requestEntityType.typeNumber())), false);
-                            return toStatApiDTO(StringConstants.COST_PRICE, statRecord, createStatFilterApiDTO(UIEntityType.STORAGE_TIER.apiStr(), entry.getKey()));
-                        })
-                        .collect(Collectors.toList());
-
-                    statSnapshotApiDTO.setStatistics(statApiDTOs);
-
-                    statSnapshotApiDTOs.add(statSnapshotApiDTO);
-                }
-            });
-        });
-
-        return statSnapshotApiDTOs;
-    }
-
-    /**
-     * Group {@link List} of {@link CloudCostStatRecord} objects by attachment status and map to
-     *   {@link StatSnapshotApiDTO} objects.
-     *
-     * @param cloudCostStatRecords {@link List} of {@link CloudCostStatRecord}
-     * @param requestedStats {@link Set} of {@link StatSnapshotApiDTO}
-     * @return {@link List} of {@link StatSnapshotApiDTO}
-     */
-    @Nonnull
-    @VisibleForTesting
-    List<StatSnapshotApiDTO> getGroupByVVAttachmentStat(@Nonnull List<CloudCostStatRecord> cloudCostStatRecords,
-                                                        @Nonnull Set<StatApiInputDTO> requestedStats) {
-        Set<Long> vvOids = cloudCostStatRecords.stream().flatMapToLong(cloudCostStatRecord ->
-            cloudCostStatRecord.getStatRecordsList().stream()
-                .filter(sr -> sr.getAssociatedEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
-                .mapToLong(sr -> sr.getAssociatedEntityId())
-        ).boxed().collect(Collectors.toSet());
-
-        // Get list of attached VVs
-        // Note that there may be extra vvOid returned as one VM may have multiple VVs,
-        //  but the VV list will still be the one associated with the cloudCostStatRecords which
-        //  the scope originally retrieved.
-        final Set<Long> vvOidsAttachedToVM = repositoryApi
-            .newSearchRequest(
-                SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(vvOids))
-                    .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(
-                            SearchProtoUtil.traverseToType(TraversalDirection.CONNECTED_FROM,
-                                UIEntityType.VIRTUAL_MACHINE.apiStr()))
-                    )
-                    .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(
-                            SearchProtoUtil.traverseToType(TraversalDirection.CONNECTED_TO,
-                                UIEntityType.VIRTUAL_VOLUME.apiStr())))
-                    .build()
-            )
-            .getOids();
-
-        Predicate<CloudCostStatRecord.StatRecord> attachedVVFilter =
-            testStatRecord -> vvOidsAttachedToVM.contains(testStatRecord.getAssociatedEntityId());
-
-        List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
-
-        cloudCostStatRecords.forEach(cloudCostStatRecord -> {
-            List<CloudCostStatRecord.StatRecord> vvAttachedStatRecords = new ArrayList<>();
-            List<CloudCostStatRecord.StatRecord> vvUnattachedStatRecords = new ArrayList<>();
-
-            cloudCostStatRecord.getStatRecordsList().stream().forEach(statRecord -> {
-                if (attachedVVFilter.test(statRecord)) {
-                    vvAttachedStatRecords.add(statRecord);
-                } else {
-                    vvUnattachedStatRecords.add(statRecord);
-                }
-            });
-
-            requestedStats.stream().forEach(requestedStat -> {
-                StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                statSnapshotApiDTO.setDisplayName(requestedStat.getName());
-                statSnapshotApiDTO.setDate(DateTimeUtil.toString(cloudCostStatRecord.getSnapshotDate()));
-
-                UIEntityType requestRelatedEntityType = UIEntityType.fromString(requestedStat.getRelatedEntityType());
-                if (UIEntityType.UNKNOWN.equals(requestRelatedEntityType)) {
-                    logger.error("Unknown related entity type {} from request.", requestedStat.getRelatedEntityType());
-                } else {
-                    final Optional<Integer> relatedEntityTypeIdOpt = Optional.of(Integer.valueOf(requestRelatedEntityType.typeNumber()));
-                    CloudCostStatRecord.StatRecord attachedRecord = recordAggregator
-                        .aggregate(vvAttachedStatRecords, relatedEntityTypeIdOpt, false);
-                    CloudCostStatRecord.StatRecord unattachedRecord = recordAggregator
-                        .aggregate(vvUnattachedStatRecords, relatedEntityTypeIdOpt, false);
-
-                    StatApiDTO attachedStatApiDto = toStatApiDTO(StringConstants.COST_PRICE, attachedRecord, createStatFilterApiDTO(StringConstants.ATTACHMENT, StringConstants.ATTACHED));
-                    StatApiDTO unattachedStatApiDto = toStatApiDTO(StringConstants.COST_PRICE, unattachedRecord, createStatFilterApiDTO(StringConstants.ATTACHMENT, StringConstants.UNATTACHED));
-
-                    statSnapshotApiDTO.setStatistics(Lists.newArrayList(attachedStatApiDto, unattachedStatApiDto));
-
-                    statSnapshotApiDTOs.add(statSnapshotApiDTO);
-                }
-            });
-        });
-
-        return statSnapshotApiDTOs;
-    }
-
-    @Nonnull
-    private static StatFilterApiDTO createStatFilterApiDTO(@Nonnull String type,
-                                                           @Nonnull String value) {
-        StatFilterApiDTO statFilterDTO = new StatFilterApiDTO();
-        statFilterDTO.setType(type);
-        statFilterDTO.setValue(value);
-        return statFilterDTO;
-    }
-
-    @Nonnull
-    private static StatApiDTO toStatApiDTO(@Nonnull String name,
-                                           @Nonnull CloudCostStatRecord.StatRecord statRecord,
-                                           @Nonnull StatFilterApiDTO additionalFilter) {
-        final StatApiDTO statApiDTO = toStatApiDTO(name, statRecord);
-        statApiDTO.setFilters(Collections.singletonList(additionalFilter));
-        return statApiDTO;
+    private static List<StatSnapshotApiDTO> mergeStatSnapshotApiDTOWithDate(
+            @Nonnull final List<StatSnapshotApiDTO> original) {
+        return new ArrayList<>(Sets.newHashSet(original).stream()
+                .collect(Collectors.toMap(snapshot -> ZonedDateTime.parse(snapshot.getDate())
+                        .truncatedTo(ChronoUnit.MINUTES).toEpochSecond(), dto -> dto, (currDto, newDto) -> {
+                    currDto.getStatistics().addAll(newDto.getStatistics());
+                    return currDto;
+                })).values());
     }
 
     @Nonnull
@@ -585,97 +343,94 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     private List<CloudCostStatRecord> getCloudStatRecordList(@Nonnull final Set<StatApiInputDTO> stats,
                                                              @Nonnull final Set<Long> entityStatOids,
-                                                             @Nonnull final Set<String> requestGroupBySet,
                                                              @Nonnull final StatsQueryContext context) {
-        final GetCloudCostStatsRequest.Builder builder = GetCloudCostStatsRequest.newBuilder();
-        // set entity types filter
-        final Set<Integer> relatedEntityTypes = getRelatedEntityTypes(stats);
-        if (!relatedEntityTypes.isEmpty()) {
-            builder.setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                .addAllEntityTypeId(relatedEntityTypes)
-                .build());
+        if (stats.isEmpty()) {
+            return Collections.emptyList();
         }
+        Set<CloudCostStatsQuery> cloudCostStatsQueries = Sets.newHashSet();
+        final AtomicLong count = new AtomicLong(0);
+        final List<String> groupByValues = Arrays.stream(GroupBy.values())
+                .map(GroupBy::getValueDescriptor)
+                .map(EnumValueDescriptor::getName)
+                .collect(toList());
 
-        if (!buyRiScopeHandler.shouldIncludeBuyRiDiscount(context.getInputScope())) {
-            builder.setCostSourceFilter(GetCloudCostStatsRequest.CostSourceFilter.newBuilder()
-                .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
-                .setExclusionFilter(true)
-                .build());
-        }
+        List<String> costCategoryValues = Arrays.stream(CostCategory.values()).map(Enum::name).collect(toList());
+        stats.forEach(statApiInputDTO -> {
+            Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
+            EntityTypeFilter.Builder entityTypeFilter = EntityTypeFilter.newBuilder();
+            if (UIEntityType.fromString(statApiInputDTO.getRelatedEntityType()) != UIEntityType.UNKNOWN) {
+                entityTypeFilter.addEntityTypeId(UIEntityType
+                        .fromStringToSdkType(statApiInputDTO.getRelatedEntityType()));
+            }
+            cloudCostStatsQuery.setEntityTypeFilter(entityTypeFilter);
+            addCloudCostStatsQueryFilter(cloudCostStatsQuery, entityStatOids, context);
+            if (statApiInputDTO.getFilters() != null) {
+                cloudCostStatsQuery.setCostCategoryFilter(CostCategoryFilter.newBuilder()
+                        .addAllCostCategory(statApiInputDTO.getFilters().stream()
+                                .filter(filterApiDTO -> costCategoryValues.contains(filterApiDTO.getValue()))
+                                .map(filterApiDTO -> CostCategory.valueOf(filterApiDTO.getValue()))
+                                .collect(toList())).build());
+            }
+            //Query id
+            cloudCostStatsQuery.setQueryId(count.getAndIncrement());
+            //Projected Request..
+            cloudCostStatsQuery.setRequestProjected(context.requestProjected());
+            if (statApiInputDTO.getGroupBy() != null && !statApiInputDTO.getGroupBy().isEmpty()) {
+                cloudCostStatsQuery.addAllGroupBy(statApiInputDTO.getGroupBy().stream()
+                        //todo: Shud do something better to handle costComponent to COST_CATEGORY conversion.
+                        .map(groupByString -> {
+                            if (groupByString.equals(COST_COMPONENT)) {
+                                return GroupBy.COST_CATEGORY;
+                            }
+                            return groupByValues.contains(groupByString) ?
+                                    GroupBy.valueOf(groupByString) : GroupBy.COST_CATEGORY;
+                        })
+                        .collect(Collectors.toList()));
+            }
+            //time frames.
+            context.getTimeWindow().ifPresent(timeWindow -> {
+                cloudCostStatsQuery.setStartDate(timeWindow.startTime());
+                cloudCostStatsQuery.setEndDate(timeWindow.endTime());
+            });
 
+            if (!buyRiScopeHandler.shouldIncludeBuyRiDiscount(context.getInputScope())) {
+                cloudCostStatsQuery.setCostSourceFilter(CostSourceFilter.newBuilder()
+                        .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
+                        .setExclusionFilter(true)
+                        .build());
+            }
+            cloudCostStatsQueries.add(cloudCostStatsQuery.build());
+        });
+        GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
+        return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+    }
+
+    private void addCloudCostStatsQueryFilter(@Nonnull final Builder cloudCostStatsQuery,
+                                              @Nonnull final Set<Long> entityStatOids,
+                                              @Nonnull final StatsQueryContext context) {
         //TODO consider create default Cloud group (probably in Group component). Currently the only group
-        if (!entityStatOids.isEmpty()) {
+        if (!entityStatOids.isEmpty() && context.getInputScope().getScopeTypes().isPresent()) {
             if (shouldQueryUsingFilter(context.getInputScope())) {
                 UIEntityType scopeType =
-                    context.getInputScope().getScopeTypes().get().iterator().next();
+                        context.getInputScope().getScopeTypes().get().iterator().next();
                 switch (scopeType) {
                     case BUSINESS_ACCOUNT:
-                        builder.setAccountFilter(Cost.AccountFilter.newBuilder()
-                             .addAllAccountId(entityStatOids));
-                         break;
+                        cloudCostStatsQuery.setAccountFilter(Cost.AccountFilter.newBuilder()
+                                .addAllAccountId(entityStatOids));
+                        break;
                     case REGION:
-                        builder.setRegionFilter(Cost.RegionFilter.newBuilder()
-                            .addAllRegionId(entityStatOids));
+                        cloudCostStatsQuery.setRegionFilter(Cost.RegionFilter.newBuilder()
+                                .addAllRegionId(entityStatOids));
                         break;
                     case AVAILABILITY_ZONE:
-                        builder.setAvailabilityZoneFilter(Cost.AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(entityStatOids));
+                        cloudCostStatsQuery.setAvailabilityZoneFilter(Cost.AvailabilityZoneFilter.newBuilder()
+                                .addAllAvailabilityZoneId(entityStatOids));
                 }
             } else {
-                builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
+                cloudCostStatsQuery.getEntityFilterBuilder().addAllEntityId(entityStatOids);
             }
-
         }
-        if (isGroupByComponentRequest(requestGroupBySet)) {
-            builder.setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT);
-        }
-
-        context.getTimeWindow().ifPresent(timeWindow -> {
-            builder.setStartDate(timeWindow.startTime());
-            builder.setEndDate(timeWindow.endTime());
-        });
-
-        if (context.requestProjected()) {
-            builder.setRequestProjected(true);
-        }
-
-        return costServiceRpc.getCloudCostStats(builder.build()).getCloudStatRecordList();
-    }
-
-    private static boolean isGroupByComponentRequest(Set<String> requestGroupBySet) {
-        return requestGroupBySet.contains(COSTCOMPONENT);
-    }
-
-    private static boolean isGroupByAttachment(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
-            UIEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
-    }
-
-    private static boolean isGroupByStorageTier(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
-            UIEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
-    }
-
-    private static Set<Integer> getRelatedEntityTypes(@Nonnull Set<StatApiInputDTO> statApiInputDTOs) {
-        if (CollectionUtils.isEmpty(statApiInputDTOs)) {
-            return Collections.emptySet();
-        }
-
-        final Set<Integer> relatedEntityTypes = new HashSet<>();
-        statApiInputDTOs.stream()
-            .filter(statApiInputDTO -> statApiInputDTO.getRelatedEntityType() != null)
-            .forEach(statApiInputDTO -> {
-                String entityType = statApiInputDTO.getRelatedEntityType();
-                if (CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(entityType)) {
-                    relatedEntityTypes.addAll(WORKLOAD_ENTITY_TYPES.stream()
-                        .map(UIEntityType::typeNumber)
-                        .collect(Collectors.toSet())
-                    );
-                } else {
-                    relatedEntityTypes.add(UIEntityType.fromString(entityType).typeNumber());
-                }
-            });
-        return relatedEntityTypes;
     }
 
     @Nonnull
@@ -694,7 +449,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         }
         if (requestGroupBySet.contains(TARGET)) {
             builder.setGroupBy(GroupByType.TARGET);
-        } else if (requestGroupBySet.contains(CSP)){
+        } else if (requestGroupBySet.contains(CSP)) {
             builder.setGroupBy(GroupByType.CSP);
         } else if (requestGroupBySet.contains(CLOUD_SERVICE)) {
             builder.setGroupBy(GroupByType.CLOUD_SERVICE);
@@ -829,7 +584,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         typeFunction,
                         valueFunction,
                         cloudServiceDTOs))
-                .collect(Collectors.toList()));
+                .collect(toList()));
         return dto;
     }
 
@@ -875,7 +630,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     // Build filters
                     final List<StatFilterApiDTO> filters = new ArrayList<>();
                     final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-                    resultsTypeFilter.setType(COSTCOMPONENT);
+                    resultsTypeFilter.setType(COST_COMPONENT);
                     switch(statRecord.getCategory()) {
                         case ON_DEMAND_COMPUTE:
                             resultsTypeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
@@ -906,135 +661,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 }
                 return statApiDTO;
             })
-            .collect(Collectors.toList()));
+            .collect(toList()));
         return dto;
     }
 
     static class CloudStatRecordAggregator {
-
-        // aggregate to one StatRecord per related entity type per CloudCostStatRecord
-        List<CloudCostStatRecord> aggregate(@Nonnull final List<CloudCostStatRecord> cloudStatRecords,
-                                                    @Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                    @Nonnull final StatsQueryContext context) {
-            boolean hasRiCostRequest = requestedStats.stream()
-                .anyMatch(stat -> StringConstants.RI_COST.equalsIgnoreCase(stat.getName()));
-            return cloudStatRecords.stream().map(cloudCostStatRecord -> {
-                final CloudCostStatRecord.Builder builder = CloudCostStatRecord.newBuilder();
-                builder.setSnapshotDate(cloudCostStatRecord.getSnapshotDate());
-
-                final Map<CostCategory, Map<Integer, List<CloudCostStatRecord.StatRecord>>> statRecordsMap = Maps.newHashMap();
-                cloudCostStatRecord.getStatRecordsList().forEach(statRecord ->
-                    statRecordsMap.computeIfAbsent(statRecord.getCategory(), k -> new HashMap<>())
-                        .computeIfAbsent(statRecord.getAssociatedEntityType(), a -> Lists.newArrayList())
-                        .add(statRecord));
-
-                // add ri stat record
-                final List<CloudCostStatRecord.StatRecord> riRecords = statRecordsMap.getOrDefault(CostCategory.RI_COMPUTE,
-                    Collections.emptyMap()).get(EntityType.VIRTUAL_MACHINE_VALUE);
-                if (hasRiCostRequest && riRecords != null) {
-                    builder.addStatRecords(aggregate(riRecords, Optional.empty(), true));
-                }
-
-                final Set<StatApiInputDTO> statToProcess;
-                if (!requestedStats.isEmpty()) {
-                    statToProcess = requestedStats;
-                } else {
-                    // If we the requested stats is empty we still return the cost
-                    statToProcess =
-                        Collections.singleton(new StatApiInputDTO(StringConstants.COST_PRICE, null,
-                            null, null));
-                }
-
-                statToProcess.stream()
-                    .filter(statApiInputDTO -> StringConstants.COST_PRICE.equals(statApiInputDTO.getName()))
-                    .forEach(statApiInputDTO -> {
-                        final String relatedEntityType = statApiInputDTO.getRelatedEntityType();
-                        final Set<String> filters = CollectionUtils.emptyIfNull(statApiInputDTO.getFilters()).stream()
-                            .map(StatFilterApiDTO::getValue).collect(Collectors.toSet());
-
-                        if (relatedEntityType == null) {
-                            final List<CloudCostStatRecord.StatRecord> recordsToAggregate;
-                            // If the scope is business, we don't want to
-                            // count the attached volume cost twice since we considered  it
-                            // both in account vms and volumes cost
-                            if (context.getInputScope().getScopeTypes().isPresent()
-                                && context.getInputScope().getScopeTypes().get()
-                                    .equals(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT))) {
-                                recordsToAggregate = cloudCostStatRecord.getStatRecordsList().stream()
-                                    .filter(this::isStorageCostAssociatedtoVm)
-                                    .collect(Collectors.toList());
-                            } else {
-                                recordsToAggregate = cloudCostStatRecord.getStatRecordsList();
-                            }
-
-                            builder.addStatRecords(aggregate(recordsToAggregate,
-                                Optional.empty(), false));
-                            // two types of request for storage:
-                            //   {"name":"costPrice","relatedEntityType":"Storage"}
-                            //   {"filters":[{"type":"costComponent","value":"STORAGE"}]
-                        } else if ((relatedEntityType.equals(UIEntityType.VIRTUAL_MACHINE.apiStr()) && filters.contains("STORAGE"))
-                            || relatedEntityType.equals(UIEntityType.STORAGE.apiStr())) {
-                            // for the category storage, only get the record of entity type VM, since
-                            // the cost of entity type volume is included in the vm record
-                            final List<CloudCostStatRecord.StatRecord> statRecordsList = statRecordsMap.getOrDefault(
-                                CostCategory.STORAGE, Collections.emptyMap()).get(EntityType.VIRTUAL_MACHINE_VALUE);
-                            if (!CollectionUtils.isEmpty(statRecordsList)) {
-                                builder.addStatRecords(aggregate(statRecordsList, Optional.of(EntityType.STORAGE_VALUE), false));
-                            }
-                        } else if (relatedEntityType.equals(CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE)) {
-                            final List<CloudCostStatRecord.StatRecord> statRecordsList;
-                            if (filters.isEmpty()) {
-                                // add all if no filters
-                                statRecordsList = cloudCostStatRecord.getStatRecordsList();
-                            } else {
-                                // add on demand compute
-                                statRecordsList = statRecordsMap.getOrDefault(
-                                    CostCategory.ON_DEMAND_COMPUTE, Collections.emptyMap()).values()
-                                    .stream().flatMap(List::stream).collect(Collectors.toList());
-                                if (filters.contains(StringConstants.ON_DEMAND_COMPUTE_LICENSE_COST)) {
-                                    // add license cost
-                                    statRecordsList.addAll(statRecordsMap.getOrDefault(
-                                        CostCategory.ON_DEMAND_LICENSE, Collections.emptyMap()).values().stream()
-                                        .flatMap(List::stream).collect(Collectors.toList()));
-                                }
-                            }
-                            if (!statRecordsList.isEmpty()) {
-                                builder.addStatRecords(aggregate(statRecordsList, Optional.empty(), false));
-                            }
-                        } else {
-                            int entityType = UIEntityType.fromString(relatedEntityType).typeNumber();
-                            final List<CloudCostStatRecord.StatRecord> statRecordsList;
-                            if (filters.isEmpty()) {
-                                // add all if no filters
-                                statRecordsList = statRecordsMap.values().stream()
-                                    .filter(map -> map.containsKey(entityType))
-                                    .flatMap(map -> map.get(entityType).stream())
-                                    .collect(Collectors.toList());
-                            } else {
-                                // add on demand compute
-                                statRecordsList = ListUtils.emptyIfNull(statRecordsMap.getOrDefault(
-                                    CostCategory.ON_DEMAND_COMPUTE, Collections.emptyMap()).get(entityType));
-                                if (filters.contains(StringConstants.ON_DEMAND_COMPUTE_LICENSE_COST)) {
-                                    // add license cost
-                                    statRecordsList.addAll(ListUtils.emptyIfNull(statRecordsMap.getOrDefault(
-                                        CostCategory.ON_DEMAND_LICENSE, Collections.emptyMap()).get(entityType)));
-                                }
-                            }
-                            if (!statRecordsList.isEmpty()) {
-                                builder.addStatRecords(aggregate(statRecordsList, Optional.of(entityType), false));
-                            }
-                        }
-                    });
-                return builder.build();
-            }).collect(Collectors.toList());
-        }
-
-        private boolean isStorageCostAssociatedtoVm(StatRecord statRecord) {
-                return !statRecord.hasAssociatedEntityType()
-                    || !statRecord.hasCategory()
-                    || statRecord.getAssociatedEntityType() != UIEntityType.VIRTUAL_MACHINE.typeNumber()
-                    || statRecord.getCategory() != CostCategory.STORAGE;
-        }
 
         /**
          * Aggregate a list of StatRecord into one StatRecord. Set relatedEntityType if provided.

@@ -61,8 +61,8 @@ public class SqlAccountExpensesStoreTest {
                     .newBuilder()
                     .setAssociatedServiceId(CLOUD_SERVICE_ID_1)
                     .setExpenses(CurrencyAmount.newBuilder()
-                        .setCurrency(840)
-                        .setAmount(COST_AMOUNT_1).build())
+                            .setCurrency(840)
+                            .setAmount(COST_AMOUNT_1).build())
                     .build())
             .build();
 
@@ -71,8 +71,8 @@ public class SqlAccountExpensesStoreTest {
                     .newBuilder()
                     .setAssociatedServiceId(CLOUD_SERVICE_ID_2)
                     .setExpenses(CurrencyAmount.newBuilder()
-                        .setCurrency(840)
-                        .setAmount(COST_AMOUNT_2).build())
+                            .setCurrency(840)
+                            .setAmount(COST_AMOUNT_2).build())
                     .build())
             .build();
 
@@ -129,8 +129,8 @@ public class SqlAccountExpensesStoreTest {
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
                 .getAccountExpenses(AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                    .latestTimestampRequested(true)
-                    .build()
+                        .latestTimestampRequested(true)
+                        .build()
                 );
         assertEquals(1, accountExpenses1.size());
         // the expenses map should have one account ID to one set of account expenses (accountExpensesInfo2)
@@ -158,14 +158,14 @@ public class SqlAccountExpensesStoreTest {
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo3);
 
         Collection<AccountExpenses> ret = expensesStore.getAccountExpenses(
-            AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                .accountIds(Collections.singleton(ACCOUNT_ID_1))
-                .latestTimestampRequested(true)
-                .build()).values()
-                    .stream()
-                    .map(Map::values)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toList());
+                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        .accountIds(Collections.singleton(ACCOUNT_ID_1))
+                        .latestTimestampRequested(true)
+                        .build()).values()
+                .stream()
+                .map(Map::values)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
 
         assertThat(ret.size(), is(1));
         assertThat(ret.stream()
@@ -199,13 +199,13 @@ public class SqlAccountExpensesStoreTest {
 
         // get most recent expenses per account
         Collection<AccountExpenses> ret = expensesStore.getAccountExpenses(
-            AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                .latestTimestampRequested(true).build())
-                    .values()
-                    .stream()
-                    .map(Map::values)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toList());
+                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        .latestTimestampRequested(true).build())
+                .values()
+                .stream()
+                .map(Map::values)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
 
         // we expect to see one set of expenses per account
         assertThat(ret.size(), is(2));
@@ -214,8 +214,8 @@ public class SqlAccountExpensesStoreTest {
                 .collect(Collectors.toList()), containsInAnyOrder(ACCOUNT_ID_1, ACCOUNT_ID_2));
         // make sure we got the newest expenses
         assertThat(ret.stream()
-            .map(AccountExpenses::getAccountExpensesInfo)
-            .collect(Collectors.toList()), containsInAnyOrder(accountExpensesInfo3, accountExpensesInfo4));
+                .map(AccountExpenses::getAccountExpensesInfo)
+                .collect(Collectors.toList()), containsInAnyOrder(accountExpensesInfo3, accountExpensesInfo4));
 
         // DELETE
         expensesStore.deleteAccountExpensesByAssociatedAccountId(ACCOUNT_ID_1);
@@ -230,10 +230,10 @@ public class SqlAccountExpensesStoreTest {
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo3);
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses = expensesStore
-            .getAccountExpenses(
-                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                    .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
-                    .latestTimestampRequested(true).build());
+                .getAccountExpenses(
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                                .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
+                                .latestTimestampRequested(true).build());
 
         assertEquals(1, accountExpenses.size());
         assertEquals(ACCOUNT_ID_1, accountExpenses.values().stream()
@@ -249,27 +249,27 @@ public class SqlAccountExpensesStoreTest {
 
         // get expenses for entityID = 0, entityType = any
         Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
-            .getAccountExpenses(
-                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                    .entityIds(Collections.singleton(0L))
-                    .latestTimestampRequested(true).build());
+                .getAccountExpenses(
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                                .entityIds(Collections.singleton(0L))
+                                .latestTimestampRequested(true).build());
 
         assertEquals(0, accountExpenses1.size());
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses2 = expensesStore
-            .getAccountExpenses(
-                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                    .entityTypes(Collections.singleton(ENTITY_TYPE_1))
-                    .latestTimestampRequested(true).build());
+                .getAccountExpenses(
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                                .entityTypes(Collections.singleton(ENTITY_TYPE_1))
+                                .latestTimestampRequested(true).build());
         assertEquals(1, accountExpenses2.size());
 
         // get expenses for entityID = 1, entityType = 0
         Map<Long, Map<Long, AccountExpenses>> accountExpenses3 = expensesStore
-            .getAccountExpenses(
-                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
-                    .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
-                    .entityTypes(Collections.singleton(0))
-                    .latestTimestampRequested(true).build());
+                .getAccountExpenses(
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                                .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
+                                .entityTypes(Collections.singleton(0))
+                                .latestTimestampRequested(true).build());
         assertEquals(0, accountExpenses3.size());
 
         // DELETE

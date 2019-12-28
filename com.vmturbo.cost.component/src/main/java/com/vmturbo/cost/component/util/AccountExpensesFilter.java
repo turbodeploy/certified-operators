@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -23,6 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
@@ -42,17 +45,33 @@ public class AccountExpensesFilter extends CostFilter {
     private final Set<Long> accountIds;
     private final List<Condition> conditions;
 
+    @Nullable
+    private final CostGroupBy costGroupBy;
+
     AccountExpensesFilter(@Nullable Set<Long> entityFilter,
                           @Nullable Set<Integer> entityTypeFilter,
                           @Nullable final Long startDateMillis,
                           @Nullable final Long endDateMillis,
                           @Nullable final TimeFrame timeFrame,
+                          @Nonnull Set<String> groupByFields,
                           @Nullable final Set<Long> accountIds,
                           final boolean latestTimeStampRequested) {
         super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame,
                 EXPENSE_DATE, latestTimeStampRequested);
         this.accountIds = accountIds;
         this.conditions = generateConditions();
+        this.costGroupBy = createGroupByFieldString(groupByFields);
+    }
+
+    @Nullable
+    private CostGroupBy createGroupByFieldString(@Nonnull Set<String> items ) {
+        Set<String> listOfFields = Sets.newHashSet(items);
+        listOfFields.add(getTable().field(EXPENSE_DATE).getName());
+        return items.isEmpty() ?
+                null :
+                new CostGroupBy(listOfFields.stream().map(columnName -> columnName.toLowerCase(Locale.getDefault()))
+                        .collect(Collectors.toSet()),
+                        timeFrame);
     }
 
     /**
@@ -88,7 +107,7 @@ public class AccountExpensesFilter extends CostFilter {
             // associated entity ID is 0.
             // This can happen when the expense is for a cloud service which wasn't
             // discovered because it doesn't appear in the CloudService enum.
-            conditions.add(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.notEqual(0L));
+            conditions.add(table.field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID).notEqual(0L));
         }
 
         if (accountIds != null) {
@@ -185,7 +204,12 @@ public class AccountExpensesFilter extends CostFilter {
         @Override
         public AccountExpensesFilter build() {
             return new AccountExpensesFilter(entityIds, entityTypeFilters, startDateMillis,
-                endDateMillis, timeFrame, accountIds, latestTimeStampRequested);
+                endDateMillis, timeFrame, groupByFields, accountIds, latestTimeStampRequested);
         }
+    }
+
+    @Override
+    public CostGroupBy getCostGroupBy() {
+        return costGroupBy;
     }
 }

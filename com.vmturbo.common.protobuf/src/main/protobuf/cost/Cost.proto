@@ -632,9 +632,8 @@ message ReservedInstanceBoughtFilter {
     repeated int64 ri_bought_id = 2;
 }
 
-// A request to get reserved instance bought by some filter condition. If both region
-// and availability zone filters are provided, they will be OR'd. EIther filter
-// will be AND'd with the account filter (if configured)
+// A request to get reserved instance bought by some filter condition. If provided more than one
+// different filter type, it will perform AND logic.
 message GetReservedInstanceBoughtByFilterRequest {
     optional RegionFilter region_filter = 1;
     optional AvailabilityZoneFilter zone_filter = 2;
@@ -834,47 +833,57 @@ message CostCategoryFilter {
 
 // A request to get bottom up Cloud cost stats
 message GetCloudCostStatsRequest {
+
+    repeated CloudCostStatsQuery cloud_cost_stats_query = 1;
+}
+
+message CloudCostStatsQuery {
+
     // The start date of the request
     // If the start date is set and the end date is not set, we will only get the latest stats.
-    optional uint64 start_date = 1;
+    optional int64 query_id = 1;
 
     // The end date of the request
     // If the end date is set and the start date is not set, we will only get the latest stats.
-    optional uint64 end_date = 2;
+    optional uint64 start_date = 2;
+
+    // Entity ids filter, return all entities if not set
+    optional uint64 end_date = 3;
 
     // Whether or not to request projected bottom-up costs.
     //
     // Note - this will add the projected stats to any historical stats specified by the
     // start_date and end_date parameters. There is no way to get ONLY the projected stats.
-    optional bool request_projected = 7;
+    optional bool request_projected = 4;
 
     // Entity ids filter, return all entities if not set
-    optional EntityFilter entity_filter = 3;
+    optional EntityFilter entity_filter = 5;
 
     // Cost category filter, return all entities if not set
-    optional CostCategoryFilter cost_category_filter = 4;
+    optional CostCategoryFilter cost_category_filter = 6;
 
     // Entity type filter, could be VM or APP, return all entities if not set
-    optional EntityTypeFilter entity_type_filter = 5;
+    optional EntityTypeFilter entity_type_filter = 7;
 
     // A property names to aggregate stats over, as in an SQL 'group by' clause.
-    optional GroupByType group_by = 6;
+    repeated GroupBy group_by = 8;
 
     // Filter associated cost based on its source, return cost from all sources if empty.
-    optional CostSourceFilter cost_source_filter = 8;
+    optional CostSourceFilter cost_source_filter = 9;
 
     // get entity cost filtered by region ids.
-    optional RegionFilter region_filter = 9;
+    optional RegionFilter region_filter = 10;
 
     // get entity cost filtered by availability zone ids.
-    optional AvailabilityZoneFilter availability_zone_filter = 10;
+    optional AvailabilityZoneFilter availability_zone_filter = 11;
 
     // get entity cost filtered by account ids.
-    optional AccountFilter account_filter = 11;
+    optional AccountFilter account_filter = 12;
 
-    enum GroupByType {
-        // Cloud Cost Component
-        COSTCOMPONENT = 1;
+    enum GroupBy {
+        COST_CATEGORY = 1;
+        ENTITY = 2;
+        ENTITY_TYPE = 3;
     }
 
     // The filter used for filtering cost items in a cost query.
@@ -901,6 +910,9 @@ message CloudCostStatRecord {
 
     // the individual stat_records collected
     repeated StatRecord stat_records = 2;
+
+    //this the query id used in CloudCostStatsQuery to uniquely identity a query in the list.
+    optional uint64 query_id = 3;
 
     // an individual stats value.
     message StatRecord {
