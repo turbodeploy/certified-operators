@@ -42,6 +42,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -65,7 +66,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+
 
 public class CloudCostsStatsSubQueryTest {
     private static final long MILLIS = 1_000_000;
@@ -83,8 +88,13 @@ public class CloudCostsStatsSubQueryTest {
 
     @Mock
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     @Mock
     private ThinTargetCache thinTargetCache;
+
+    private static final long TARGET_ID_1 = 11L;
+    private static final long TARGET_ID_2 = 12L;
+    private static final String CSP_AZURE = CloudType.AZURE.name();
 
     private static final long ACCOUNT_ID_1 = 1L;
     private static final long ACCOUNT_ID_2 = 2L;
@@ -106,11 +116,35 @@ public class CloudCostsStatsSubQueryTest {
             .setOid(CLOUD_SERVICE_ID_2)
             .build();
 
+    private final ThinTargetCache.ThinTargetInfo targetInfo1 = ImmutableThinTargetInfo.builder()
+            .oid(TARGET_ID_1)
+            .displayName("target1")
+            .isHidden(false)
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .oid(1L)
+                    .category("Cloud")
+                    .type(SDKProbeType.AZURE.getProbeType())
+                    .build())
+            .build();
+
+    private final ThinTargetCache.ThinTargetInfo targetInfo2 = ImmutableThinTargetInfo.builder()
+            .oid(TARGET_ID_2)
+            .displayName("target2")
+            .isHidden(false)
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .oid(2L)
+                    .category("Cloud")
+                    .type(SDKProbeType.AZURE_EA.getProbeType())
+                    .build())
+            .build();
+
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = Mockito.spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
+        when(thinTargetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo1));
+        when(thinTargetCache.getTargetInfo(TARGET_ID_2)).thenReturn(Optional.of(targetInfo2));
+        query = spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
                 supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler()));
     }
 
@@ -189,7 +223,6 @@ public class CloudCostsStatsSubQueryTest {
 
         StatApiInputDTO queryStat = new StatApiInputDTO();
         queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.CLOUD_SERVICE));
-        queryStat.setRelatedEntityType("CloudService");
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
 
         StatsQueryContext context = mock(StatsQueryContext.class);
@@ -225,6 +258,59 @@ public class CloudCostsStatsSubQueryTest {
             assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_2)).size(), is(1));
             assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_2)).get(0), is(filter2));
 
+        } catch (OperationFailedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Tests the case where we are getting the stats grouped by cloud provider.
+     */
+    @Test
+    public void testGetAggregateStatsGroupByCSP() {
+        // expected filters
+        StatFilterApiDTO filter = new StatFilterApiDTO();
+        filter.setType(CloudCostsStatsSubQuery.CSP);
+        filter.setValue(CSP_AZURE);
+
+        // build
+        StatApiInputDTO queryStat = new StatApiInputDTO();
+        queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.CSP));
+        final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
+
+        StatsQueryContext context = mock(StatsQueryContext.class);
+        ApiId apiId = mock(ApiId.class);
+        when(context.getInputScope()).thenReturn(apiId);
+
+        List<CloudCostStatRecord> records = Collections.singletonList(CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(1234L)
+                .addStatRecords(createCloudServiceStatRecord(TARGET_ID_1, 10.0f))
+                .addStatRecords(createCloudServiceStatRecord(TARGET_ID_2, 12.0f))
+                .build());
+        Mockito.doReturn(records).when(query).getCloudExpensesRecordList(anySetOf(String.class),
+                anySetOf(Long.class), any(StatsQueryContext.class));
+
+        // test
+        try {
+            List<StatSnapshotApiDTO> statSnapshots = query.getAggregateStats(requestedStats, context);
+
+            // assert
+            assertThat(statSnapshots.size(), is(1));
+
+            Map<String, List<StatFilterApiDTO>> cloudServiceToFilters = statSnapshots.stream()
+                    .map(StatSnapshotApiDTO::getStatistics)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList())
+                    .stream()
+                    .collect(Collectors.toMap(
+                            statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
+                            StatApiDTO::getFilters));
+
+            // both targets belong to the same CSP - both stats should have the same filter.
+            assertThat(cloudServiceToFilters.get(Long.toString(TARGET_ID_1)).size(), is(1));
+            assertThat(cloudServiceToFilters.get(Long.toString(TARGET_ID_1)).get(0), is(filter));
+            assertThat(cloudServiceToFilters.get(Long.toString(TARGET_ID_2)).size(), is(1));
+            assertThat(cloudServiceToFilters.get(Long.toString(TARGET_ID_2)).get(0), is(filter));
         } catch (OperationFailedException e) {
             e.printStackTrace();
         }
