@@ -1,5 +1,6 @@
 package com.vmturbo.utilprobe.component;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +49,8 @@ class UtilProbeComponent extends MediationComponentMain {
     private String topologyProcessorInstance;
     @Value("${kvStoreRetryIntervalMillis:1000}")
     private String kvStoreRetryIntervalMillis;
+    @Value("${probe-directory:probe-jars}")
+    private File probeDirectory;
 
     @Autowired
     private ConsulManagementService consulManagementService;
@@ -73,7 +76,7 @@ class UtilProbeComponent extends MediationComponentMain {
 
         Collection<ProbeProperties<?>> newProps = new ArrayList<>();
         ProbeClassContext<UtilProbeAccount> probeClassContext =
-                new ProbeClassContext<>(Thread.currentThread().getContextClassLoader(), UtilProbe.class);
+                new ProbeClassContext(Thread.currentThread().getContextClassLoader(), UtilProbe.class);
         AccountValuesConverter<UtilProbeAccount> accountValuesConverter =
                 new FieldsBasedAccountValuesConverter<>(UtilProbeAccount.class);
         logger.info("Account definitions: {}\nTargetId fields: {}",
@@ -86,6 +89,7 @@ class UtilProbeComponent extends MediationComponentMain {
                 probeType,
                 probeClassContext,
                 accountValuesConverter,
+                probeDirectory,
                 ProbeProperties.DEFAULT_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.DEFAULT_INCREMENTAL_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.MINIMUM_PERFORMANCE_REDISCOVERY_INTERVAL_IN_SEC,
