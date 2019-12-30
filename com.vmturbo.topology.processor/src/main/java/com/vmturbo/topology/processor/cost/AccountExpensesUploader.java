@@ -54,10 +54,10 @@ public class AccountExpensesUploader {
     private final Clock clock;
 
     /**
-     * track the last upload time. We want to space the uploads apart according to the "minimum
-     * account expenses upload interval" setting
+     * Track the last upload time per target. We want to space the uploads apart according
+     * to the "minimum account expenses upload interval" setting.
      */
-    private Instant lastUploadTime = null;
+    private Map<Long, Instant> lastUploadTimePerTarget = new HashMap<>();
 
     public AccountExpensesUploader(RIAndExpenseUploadServiceBlockingStub costServiceClient,
                                    int minimumAccountExpensesUploadIntervalMins, Clock clock) {
@@ -113,14 +113,10 @@ public class AccountExpensesUploader {
         // component starts. Component restarts should be rare, so we don't expect this to be much
         // of an issue, but if this does become a problem we can add persistence of the last upload
         // time.
-        if (lastUploadTime != null) {
-            if (clock.instant().minus(minimumAccountExpensesUploadIntervalMins, ChronoUnit.MINUTES)
-                    .isBefore(lastUploadTime)) {
-                // we are within the minimum upload interval -- we need to skip this upload.
-                logger.info("Skipping upload of cost data, since we're within minimum upload " +
-                        "interval since the last upload at {}", lastUploadTime.toString());
-                return;
-            }
+        if (shouldSkipProcessingExpenses(costDataByTarget)) {
+            logger.info("Skipping upload of cost data, since we're within minimum upload " +
+                    "interval since the last upload");
+            return;
         }
         // we've passed the throttling checks.
 
@@ -158,13 +154,49 @@ public class AccountExpensesUploader {
                 // "clear" data when all cloud targets are removed.
                 costServiceClient.uploadAccountExpenses(requestBuilder.build());
                 logger.debug("Account expenses upload took {} secs", uploadTimer.getTimeElapsedSecs());
-                lastUploadTime = clock.instant();
+                Instant lastUploadTime = clock.instant();
+                costDataByTarget.forEach((targetId, targetCostData) ->
+                        lastUploadTimePerTarget.put(targetId, lastUploadTime));
             } catch (Exception e) {
                 logger.error("Error uploading cloud account expenses", e);
             }
         } else {
             logger.info("Cloud Account Expenses upload step calculated same hash as the last processed hash -- will skip this upload.");
         }
+    }
+
+    /**
+     * Check whether we can skip creating the account expenses and sending them to the cost
+     * component, according to the last upload time of each target which has cost data.
+     *
+     * @param costDataByTarget mapping of target ID to {@link TargetCostData}
+     * @return whether we can skip processing the account expenses for all targets.
+     */
+    @VisibleForTesting
+    boolean shouldSkipProcessingExpenses(Map<Long, TargetCostData> costDataByTarget) {
+        return !lastUploadTimePerTarget.isEmpty() &&
+                costDataByTarget.values()
+                        .stream()
+                        .map(this::shouldSkipProcessingTargetExpenses)
+                        .reduce(Boolean::logicalAnd)
+                        .orElse(false);
+    }
+
+    /**
+     * Check if we can skip processing the account expenses for this target.
+     * We can skip processing the expenses if:
+     * 1. There are no cost data DTOs - no expenses to process for this specific target.
+     * 2. We already processed the expenses for this target in the last hour.
+     *
+     * @param targetCostData the target's cost data.
+     * @return whether we can skip processing the account expenses for this target.
+     */
+    private boolean shouldSkipProcessingTargetExpenses(TargetCostData targetCostData) {
+        Instant lastUploadTime = lastUploadTimePerTarget.get(targetCostData.targetId);
+        return targetCostData.costDataDTOS.isEmpty() ||
+                (lastUploadTime != null && clock.instant()
+                        .minus(minimumAccountExpensesUploadIntervalMins, ChronoUnit.MINUTES)
+                        .isBefore(lastUploadTime));
     }
 
     /**
