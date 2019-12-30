@@ -57,7 +57,6 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action cloudStorageMoveRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
-    private ActionDTO.Action resizeVStorageRecommendation;
     private ActionDTO.Action resizeMemReservationRecommendation;
     private ActionDTO.Action resizeVcpuRecommendationForVM;
     private ActionDTO.Action resizeVcpuReservationRecommendationForVM;
@@ -124,9 +123,6 @@ public class ActionDescriptionBuilderTest {
                         SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
-        resizeVStorageRecommendation = makeRec(makeResizeInfo(VM1_ID,
-            CommodityDTO.CommodityType.VSTORAGE_VALUE, 2000, 4000),
-            SupportLevel.SUPPORTED).build();
         resizeMemReservationRecommendation =
                 makeRec(makeResizeReservationMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeVcpuRecommendationForVM = makeRec(makeResizeVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build();
@@ -639,23 +635,6 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeMemRecommendation);
 
         Assert.assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16 GB to 8 GB");
-    }
-
-    /**
-     * Tests the description for VStorage action.
-     * @throws UnsupportedActionException
-     */
-    @Test
-    public void testBuildResizeVStorageActionDescription() throws UnsupportedActionException {
-        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
-            .thenReturn((createEntity(VM1_ID,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                VM1_DISPLAY_NAME)));
-
-        String description = ActionDescriptionBuilder.buildActionDescription(
-            entitySettingsCache, resizeVStorageRecommendation);
-
-        Assert.assertEquals("Resize up VStorage for Virtual Machine vm1_test from 1.953 GB to 3.906 GB", description);
     }
 
     /**

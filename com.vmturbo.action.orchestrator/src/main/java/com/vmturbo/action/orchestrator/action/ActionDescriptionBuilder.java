@@ -114,7 +114,6 @@ public class ActionDescriptionBuilder {
             .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
             .put(CommodityDTO.CommodityType.MEM, Units.KBYTE)
             .put(CommodityDTO.CommodityType.DB_MEM, Units.KBYTE)
-            .put(CommodityDTO.CommodityType.VSTORAGE, Units.MBYTE)
             .build();
 
     /**
