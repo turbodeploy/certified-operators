@@ -13,9 +13,9 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
- * Interface describing the Reserved Instance Stats tables.
+ * Interface describing the Cost Stats tables.
  */
-public interface ReservedInstanceStatTable {
+public interface CostStatTable {
     /**
      * Interface describing a trimmer to delete records for a given stat table.
      */

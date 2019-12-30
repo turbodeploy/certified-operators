@@ -25,12 +25,12 @@ import java.util.concurrent.TimeUnit;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
-import com.vmturbo.cost.component.stats.ReservedInstanceStatCleanupScheduler.ReservedInstanceStatCleanup;
-import com.vmturbo.cost.component.stats.ReservedInstanceStatCleanupScheduler.ReservedInstanceStatCleanupFactory;
-import com.vmturbo.cost.component.stats.ReservedInstanceStatTable.Trimmer;
+import com.vmturbo.cost.component.stats.CostStatCleanupScheduler.CostsStatCleanup;
+import com.vmturbo.cost.component.stats.CostStatCleanupScheduler.CostStatCleanupFactory;
+import com.vmturbo.cost.component.stats.CostStatTable.Trimmer;
 
-public class ReservedInstanceStatCleanupSchedulerTest {
-    private final ReservedInstanceStatTable table = mock(ReservedInstanceStatTable.class);
+public class CostStatCleanupSchedulerTest {
+    private final CostStatTable table = mock(CostStatTable.class);
 
     private final RetentionPeriodFetcher retentionPeriodFetcher = mock(RetentionPeriodFetcher.class);
 
@@ -44,11 +44,11 @@ public class ReservedInstanceStatCleanupSchedulerTest {
 
     private final MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
-    private final ReservedInstanceStatCleanupFactory cleanupFactory = mock(ReservedInstanceStatCleanupFactory.class);
+    private final CostStatCleanupFactory cleanupFactory = mock(CostStatCleanupFactory.class);
 
     private final ThreadPoolTaskScheduler taskScheduler = mock(ThreadPoolTaskScheduler.class);
 
-    private final ReservedInstanceStatCleanupScheduler cleanupScheduler = new ReservedInstanceStatCleanupScheduler(clock, Collections.singletonList(table),
+    private final CostStatCleanupScheduler cleanupScheduler = new CostStatCleanupScheduler(clock, Collections.singletonList(table),
             retentionPeriodFetcher, executorService, MS_BETWEEN_CLEANUPS, TimeUnit.MILLISECONDS, cleanupFactory, taskScheduler, cleanUpBetweenTimePeriods);
 
     @Before
@@ -65,7 +65,7 @@ public class ReservedInstanceStatCleanupSchedulerTest {
 
     @Test
     public void testScheduleCleanups() throws InterruptedException {
-        final ReservedInstanceStatCleanup cleanup = mock(ReservedInstanceStatCleanup.class);
+        final CostsStatCleanup cleanup = mock(CostsStatCleanup.class);
         when(cleanupFactory.newCleanup(any())).thenReturn(cleanup);
 
         final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
@@ -90,7 +90,7 @@ public class ReservedInstanceStatCleanupSchedulerTest {
 
     @Test
     public void testScheduleCleanupTwiceNoReSubmit() throws InterruptedException {
-        final ReservedInstanceStatCleanup cleanup = mock(ReservedInstanceStatCleanup.class);
+        final CostsStatCleanup cleanup = mock(CostsStatCleanup.class);
         when(cleanupFactory.newCleanup(any())).thenReturn(cleanup);
 
         final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
@@ -112,7 +112,7 @@ public class ReservedInstanceStatCleanupSchedulerTest {
 
     @Test
     public void testScheduleCleanupClearsSucceededRollup() {
-        final ReservedInstanceStatCleanup cleanup = mock(ReservedInstanceStatCleanup.class);
+        final CostsStatCleanup cleanup = mock(CostsStatCleanup.class);
         when(cleanupFactory.newCleanup(any())).thenReturn(cleanup);
 
         final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
@@ -135,6 +135,4 @@ public class ReservedInstanceStatCleanupSchedulerTest {
     public static LocalDateTime time(final int hourOfDay, final int minuteOfHour) {
         return LocalDateTime.of(2018, Month.SEPTEMBER, 30, hourOfDay, minuteOfHour);
     }
-
-
 }

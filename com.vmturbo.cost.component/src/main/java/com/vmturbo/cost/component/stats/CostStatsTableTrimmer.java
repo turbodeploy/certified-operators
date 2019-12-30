@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.cost.component.stats.ReservedInstanceStatTable.TableInfo;
-import com.vmturbo.cost.component.stats.ReservedInstanceStatTable.Trimmer;
+import com.vmturbo.cost.component.stats.CostStatTable.TableInfo;
+import com.vmturbo.cost.component.stats.CostStatTable.Trimmer;
 
 /**
- * Class for trimming the Reserved Instance Stats Tables.
+ * Class for trimming the Cost Stats Tables.
  */
-public class ReservedInstanceStatsTableTrimmer implements Trimmer {
+public class CostStatsTableTrimmer implements Trimmer {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -29,14 +29,14 @@ public class ReservedInstanceStatsTableTrimmer implements Trimmer {
     protected final Clock clock;
 
     /**
-     * Constructor for the Reserved Instance Stats Table trimmer.
+     * Constructor for the Cost Stats Table trimmer.
      *
      * @param dslContext the dsl context.
      * @param clock The clock.
      * @param tableInfo The table info about the table to trim
      */
-    public ReservedInstanceStatsTableTrimmer(final DSLContext dslContext,
-                                             final Clock clock, final TableInfo tableInfo) {
+    public CostStatsTableTrimmer(final DSLContext dslContext,
+                                 final Clock clock, final TableInfo tableInfo) {
         this.dslContext = dslContext;
         this.clock = clock;
         this.tableInfo = tableInfo;
