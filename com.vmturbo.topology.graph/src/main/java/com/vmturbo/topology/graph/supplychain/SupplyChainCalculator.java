@@ -92,9 +92,9 @@ public class SupplyChainCalculator {
 
             // add the entity to the result
             resultBuilder.computeIfAbsent(
-                entityTypeId,
-                k -> new SupplyChainNodeBuilder(UIEntityType.fromType(entityTypeId).apiStr(), depth))
-                            .addEntity(entity);
+                    entityTypeId,
+                    k -> new SupplyChainNodeBuilder(UIEntityType.fromType(entityTypeId).apiStr(), depth))
+                    .addEntity(entity);
 
             // apply a traversal rule to add traversal states to the frontier
             traversalRulesLibrary.apply(entity, traversalMode, depth, frontier);

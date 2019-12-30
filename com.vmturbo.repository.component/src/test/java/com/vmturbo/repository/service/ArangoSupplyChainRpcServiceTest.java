@@ -70,7 +70,7 @@ public class ArangoSupplyChainRpcServiceTest {
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private ArangoSupplyChainRpcService supplyChainBackend =
-        Mockito.spy(new ArangoSupplyChainRpcService(graphDBService, supplyChainService, userSessionContext));
+        Mockito.spy(new ArangoSupplyChainRpcService(graphDBService, supplyChainService, userSessionContext, 1234L));
 
     private SupplyChainServiceBlockingStub supplyChainStub;
 

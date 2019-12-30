@@ -140,6 +140,36 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     }
 
     /**
+     * Tests that global supply chain request includes all available entity types when "filterForDisplay"
+     * is disabled.
+     *
+     * @throws InterruptedException should not happen
+     */
+    @Test
+    public void testGlobalSupplyChainNoFiltering() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                        .setContextId(realTimeContextId)
+                        .setFilterForDisplay(false)
+                        .build(),
+                responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
+        Assert.assertEquals(3, response.getSupplyChain().getSupplyChainNodesCount());
+        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
+                        .map(SupplyChainNode::getEntityType)
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
+                        UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).apiStr(),
+                        UIEntityType.fromType(EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+    }
+    /**
      * Tests that scoped supply chain creation works.
      * The account shouldn't be pulled in.
      *
@@ -154,7 +184,6 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                                     .setContextId(realTimeContextId)
                                     .setScope(SupplyChainScope.newBuilder()
                                                     .addStartingEntityOid(VM_ID))
-                                    .setEnforceUserScope(true)
                                     .build(),
                                 responseObserver);
         latch.await();
@@ -173,6 +202,38 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     }
 
     /**
+     * Tests that a scoped supply chain request w/filtering disabled will recieve the BusinessAccount.
+     *
+     * @throws InterruptedException should not happen
+     */
+    @Test
+    public void testScopedSupplyChainNoFiltering() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                        .setContextId(realTimeContextId)
+                        .setFilterForDisplay(false)
+                        .setScope(SupplyChainScope.newBuilder()
+                                .addStartingEntityOid(VM_ID))
+                        .build(),
+                responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
+        Assert.assertEquals(3, response.getSupplyChain().getSupplyChainNodesCount());
+        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
+                        .map(SupplyChainNode::getEntityType)
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
+                        UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).apiStr(),
+                        UIEntityType.fromType(EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+    }
+
+    /**
      * Tests that supply chain creation works, when scoped on account works.
      * The account shouldn't be pulled in.
      *
@@ -187,7 +248,6 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                         .setContextId(realTimeContextId)
                         .setScope(SupplyChainScope.newBuilder()
                                         .addStartingEntityOid(ACC_ID))
-                        .setEnforceUserScope(true)
                         .build(),
                 responseObserver);
         latch.await();
@@ -220,7 +280,6 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                                     .setContextId(realTimeContextId)
                                     .setScope(SupplyChainScope.newBuilder()
                                                     .addStartingEntityOid(NON_EXISTENT_ID))
-                                    .setEnforceUserScope(true)
                                     .build(),
                                 responseObserver);
         latch.await();
@@ -244,7 +303,6 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                         .setContextId(realTimeContextId)
                         .setScope(SupplyChainScope.newBuilder()
                                         .setEnvironmentType(EnvironmentType.ON_PREM))
-                        .setEnforceUserScope(true)
                         .build(),
                 responseObserver);
         latch.await();
@@ -272,7 +330,6 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                                                 .addStartingEntityOid(VM_ID)
                                                 .addEntityTypesToInclude(
                                                     UIEntityType.REGION.apiStr()))
-                                    .setEnforceUserScope(true)
                                     .build(),
                                responseObserver);
         latch.await();
@@ -347,7 +404,6 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         service.getSupplyChain(GetSupplyChainRequest.newBuilder()
                                     .setContextId(realTimeContextId)
                                     .setScope(SupplyChainScope.newBuilder())
-                                    .setEnforceUserScope(true)
                                     .build(),
                                 responseObserver1);
         latch1.await();

@@ -57,9 +57,11 @@ message GetSupplyChainRequest {
 
     optional SupplyChainScope scope = 2;
 
-    // If true, the user's scoping restrictions will be enforced, and the resulting supply chain
-    // be filtered according to the user's entity access scope.
-    optional bool enforce_user_scope = 5 [default = true];
+    // If true, exclude entities that are technically in the supply chain but that are normally filtered
+    // out of the response because they are considered visually distracting in the supply chain UI.
+    // We'll use this flag to make sure we can find all qualifying entities in the user scope accessibility
+    // calculation, which uses the supply chain calculation, but doesn't directly display the results.
+    optional bool filter_for_display = 5 [default = true];
 }
 
 // The response to a "GetSupplyChain" request.
@@ -118,8 +120,8 @@ message SupplyChainScope {
     repeated int64 starting_entity_oid = 1;
 
     // The list of entity types to include in the resultant supplychain. If this
-    // list is empty, then no filtering is done and SupplyChainNodes pertaining
-    // to any entity type are included.
+    // list is empty, then default filtering is done and SupplyChainNodes pertaining
+    // to entity types normally displayed in the supply chain are included.
     repeated string entity_types_to_include = 3;
 
     // Only include entities in a particular environment type in the supply chain.

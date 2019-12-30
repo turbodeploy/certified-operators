@@ -134,6 +134,7 @@ public class UserScopeServiceTest {
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
+                .setFilterForDisplay(false)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(memberId))
                 .build());
@@ -142,6 +143,7 @@ public class UserScopeServiceTest {
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
+                .setFilterForDisplay(false)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(memberId)
                     .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES))
@@ -193,11 +195,13 @@ public class UserScopeServiceTest {
                 .when(searchService).searchEntityOids(eq(
                         SearchEntityOidsRequest.newBuilder().addEntityOid(dcId).build()));
         doReturn(GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(TEST_SUPPLY_CHAIN)
-                .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
-                .setScope(SupplyChainScope.newBuilder()
+                    .setSupplyChain(TEST_SUPPLY_CHAIN)
+                .build())
+                .when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
+                    .setFilterForDisplay(false)
+                    .setScope(SupplyChainScope.newBuilder()
                         .addStartingEntityOid(dcId))
-                .build());
+                    .build());
 
         EntityAccessScopeResponse response = userScopeServiceClient.getEntityAccessScopeMembers(
                 EntityAccessScopeRequest.newBuilder()

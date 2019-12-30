@@ -30,23 +30,29 @@ public class GlobalSupplyChainCalculator {
     public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN =
         ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
                         EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
-                        EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.CLOUD_SERVICE_VALUE,
-                        EntityType.HYPERVISOR_SERVER_VALUE, EntityType.PROCESSOR_POOL_VALUE);
+                        EntityType.CLOUD_SERVICE_VALUE, EntityType.HYPERVISOR_SERVER_VALUE,
+                        EntityType.PROCESSOR_POOL_VALUE);
+
+    public static final Predicate<Integer> DEFAULT_ENTITY_TYPE_FILTER = IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN::contains;
 
     /**
      * Compute the global supply chain.
      *
      * @param topology the topology
      * @param environmentType environment to filter entities against
+     * @param entityTypesToSkip A predicate used to determine if an entity type should be skipped
+     *                          during supply chain traversal or not.
      * @param <E> The type of {@link TopologyGraphEntity} in the graph
      * @return The {@link SupplyChainNode}s of the result,
      *         grouped by entity type
      */
     @Nonnull
     public <E extends TopologyGraphEntity<E>> Map<UIEntityType, SupplyChainNode> getSupplyChainNodes(
-            @Nonnull TopologyGraph<E> topology, @Nonnull UIEnvironmentType environmentType) {
+            @Nonnull TopologyGraph<E> topology, @Nonnull UIEnvironmentType environmentType,
+            @Nonnull Predicate<Integer> entityTypesToSkip) {
         return getSupplyChainNodes(topology,
-                                   entity -> environmentType.matchesEnvType(entity.getEnvironmentType()));
+                                   entity -> environmentType.matchesEnvType(entity.getEnvironmentType()),
+                                    entityTypesToSkip);
     }
 
     /**
@@ -55,18 +61,21 @@ public class GlobalSupplyChainCalculator {
      * @param topology the topology
      * @param entityFilter filter for the entities to be included in
      *                     the result
+     * @param entityTypesToSkip predicate used to determine if an entity type should be skipped during
+     *                          traversal.
      * @param <E> The type of {@link TopologyGraphEntity} in the graph
      * @return The {@link SupplyChainNode}s of the result,
      *         grouped by entity type
      */
     @Nonnull
     public <E extends TopologyGraphEntity<E>> Map<UIEntityType, SupplyChainNode> getSupplyChainNodes(
-            @Nonnull TopologyGraph<E> topology, @Nonnull Predicate<E> entityFilter) {
+            @Nonnull TopologyGraph<E> topology, @Nonnull Predicate<E> entityFilter,
+            @Nonnull final Predicate<Integer> entityTypesToSkip) {
         final Map<UIEntityType, SupplyChainNode> result = new HashMap<>(topology.entityTypes().size());
 
         for (Integer entityTypeId : topology.entityTypes()) {
             // filter out unwanted types
-            if (IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(entityTypeId)) {
+            if (entityTypesToSkip.test(entityTypeId)) {
                 continue;
             }
 
@@ -89,8 +98,8 @@ public class GlobalSupplyChainCalculator {
             }
 
             // filter unwanted types from connected type sets
-            connectedConsumerTypes.removeIf(IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN::contains);
-            connectedProviderTypes.removeIf(IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN::contains);
+            connectedConsumerTypes.removeIf(entityTypesToSkip::test);
+            connectedProviderTypes.removeIf(entityTypesToSkip::test);
 
             final UIEntityType entityType = UIEntityType.fromType(entityTypeId);
 
