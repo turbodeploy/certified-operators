@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
@@ -135,26 +136,35 @@ public class ProjectedEntityCostStore {
         if (filter.isGlobalScope()) {
             return getAllProjectedEntitiesCosts();
         } else {
-            final Set<Long> entityScopedOids = filter.getEntityFilters().orElse(null);
-            final Set<Long> regionScopedEntityOids = filter.getRegionIds()
-                    .map(this::getEntityOidsFromRepository).orElse(null);
-            final Set<Long> zoneScopedEntityOids = filter.getAvailabilityZoneIds()
-                    .map(this::getEntityOidsFromRepository).orElse(null);
-            final Set<Long> accountScopedEntityOids = filter.getAccountIds()
-                    .map(this::getEntityOidsFromRepository).orElse(null);
+            final Collection<List<Long>> startingOidsPerScope = Stream.of(filter.getEntityFilters(),
+                    filter.getRegionIds(), filter.getAvailabilityZoneIds(), filter.getAccountIds())
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .map(ArrayList::new)
+                    .collect(Collectors.toSet());
 
-            final Set<Long> entitiesToOver = Stream.of(entityScopedOids, regionScopedEntityOids,
-                    zoneScopedEntityOids, accountScopedEntityOids)
-                    .filter(Objects::nonNull)
-                    .reduce(Sets::intersection)
-                    .map(Collection::stream)
-                    .map(oids -> oids.collect(Collectors.toSet()))
-                    .orElseGet(this::getAllStoredProjectedEntityOids);
+            final Set<Long> entitiesInScope;
 
+            if (startingOidsPerScope.stream().allMatch(CollectionUtils::isEmpty)) {
+                entitiesInScope = getAllStoredProjectedEntityOids();
+            } else {
+                final Stream<Set<Long>> entitiesPerScope =
+                        repositoryClient.getEntitiesByTypePerScope(startingOidsPerScope,
+                                supplyChainServiceBlockingStub)
+                                .map(m -> m.values().stream()
+                                        .flatMap(Collection::stream)
+                                        .collect(Collectors.toSet()));
+                entitiesInScope = entitiesPerScope
+                        .reduce(Sets::intersection)
+                        .map(Collection::stream)
+                        .map(oids -> oids.collect(Collectors.toSet()))
+                        .orElse(getAllStoredProjectedEntityOids());
+
+            }
             logger.trace("Entities in scope for projected entities costs: {}",
-                    () -> entitiesToOver);
+                    () -> entitiesInScope);
             // apply the filters and return
-            return entitiesToOver.stream()
+            return entitiesInScope.stream()
                 .map(projectedEntityCostByEntity::get)
                 .filter(Objects::nonNull)
                 .map(entityCost -> applyFilter(entityCost, filter))
@@ -170,15 +180,6 @@ public class ProjectedEntityCostStore {
             entityOids = new HashSet<>(projectedEntityCostByEntity.keySet());
         }
         return entityOids;
-    }
-
-    private Set<Long> getEntityOidsFromRepository(final Set<Long> scopeIds) {
-        return scopeIds.isEmpty() ? new HashSet<>()
-                : repositoryClient.getEntityOidsByType(new ArrayList<>(scopeIds),
-                realTimeTopologyContextId,
-                supplyChainServiceBlockingStub).values().stream()
-                .flatMap(Collection::stream)
-                .collect(Collectors.toSet());
     }
 
     private Map<Long, EntityCost> getProjectedEntityCostsByEntityId(final Map<Long, EntityCost> costSnapshot,

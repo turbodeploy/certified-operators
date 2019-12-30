@@ -3,14 +3,18 @@ package com.vmturbo.cost.component.entity.cost;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,16 +26,20 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import io.grpc.Channel;
-
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -100,7 +108,7 @@ public class ProjectedEntityCostStoreTest {
             .addComponentCost(VM2_BUY_RI_DIS)
             .build();
 
-    static final ComponentCost DB1_ON_DEM_COST = ComponentCost.newBuilder()
+    private static final ComponentCost DB1_ON_DEM_COST = ComponentCost.newBuilder()
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
             .setAmount(CurrencyAmount.newBuilder()
                     .setAmount(77).setCurrency(840))
@@ -112,13 +120,22 @@ public class ProjectedEntityCostStoreTest {
             .addComponentCost(DB1_ON_DEM_COST)
             .build();
 
+    private static final String vmEntityType = "VirtualMachine";
+    private static final String dbEntityType = "Database";
+
     private RepositoryClient repositoryClient;
     private SupplyChainServiceBlockingStub serviceBlockingStub;
 
+    private SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+    private GrpcTestServer testServer = GrpcTestServer.newServer(supplyChainServiceMole);
+
     @Before
-    public void setup() {
+    public void setup() throws IOException {
+        testServer.start();
+        serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
         repositoryClient = mock(RepositoryClient.class);
-        serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
+        when(repositoryClient.getEntitiesByTypePerScope(any(), any())).thenCallRealMethod();
+        when(repositoryClient.parseSupplyChainResponseToEntityOidsMap(any())).thenCallRealMethod();
         store = new ProjectedEntityCostStore(repositoryClient, serviceBlockingStub,
                 realTimeContextId);
     }
@@ -164,6 +181,14 @@ public class ProjectedEntityCostStoreTest {
     @Test
     public void testGetProjectedEntityCostsWithCostFilterOnEntities() {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        final List<Long> vmOids = Collections.singletonList(VM1_OID);
+        final List<Long> dbOids = Collections.singletonList(DB1_OID);
+        final List<SupplyChainNode> supplyChainNodes = Arrays.asList(
+                createSupplyChainNode(vmEntityType, vmOids),
+                createSupplyChainNode(dbEntityType, dbOids));
+        final GetMultiSupplyChainsResponse response = createResponse(supplyChainNodes);
+        when(supplyChainServiceMole.getMultiSupplyChains(any()))
+                .thenReturn(Collections.singletonList(response));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
                 .entityIds(ImmutableSet.of(VM1_OID, DB1_OID))
@@ -201,9 +226,29 @@ public class ProjectedEntityCostStoreTest {
                     .addCostCategory(CostCategory.STORAGE)
                     .build())
             .build());
+
         assertThat(costs.keySet(), containsInAnyOrder(VM2_OID));
         assertThat(costs.get(VM2_OID).getComponentCostCount(), is(1));
         assertThat(costs.get(VM2_OID).getComponentCost(0), is(VM2_STORAGE_COST));
+    }
+
+    private GetMultiSupplyChainsResponse createResponse(
+            final List<SupplyChainNode> supplyChainNodes) {
+        return  GetMultiSupplyChainsResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                        .addAllSupplyChainNodes(supplyChainNodes)
+                        .build())
+                .build();
+    }
+
+    private SupplyChainNode createSupplyChainNode(final String entityType,
+                                                  final List<Long> memberOids) {
+        return SupplyChainNode.newBuilder()
+                .setEntityType(entityType)
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addAllMemberOids(memberOids)
+                        .build())
+                .build();
     }
 
     /**
@@ -258,12 +303,18 @@ public class ProjectedEntityCostStoreTest {
                 .regionIds(Collections.singleton(regionId))
                 .accountIds(Collections.singleton(accountId))
                 .build();
-        when(repositoryClient.getEntityOidsByType(Collections.singletonList(regionId),
-                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
-                EntityType.VIRTUAL_MACHINE, new HashSet<>(Arrays.asList(VM1_OID, VM2_OID))));
-        when(repositoryClient.getEntityOidsByType(Collections.singletonList(accountId),
-                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
-                        EntityType.VIRTUAL_MACHINE, Collections.singleton(VM2_OID)));
+        final List<Long> vmOidsRegion = Arrays.asList(VM1_OID, VM2_OID);
+        final List<SupplyChainNode> supplyChainNodesRegion = Collections.singletonList(
+                createSupplyChainNode(vmEntityType, vmOidsRegion));
+        final GetMultiSupplyChainsResponse regionResponse = createResponse(supplyChainNodesRegion);
+
+        final List<Long> vmOidsAccount = Collections.singletonList(VM2_OID);
+        final List<SupplyChainNode> supplyChainNodesAccount =
+                Collections.singletonList(createSupplyChainNode(vmEntityType, vmOidsAccount));
+        final GetMultiSupplyChainsResponse accountResponse = createResponse(
+                supplyChainNodesAccount);
+        when(supplyChainServiceMole.getMultiSupplyChains(any()))
+                .thenReturn(Arrays.asList(regionResponse, accountResponse));
         final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
         Assert.assertEquals(1, costMap.size());
         Assert.assertEquals(VM2_COST, costMap.get(VM2_OID));
@@ -283,11 +334,14 @@ public class ProjectedEntityCostStoreTest {
                 .regionIds(Collections.singleton(regionId))
                 .accountIds(Collections.singleton(accountId))
                 .build();
-        when(repositoryClient.getEntityOidsByType(Collections.singletonList(regionId),
-                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
-                EntityType.VIRTUAL_MACHINE, new HashSet<>(Arrays.asList(VM1_OID, VM2_OID))));
-        when(repositoryClient.getEntityOidsByType(Collections.singletonList(accountId),
-                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.emptyMap());
+        final List<Long> vmOidsRegion = Arrays.asList(VM1_OID, VM2_OID);
+        final List<SupplyChainNode> supplyChainNodesRegion =
+                Collections.singletonList(createSupplyChainNode(vmEntityType, vmOidsRegion));
+        final GetMultiSupplyChainsResponse regionResponse = createResponse(supplyChainNodesRegion);
+        final GetMultiSupplyChainsResponse accountResponse =
+                createResponse(Collections.emptyList());
+        when(supplyChainServiceMole.getMultiSupplyChains(any()))
+                .thenReturn(Arrays.asList(regionResponse, accountResponse));
         final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
         Assert.assertTrue(costMap.isEmpty());
     }
@@ -303,11 +357,22 @@ public class ProjectedEntityCostStoreTest {
                 .newBuilder(TimeFrame.LATEST)
                 .regionIds(Collections.singleton(regionId))
                 .build();
-        when(repositoryClient.getEntityOidsByType(Collections.singletonList(regionId),
-                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
-                EntityType.VIRTUAL_MACHINE, Collections.singleton(VM1_OID)));
+        final List<Long> vmOids = Collections.singletonList(VM1_OID);
+        final List<SupplyChainNode> supplyChainNodesRegion =
+                Collections.singletonList(createSupplyChainNode(vmEntityType, vmOids));
+        final GetMultiSupplyChainsResponse regionResponse = createResponse(supplyChainNodesRegion);
+        when(supplyChainServiceMole.getMultiSupplyChains(any()))
+                .thenReturn(Collections.singletonList(regionResponse));
         final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
-        Assert.assertFalse(costMap.isEmpty());
+        Assert.assertEquals(1, costMap.size());
         Assert.assertEquals(VM1_COST, costMap.get(VM1_OID));
+    }
+
+    /**
+     * Clean up test resources.
+     */
+    @After
+    public void cleanUp() {
+        testServer.close();
     }
 }
