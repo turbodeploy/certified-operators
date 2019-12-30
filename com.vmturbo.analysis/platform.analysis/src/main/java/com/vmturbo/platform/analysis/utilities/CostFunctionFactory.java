@@ -660,7 +660,7 @@ public class CostFunctionFactory {
 
         CostTuple costTuple = costTable.getTuple(regionIdBought, accountId, licenseTypeKey);
         if (costTuple == null) {
-            logger.error("Cannot find type {} and region {} in costMap, license base type: {}",
+            logger.debug("Cannot find type {} and region {} in costMap, license base type: {}",
                     licenseTypeKey, regionIdBought, licenseBaseType);
             // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type and the same for region.
             costTuple = costTable.getTuple(CostTable.NO_VALUE, accountId, CostTable.NO_VALUE);
