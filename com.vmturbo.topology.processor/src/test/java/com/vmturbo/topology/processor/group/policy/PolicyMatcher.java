@@ -346,6 +346,8 @@ public class PolicyMatcher {
                 return CommodityType.STORAGE_CLUSTER_VALUE;
             case DATACENTER:
                 return CommodityType.DATACENTER_VALUE;
+            case DESKTOP_POOL:
+                return CommodityType.ACTIVE_SESSIONS_VALUE;
             default:
                 throw new InvalidMergePolicyTypeException("Invalid merge policy type: "
                         + mergePolicy.getMergeType());

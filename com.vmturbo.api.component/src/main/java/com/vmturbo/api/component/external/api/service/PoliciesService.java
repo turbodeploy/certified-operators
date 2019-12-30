@@ -47,7 +47,7 @@ public class PoliciesService implements IPoliciesService {
     }
 
     @Override
-    public PolicyApiDTO getPolicyByUuid(String uuid) throws Exception {
+    public PolicyApiDTO getPolicyByUuid(String uuid) {
         try {
             final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
                     .setPolicyId(Long.valueOf(uuid))
@@ -73,10 +73,9 @@ public class PoliciesService implements IPoliciesService {
         final Map<Long, Grouping> involvedGroups = new HashMap<>(groupingIDS.size());
         if (!groupingIDS.isEmpty()) {
             groupService.getGroups(GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupFilter.newBuilder()
-                    .addAllId(groupingIDS))
-                    .build())
-                    .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
+                    .setGroupFilter(
+                            GroupFilter.newBuilder().addAllId(groupingIDS).setIncludeHidden(true))
+                    .build()).forEachRemaining(group -> involvedGroups.put(group.getId(), group));
         }
 
         return policyMapper.policyToApiDto(policy, involvedGroups);

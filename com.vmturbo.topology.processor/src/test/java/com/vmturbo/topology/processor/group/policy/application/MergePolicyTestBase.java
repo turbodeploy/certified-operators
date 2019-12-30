@@ -43,9 +43,9 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 public class MergePolicyTestBase {
     protected static final long POLICY_ID = 9999L;
     private static final long NEW_POLICY_ID = 10000L;
-    private final long consumerID = 1234L;
-    private final long providerID = 5678L;
-    protected final List<Long> mergeGropuIds = Lists.newArrayList(consumerID, providerID);
+    protected static final long CONSUMER_ID = 1234L;
+    protected static final long PROVIDER_ID = 5678L;
+    protected final List<Long> mergeGropuIds = Lists.newArrayList(CONSUMER_ID, PROVIDER_ID);
     protected final GroupResolver groupResolver = mock(GroupResolver.class);
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -267,8 +267,8 @@ public class MergePolicyTestBase {
     public void testPolicyIsNotMergePolicy() throws GroupResolutionException, PolicyApplicationException {
         final PolicyDTO.PolicyInfo.BindToGroupPolicy bindToGroup =
                 PolicyDTO.PolicyInfo.BindToGroupPolicy.newBuilder()
-                    .setConsumerGroupId(consumerID)
-                    .setProviderGroupId(providerID)
+                    .setConsumerGroupId(CONSUMER_ID)
+                    .setProviderGroupId(PROVIDER_ID)
                 .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()

@@ -6,6 +6,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,11 +22,21 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 
 /**
  * Conversions between different representations of policies.
  */
 public class PolicyMapper {
+
+    /**
+     * Mapping {@link MergePolicyType} -> {@link MergeType}.
+     */
+    public static final BiMap<MergePolicyType, MergeType> MERGE_TYPE_API_TO_PROTO = ImmutableBiMap.of(
+            MergePolicyType.Cluster, MergeType.CLUSTER,
+            MergePolicyType.DataCenter, MergeType.DATACENTER,
+            MergePolicyType.DesktopPool, MergeType.DESKTOP_POOL,
+            MergePolicyType.StorageCluster, MergeType.STORAGE_CLUSTER);
 
     /**
      * The commodity type the UI expects (based on OpsMgr) for discovered policies.
@@ -136,16 +149,10 @@ public class PolicyMapper {
             case MERGE:
                 final PolicyDTO.PolicyInfo.MergePolicy merge = policyInfo.getMerge();
                 policyApiDTO.setType(PolicyType.MERGE);
-                switch (merge.getMergeType()) {
-                    case CLUSTER:
-                        policyApiDTO.setMergeType(MergePolicyType.Cluster);
-                        break;
-                    case STORAGE_CLUSTER:
-                        policyApiDTO.setMergeType(MergePolicyType.StorageCluster);
-                        break;
-                    case DATACENTER:
-                        policyApiDTO.setMergeType(MergePolicyType.DataCenter);
-                        break;
+                final MergePolicyType mergeType =
+                        MERGE_TYPE_API_TO_PROTO.inverse().get(merge.getMergeType());
+                if (mergeType != null) {
+                    policyApiDTO.setMergeType(mergeType);
                 }
                 policyApiDTO.setMergeGroups(merge.getMergeGroupIdsList().stream()
                         .map(groupId -> getPolicyGroupApiDTO(groupId, policyInfo.getName(), groupsByID))
@@ -295,16 +302,9 @@ public class PolicyMapper {
     private PolicyInfo.MergePolicy mergePolicy(@Nonnull PolicyApiDTO policyApiDTO) {
         final PolicyInfo.MergePolicy.Builder mergePolicyBuilder =
                         PolicyInfo.MergePolicy.newBuilder();
-        switch (policyApiDTO.getMergeType()) {
-            case Cluster:
-                mergePolicyBuilder.setMergeType(PolicyInfo.MergePolicy.MergeType.CLUSTER);
-                break;
-            case StorageCluster:
-                mergePolicyBuilder.setMergeType(PolicyInfo.MergePolicy.MergeType.STORAGE_CLUSTER);
-                break;
-            case DataCenter:
-                mergePolicyBuilder.setMergeType(PolicyInfo.MergePolicy.MergeType.DATACENTER);
-                break;
+        final MergeType mergeType = MERGE_TYPE_API_TO_PROTO.get(policyApiDTO.getMergeType());
+        if (mergeType != null) {
+            mergePolicyBuilder.setMergeType(mergeType);
         }
         mergePolicyBuilder.addAllMergeGroupIds(policyApiDTO.getMergeGroups().stream()
             .map(BaseApiDTO::getUuid)
@@ -445,16 +445,10 @@ public class PolicyMapper {
                 case MERGE:
                     final PolicyDTO.PolicyInfo.MergePolicy.Builder mergePolicyBuilder =
                             PolicyDTO.PolicyInfo.MergePolicy.newBuilder();
-                    switch (policyApiInputDTO.getMergeType()) {
-                        case Cluster:
-                            mergePolicyBuilder.setMergeType(PolicyInfo.MergePolicy.MergeType.CLUSTER);
-                            break;
-                        case StorageCluster:
-                            mergePolicyBuilder.setMergeType(PolicyInfo.MergePolicy.MergeType.STORAGE_CLUSTER);
-                            break;
-                        case DataCenter:
-                            mergePolicyBuilder.setMergeType(PolicyInfo.MergePolicy.MergeType.DATACENTER);
-                            break;
+                    final MergeType mergeType =
+                            MERGE_TYPE_API_TO_PROTO.get(policyApiInputDTO.getMergeType());
+                    if (mergeType != null) {
+                        mergePolicyBuilder.setMergeType(mergeType);
                     }
                     mergeGroups(policyApiInputDTO).forEach(mergePolicyBuilder::addMergeGroupIds);
                     inputPolicyBuilder.setMerge(mergePolicyBuilder.build());

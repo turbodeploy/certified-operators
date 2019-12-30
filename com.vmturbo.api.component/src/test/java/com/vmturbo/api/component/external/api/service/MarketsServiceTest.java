@@ -22,10 +22,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 
 import io.grpc.Status;
@@ -88,7 +92,10 @@ import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
@@ -106,11 +113,31 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -120,11 +147,11 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
@@ -134,9 +161,11 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -153,6 +182,13 @@ public class MarketsServiceTest {
     private static final long REALTIME_PLAN_ID = 0;
     private static final long TEST_PLAN_OVER_PLAN_ID = REALTIME_PLAN_ID + 1;
     private static final long TEST_SCENARIO_ID = 12;
+    private static final List<Long> MERGE_GROUP_IDS = Arrays.asList(1L, 2L, 3L);
+    private static final Map<MergePolicyType, EntityType> MERGE_PROVIDER_ENTITY_TYPE =
+            ImmutableMap.of(MergePolicyType.DesktopPool, EntityType.DESKTOP_POOL,
+                    MergePolicyType.DataCenter, EntityType.DATACENTER);
+    private static final long POLICY_ID = 5;
+    private static final long MERGE_GROUP_ID = 4;
+    private static final String MARKET_UUID = "Market";
 
     @Autowired
     private TestConfig testConfig;
@@ -279,7 +315,7 @@ public class MarketsServiceTest {
         // the uuid "Market" is what the UI uses to distinguish the live market
         String runPlanUri = "/markets/Market/scenarios/1";
 
-        ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, testConfig.uuidMapper());
 
         final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post(runPlanUri)
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -323,9 +359,9 @@ public class MarketsServiceTest {
         final MarketsService service = testConfig.marketsService();
         ActionApiInputDTO actionDTO = new ActionApiInputDTO();
         Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
-        String futureDate = DateTimeUtil.addDays(currentDateTime,2);
+        String futureDate = DateTimeUtil.addDays(currentDateTime, 2);
         actionDTO.setStartTime(futureDate);
-        service.getActionsByMarketUuid("Market",actionDTO,null);
+        service.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -333,10 +369,10 @@ public class MarketsServiceTest {
         final MarketsService service = testConfig.marketsService();
         ActionApiInputDTO actionDTO = new ActionApiInputDTO();
         String currentDateTime = DateTimeUtil.getNow();
-        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime),2);
+        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime), 2);
         actionDTO.setStartTime(futureDate);
         actionDTO.setEndTime(currentDateTime);
-        service.getActionsByMarketUuid("Market",actionDTO,null);
+        service.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -344,7 +380,7 @@ public class MarketsServiceTest {
         final MarketsService service = testConfig.marketsService();
         ActionApiInputDTO actionDTO = new ActionApiInputDTO();
         actionDTO.setEndTime(DateTimeUtil.getNow());
-        service.getActionsByMarketUuid("Market",actionDTO,null);
+        service.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
     }
 
     /**
@@ -358,7 +394,7 @@ public class MarketsServiceTest {
         final MarketsService marketService = testConfig.marketsService();
         final RepositoryApi repositoryApi = testConfig.repositoryApi();
 
-        ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, testConfig.uuidMapper());
 
         final List<ServiceEntityApiDTO> seList = new ArrayList<>();
         ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
@@ -377,7 +413,7 @@ public class MarketsServiceTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         // act
-        marketService.getEntitiesByMarketUuid("Market");
+        marketService.getEntitiesByMarketUuid(MARKET_UUID);
 
         // verify
         verify(repositoryApi).entitiesRequest(any());
@@ -508,6 +544,140 @@ public class MarketsServiceTest {
         testConfig.marketsService().getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
     }
 
+    /**
+     * Test for {@link MarketsService#addPolicy(String, PolicyApiInputDTO)}.
+     * When merge policy required hidden group.
+     */
+    @Test
+    public void testAddMergePolicyWhenNeedCreateHiddenGroup() {
+        testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
+            final CreateGroupRequest createGroupRequest = CreateGroupRequest.newBuilder()
+                    .setGroupDefinition(groupDefinition)
+                    .setOrigin(Origin.newBuilder()
+                            .setSystem(Origin.System.newBuilder()
+                                    .setDescription(String.format(
+                                            "Hidden group to support merge with type %s.",
+                                            policyApiInputDTO.getMergeType()))))
+                    .build();
+            final CreateGroupResponse createGroupResponse = CreateGroupResponse.newBuilder()
+                    .setGroup(Grouping.newBuilder().setId(MERGE_GROUP_ID))
+                    .build();
+            Mockito.when(testConfig.groupService().createGroup(createGroupRequest))
+                    .thenReturn(createGroupResponse);
+            // Act
+            testConfig.marketsService().addPolicy(MARKET_UUID, policyApiInputDTO);
+        });
+    }
+
+    /**
+     * Test for {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)}.
+     * When merge policy required hidden group.
+     */
+    @Test
+    public void testEditMergePolicyWhenNeedUpdateHiddenGroup() {
+        testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
+            Mockito.when(testConfig.policyService()
+                    .getPolicy(PolicyRequest.newBuilder().setPolicyId(POLICY_ID).build()))
+                    .thenReturn(PolicyResponse.newBuilder()
+                            .setPolicy(Policy.newBuilder()
+                                    .setId(POLICY_ID)
+                                    .setPolicyInfo(PolicyInfo.newBuilder()
+                                            .setMerge(MergePolicy.newBuilder()
+                                                    .setMergeType(
+                                                            PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
+                                                                    policyApiInputDTO.getMergeType()))
+                                                    .addMergeGroupIds(MERGE_GROUP_ID))))
+                            .build());
+            final UpdateGroupRequest updateGroupRequest = UpdateGroupRequest.newBuilder()
+                    .setId(MERGE_GROUP_ID)
+                    .setNewDefinition(groupDefinition)
+                    .build();
+            final UpdateGroupResponse updateGroupResponse = UpdateGroupResponse.newBuilder()
+                    .setUpdatedGroup(Grouping.newBuilder().setId(MERGE_GROUP_ID))
+                    .build();
+            Mockito.when(testConfig.groupService().updateGroup(updateGroupRequest))
+                    .thenReturn(updateGroupResponse);
+            // Act
+            testConfig.marketsService()
+                    .editPolicy(MARKET_UUID, Long.toString(POLICY_ID), policyApiInputDTO);
+        });
+    }
+
+    private void testMergePolicyRequiredHiddenGroupAddOrEdit(
+            final BiConsumer<PolicyApiInputDTO, GroupDefinition.Builder> addOrEdit) {
+        Stream.of(MergePolicyType.DesktopPool, MergePolicyType.DataCenter)
+                .forEach(mergePolicyType -> {
+                    final PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
+                    policyApiInputDTO.setType(PolicyType.MERGE);
+                    policyApiInputDTO.setMergeType(mergePolicyType);
+                    policyApiInputDTO.setMergeUuids(MERGE_GROUP_IDS.stream()
+                            .map(String::valueOf)
+                            .collect(Collectors.toList()));
+                    Mockito.when(
+                            testConfig.policyMapper().policyApiInputDtoToProto(policyApiInputDTO))
+                            .thenReturn(PolicyInfo.newBuilder().build());
+                    final EntityType entityType =
+                            MERGE_PROVIDER_ENTITY_TYPE.get(policyApiInputDTO.getMergeType());
+                    final List<MinimalEntity> entities = MERGE_GROUP_IDS.stream()
+                            .map(oid -> MinimalEntity.newBuilder()
+                                    .setOid(oid)
+                                    .setEntityType(entityType.getNumber())
+                                    .setDisplayName(String.format("%s %d", entityType, oid))
+                                    .build())
+                            .collect(Collectors.toList());
+                    final MultiEntityRequest multiEntityRequest =
+                            ApiTestUtils.mockMultiMinEntityReq(entities);
+                    Mockito.when(testConfig.repositoryApi()
+                            .entitiesRequest(new HashSet<>(MERGE_GROUP_IDS)))
+                            .thenReturn(multiEntityRequest);
+                    final GroupDefinition.Builder groupDefinition = GroupDefinition.newBuilder()
+                            .setDisplayName(entities.stream()
+                                    .map(MinimalEntity::getDisplayName)
+                                    .collect(Collectors.joining(",", "Merge: ", "")))
+                            .setIsHidden(true)
+                            .setStaticGroupMembers(StaticMembers.newBuilder()
+                                    .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder()
+                                                    .setEntity(entityType.getNumber()))
+                                            .addAllMembers(MERGE_GROUP_IDS)));
+                    addOrEdit.accept(policyApiInputDTO, groupDefinition);
+                    // Assert
+                    Assert.assertEquals(1, policyApiInputDTO.getMergeUuids().size());
+                    Assert.assertEquals(String.valueOf(MERGE_GROUP_ID),
+                            policyApiInputDTO.getMergeUuids().iterator().next());
+                });
+    }
+
+    /**
+     * Test for {@link MarketsService#deletePolicy(String, String)}.
+     * When merge policy required hidden group.
+     */
+    @Test
+    public void testDeleteMergePolicyWhenNeedDeleteHiddenGroup() {
+        Stream.of(MergeType.DESKTOP_POOL, MergeType.DATACENTER).forEach(mergeType -> {
+            Mockito.reset(testConfig.groupService());
+            Mockito.when(testConfig.policyService()
+                    .deletePolicy(PolicyDTO.PolicyDeleteRequest.newBuilder()
+                            .setPolicyId(POLICY_ID)
+                            .build()))
+                    .thenReturn(PolicyDeleteResponse.newBuilder()
+                            .setPolicy(Policy.newBuilder()
+                                    .setId(POLICY_ID)
+                                    .setPolicyInfo(PolicyInfo.newBuilder()
+                                            .setMerge(MergePolicy.newBuilder()
+                                                    .setMergeType(mergeType)
+                                                    .addAllMergeGroupIds(MERGE_GROUP_IDS))))
+                            .build());
+            // Act
+            testConfig.marketsService().deletePolicy(MARKET_UUID, Long.toString(POLICY_ID));
+            // Assert
+            final ArgumentCaptor<GroupID> captor = ArgumentCaptor.forClass(GroupID.class);
+            Mockito.verify(testConfig.groupService(), Mockito.times(MERGE_GROUP_IDS.size()))
+                    .deleteGroup(captor.capture());
+            MERGE_GROUP_IDS.forEach(groupId -> Assert.assertTrue(
+                    captor.getAllValues().contains(GroupID.newBuilder().setId(groupId).build())));
+        });
+    }
 
     /**
      * Spring configuration to startup all the beans, necessary for test execution.
@@ -627,6 +797,16 @@ public class MarketsServiceTest {
             return spy(new GroupServiceMole());
         }
 
+        /**
+         * Return instance of {@link PolicyServiceMole}.
+         *
+         * @return the {@link PolicyServiceMole}.
+         */
+        @Bean
+        public PolicyServiceMole policyService() {
+            return spy(new PolicyServiceMole());
+        }
+
         @Bean
         public RepositoryServiceMole repositoryService() {
             return spy(new RepositoryServiceMole());
@@ -647,7 +827,7 @@ public class MarketsServiceTest {
             try {
                 final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
                     entitySeverityService(), groupService(), settingServiceMole(),
-                    repositoryService(), statsHistoryService());
+                    repositoryService(), statsHistoryService(), policyService());
                 testServer.start();
                 return testServer;
             } catch (IOException e) {
