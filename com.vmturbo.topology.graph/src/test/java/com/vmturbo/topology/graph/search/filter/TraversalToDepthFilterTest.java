@@ -291,7 +291,7 @@ public class TraversalToDepthFilterTest {
 
         // check owned and aggregated entities filter
         final TraversalToDepthFilter<TestGraphEntity> ownedOrAggregatedFilter =
-                new TraversalToDepthFilter<>(TraversalDirection.INCLUDES, 1, null);
+                new TraversalToDepthFilter<>(TraversalDirection.AGGREGATES, 1, null);
         assertThat(filterOids(ownedOrAggregatedFilter, graph, SimpleCloudTopologyUtil.RG_ID),
                    containsInAnyOrder(SimpleCloudTopologyUtil.AZ_ID, SimpleCloudTopologyUtil.CT_ID,
                                       SimpleCloudTopologyUtil.ST_ID));
@@ -302,7 +302,7 @@ public class TraversalToDepthFilterTest {
 
         // check owner and aggregators filter
         final TraversalToDepthFilter<TestGraphEntity> ownsOrAggregatesFilter =
-                new TraversalToDepthFilter<>(TraversalDirection.INCLUDED_BY, 1, null);
+                new TraversalToDepthFilter<>(TraversalDirection.AGGREGATED_BY, 1, null);
         assertThat(filterOids(ownsOrAggregatesFilter, graph, SimpleCloudTopologyUtil.RG_ID), empty());
         assertThat(filterOids(ownsOrAggregatesFilter, graph, SimpleCloudTopologyUtil.VM_ID),
                    contains(SimpleCloudTopologyUtil.AZ_ID));

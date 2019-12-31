@@ -68,7 +68,7 @@ public class EntityFilterMapper {
     // "groupBuilderUseCases.json". If not, "/criteria/{elements}/options" will not be called
     // since UI gets all criteria from "groupBuilderUseCases.json" and check if the criteria
     // matches that inside "groupBuilderUseCases.json".
-    public static final String ACCOUNT_OID = "BusinessAccount:oid:CONNECTED_TO:1";
+    public static final String ACCOUNT_OID = "BusinessAccount:oid:OWNS:1";
     /** Key of the criteria to query resource groups by ids. */
     public static final String RESROUCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
     public static final String STATE = "state";
@@ -77,13 +77,16 @@ public class EntityFilterMapper {
     public static final String CONNECTED_STORAGE_TIER_FILTER_PATH = "StorageTier:oid:CONNECTED_FROM:1";
     public static final String VOLUME_ATTACHMENT_STATE_FILTER_PATH = SearchableProperties.VOLUME_REPO_DTO +
         "." + SearchableProperties.VOLUME_ATTACHMENT_STATE;
-    public static final String REGION_FILTER_PATH = "Region:oid:CONNECTED_FROM:VirtualVolume";
+    public static final String REGION_FILTER_PATH = "Region:oid:AGGREGATES:VirtualVolume";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
     private static final String CONNECTED_TO = "CONNECTED_TO";
     private static final String CONNECTED_FROM = "CONNECTED_FROM";
     private static final String OWNS = "OWNS";
+    private static final String OWNED_BY = "OWNED_BY";
+    private static final String AGGREGATES = "AGGREGATES";
+    private static final String AGGREGATED_BY = "AGGREGATED_BY";
 
     public static final String EQUAL = "EQ";
     public static final String NOT_EQUAL = "NEQ";
@@ -158,6 +161,9 @@ public class EntityFilterMapper {
         filterTypesToProcessors.put(CONNECTED_FROM, traversalFilterProcessor);
         filterTypesToProcessors.put(CONNECTED_TO, traversalFilterProcessor);
         filterTypesToProcessors.put(OWNS, traversalFilterProcessor);
+        filterTypesToProcessors.put(OWNED_BY, traversalFilterProcessor);
+        filterTypesToProcessors.put(AGGREGATES, traversalFilterProcessor);
+        filterTypesToProcessors.put(AGGREGATED_BY, traversalFilterProcessor);
         return filterTypesToProcessors.build();
     }
 

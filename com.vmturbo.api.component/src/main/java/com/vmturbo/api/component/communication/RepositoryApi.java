@@ -139,7 +139,7 @@ public class RepositoryApi {
      */
     public SearchRequest getRegion(@Nonnull Collection<Long> oids) {
         return requestForTypeBasedTraversal(oids,
-                                            TraversalDirection.INCLUDED_BY,
+                                            TraversalDirection.AGGREGATED_BY,
                                             EntityType.REGION);
     }
 

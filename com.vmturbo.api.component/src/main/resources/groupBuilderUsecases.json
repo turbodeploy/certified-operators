@@ -1,4 +1,3 @@
-
 {
     "VirtualMachine" : {
         "criteria" : [
@@ -17,7 +16,7 @@
             {"inputType": "s", "elements": "encrypted", "filterCategory": "property", "filterType": "vmsConnectedToEncryptedVolume"},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
@@ -94,7 +93,7 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
             {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseByResourceGroupUuid", "loadOptions": true}
         ]
     },
@@ -103,7 +102,7 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
             {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupUuid", "loadOptions": true}
         ]
     },
@@ -172,11 +171,11 @@
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualVolumeByName"},
         {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"},
         {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "volumeByTag", "loadOptions": true},
-        {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByAccount", "loadOptions": true},
+        {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "volumeByAccount", "loadOptions": true},
         {"inputType": "*", "elements": "VirtualMachine:displayName:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByConnectedVm"},
         {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState", "loadOptions": true},
         {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
-        {"inputType": "s", "elements": "Region:oid:CONNECTED_FROM:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
+        {"inputType": "s", "elements": "Region:oid:AGGREGATES:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
         {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
         {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "volumeByResourceGroup", "loadOptions": true}

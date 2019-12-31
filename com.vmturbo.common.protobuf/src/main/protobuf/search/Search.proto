@@ -111,8 +111,8 @@ message TraversalFilter {
         // Zone ---- Aggregates   ---> VirtualMachine
         // VirtualMachine  <--- Aggregated by ---- Zone
         // This filter accepts aggregations and ownerships, but not other connections.
-        INCLUDES = 4;
-        INCLUDED_BY = 5;
+        AGGREGATES = 4;
+        AGGREGATED_BY = 5;
         // BusinessAccount ---- Owns   ---> VirtualMachine
         // VirtualMachine  <--- Owned by ---- BusinessAccount
         // This filter accepts only ownerships.

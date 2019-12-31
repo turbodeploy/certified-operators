@@ -380,21 +380,45 @@ public class TopologyStitchingGraph {
     private void translateLayeredOver(@Nonnull TopologyStitchingEntity entity,
                                       @Nonnull TopologyStitchingEntity layeredOverEntity) {
         // in general, layeredOver should be translated as aggregation, but there are special cases
-        if (TopologyDTOUtil.isTierEntityType(layeredOverEntity.getEntityType().getNumber())
-                        && TopologyDTOUtil.isTierEntityType(entity.getEntityType().getNumber())) {
-            // there are no aggregation relationships between tiers, only normal connections
-            entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, layeredOverEntity);
-            layeredOverEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
-        } else if (layeredOverEntity.getEntityType() == EntityType.VIRTUAL_VOLUME
-                        || entity.getEntityType() == EntityType.VIRTUAL_VOLUME) {
-            // Virtual Volumes do not participate in aggregations
+        if (mustBeNormalConnection(entity.getEntityType(), layeredOverEntity.getEntityType())) {
             entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, layeredOverEntity);
             layeredOverEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
         } else {
-            // default behavior
             layeredOverEntity.addConnectedFrom(ConnectionType.AGGREGATED_BY_CONNECTION, entity);
             entity.addConnectedTo(ConnectionType.AGGREGATED_BY_CONNECTION, layeredOverEntity);
         }
+    }
+
+    /**
+     * Decides if a relationship between two entities connected by "layeredOver"
+     * must be a "normal" one or an aggregation.
+     *
+     * <p>The rules are:
+     * <ul>
+     *     <li>Relationships between tiers should be normal</li>
+     *     <li>Relationships from VMs to volumes should be normal</li>
+     *     <li>Relationships from volumes to storage or storage tier
+     *         should be normal</li>
+     * </ul>
+     * Everything else should be translated into an aggregation.
+     * </p>
+     *
+     * @param currentEntityType type of one of the entities
+     * @param layeredOverEntityType type of the layered-over entity
+     * @return true iff this should be translated to a normal connection
+     */
+    private boolean mustBeNormalConnection(@Nonnull EntityType currentEntityType,
+                                           @Nonnull EntityType layeredOverEntityType) {
+        return (TopologyDTOUtil.isTierEntityType(currentEntityType.getNumber())
+                        && TopologyDTOUtil.isTierEntityType(layeredOverEntityType.getNumber()))
+                    || (layeredOverEntityType == EntityType.VIRTUAL_VOLUME
+                            && currentEntityType == EntityType.VIRTUAL_MACHINE)
+                    || (currentEntityType == EntityType.VIRTUAL_VOLUME &&
+                            isStorageType(layeredOverEntityType));
+    }
+
+    private boolean isStorageType(@Nonnull EntityType entityType) {
+        return entityType == EntityType.STORAGE || entityType == EntityType.STORAGE_TIER;
     }
 
     private TopologyStitchingEntity getConsistsOfData(

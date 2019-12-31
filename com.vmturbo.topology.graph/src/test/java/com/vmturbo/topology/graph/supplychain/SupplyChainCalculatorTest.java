@@ -30,6 +30,36 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class SupplyChainCalculatorTest {
     /**
+     * Constants for the orphan volume-related checks
+     */
+    private static final long VOL_ID = 1L;
+    private static final long AZ_ID = 2L;
+    private static final long REG_ID = 3L;
+    /**
+     * Constants for on-prem checks.
+     */
+    private static final long PM_ID = 1L;
+    private static final long ST_ID = 2L;
+    private static final long DC_ID = 3L;
+    /**
+     * Constants and variables for the main cloud checks.
+     */
+    private static final long REGION_ID = 1L;
+    private static final long ZONE_ID = 2L;
+    private static final long VM_1_ID = 3L;
+    private static final long VM_2_ID = 4L;
+    private static final long VOLUME_ID = 5L;
+    private static final long ACCOUNT_ID = 6L;
+    private static final long APP_ID = 7L;
+    private TopologyGraph<TestGraphEntity> cloudTopology;
+    private SupplyChainNode region;
+    private SupplyChainNode zone;
+    private SupplyChainNode vm;
+    private SupplyChainNode volume;
+    private SupplyChainNode account;
+    private SupplyChainNode app;
+
+    /**
      * Simple topology.
      */
     @Test
@@ -319,10 +349,6 @@ public class SupplyChainCalculatorTest {
                   containsInAnyOrder());
    }
 
-    private static final long PM_ID = 1L;
-    private static final long ST_ID = 2L;
-    private static final long DC_ID = 3L;
-
     /**
      * Tests that scoping on storage includes that related DC in the result
      * and the reverse: scoping on DC includes related storage in the result.
@@ -377,22 +403,6 @@ public class SupplyChainCalculatorTest {
        assertThat(getAllNodeIds(stNode), containsInAnyOrder(ST_ID));
        assertThat(getAllNodeIds(dcNode), containsInAnyOrder(DC_ID));
    }
-
-   private static final long REGION_ID = 1L;
-   private static final long ZONE_ID = 2L;
-   private static final long VM_1_ID = 3L;
-   private static final long VM_2_ID = 4L;
-   private static final long VOLUME_ID = 5L;
-   private static final long ACCOUNT_ID = 6L;
-   private static final long APP_ID = 7L;
-   private TopologyGraph<TestGraphEntity> cloudTopology;
-
-   private SupplyChainNode region;
-   private SupplyChainNode zone;
-   private SupplyChainNode vm;
-   private SupplyChainNode volume;
-   private SupplyChainNode account;
-   private SupplyChainNode app;
 
     /**
      * Test the cloud topology, scoping on region.
@@ -496,9 +506,8 @@ public class SupplyChainCalculatorTest {
     * ACCOUNT -owns-> APP, VM1, VOLUME
     * APP -consumes-> VM1
     * VM1 -connects to-> VOLUME
-    * VOLUME -connects to-> ZONE
     * REGION -owns-> ZONE
-    * ZONE -aggregates-> VM1, VM2
+    * ZONE -aggregates-> VM1, VM2, VOLUME
     * VM1, VM2 -consumes-> ZONE
     */
    private void createCloudTopology() {
@@ -529,15 +538,13 @@ public class SupplyChainCalculatorTest {
        // VM1 -connects to-> VOLUME
        vm1Builder.addConnectedEntity(VOLUME_ID, ConnectionType.NORMAL_CONNECTION);
 
-       // VOLUME -connects to-> ZONE
-       volumeBuilder.addConnectedEntity(ZONE_ID, ConnectionType.NORMAL_CONNECTION);
-
        // REGION -owns-> ZONE
        regionBuilder.addConnectedEntity(ZONE_ID, ConnectionType.OWNS_CONNECTION);
 
-       // ZONE -aggregates-> VM1, VM2
+       // ZONE -aggregates-> VM1, VM2, VOLUME
        vm1Builder.addConnectedEntity(ZONE_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
        vm2Builder.addConnectedEntity(ZONE_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
+       volumeBuilder.addConnectedEntity(ZONE_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
 
        // VM1, VM2 -consumes-> ZONE
        vm1Builder.addProviderId(ZONE_ID);
@@ -789,6 +796,120 @@ public class SupplyChainCalculatorTest {
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(UIEntityType.DISKARRAY.typeNumber())),
                    is(1));
+    }
+
+    /**
+     * Test scoping on a volume that is not attached to a VM,
+     * but contained in a zone.
+     */
+    @Test
+    public void testAwsOrphanVolume() {
+        checkAWSTopologyWithOrphanVolume(getSupplyChain(makeAWSTopologyWithOrphanVolume(), VOL_ID));
+    }
+
+    /**
+     * Test scoping on a zone in the presence of a volume
+     * that is not attached to a VM.
+     */
+    @Test
+    public void testAwsOrphanVolumeScopeOnZone() {
+        checkAWSTopologyWithOrphanVolume(getSupplyChain(makeAWSTopologyWithOrphanVolume(), AZ_ID));
+    }
+
+    /**
+     * Test scoping on a region in the presence of a volume
+     * that is not attached to a VM and an availability zone.
+     */
+    @Test
+    public void testAwsOrphanVolumeScopeOnRegion() {
+        checkAWSTopologyWithOrphanVolume(getSupplyChain(makeAWSTopologyWithOrphanVolume(), REGION_ID));
+    }
+
+    /**
+     * Test scoping on a volume that is not attached to a VM,
+     * but contained in a region.
+     */
+    @Test
+    public void testAzureOrphanVolume() {
+        checkAzureTopologyWithOrphanVolume(getSupplyChain(makeAzureTopologyWithOrphanVolume(), VOL_ID));
+    }
+
+    /**
+     * Test scoping on a region in the presence of a volume
+     * that is not attached to a VM.
+     */
+    @Test
+    public void testAzureOrphanVolumeScopeOnRegion() {
+        checkAzureTopologyWithOrphanVolume(getSupplyChain(makeAzureTopologyWithOrphanVolume(), REGION_ID));
+    }
+
+    /*
+     * Topology:
+     *   Volume
+     *     | aggregated by
+     *   Zone
+     *     | owned by
+     *   Region
+     */
+    private TopologyGraph<TestGraphEntity> makeAWSTopologyWithOrphanVolume() {
+        return TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(REG_ID, UIEntityType.REGION)
+                        .addConnectedEntity(AZ_ID, ConnectionType.OWNS_CONNECTION),
+                TestGraphEntity.newBuilder(AZ_ID, UIEntityType.AVAILABILITY_ZONE),
+                TestGraphEntity.newBuilder(VOL_ID, UIEntityType.VIRTUAL_VOLUME)
+                        .addConnectedEntity(AZ_ID, ConnectionType.AGGREGATED_BY_CONNECTION));
+    }
+
+    /*
+     * Topology:
+     *   Volume
+     *     | aggregated by
+     *   Region
+     */
+    private TopologyGraph<TestGraphEntity> makeAzureTopologyWithOrphanVolume() {
+        return TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(REG_ID, UIEntityType.REGION),
+                TestGraphEntity.newBuilder(VOL_ID, UIEntityType.VIRTUAL_VOLUME)
+                        .addConnectedEntity(REG_ID, ConnectionType.AGGREGATED_BY_CONNECTION));
+    }
+
+    private void checkAWSTopologyWithOrphanVolume(Map<Integer, SupplyChainNode> supplychain) {
+        assertThat(supplychain.get(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                        .getConnectedProviderTypesList(),
+                containsInAnyOrder(UIEntityType.AVAILABILITY_ZONE.apiStr()));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                supplychain.get(UIEntityType.VIRTUAL_VOLUME.typeNumber())),
+                is(1));
+        assertThat(supplychain.get(UIEntityType.AVAILABILITY_ZONE.typeNumber())
+                        .getConnectedConsumerTypesList(),
+                containsInAnyOrder(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+        assertThat(supplychain.get(UIEntityType.AVAILABILITY_ZONE.typeNumber())
+                        .getConnectedProviderTypesList(),
+                containsInAnyOrder(UIEntityType.REGION.apiStr()));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                supplychain.get(UIEntityType.AVAILABILITY_ZONE.typeNumber())),
+                is(1));
+        assertThat(supplychain.get(UIEntityType.REGION.typeNumber())
+                        .getConnectedConsumerTypesList(),
+                containsInAnyOrder(UIEntityType.AVAILABILITY_ZONE.apiStr()));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                supplychain.get(UIEntityType.REGION.typeNumber())),
+                is(1));
+    }
+
+    private void checkAzureTopologyWithOrphanVolume(Map<Integer, SupplyChainNode> supplychain) {
+        assertThat(supplychain.get(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                        .getConnectedProviderTypesList(),
+                containsInAnyOrder(UIEntityType.REGION.apiStr()));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                supplychain.get(UIEntityType.VIRTUAL_VOLUME.typeNumber())),
+                is(1));
+        assertThat(supplychain.get(UIEntityType.REGION.typeNumber())
+                        .getConnectedConsumerTypesList(),
+                containsInAnyOrder(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                supplychain.get(UIEntityType.REGION.typeNumber())),
+                is(1));
     }
 
     private Map<Integer, SupplyChainNode> getSupplyChain(

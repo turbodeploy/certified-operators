@@ -91,24 +91,34 @@ public class PlanTopologyScopeEditor {
                                     .map(e -> CLOUD_SCOPE_ENTITY_TYPES.contains(
                                                     EntityType.forNumber(e.getEntityType())))
                                     .orElse(false))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(HashSet::new));
 
-        // get ids of VMs connected to seed Virtual Volumes
-        // and add them to the set of seed ids
-        final Set<Long> vmsConnectedToSeedVirtualVolumes =
-            seedIds.stream()
-                .filter(oid -> graph.getEntity(oid).get().getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                .flatMap(oid -> graph.getEntity(oid).get().getInboundAssociatedEntities().stream()
-                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                                    .map(TopologyEntity::getOid))
-                .collect(Collectors.toSet());
-        final Set<Long> seedIdsWithConnectedVMs =
-                Stream.concat(seedIds.stream(),
-                              vmsConnectedToSeedVirtualVolumes.stream())
-                    .collect(Collectors.toSet());
+        // for all VMs in the seed, we should bring the connected volumes to the seed
+        // and for all volumes in the seed, we should bring the connected VMs
+        final Set<Long> connectedVMsAndVVIds = new HashSet<>();
+        for (long oid : seedIds) {
+            final TopologyEntity entity = graph.getEntity(oid).orElse(null);
+            if (entity == null) {
+                continue;
+            }
+            if (entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                connectedVMsAndVVIds.addAll(entity.getInboundAssociatedEntities().stream()
+                                                .filter(e -> e.getEntityType()
+                                                            == EntityType.VIRTUAL_MACHINE_VALUE)
+                                                .map(TopologyEntity::getOid)
+                                                .collect(Collectors.toList()));
+            } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                connectedVMsAndVVIds.addAll(entity.getOutboundAssociatedEntities().stream()
+                                                .filter(e -> e.getEntityType()
+                                                             == EntityType.VIRTUAL_VOLUME_VALUE)
+                                                .map(TopologyEntity::getOid)
+                                                .collect(Collectors.toList()));
+            }
+        }
+        seedIds.addAll(connectedVMsAndVVIds);
 
         // targets of the seeds
-        final Collection<Long> targetIds = graph.getEntities(seedIdsWithConnectedVMs)
+        final Collection<Long> targetIds = graph.getEntities(seedIds)
                                                 .flatMap(TopologyEntity::getDiscoveringTargetIds)
                                                 .filter(Objects::nonNull)
                                                 .collect(Collectors.toSet());
@@ -117,7 +127,7 @@ public class PlanTopologyScopeEditor {
         // with a business account or region
         // if scoping on a region, it will also bring availability zones
         final List<TopologyEntity> workloadsAndZones =
-            TopologyGraphEntity.applyTransitively(graph.getEntities(seedIdsWithConnectedVMs)
+            TopologyGraphEntity.applyTransitively(graph.getEntities(seedIds)
                                                        .collect(Collectors.toList()),
                                                   TopologyEntity::getOwnedOrAggregatedEntities)
                 .stream()
@@ -140,19 +150,6 @@ public class PlanTopologyScopeEditor {
         final List<TopologyEntity> workLoadsZonesAndConsumers =
             TopologyGraphEntity.applyTransitively(workloadsAndZones, TopologyEntity::getConsumers);
 
-        // special case: the virtual volumes must be added to the list,
-        // because they are not aggregated by regions or zones
-        final List<TopologyEntity> virtualVolumes =
-            workloadsAndZones.stream()
-                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .flatMap(e -> e.getOutboundAssociatedEntities().stream())
-                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                .collect(Collectors.toList());
-        final List<TopologyEntity> workloadsZonesConsumersAndVolumes =
-                Stream.concat(workLoadsZonesAndConsumers.stream(), virtualVolumes.stream())
-                    .distinct()
-                    .collect(Collectors.toList());
-
         // get all the entities aggregating the workloads
         // if scoping on an account, we now have:
         //   - all sub-accounts
@@ -174,7 +171,7 @@ public class PlanTopologyScopeEditor {
         //   - the zone and region in which the workload lives
         //   - the account owning this workload and the account owning that account
         final Set<TopologyEntity> cloudConsumers =
-            TopologyGraphEntity.applyTransitively(workloadsZonesConsumersAndVolumes,
+            TopologyGraphEntity.applyTransitively(workLoadsZonesAndConsumers,
                                                   TopologyEntity::getOwnersOrAggregators)
                 .stream()
                 .collect(Collectors.toSet());

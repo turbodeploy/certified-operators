@@ -1,5 +1,6 @@
 package com.vmturbo.topology.graph.supplychain;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
@@ -72,8 +73,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // TODO: remove as part of OM-51365
                 new DCRule<>(),
 
-                // when reaching a Volume, stop
-                    // when starting from a Volume, add the connected VM to the seed
+                // when starting from a Volume, add the connected VM
+                    // and storage to the seed
                 new VolumeRule<>(),
 
                 // use default traversal rule in all other cases
@@ -170,41 +171,26 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Rule specific to virtual volumes.  When reaching a Volume,
-     * stop traversal. When starting from a Volume, add the connected
-     * VM to the seed and traverse from there. Also add the connected
-     * storage to the frontier and traverse downward the supply chain
-     * from there (the latter ensures that connected storage will be
-     * found from orphaned volumes).
+     * Rule specific to virtual volumes.  When starting from a Volume,
+     * add the connected VM to the seed and traverse from there.
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
-    private static class VolumeRule<E extends TopologyGraphEntity<E>> implements TraversalRule<E> {
+    private static class VolumeRule<E extends TopologyGraphEntity<E>> extends DefaultTraversalRule<E> {
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            return entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE;
+            return entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
+                        && traversalMode == TraversalMode.START;
         }
 
         @Override
-        public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
-                          @Nonnull Queue<TraversalState> frontier) {
-            if (traversalMode != TraversalMode.START) {
-                return;
-            }
-
-            final int newDepth = depth + 1;
-
-            entity.getInboundAssociatedEntities().stream()
-                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .forEach(vm -> frontier.add(new TraversalState(vm.getOid(),
-                                                               TraversalMode.START,
-                                                               newDepth)));
-            entity.getOutboundAssociatedEntities().stream()
-                    .filter(e -> e.getEntityType() == EntityType.STORAGE_VALUE
-                                    || e.getEntityType() == EntityType.STORAGE_TIER_VALUE)
-                    .forEach(st -> frontier.add(new TraversalState(st.getOid(),
-                                                                   TraversalMode.CONSUMES,
-                                                                   newDepth)));
+        protected List<E> getFilteredAssociatedEntities(@Nonnull E entity,
+                                                        @Nonnull TraversalMode traversalMode) {
+            final List<E> result = new ArrayList<>(entity.getOutboundAssociatedEntities());
+            result.addAll(entity.getInboundAssociatedEntities().stream()
+                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                                .collect(Collectors.toList()));
+            return result;
         }
     }
 

@@ -75,9 +75,9 @@ public abstract class TraversalFilter<E extends TopologyGraphEntity<E>> implemen
                 return e ->
                     Stream.concat(graph.getOwnedOrAggregatedEntities(e),
                                   e.getOutboundAssociatedEntities().stream());
-            case INCLUDED_BY:
+            case AGGREGATED_BY:
                 return graph::getOwnersOrAggregators;
-            case INCLUDES:
+            case AGGREGATES:
                 return graph::getOwnedOrAggregatedEntities;
             case OWNED_BY:
                 return graph::getOwner;

@@ -214,7 +214,7 @@ public class ActionSpecMappingContextFactory {
         for (ApiPartialEntity region : regions) {
             repositoryApi.requestForTypeBasedTraversal(
                     Collections.singleton(region.getOid()),
-                    TraversalDirection.INCLUDES,
+                    TraversalDirection.AGGREGATES,
                     EntityType.AVAILABILITY_ZONE)
                 .getOids()
                 .forEach(zoneId -> entitiesById.put(zoneId, region));

@@ -73,11 +73,14 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, as1.getOid(), as2.getOid());
     private final TopologyEntity.Builder virtualVolume = TopologyEntityUtils.connectedTopologyEntity(90001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, vm1InDc1.getOid());
 
-    private static final long VIRTUAL_VOLUME_IN_LONDON_ID = 6002L;
     private static final long VIRTUAL_VOLUME_IN_OHIO_ID = 6001L;
+    private static final long VIRTUAL_VOLUME_IN_LONDON_ID = 6002L;
     private static final long VIRTUAL_VOLUME_IN_HONG_KONG_ID = 6003L;
     private static final long VIRTUAL_VOLUME_IN_CENTRAL_US_ID = 6004L;
     private static final long VIRTUAL_VOLUME_IN_CANADA_ID = 6005L;
+    private static final long UNATTACHED_VV_IN_CENTRAL_US_ID = 6006L;
+    private static final long UNATTACHED_VV_IN_LONDON_ID = 6007L;
+    private static final long VIRTUAL_VOLUME_2_IN_CANADA_ID = 6008L;
 
     private final TopologyEntity.Builder computeTier = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 3001L, "Compute tier", EntityType.COMPUTE_TIER);
@@ -108,18 +111,32 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder dbsHongKong = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 9002L, "DBS in Hong Kong", EntityType.DATABASE_SERVER);
 
+    private final TopologyEntity.Builder virtualVolumeInLondon = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_LONDON_ID, "Virtual Volume in London", EntityType.VIRTUAL_VOLUME,
+            storageTier.getOid());
+    private final TopologyEntity.Builder virtualVolumeInOhio = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_OHIO_ID, "Virtual Volume in Ohio", EntityType.VIRTUAL_VOLUME,
+            storageTier.getOid());
+    private final TopologyEntity.Builder virtualVolumeInHongKong = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_HONG_KONG_ID, "Virtual Volume in Hong Kong",
+            EntityType.VIRTUAL_VOLUME,
+            storageTier.getOid());
+    private final TopologyEntity.Builder unattachedVirtualVolumeInLondon = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_1, UNATTACHED_VV_IN_LONDON_ID, "Unattached Virtual Volume in London",
+            EntityType.VIRTUAL_VOLUME, storageTier.getOid());
+
     private final TopologyEntity.Builder az1London = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1001L, "AZ1 London",
-            dbsLondon, vm1InLondon);
+            dbsLondon, vm1InLondon, virtualVolumeInLondon, unattachedVirtualVolumeInLondon);
     private final TopologyEntity.Builder az2London = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1002L, "AZ2 London",
             dbLondon, vm2InLondon);
     private final TopologyEntity.Builder azOhio = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1003L, "AZ Ohio",
-            vmInOhio);
+            vmInOhio, virtualVolumeInOhio);
     private final TopologyEntity.Builder az1HongKong = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1004L, "AZ1 Hong Kong",
-            vmInHongKong);
+            vmInHongKong, virtualVolumeInHongKong);
     private final TopologyEntity.Builder az2HongKong = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1005L, "AZ2 Hong Kong",
             dbsHongKong);
@@ -137,16 +154,26 @@ public class PlanTopologyScopeEditorTest {
             ImmutableList.of(az1HongKong, az2HongKong),
             Collections.singleton(storageTier));
 
-    private final TopologyEntity.Builder virtualVolumeInLondon = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_LONDON_ID, "Virtual Volume in London", EntityType.VIRTUAL_VOLUME,
-            az1London.getOid(), storageTier.getOid());
-    private final TopologyEntity.Builder virtualVolumeInOhio = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_OHIO_ID, "Virtual Volume in Ohio", EntityType.VIRTUAL_VOLUME,
-            azOhio.getOid(), storageTier.getOid());
-    private final TopologyEntity.Builder virtualVolumeInHongKong = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_HONG_KONG_ID, "Virtual Volume in Hong Kong",
+    private final TopologyEntity.Builder computeTier2 = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, 3002L, "Compute tier 2", EntityType.COMPUTE_TIER);
+    private final TopologyEntity.Builder storageTier2 = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, 7002L, "Storage tier 2", EntityType.STORAGE_TIER);
+
+    private final TopologyEntity.Builder unattachedVirtualVolumeInCentralUs = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, UNATTACHED_VV_IN_CENTRAL_US_ID, "Unattached Virtual Volume in Central US",
+            EntityType.VIRTUAL_VOLUME, storageTier2.getOid());
+    private final TopologyEntity.Builder virtualVolumeInCentralUs = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, VIRTUAL_VOLUME_IN_CENTRAL_US_ID, "Virtual Volume in Central US",
             EntityType.VIRTUAL_VOLUME,
-            az1HongKong.getOid(), storageTier.getOid());
+            storageTier2.getOid());
+    private final TopologyEntity.Builder virtualVolumeInCanada = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, VIRTUAL_VOLUME_IN_CANADA_ID, "Virtual Volume in Canada",
+            EntityType.VIRTUAL_VOLUME,
+            storageTier2.getOid());
+    private final TopologyEntity.Builder virtualVolume2InCanada = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, VIRTUAL_VOLUME_2_IN_CANADA_ID, "Virtual Volume 2 in Canada",
+            EntityType.VIRTUAL_VOLUME,
+            storageTier2.getOid());
 
     private final TopologyEntity.Builder businessAcc2 = createOwner(
             CLOUD_TARGET_1, 5002L, "Business account 2", EntityType.BUSINESS_ACCOUNT,
@@ -163,7 +190,7 @@ public class PlanTopologyScopeEditorTest {
             VIRTUAL_VOLUME_IN_CENTRAL_US_ID);
     private final TopologyEntity.Builder vmInCanada = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_2, 4006L, "VM in Canada", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_CANADA_ID);
+            VIRTUAL_VOLUME_IN_CANADA_ID, VIRTUAL_VOLUME_2_IN_CANADA_ID);
     private final TopologyEntity.Builder dbCentralUs = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_2, 8002L, "DB in Central US", EntityType.DATABASE);
     private final TopologyEntity.Builder dbsCentralUs = createCloudConnectedTopologyEntity(
@@ -173,28 +200,15 @@ public class PlanTopologyScopeEditorTest {
             TopologyEntityUtils.topologyEntity(900001L, CLOUD_TARGET_2, 0,
                                                EntityType.APPLICATION, vmInCanada.getOid());
 
-    private final TopologyEntity.Builder computeTier2 = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, 3002L, "Compute tier 2", EntityType.COMPUTE_TIER);
-    private final TopologyEntity.Builder storageTier2 = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, 7002L, "Storage tier 2", EntityType.STORAGE_TIER);
-
     private final TopologyEntity.Builder regionCentralUs = createRegion(
             CLOUD_TARGET_2, 2004L, "Central US",
             Collections.emptySet(),
-            ImmutableList.of(dbCentralUs, dbsCentralUs, vmInCentralUs, computeTier2, storageTier2));
+            ImmutableList.of(dbCentralUs, dbsCentralUs, vmInCentralUs, virtualVolumeInCentralUs,
+                             computeTier2, storageTier2, unattachedVirtualVolumeInCentralUs));
     private final TopologyEntity.Builder regionCanada = createRegion(
             CLOUD_TARGET_2, 2005L, "Canada",
             Collections.emptySet(),
-            ImmutableList.of(computeTier2, storageTier2, vmInCanada));
-
-    private final TopologyEntity.Builder virtualVolumeInCentralUs = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, VIRTUAL_VOLUME_IN_CENTRAL_US_ID, "Virtual Volume in Central US",
-            EntityType.VIRTUAL_VOLUME,
-            regionCentralUs.getOid(), storageTier2.getOid());
-    private final TopologyEntity.Builder virtualVolumeInCanada = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, VIRTUAL_VOLUME_IN_CANADA_ID, "Virtual Volume in Canada",
-            EntityType.VIRTUAL_VOLUME,
-            regionCanada.getOid(), storageTier2.getOid());
+            ImmutableList.of(computeTier2, storageTier2, vmInCanada, virtualVolumeInCanada, virtualVolume2InCanada));
 
     private final TopologyEntity.Builder businessAcc4 = createOwner(
             CLOUD_TARGET_2, 5004L, "Business account 4", EntityType.BUSINESS_ACCOUNT,
@@ -234,25 +248,29 @@ public class PlanTopologyScopeEditorTest {
                 storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
                 computeTier2, storageTier2, virtualVolumeInCentralUs,
                 vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
-                appAws, appAzure);
+                appAws, appAzure, unattachedVirtualVolumeInCentralUs,
+                unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsRegion = Stream
         .of(az1London, az2London, regionLondon, computeTier,
                 vm1InLondon, vm2InLondon, dbLondon, dbsLondon, businessAcc1,
-                virtualVolumeInLondon, storageTier, appAws)
+                virtualVolumeInLondon, storageTier, appAws,
+                unattachedVirtualVolumeInLondon)
         .collect(Collectors.collectingAndThen(Collectors.toSet(),
             Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAzureRegion = Stream
                     .of(regionCentralUs, dbCentralUs, dbsCentralUs, computeTier2,
-                            storageTier2, virtualVolumeInCentralUs, vmInCentralUs, cloudService)
+                            storageTier2, virtualVolumeInCentralUs, vmInCentralUs, cloudService,
+                            unattachedVirtualVolumeInCentralUs)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                         Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForRegionsList = Stream
         .of(az1London, az2London, azOhio, regionLondon, regionOhio, computeTier,
                 vm1InLondon, vm2InLondon, vmInOhio, dbLondon, dbsLondon, businessAcc1,
-                businessAcc2, storageTier, virtualVolumeInLondon, virtualVolumeInOhio, appAws)
+                businessAcc2, storageTier, virtualVolumeInLondon, virtualVolumeInOhio, appAws,
+                unattachedVirtualVolumeInLondon)
         .collect(Collectors.collectingAndThen(Collectors.toSet(),
             Collections::unmodifiableSet));
 
@@ -301,6 +319,13 @@ public class PlanTopologyScopeEditorTest {
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
+    private final Set<TopologyEntity.Builder> expectedEntitiesForVolumesGroup = Stream
+            .of(regionCentralUs, computeTier2, storageTier2, unattachedVirtualVolumeInCentralUs,
+                    virtualVolume2InCanada, regionCanada, vmInCanada, businessAcc4,
+                    cloudService, appAzure)
+            .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                    Collections::unmodifiableSet));
+
     private final GroupResolver groupResolver = mock(GroupResolver.class);
     private PlanTopologyScopeEditor planTopologyScopeEditor;
     private final GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
@@ -312,6 +337,18 @@ public class PlanTopologyScopeEditorTest {
     public void setup() {
         planTopologyScopeEditor = new PlanTopologyScopeEditor(GroupServiceGrpc
             .newBlockingStub(grpcServer.getChannel()));
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with resource group of DB and virtual volume.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * expectedEntitiesForResourceGroup - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForVolumesGroup() {
+        // Unattached Virtual Volume in Canada
+        final List<Long> oidsList = Arrays.asList(6006L, 6008L);
+        testScopeCloudTopology(oidsList, expectedEntitiesForVolumesGroup);
     }
 
     /**
