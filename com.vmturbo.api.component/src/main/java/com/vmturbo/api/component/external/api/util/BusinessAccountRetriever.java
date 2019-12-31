@@ -17,9 +17,13 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableFloat;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
@@ -298,8 +302,11 @@ public class BusinessAccountRetriever {
             this.countOfGroupsOwnedByAccount = Objects.requireNonNull(countOfGroupsOwnedByAccount);
         }
 
-        @Nonnull
+        @Nullable
         Float getCostPrice(@Nonnull final Long accountId) {
+            if (costsByAccountId == null) {
+                return null;
+            }
             return costsByAccountId.getOrDefault(accountId, 0.0f);
         }
 
@@ -336,9 +343,25 @@ public class BusinessAccountRetriever {
          * @return The {@link SupplementaryData}.
          */
         SupplementaryData newSupplementaryData(@Nonnull Set<Long> accountIds, boolean allAccounts) {
-            final Optional<Set<Long>> specificAccountIds =
-                    allAccounts ? Optional.empty() : Optional.of(accountIds);
-            final Map<Long, Float> costsByAccount = getCostsByAccount(specificAccountIds);
+            Map<Long, Float> costsByAccount;
+            try {
+                costsByAccount = getCostsByAccount(accountIds, allAccounts);
+            } catch (StatusRuntimeException e) {
+                if (Code.UNAVAILABLE == e.getStatus().getCode()) {
+                    // Any component may be down at any time. APIs like search should not fail
+                    // when the cost component is down. We must log a warning when this happens,
+                    // or else it will be difficult for someone to explain why search does not
+                    // have cost data.
+                    logger.warn("The cost component is not available. As a result, we will not fill in the response with cost details for accountIds={} and allAccounts={}",
+                        () -> accountIds,
+                        () -> allAccounts);
+                    costsByAccount = null;
+                } else {
+                    // Cost component responded, so it's up an running. We need to make this
+                    // exception visible because there might be a bug in the cost component.
+                    throw e;
+                }
+            }
             final Map<Long, Integer> groupsCountOwnedByAccount =
                     getResourceGroupsCountOwnedByAccount(accountIds);
             return new SupplementaryData(costsByAccount, groupsCountOwnedByAccount);
@@ -364,13 +387,13 @@ public class BusinessAccountRetriever {
         }
 
         @Nonnull
-        private Map<Long, Float> getCostsByAccount(@Nonnull final Optional<Set<Long>> specificAccountIds) {
+        private Map<Long, Float> getCostsByAccount(@Nonnull Set<Long> specificAccountIds, boolean allAccounts) {
             final AccountExpenseQueryScope.Builder scopeBldr = AccountExpenseQueryScope.newBuilder();
-            if (specificAccountIds.isPresent()) {
-                scopeBldr.setSpecificAccounts(IdList.newBuilder()
-                    .addAllAccountIds(specificAccountIds.get()));
-            } else {
+            if (allAccounts) {
                 scopeBldr.setAllAccounts(true);
+            } else {
+                scopeBldr.setSpecificAccounts(IdList.newBuilder()
+                    .addAllAccountIds(specificAccountIds));
             }
 
             final GetCurrentAccountExpensesResponse response = costService.getCurrentAccountExpenses(
@@ -459,8 +482,10 @@ public class BusinessAccountRetriever {
             businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
             businessUnitApiDTO.setBudget(new StatApiDTO());
 
-            businessUnitApiDTO.setCostPrice(
-                    supplementaryData.getCostPrice(businessAccountOid));
+            Float costPrice = supplementaryData.getCostPrice(businessAccountOid);
+            if (costPrice != null) {
+                businessUnitApiDTO.setCostPrice(costPrice);
+            }
             businessUnitApiDTO.setResourceGroupsCount(
                     supplementaryData.getResourceGroupCount(businessAccountOid));
             // discovered account doesn't have discount (yet)
@@ -551,15 +576,24 @@ public class BusinessAccountRetriever {
         billingFamilyApiDTO.setMasterAccountUuid(masterAccount.getUuid());
         final Map<String, String> uuidToName = new HashMap<>();
         uuidToName.put(masterAccount.getUuid(), masterAccount.getDisplayName());
-        final MutableFloat costPrice = new MutableFloat(masterAccount.getCostPrice());
+        MutableBoolean hasCost = new MutableBoolean(masterAccount.getCostPrice() != null);
+        final MutableFloat costPrice = new MutableFloat(0.0F);
+        if (masterAccount.getCostPrice() != null) {
+            costPrice.add(masterAccount.getCostPrice());
+        }
         masterAccount.getChildrenBusinessUnits().stream()
             .map(accountIdToDisplayName::get)
             .filter(Objects::nonNull)
             .forEach(subAccount -> {
                 uuidToName.put(subAccount.getUuid(), subAccount.getDisplayName());
-                costPrice.add(subAccount.getCostPrice());
+                hasCost.setValue(subAccount.getCostPrice() != null || hasCost.getValue());
+                if (subAccount.getCostPrice() != null) {
+                    costPrice.add(subAccount.getCostPrice());
+                }
             });
-        billingFamilyApiDTO.setCostPrice(costPrice.toFloat());
+        if (hasCost.booleanValue()) {
+            billingFamilyApiDTO.setCostPrice(costPrice.toFloat());
+        }
         billingFamilyApiDTO.setUuidToNameMap(uuidToName);
         billingFamilyApiDTO.setMembersCount(masterAccount.getChildrenBusinessUnits().size());
         billingFamilyApiDTO.setClassName(StringConstants.BILLING_FAMILY);

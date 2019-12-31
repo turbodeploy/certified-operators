@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.grpc.Status.Code;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -391,13 +392,30 @@ public class GroupMapper {
     private Optional<Float> calculateEstimatedCostForCloudEnv(
             @Nonnull GroupAndMembers groupAndMembers, @Nonnull EnvironmentType environmentType) {
         if (environmentType == EnvironmentType.CLOUD) {
-            final GetCloudCostStatsResponse cloudCostStatsResponse =
-                    costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
-                            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                            .setEntityFilter(Cost.EntityFilter.newBuilder()
-                                    .addAllEntityId(groupAndMembers.members())
-                                    .build())
-                            .build()).build());
+            final GetCloudCostStatsResponse cloudCostStatsResponse;
+            try {
+                cloudCostStatsResponse = costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                    .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(Cost.EntityFilter.newBuilder()
+                            .addAllEntityId(groupAndMembers.members())
+                            .build())
+                        .build()).build());
+            } catch (StatusRuntimeException e) {
+                if (Code.UNAVAILABLE == e.getStatus().getCode()) {
+                    // Any component may be down at any time. APIs like search should not fail
+                    // when the cost component is down. We must log a warning when this happens,
+                    // or else it will be difficult for someone to explain why search does not
+                    // have cost data.
+                    logger.warn("The cost component is not available. As a result, we will not fill in the response with cost details for groupAndMembers={} and environmentType={}",
+                        () -> groupAndMembers,
+                        () -> environmentType);
+                    return Optional.empty();
+                } else {
+                    // Cost component responded, so it's up an running. We need to make this
+                    // exception visible because there might be a bug in the cost component.
+                    throw e;
+                }
+            }
             final List<CloudCostStatRecord> costStatRecordList =
                     cloudCostStatsResponse.getCloudStatRecordList();
             if (!costStatRecordList.isEmpty()) {
@@ -555,10 +573,12 @@ public class GroupMapper {
         List<BusinessUnitApiDTO> businessUnitApiDTOList = new ArrayList<>();
         Map<String, String> uuidToDisplayNameMap = new HashMap<>();
         float cost = 0f;
+        boolean hasCost = false;
 
         for (BusinessUnitApiDTO businessUnit : businessAccountRetriever.getBusinessAccounts(oidsToQuery)) {
             Float businessUnitCost = businessUnit.getCostPrice();
             if (businessUnitCost != null) {
+                hasCost = true;
                 cost += businessUnitCost;
             }
 
@@ -577,7 +597,9 @@ public class GroupMapper {
             businessUnitApiDTOList.add(businessUnit);
         }
 
-        billingFamilyApiDTO.setCostPrice(cost);
+        if (hasCost) {
+            billingFamilyApiDTO.setCostPrice(cost);
+        }
         billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
         billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
 

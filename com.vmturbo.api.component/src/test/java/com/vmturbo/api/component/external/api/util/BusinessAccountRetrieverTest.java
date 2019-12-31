@@ -7,6 +7,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -22,6 +23,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -635,5 +639,25 @@ public class BusinessAccountRetrieverTest {
         assertThat(targetApiDTO.getCategory(), is(discoveringTargetInfo.probeInfo().category()));
         assertThat(targetApiDTO.getDisplayName(), is(discoveringTargetInfo.displayName()));
         assertThat(targetApiDTO.getUuid(), is(Long.toString(discoveringTargetInfo.oid())));
+    }
+
+    /**
+     * When cost is unavailable, {@link BusinessAccountMapper#convert(List, boolean)} should not throw an exception.
+     * Instead costPrice should be null, indicating there is no cost price available. Cost price of
+     * 0 is incorrect because it indicates there is no cost, when that might not be the case.
+     */
+    @Test
+    public void testCostUnavailable() {
+        final SupplementaryDataFactory supplementaryDataFactory = new SupplementaryDataFactory(
+            CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+        final BusinessAccountMapper mapper = new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory);
+
+        doReturn(Optional.of(new StatusRuntimeException(Status.UNAVAILABLE))).when(costBackend).getCurrentAccountExpensesError(any());
+
+        List<BusinessUnitApiDTO> actualBusinessUnits = mapper.convert(Collections.singletonList(ACCOUNT), true);
+        Assert.assertEquals(1, actualBusinessUnits.size());
+        BusinessUnitApiDTO actual = actualBusinessUnits.get(0);
+        Assert.assertNull(actual.getCostPrice());
     }
 }

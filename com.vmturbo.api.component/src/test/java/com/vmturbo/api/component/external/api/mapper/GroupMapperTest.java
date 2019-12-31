@@ -1570,4 +1570,50 @@ public class GroupMapperTest {
 
         Assert.assertEquals(3.25F + 2.5F, billingFamilyApiDTO.getCostPrice(), 0.0000001F);
     }
+
+    /**
+     * BillingAccountRetriever is not guarenteed to return a cost price because cost component
+     * might be temporarily unavailable. When that happens, the billing family should also have
+     * a null cost price.
+     */
+    @Test
+    public void testBillingFamilyNoCostPrice() {
+        BusinessUnitApiDTO masterAccountDevelopment = new BusinessUnitApiDTO();
+        masterAccountDevelopment.setMaster(true);
+        masterAccountDevelopment.setUuid("2");
+        masterAccountDevelopment.setDisplayName("Development");
+        masterAccountDevelopment.setCostPrice(null);
+
+        BusinessUnitApiDTO productTrustSubAccount = new BusinessUnitApiDTO();
+        productTrustSubAccount.setMaster(false);
+        productTrustSubAccount.setUuid("1");
+        productTrustSubAccount.setDisplayName("Product Trust");
+        masterAccountDevelopment.setCostPrice(null);
+
+        Set<Long> oidsInBillingFamily = new HashSet<>(Arrays.asList(1L, 2L));
+        when(businessAccountRetriever.getBusinessAccounts(oidsInBillingFamily))
+            .thenReturn(Arrays.asList(
+                masterAccountDevelopment, productTrustSubAccount));
+
+        Grouping group = Grouping.newBuilder().setId(8L)
+            .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+            .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BILLING_FAMILY)
+                .setDisplayName("Development"))
+            .build();
+        GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+            .group(group)
+            .members(oidsInBillingFamily)
+            .entities(Collections.emptyList())
+            .build();
+        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(
+            groupAndMembers,
+            EnvironmentType.CLOUD,
+            CloudType.AWS,
+            false);
+
+        Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);
+        BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
+        Assert.assertNull(billingFamilyApiDTO.getCostPrice());
+    }
+
 }
