@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -14,6 +15,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +42,8 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.HierarchicalRelationship;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -121,7 +127,27 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         if (BusinessUnitType.DISCOUNT.equals(type)) {
             final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()
                     .build());
-            return mapper.toDiscountBusinessUnitApiDTO(discounts);
+            // We also create discounts for sub-accounts when creating a discount for a master
+            // account. We should filter them when sending the discounts to UI.
+            List<Discount> discountsList = Lists.newArrayList(discounts);
+            if (discountsList.size() > 0) {
+                Set<Long> accountIds = discountsList.stream()
+                    .map(Discount::getAssociatedAccountId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+                List<BusinessUnitApiDTO> accounts = businessAccountRetriever.getBusinessAccounts(accountIds);
+                Set<Long> masterAccounts = accounts.stream().filter(BusinessUnitApiDTO::isMaster)
+                    .map(BusinessUnitApiDTO::getUuid)
+                    .map(Long::valueOf)
+                    .collect(Collectors.toSet());
+
+                discountsList = discountsList.stream()
+                    .filter(discount -> masterAccounts.contains(discount.getAssociatedAccountId()))
+                    .collect(Collectors.toList());
+            }
+
+            return mapper.toDiscountBusinessUnitApiDTO(discountsList.iterator());
         } else if (BusinessUnitType.DISCOVERED.equals(type)) {
             return businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList(), null);
         }
@@ -144,21 +170,8 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                 .findFirst().orElseThrow(() -> new IllegalArgumentException(INVALID_BUSINESS_UNIT_DTO
                         + businessUnitApiInputDTO));
         // TODO validate input DTO with validateInput method. It must have displayName
-        final DiscountInfo discountInfo = (businessUnitApiInputDTO.getPriceAdjustment() != null) ? DiscountInfo.newBuilder()
-                .setDisplayName(businessUnitApiInputDTO.getName())
-                .setAccountLevelDiscount(DiscountInfo
-                        .AccountLevelDiscount
-                        .newBuilder()
-                        .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()))
-                .build()
-                : DiscountInfo.newBuilder()
-                .setDisplayName(businessUnitApiInputDTO.getName())
-                .build();
-        final CreateDiscountResponse response = costService.createDiscount(CreateDiscountRequest.newBuilder()
-                .setDiscountInfo(discountInfo)
-                .setId(Long.parseLong(associatedAccountId))
-                .build());
-        return mapper.toBusinessUnitApiDTO(response.getDiscount());
+        return createPriceAdjustment(Long.valueOf(associatedAccountId),
+            businessUnitApiInputDTO);
     }
 
     /**
@@ -172,30 +185,19 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                                                final BusinessUnitApiInputDTO businessUnitApiInputDTO) throws Exception {
         if (uuid != null && !uuid.isEmpty()) {
             // update account level discount only
-            final UpdateDiscountResponse response = costService.updateDiscount(UpdateDiscountRequest.newBuilder()
-                    .setAssociatedAccountId(Long.parseLong(uuid))
-                    .setNewDiscountInfo(DiscountInfo.newBuilder()
-                            .setAccountLevelDiscount(AccountLevelDiscount.newBuilder()
-                                    .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()).build())
-                            .setDisplayName(businessUnitApiInputDTO.getName()))
-                    .build());
-            return mapper.toBusinessUnitApiDTO(response.getUpdatedDiscount());
+            final DiscountInfo discountInfo = DiscountInfo.newBuilder()
+                .setAccountLevelDiscount(AccountLevelDiscount.newBuilder()
+                    .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()).build())
+                .setDisplayName(businessUnitApiInputDTO.getName())
+                .build();
+            return  mapper.toBusinessUnitApiDTO(editPriceAdjustment(Long.valueOf(uuid),
+                discountInfo));
         } else {
             // create a new discount with provided account level discount
             final String associatedAccountId = businessUnitApiInputDTO.getTargets().stream()
                     .findFirst().orElseThrow(() -> new IllegalArgumentException(INVALID_BUSINESS_UNIT_DTO
                             + businessUnitApiInputDTO));
-            final DiscountInfo discountInfo = DiscountInfo.newBuilder().
-                    setAccountLevelDiscount(DiscountInfo
-                            .AccountLevelDiscount
-                            .newBuilder()
-                            .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()))
-                    .build();
-            final CreateDiscountResponse response = costService.createDiscount(CreateDiscountRequest.newBuilder()
-                    .setId(Long.parseLong(associatedAccountId))
-                    .setDiscountInfo(discountInfo)
-                    .build());
-            return mapper.toBusinessUnitApiDTO(response.getDiscount());
+            return createPriceAdjustment(Long.valueOf(associatedAccountId), businessUnitApiInputDTO);
         }
     }
 
@@ -214,11 +216,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                 .setServiceLevelDiscount(mapper.toServiceDiscountProto(businessUnitDiscountApiDTO))
                 .setTierLevelDiscount(mapper.toTierDiscountProto(businessUnitDiscountApiDTO))
                 .build();
-        final UpdateDiscountResponse response = costService.updateDiscount(UpdateDiscountRequest.newBuilder()
-                .setAssociatedAccountId(Long.parseLong(uuid))
-                .setNewDiscountInfo(discountInfo)
-                .build());
-        return mapper.toDiscountApiDTO(response.getUpdatedDiscount());
+        return  mapper.toDiscountApiDTO(editPriceAdjustment(Long.valueOf(uuid), discountInfo));
     }
 
     /**
@@ -227,10 +225,55 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public Boolean deleteBusinessUnit(final String uuid) throws Exception {
         Objects.requireNonNull(uuid);
-        return costService.deleteDiscount(DeleteDiscountRequest.newBuilder()
-                .setAssociatedAccountId(Long.parseLong(uuid))
+        Long businessAccountId = Long.valueOf(uuid);
+        Iterator<Discount> discountIterator = costService.getDiscounts(GetDiscountRequest.newBuilder()
+            .setFilter(DiscountQueryFilter.newBuilder().addAssociatedAccountId(businessAccountId).build())
+            .build());
+
+        if (!discountIterator.hasNext()) {
+            logger.error("Cannot delete a price adjustment that doesn't " +
+                "exist. Business Unit: {}", businessAccountId);
+            throw new OperationFailedException("Cannot delete a price adjustment that doesn't " +
+                "exist.");
+        }
+
+        Discount currentDiscount = discountIterator.next();
+
+        // We also need to delete entries for children accounts of the account
+        // as well.
+        List<Long> childAccounts = getChildAccounts(businessAccountId);
+
+        Set<Long> accountsWithDeletedDiscount = new HashSet<>();
+        boolean isDeleted = costService.deleteDiscount(DeleteDiscountRequest.newBuilder()
+                .setAssociatedAccountId(businessAccountId)
                 .build())
                 .getDeleted();
+        accountsWithDeletedDiscount.add(businessAccountId);
+
+        for (Long accOid : childAccounts) {
+            try {
+                costService.deleteDiscount(DeleteDiscountRequest.newBuilder()
+                    .setAssociatedAccountId(accOid)
+                    .build());
+                accountsWithDeletedDiscount.add(accOid);
+            } catch (StatusRuntimeException exception) {
+                if (exception.getStatus().getCode() == Status.Code.NOT_FOUND) {
+                    // If the account does not exist just ignore it
+                    logger.warn("Account {} discount does not exist.", accOid);
+                } else {
+                    // if we had an exception half way through creating the discounts
+                    // try adding back all deleted discounts
+                    accountsWithDeletedDiscount.forEach(accUuid ->
+                        costService.createDiscount(CreateDiscountRequest.newBuilder()
+                            .setDiscountInfo(currentDiscount.getDiscountInfo())
+                            .setId(accUuid)
+                            .build()));
+                    throw exception;
+                }
+            }
+        }
+
+        return isDeleted;
     }
 
     @Override
@@ -331,6 +374,130 @@ public class BusinessUnitsService implements IBusinessUnitsService {
             return mapper.toDiscountApiDTO(discounts.next());
         }
         throw new MissingDiscountException("Failed to find discount by associated account id: " + uuid);
+    }
+
+
+    private BusinessUnitApiDTO createPriceAdjustment(long businessAccountId,
+                                                     BusinessUnitApiInputDTO businessUnitApiInputDTO)
+        throws OperationFailedException, InvalidOperationException, UnknownObjectException {
+        // We also need to create separate discount entries for children accounts of the account
+        // as well.
+        List<Long> childAccounts = getChildAccounts(businessAccountId);
+
+        DiscountInfo.Builder discountBuilder = DiscountInfo.newBuilder();
+        if (businessUnitApiInputDTO.getName() != null) {
+            discountBuilder.setDisplayName(businessUnitApiInputDTO.getName());
+        }
+        if (businessUnitApiInputDTO.getPriceAdjustment() != null) {
+            discountBuilder.setAccountLevelDiscount(DiscountInfo
+                .AccountLevelDiscount
+                .newBuilder()
+                .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()));
+        }
+
+        Set<Long> accountsWithCreatedDiscount = new HashSet<>();
+        final CreateDiscountResponse response =
+            costService.createDiscount(CreateDiscountRequest.newBuilder()
+                .setDiscountInfo(discountBuilder)
+                .setId(businessAccountId)
+                .build());
+        accountsWithCreatedDiscount.add(businessAccountId);
+
+        try {
+            for (Long accOid : childAccounts) {
+                costService.createDiscount(CreateDiscountRequest.newBuilder()
+                    .setDiscountInfo(discountBuilder)
+                    .setId(accOid)
+                    .build());
+                accountsWithCreatedDiscount.add(businessAccountId);
+            }
+        } catch (RuntimeException exception) {
+            // if we had an exception half way through creating the discounts
+            // try deleting back all created discounts
+            accountsWithCreatedDiscount.forEach(uuid ->
+                costService.deleteDiscount(DeleteDiscountRequest.newBuilder()
+                    .setAssociatedAccountId(uuid)
+                    .build()));
+            throw exception;
+        }
+
+        return mapper.toBusinessUnitApiDTO(response.getDiscount());
+    }
+
+    private Discount editPriceAdjustment(long businessAccountId,
+                                         @Nonnull DiscountInfo discountInfo) throws Exception {
+        Iterator<Discount> discountIterator = costService.getDiscounts(GetDiscountRequest.newBuilder()
+            .setFilter(DiscountQueryFilter.newBuilder().addAssociatedAccountId(businessAccountId).build())
+            .build());
+
+        if (!discountIterator.hasNext()) {
+            logger.error("Cannot edit a price adjustment that doesn't " +
+                "exist. Business Unit: {}", businessAccountId);
+            throw new InvalidOperationException("Cannot edit a price adjustment that doesn't " +
+                "exist.");
+        }
+
+        Discount currentDiscount = discountIterator.next();
+
+        // We also need to update discount entries for children accounts of the account
+        // as well.
+        List<Long> childAccounts = getChildAccounts(businessAccountId);
+
+        Set<Long> accountsWithUpdatedDiscount = new HashSet<>();
+        final UpdateDiscountResponse response = costService.updateDiscount(UpdateDiscountRequest.newBuilder()
+            .setAssociatedAccountId(businessAccountId)
+            .setNewDiscountInfo(discountInfo)
+            .build());
+        accountsWithUpdatedDiscount.add(businessAccountId);
+
+        for (Long accOid : childAccounts) {
+            try {
+                costService.updateDiscount(UpdateDiscountRequest.newBuilder()
+                    .setAssociatedAccountId(accOid)
+                    .setNewDiscountInfo(discountInfo)
+                    .build());
+                accountsWithUpdatedDiscount.add(accOid);
+            } catch (StatusRuntimeException exception) {
+                if (exception.getStatus().getCode() == Status.Code.NOT_FOUND) {
+                    // The account does not exist, this can happen when the account was added
+                    // after we defined the price adjustment simply add the account
+                    logger.warn("Corresponding discount did not exist for account {} which is" +
+                        " a child of account {}. Creating a discount for it.", accOid, businessAccountId);
+                    costService.createDiscount(CreateDiscountRequest.newBuilder()
+                        .setDiscountInfo(discountInfo)
+                        .setId(accOid)
+                        .build());
+                    accountsWithUpdatedDiscount.add(accOid);
+                } else {
+                    // If something goes wrong we update the values that we updated
+                    // till now to the old values
+                    accountsWithUpdatedDiscount.forEach(uuid -> {
+                        costService.updateDiscount(UpdateDiscountRequest.newBuilder()
+                            .setAssociatedAccountId(uuid)
+                            .setNewDiscountInfo(currentDiscount.getDiscountInfo())
+                            .build());
+                    });
+                    throw exception;
+                }
+            }
+        }
+
+        return response.getUpdatedDiscount();
+    }
+
+    private List<Long> getChildAccounts(long businessAccountId) throws OperationFailedException, UnknownObjectException, InvalidOperationException {
+        BusinessUnitApiDTO businessAccount =
+            businessAccountRetriever.getBusinessAccount(String.valueOf(businessAccountId));
+        if (!businessAccount.isMaster()) {
+            logger.error("Price adjustment only can be defined for a " +
+                "master account but was requested for {}", businessAccount.toString());
+            throw new OperationFailedException("Price adjustment only can be defined for a " +
+                "master account.");
+        }
+
+        return businessAccount.getChildrenBusinessUnits().stream()
+            .map(Long::valueOf)
+            .collect(Collectors.toList());
     }
 
     class MissingDiscountException extends Exception {

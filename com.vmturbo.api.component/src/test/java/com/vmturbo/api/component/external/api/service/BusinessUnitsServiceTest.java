@@ -2,9 +2,12 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,9 +23,14 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -46,11 +55,13 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.HierarchicalRelationship;
 import com.vmturbo.api.enums.ServicePricingModel;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -67,6 +78,11 @@ public class BusinessUnitsServiceTest {
 
 
     public static final String UUID_STRING = "123";
+    private static final long UUID = 123;
+    private static final String CHILD_ACCOUNT_1_STRING = "324";
+    private static final String CHILD_ACCOUNT_2_STRING = "3241";
+    private static final long CHILD_ACCOUNT_1 = 324;
+    private static final long CHILD_ACCOUNT_2 = 3241;
     public static final long OID_LONG= 123L;
     public static final String TEST_DISPLAY_NAME = "testDisplayName";
     public static final String CHILD_UNIT_ID1 = "123";
@@ -149,6 +165,41 @@ public class BusinessUnitsServiceTest {
         assertEquals(BusinessUnitType.DISCOUNT, businessUnitApiDTOList.get(0).getBusinessUnitType());
     }
 
+    /**
+     * Test the case that there are some discounts for child accounts and should be filtered.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetBusinessUnitsWithDiscountTypeFilterChildren() throws Exception {
+        //ARRANGE
+        BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        BusinessUnitApiDTO childAccountApiDTO = getChildAccount1BusinessUnitApiDTO();
+        Cost.Discount masterAccountDiscount = Cost.Discount.newBuilder()
+            .setAssociatedAccountId(UUID)
+            .setDiscountInfo(Cost.DiscountInfo.newBuilder().build())
+            .build();
+        Cost.Discount childAccountDiscount = Cost.Discount.newBuilder()
+            .setAssociatedAccountId(CHILD_ACCOUNT_1)
+            .setDiscountInfo(Cost.DiscountInfo.newBuilder().build())
+            .build();
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .build())).thenReturn(ImmutableList.of(masterAccountDiscount, childAccountDiscount));
+        when(accountRetriever.getBusinessAccounts(ImmutableSet.of(UUID, CHILD_ACCOUNT_1))).thenReturn(
+            ImmutableList.of(apiDTO, childAccountApiDTO));
+        ArgumentCaptor<Iterator> captor =
+            ArgumentCaptor.forClass(Iterator.class);
+        when(mapper.toDiscountBusinessUnitApiDTO(captor.capture()))
+            .thenReturn(ImmutableList.of(apiDTO));
+
+        //ACT
+        List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOUNT, null, null, null);
+
+        //ASSERT
+        assertTrue(captor.getValue().hasNext());
+        assertThat(captor.getValue().next(), is(masterAccountDiscount));
+        assertFalse(captor.getValue().hasNext());
+    }
+
     @Test
     public void testGetBusinessUnitsWithDiscoveredType() throws Exception {
         BusinessUnitApiDTO apiDTO = new BusinessUnitApiDTO();
@@ -181,10 +232,16 @@ public class BusinessUnitsServiceTest {
 
     @Test
     public void testCreateBusinessUnit() throws Exception {
+        //ARRANGE
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
         when(mapper.toBusinessUnitApiDTO(any())).thenReturn(apiDTO);
+
+        //ACT
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.createBusinessUnit(businessUnitApiInputDTO);
+
+        //ASSERT
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTO.getUuid());
         assertEquals(BusinessUnitType.DISCOUNT, businessUnitApiDTO.getBusinessUnitType());
@@ -195,6 +252,18 @@ public class BusinessUnitsServiceTest {
         apiDTO.setDisplayName(TEST_DISPLAY_NAME);
         apiDTO.setUuid(UUID_STRING);
         apiDTO.setBusinessUnitType(BusinessUnitType.DISCOUNT);
+        apiDTO.setChildrenBusinessUnits(ImmutableList.of(CHILD_ACCOUNT_1_STRING, CHILD_ACCOUNT_2_STRING));
+        apiDTO.setMaster(true);
+        return apiDTO;
+    }
+
+    private BusinessUnitApiDTO getChildAccount1BusinessUnitApiDTO() {
+        BusinessUnitApiDTO apiDTO = new BusinessUnitApiDTO();
+        apiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        apiDTO.setUuid(CHILD_ACCOUNT_1_STRING);
+        apiDTO.setBusinessUnitType(BusinessUnitType.DISCOUNT);
+        apiDTO.setChildrenBusinessUnits(Collections.emptyList());
+        apiDTO.setMaster(false);
         return apiDTO;
     }
 
@@ -213,10 +282,20 @@ public class BusinessUnitsServiceTest {
 
     @Test
     public void testEditBusinessUnitWithUUID() throws Exception {
+        // ARRANGE
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .setFilter(Cost.DiscountQueryFilter.newBuilder().addAssociatedAccountId(UUID).build())
+            .build())).thenReturn(Collections.singletonList(Cost.Discount.newBuilder().build()));
         when(mapper.toBusinessUnitApiDTO(any())).thenReturn(apiDTO);
-        BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.editBusinessUnit(UUID_STRING, businessUnitApiInputDTO);
+
+        // ACT
+        BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.editBusinessUnit(UUID_STRING,
+            businessUnitApiInputDTO);
+
+        //ASSERT
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTO.getUuid());
         assertEquals(BusinessUnitType.DISCOUNT, businessUnitApiDTO.getBusinessUnitType());
@@ -224,8 +303,10 @@ public class BusinessUnitsServiceTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testEditBusinessUnitWithoutUUIDWithException() throws Exception {
+        // ARRANGE
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
-        BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.editBusinessUnit(null, businessUnitApiInputDTO);
+        //ACT
+        businessUnitsService.editBusinessUnit(null, businessUnitApiInputDTO);
     }
 
     @Test
@@ -233,6 +314,10 @@ public class BusinessUnitsServiceTest {
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         businessUnitApiInputDTO.setTargets(ImmutableList.of(UUID_STRING));
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .setFilter(Cost.DiscountQueryFilter.newBuilder().addAssociatedAccountId(UUID).build())
+            .build())).thenReturn(Collections.singletonList(Cost.Discount.newBuilder().build()));
         when(mapper.toBusinessUnitApiDTO(any())).thenReturn(apiDTO);
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.editBusinessUnit(null, businessUnitApiInputDTO);
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
@@ -356,5 +441,122 @@ public class BusinessUnitsServiceTest {
         assertThat(resultDTOs.iterator().next().getUuid(), is(UUID_STRING));
     }
 
+    /**
+     * Test a case of deleting a discount.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testDeleteBusinessUnit() throws Exception {
+        //ARRANGE
+        BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .setFilter(Cost.DiscountQueryFilter.newBuilder().addAssociatedAccountId(UUID).build())
+            .build())).thenReturn(Collections.singletonList(Cost.Discount.newBuilder().build()));
+        Cost.DeleteDiscountResponse response =
+            Cost.DeleteDiscountResponse.newBuilder().setDeleted(true).build();
+        when(costServiceMole.deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(UUID)
+            .build())).thenReturn(response);
+
+        //ACT
+        businessUnitsService.deleteBusinessUnit(UUID_STRING);
+
+        //ASSERT
+        verify(costServiceMole).deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(CHILD_ACCOUNT_1)
+            .build());
+        verify(costServiceMole).deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(CHILD_ACCOUNT_2)
+            .build());
+    }
+
+    /**
+     * Test a case of deleting a discount when a discount does not exist.
+     * @throws Exception if something goes wrong.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testDeleteBusinessUnitNoExistingDiscount() throws Exception {
+        //ARRANGE
+        BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .setFilter(Cost.DiscountQueryFilter.newBuilder().addAssociatedAccountId(UUID).build())
+            .build())).thenReturn(Collections.emptyList());
+
+        //ACT
+        businessUnitsService.deleteBusinessUnit(UUID_STRING);
+    }
+
+    /**
+     * Test a case of deleting a discount when child accounts discount does not exist.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testDeleteBusinessUnitNoChildDiscount() throws Exception {
+        //ARRANGE
+        BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .setFilter(Cost.DiscountQueryFilter.newBuilder().addAssociatedAccountId(UUID).build())
+            .build())).thenReturn(Collections.singletonList(Cost.Discount.newBuilder().build()));
+        Cost.DeleteDiscountResponse response =
+            Cost.DeleteDiscountResponse.newBuilder().setDeleted(true).build();
+        when(costServiceMole.deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(UUID)
+            .build())).thenReturn(response);
+        when(costServiceMole.deleteDiscountError(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(CHILD_ACCOUNT_1)
+            .build())).thenReturn(Optional.of(Status.NOT_FOUND.asRuntimeException()));
+
+        //ACT
+        businessUnitsService.deleteBusinessUnit(UUID_STRING);
+
+        //ASSERT
+        verify(costServiceMole).deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(CHILD_ACCOUNT_2)
+            .build());
+    }
+
+    /**
+     * Test a case of deleting a discount an error while deleting one of the children. so we should
+     * changes that we made.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testDeleteBusinessUnitInternalError() throws Exception {
+        //ARRANGE
+        BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
+        Cost.Discount discount = Cost.Discount.newBuilder().build();
+        when(costServiceMole.getDiscounts(Cost.GetDiscountRequest.newBuilder()
+            .setFilter(Cost.DiscountQueryFilter.newBuilder().addAssociatedAccountId(UUID).build())
+            .build())).thenReturn(Collections.singletonList(discount));
+        Cost.DeleteDiscountResponse response =
+            Cost.DeleteDiscountResponse.newBuilder().setDeleted(true).build();
+        when(costServiceMole.deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(UUID)
+            .build())).thenReturn(response);
+        when(costServiceMole.deleteDiscountError(Cost.DeleteDiscountRequest.newBuilder()
+            .setAssociatedAccountId(CHILD_ACCOUNT_1)
+            .build())).thenReturn(Optional.of(Status.INTERNAL.asRuntimeException()));
+
+        //ACT
+        try {
+            businessUnitsService.deleteBusinessUnit(UUID_STRING);
+        } catch (StatusRuntimeException ex) {
+            //ASSERT
+            assertThat(ex.getStatus().getCode(), is(Status.Code.INTERNAL));
+            verify(costServiceMole).createDiscount(Cost.CreateDiscountRequest.newBuilder()
+                .setId(UUID)
+                .setDiscountInfo(discount.getDiscountInfo())
+                .build());
+            verify(costServiceMole, times(0)).deleteDiscount(Cost.DeleteDiscountRequest.newBuilder()
+                .setAssociatedAccountId(CHILD_ACCOUNT_2)
+                .build());
+            return;
+        }
+        Assert.fail("The test should have thrown StatusRuntimeException");
+    }
 
 }
