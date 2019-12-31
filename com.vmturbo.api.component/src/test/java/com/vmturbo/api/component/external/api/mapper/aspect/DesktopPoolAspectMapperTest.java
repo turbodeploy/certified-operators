@@ -22,10 +22,11 @@ import com.vmturbo.api.dto.entityaspect.DesktopPoolEntityAspectApiDTO;
 import com.vmturbo.api.enums.DesktopPoolAssignmentType;
 import com.vmturbo.api.enums.DesktopPoolCloneType;
 import com.vmturbo.api.enums.DesktopPoolProvisionType;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -57,6 +58,7 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
     private static final long DESKTOP_POOL_OID = 1001;
     private static final long VM_REFERENCE_ID = 1002;
     private static final long PHYSICAL_MACHINE_OID = 1003;
+    private static final long CLUSTER_ID = 1004;
     private static final String CLUSTER_NAME = "vsphere-dc01-DC01\\vsphere-dc01-Clus01";
     private static final String SNAPSHOT = "/Clone Snapshot";
     private static final String VENDOR_ID = "SITE01-POD01-POOL01-FULL-SMALL-1VCPU-2GB";
@@ -92,13 +94,21 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
                         .setOid(PHYSICAL_MACHINE_OID)
                         .build()));
         final Grouping cluster = Grouping.newBuilder()
+                .setId(CLUSTER_ID)
                 .setDefinition(GroupDefinition.newBuilder()
                                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
                                 .setDisplayName(CLUSTER_NAME))
                 .build();
-        Mockito.when(groupServiceMole.getGroupForEntity(
-                GetGroupForEntityRequest.newBuilder().setEntityId(PHYSICAL_MACHINE_OID).build()))
-                .thenReturn(GetGroupForEntityResponse.newBuilder().addGroup(cluster).build());
+        Mockito.when(groupServiceMole.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                .addEntityId(PHYSICAL_MACHINE_OID)
+                .addGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setLoadGroupObjects(true)
+                .build()))
+                .thenReturn(GetGroupsForEntitiesResponse.newBuilder()
+                        .putEntityGroup(PHYSICAL_MACHINE_OID,
+                                Groupings.newBuilder().addGroupId(CLUSTER_ID).build())
+                        .addGroups(cluster)
+                        .build());
         Mockito.when(repositoryApi.newSearchRequest(Mockito.any())).thenReturn(searchRequest);
         desktopPool = topologyEntityDTOBuilder(EntityType.DESKTOP_POOL,
                 typeSpecificInfo).putEntityPropertyMap(SDKUtil.VENDOR_ID, VENDOR_ID).build();

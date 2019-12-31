@@ -24,9 +24,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
 
-import javaslang.circuitbreaker.CircuitBreakerConfig;
-import javaslang.circuitbreaker.CircuitBreakerRegistry;
-
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +34,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
+
+import javaslang.circuitbreaker.CircuitBreakerConfig;
+import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.arangodb.tool.ArangoDump;
@@ -504,7 +504,8 @@ public class RepositoryComponent extends BaseVmtComponent {
         final ArangoSupplyChainRpcService arangoService = new ArangoSupplyChainRpcService(
             graphDBService(),
             supplyChainService(),
-            userSessionConfig.userSessionContext());
+            userSessionConfig.userSessionContext(),
+            realtimeTopologyContextId);
        return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
                 liveTopologyStore(),
                 arangoService,

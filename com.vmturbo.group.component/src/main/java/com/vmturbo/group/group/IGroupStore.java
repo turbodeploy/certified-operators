@@ -151,11 +151,14 @@ public interface IGroupStore {
      * Returns static groups containing the specified entity. No recursion will be performed
      * in this method. Only direct parents of the specified entity will be returned
      *
-     * @param entityId entity id to query
-     * @return set of groups
+     * @param entityIds entity ids to query
+     * @param groupTypes group types to query. If this collection is empty, all groups are
+     *         queried
+     * @return map of groups by requested entity
      */
     @Nonnull
-    Set<Grouping> getStaticGroupsForEntity(long entityId);
+    Map<Long, Set<Long>> getStaticGroupsForEntities(@Nonnull Collection<Long> entityIds,
+            @Nonnull Collection<GroupType> groupTypes);
 
     /**
      * Method deletes all the groups in the store. Should be used only when the whole set

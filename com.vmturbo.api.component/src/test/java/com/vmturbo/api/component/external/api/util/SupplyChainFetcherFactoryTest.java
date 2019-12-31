@@ -602,7 +602,6 @@ public class SupplyChainFetcherFactoryTest {
         when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
                 .setScope(SupplyChainScope.newBuilder()
                     .addEntityTypesToInclude(VM))
-                .setEnforceUserScope(true)
                 .build()))
             .thenReturn(GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
@@ -645,7 +644,6 @@ public class SupplyChainFetcherFactoryTest {
         when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
             .setScope(SupplyChainScope.newBuilder()
                 .addEntityTypesToInclude(VM))
-            .setEnforceUserScope(true)
             .build()))
             .thenReturn(GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
@@ -753,7 +751,6 @@ public class SupplyChainFetcherFactoryTest {
                     .setScope(SupplyChainScope.newBuilder()
                         .addAllEntityTypesToInclude(relatedEntityTypes)
                         .addAllStartingEntityOid(seedsIds))
-                    .setEnforceUserScope(true)
                     .build()))
             .thenReturn(
                 GetSupplyChainResponse.newBuilder()

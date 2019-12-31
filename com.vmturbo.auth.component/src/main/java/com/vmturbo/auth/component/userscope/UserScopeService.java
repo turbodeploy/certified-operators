@@ -299,7 +299,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         // now, use the set of entities to make a supply chain request.
         final GetSupplyChainRequest.Builder supplyChainRequestBuilder = GetSupplyChainRequest.newBuilder()
             .setScope(SupplyChainScope.newBuilder()
-                .addAllStartingEntityOid(scopeGroupEntityOids));
+                .addAllStartingEntityOid(scopeGroupEntityOids))
+                .setFilterForDisplay(false);
 
         // for "shared" users, we should only include specific entity types.
         if (excludeInfrastructureEntities) {

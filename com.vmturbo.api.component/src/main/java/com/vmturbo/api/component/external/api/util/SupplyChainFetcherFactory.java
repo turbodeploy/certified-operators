@@ -761,7 +761,6 @@ public class SupplyChainFetcherFactory {
 
             final GetSupplyChainRequest request = GetSupplyChainRequest.newBuilder()
                 .setScope(scope.get())
-                .setEnforceUserScope(enforceUserScope)
                 .build();
 
             final GetSupplyChainResponse response = supplyChainRpcService.getSupplyChain(request);

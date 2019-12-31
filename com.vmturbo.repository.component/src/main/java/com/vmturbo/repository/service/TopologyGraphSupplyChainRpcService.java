@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableSet;
 
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -251,14 +252,6 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
      */
     private static class InMemorySupplyChainResolver {
         /**
-         * Entity types that should not be included in the supply chain of an account.
-         */
-        private static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN =
-                ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
-                        EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
-                        EntityType.CLOUD_SERVICE_VALUE, EntityType.HYPERVISOR_SERVER_VALUE,
-                        EntityType.PROCESSOR_POOL_VALUE);
-        /**
          * Traversal rules for the production of a scoped supply chain.
          */
         private static final TraversalRulesLibrary<RepoGraphEntity> TRAVERSAL_RULES_LIBRARY =
@@ -295,8 +288,8 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                     scope.getEntityTypesToIncludeList() == null ? Collections.emptyList()
                             : scope.getEntityTypesToIncludeList();
 
-            // calculate user scope
-            final EntityAccessScope userScope = request.getEnforceUserScope()
+            // apply user scope as necessary.
+            final EntityAccessScope userScope = userSessionContext.isUserScoped()
                     ? userSessionContext.getUserAccessScope()
                     : EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE;
 
@@ -309,15 +302,17 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             if (scope.getStartingEntityOidCount() > 0) {
                 // this is a scoped supply chain request
                 getScopedSupplyChain(scope.getStartingEntityOidList(), entityPredicate,
-                        translateTypeNamesToTypeIds(includedEntityTypes),
+                        translateTypeNamesToTypeIds(includedEntityTypes), request.getFilterForDisplay(),
                         responseObserver);
             } else if (!userScope.containsAll()) {
                 // this is a user-scoped global supply chain request
-                getScopedSupplyChain(userScope.getScopeGroupIds(), entityPredicate,
-                        translateTypeNamesToTypeIds(includedEntityTypes), responseObserver);
+                getScopedSupplyChain(userScope.getScopeGroupMembers().toSet(), entityPredicate,
+                        translateTypeNamesToTypeIds(includedEntityTypes), request.getFilterForDisplay(),
+                        responseObserver);
             } else {
                 // this is a global supply chain request
-                getGlobalSupplyChain(includedEntityTypes, environmentType, responseObserver);
+                getGlobalSupplyChain(includedEntityTypes, environmentType,
+                        request.getFilterForDisplay(), responseObserver);
             }
         }
 
@@ -329,11 +324,14 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
          *                        during the traversal
          * @param includedTypes filter final result to only include entities
          *                      of these types
+         * @param filterForDisplay if true, exclude entity types not intended for display in the UI
+         *                         supply chain
          * @param responseObserver use this observer to return the response
          */
         private void getScopedSupplyChain(@Nonnull Collection<Long> scope,
                                           @Nonnull Predicate<RepoGraphEntity> entityPredicate,
                                           @Nonnull Collection<Integer> includedTypes,
+                                          final boolean filterForDisplay,
                                           @Nonnull StreamObserver<GetSupplyChainResponse> responseObserver) {
             try (DataMetricTimer timer =
                      SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.labels("realtime").startTimer()) {
@@ -352,8 +350,10 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                     supplyChainNodesMap.keySet().removeIf(type -> !includedTypes.contains(type));
                 }
 
-                // remove business accounts from the result
-                supplyChainNodesMap.remove(EntityType.BUSINESS_ACCOUNT_VALUE);
+                if (filterForDisplay) {
+                    // remove business accounts from the result
+                    supplyChainNodesMap.remove(EntityType.BUSINESS_ACCOUNT_VALUE);
+                }
 
                 // return result
                 final Collection<SupplyChainNode> supplyChainNodes = supplyChainNodesMap.values();
@@ -373,24 +373,49 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
          * @param entityTypesToIncludeList if given non-empty, then restrict supply chain nodes
          *                                         returned to the entityTypes listed here
          * @param environmentType possibly restrict results to one environment type
+         * @param filterForDisplay If set to true, then nodes for entity types that are in the supply
+        *                         chain but not normally displayed in the supply chain UI will be
+        *                         filtered out from the results.
          * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
          */
         private void getGlobalSupplyChain(
                 @Nonnull Collection<String> entityTypesToIncludeList,
                 @Nonnull final Optional<EnvironmentType> environmentType,
+                final boolean filterForDisplay,
                 @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
-            // compute a predicate that filters out supply chain nodes
-            // from the final result of the traversal,
-            // according to desired entity types
+            // compute a predicate that filters out supply chain nodes from the final result of the
+            // traversal, according to desired entity types. If no "desired" types are specified AND
+            // filterForDisplay is true (which is the default case), then the default behavior will
+            // be to exclude the entity types defined in
+            // GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN as well as
+            // Business Accounts.
+            // If "filterForDisplay" is false, then no entity types will be excluded by default.
             final Predicate<SupplyChainNode> filteringPredicate =
-                    entityTypesToIncludeList.isEmpty() ?
-                            node -> true : node -> entityTypesToIncludeList.contains(node.getEntityType());
+                    CollectionUtils.isNotEmpty(entityTypesToIncludeList)
+                            // use "include" list.
+                        ? node -> entityTypesToIncludeList.contains(node.getEntityType())
+                        : filterForDisplay
+                            // default behavior: exclude business accounts. Note that the "ignored
+                            // "entity types for global supply chain" are also being excluded, inside
+                            // the GlobalSupplyChainCalculator.getSupplyChainNodes(...) method.
+                            ? node -> !UIEntityType.fromString(node.getEntityType()).equals(UIEntityType.BUSINESS_ACCOUNT)
+                            // filterForDisplay is disabled -- don't filter anything
+                            : node -> true;
+
+            // create an entity-type-based predicate that is applied DURING supply chain traversal, and
+            // will be used to skip entities matching the predicate during processing. Entities of
+            // a type not matching the predicate will not be traversed. This can be used to speed up
+            // traversal and prune the results before the filteringPredicate is applied. If filterForDisplay
+            // is disabled, then no entity types will be skipped.
+            final Predicate<Integer> entityTypesToSkip = filterForDisplay
+                    ? GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER
+                    : entityType -> false;
 
             // compute and return the global supply chain
             GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
                 final SupplyChain.Builder supplyChainBuilder = SupplyChain.newBuilder();
                 liveTopologyStore.getSourceTopology().ifPresent(realtimeTopology ->
-                        realtimeTopology.globalSupplyChainNodes(environmentType).values().stream()
+                        realtimeTopology.globalSupplyChainNodes(environmentType, entityTypesToSkip).values().stream()
                                 .filter(filteringPredicate)
                                 .forEach(supplyChainBuilder::addSupplyChainNodes));
                 responseObserver.onNext(GetSupplyChainResponse.newBuilder()
@@ -402,25 +427,23 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
 
         /**
          * Calculate which entity types should be not be considered
-         * in a supply chain traversal.  The returned set depends on
-         * whether the seed consists solely of business accounts or no.
+         * in a supply chain traversal.
+         *
+         * <p>If request.getFilterForDisplay() is set to "False", then NO types
+         * will be excluded.
          *
          * @param request the initial request
          * @return the set of entity type ids to be excluded from
          *         the traversal
          */
         private Collection<Integer> getExcludedTypes(@Nonnull GetSupplyChainRequest request) {
-            final boolean containsOnlyAccounts =
-                    request.getScope().getStartingEntityOidList().stream()
-                            .map(entityId ->
-                                    liveTopologyStore.getSourceTopology().get()
-                                            .entityGraph().getEntity(entityId).orElse(null))
-                            .filter(Objects::nonNull)
-                            .map(RepoGraphEntity::getEntityType)
-                            .allMatch(type -> type == EntityType.BUSINESS_ACCOUNT_VALUE);
-            return containsOnlyAccounts ?
-                    IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN :
-                    GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
+            // if we are not filtering anything for display, don't do any filtering.
+            if (request.hasFilterForDisplay() && !request.getFilterForDisplay()) {
+                return Collections.emptySet();
+            }
+            // the default filter set excludes entity types not intended for display in the UI
+            // supply chain.
+            return GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
         }
 
         @Nonnull

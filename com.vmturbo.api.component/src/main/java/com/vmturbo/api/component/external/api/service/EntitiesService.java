@@ -78,8 +78,8 @@ import com.vmturbo.api.serviceinterfaces.IEntitiesService;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -577,21 +577,18 @@ public class EntitiesService implements IEntitiesService {
      * @return The group DTO with a cluster constraint.
      */
     private Optional<ServiceEntityApiDTO> getClusterApiDTO(long oidToQuery) {
-        GetGroupForEntityResponse response =
-                groupServiceClient.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
-                        .setEntityId(oidToQuery)
+        GetGroupsForEntitiesResponse response =
+                groupServiceClient.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                        .addEntityId(oidToQuery)
+                        .addGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                        .setLoadGroupObjects(true)
                         .build());
-
-        Optional<GroupDTO.Grouping> cluster = response.getGroupList()
-                        .stream()
-                        .filter(group -> group.getDefinition().getType()
-                                        == GroupType.COMPUTE_HOST_CLUSTER)
-                        .findAny();
-
-        if (cluster.isPresent()) {
+        // Response should contain 0 or 1 cluster for this entity
+        if (response.getGroupsCount() > 0) {
+            final GroupDTO.Grouping cluster = response.getGroups(0);
             final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
-            serviceEntityApiDTO.setDisplayName(cluster.get().getDefinition().getDisplayName());
-            serviceEntityApiDTO.setUuid(Long.toString(cluster.get().getId()));
+            serviceEntityApiDTO.setDisplayName(cluster.getDefinition().getDisplayName());
+            serviceEntityApiDTO.setUuid(Long.toString(cluster.getId()));
             serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
             // Insert the clusterRecord before the Entity record.
             return Optional.of(serviceEntityApiDTO);

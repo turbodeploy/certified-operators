@@ -36,7 +36,6 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
@@ -59,6 +58,7 @@ import org.jooq.Record3;
 import org.jooq.Record5;
 import org.jooq.Result;
 import org.jooq.Select;
+import org.jooq.SelectConditionStep;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -1406,9 +1406,10 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Set<GroupDTO.Grouping> getStaticGroupsForEntity(long entityId) {
+    public Map<Long, Set<Long>> getStaticGroupsForEntities(
+            @Nonnull Collection<Long> entityIds, @Nonnull Collection<GroupType> groupTypes) {
         try {
-            return getStaticGroupsForEntity(dslContext, entityId);
+            return getStaticGroupsForEntityInternal(entityIds, groupTypes);
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
@@ -1416,16 +1417,25 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Set<GroupDTO.Grouping> getStaticGroupsForEntity(@Nonnull DSLContext context,
-            long entityId) {
-        final Set<Long> parentGroups = context.select(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID)
-                .from(GROUP_STATIC_MEMBERS_ENTITIES)
-                .where(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID.eq(entityId))
-                .fetch()
-                .stream()
-                .map(Record1::value1)
-                .collect(Collectors.toSet());
-        return ImmutableSet.copyOf(getGroupInternal(parentGroups).values());
+    private Map<Long, Set<Long>> getStaticGroupsForEntityInternal(
+            @Nonnull Collection<Long> entityId, @Nonnull Collection<GroupType> groupTypes) {
+        final SelectConditionStep<Record2<Long, Long>> query = groupTypes.isEmpty() ?
+                dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID,
+                        GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID)
+                        .from(GROUP_STATIC_MEMBERS_ENTITIES)
+                        .where(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID.in(entityId)) :
+                dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID,
+                        GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID)
+                        .from(GROUP_STATIC_MEMBERS_ENTITIES)
+                        .join(GROUPING)
+                        .on(GROUPING.ID.eq(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID)
+                                .and(GROUPING.GROUP_TYPE.in(groupTypes)))
+                        .where(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID.in(entityId));
+        final Map<Long, Set<Long>> entityToGroupMap = new HashMap<>();
+        query.fetch()
+                .forEach(record -> entityToGroupMap.computeIfAbsent(record.value1(),
+                        key -> new HashSet<>()).add(record.value2()));
+        return Collections.unmodifiableMap(entityToGroupMap);
     }
 
     private static void requireTrue(boolean condition, @Nonnull String message)

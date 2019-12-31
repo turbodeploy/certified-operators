@@ -18,7 +18,6 @@ import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.expenses.SqlAccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.rpc.CostRpcService;
-import com.vmturbo.cost.component.stats.ReservedInstanceStatsConfig;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 @Configuration

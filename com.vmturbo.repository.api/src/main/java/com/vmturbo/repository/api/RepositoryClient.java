@@ -1,6 +1,7 @@
 package com.vmturbo.repository.api;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,7 +15,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,13 +35,15 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -200,11 +202,43 @@ public class RepositoryClient {
         }
         // real-time or plan global scope, return all Business Accounts/ Substriptions.
         if (scopeIds.isEmpty()) {
-            List<Long> allBaOids =  allBusinessAccounts.stream().map(TopologyEntityDTO::getOid)
+            return allBusinessAccounts.stream().map(TopologyEntityDTO::getOid)
                             .collect(Collectors.toList());
-            return allBaOids;
         }
-        return relatedBusinessAccountsOrSubscriptions.stream().collect(Collectors.toList());
+        return new ArrayList<>(relatedBusinessAccountsOrSubscriptions);
+    }
+
+    /**
+     * Returns a Stream of Maps, one per element present in the startingOidsPerScope. Each Map
+     * represents entities by type in a scope, the starting entities of which are defined in
+     * startingOidsPerScope.
+     *
+     * @param startingOidsPerScope Collection of Lists where each list represents starting oids
+     *                             for a given scope. Therefore the collection of lists
+     *                             represents all the scopes for which the entities are requested.
+     * @param supplyChainServiceBlockingStub service endpoint to make the request.
+     * @return stream of Maps per scope, each map representing entities in a given scope.
+     */
+    public Stream<Map<EntityType, Set<Long>>> getEntitiesByTypePerScope(
+            final Collection<List<Long>> startingOidsPerScope,
+            final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub) {
+        final Collection<SupplyChainSeed> seeds = startingOidsPerScope.stream()
+                .map(startingOids -> SupplyChainSeed.newBuilder()
+                        .setScope(SupplyChainScope.newBuilder()
+                                .addAllStartingEntityOid(startingOids)
+                                .build())
+                        .build())
+                .collect(Collectors.toSet());
+        final GetMultiSupplyChainsRequest request = GetMultiSupplyChainsRequest.newBuilder()
+                .addAllSeeds(seeds)
+                .build();
+        final Collection<Map<EntityType, Set<Long>>> entitiesPerScope = new HashSet<>();
+        final Iterator<GetMultiSupplyChainsResponse> responses =
+                supplyChainServiceBlockingStub.getMultiSupplyChains(request);
+        responses.forEachRemaining(response -> entitiesPerScope.add(
+                parseSupplyChainResponseToEntityOidsMap(response.getSupplyChain())
+        ));
+        return entitiesPerScope.stream();
     }
 
     /**
@@ -238,8 +272,7 @@ public class RepositoryClient {
                             response.getSupplyChain().getMissingStartingEntitiesList());
             }
             Map<EntityType, Set<Long>> topologyMap =
-                            parseSupplyChainResponseToEntityOidsMap(response,
-                                                     realtimeTopologyContextId);
+                            parseSupplyChainResponseToEntityOidsMap(response.getSupplyChain());
             // Include supported non-supplychain entities in response.
             for (EntityType entityType : supportedNonSupplyChainEntitiesByType) {
                 switch (entityType) {
@@ -247,10 +280,10 @@ public class RepositoryClient {
                         // Make adjustment for Business Accounts/Subscriptions.  Get all related
                         // accounts in the family.
                         List<Long> allRelatedBaOids = getRelatedBusinessAccountOrSubscriptionOids(
-                            scopeIds.stream().collect(Collectors.toList()),
+                                new ArrayList<>(scopeIds),
                             realtimeTopologyContextId);
-                        topologyMap.put(EntityType.BUSINESS_ACCOUNT, allRelatedBaOids.stream()
-                                        .collect(Collectors.toSet()));
+                        topologyMap.put(EntityType.BUSINESS_ACCOUNT,
+                                new HashSet<>(allRelatedBaOids));
                         break;
                     default:
                         break;
@@ -273,17 +306,14 @@ public class RepositoryClient {
     /**
      * Parse the supply chain nodes from response and group the entities by type.
      *
-     * @param response The response to be parsed.
-     * @param realtimeTopologyContextId Real-time context id.
+     * @param supplyChain to be parsed.
      * @return The Map of topology entities of interest, grouped by type.
      */
     @Nonnull
     public Map<EntityType, Set<Long>>
-           parseSupplyChainResponseToEntityOidsMap(@Nonnull final GetSupplyChainResponse response,
-                                                   final Long realtimeTopologyContextId) {
+           parseSupplyChainResponseToEntityOidsMap(@Nonnull final SupplyChain supplyChain) {
         try {
-            List<SupplyChainNode> supplyChainNodes = response.getSupplyChain()
-                            .getSupplyChainNodesList();
+            List<SupplyChainNode> supplyChainNodes = supplyChain.getSupplyChainNodesList();
             Map<EntityType, Set<Long>> entitiesMap = new HashMap<>();
             for (SupplyChainNode node : supplyChainNodes) {
                 final Map<Integer, SupplyChainNode.MemberList> relatedEntitiesByType = node

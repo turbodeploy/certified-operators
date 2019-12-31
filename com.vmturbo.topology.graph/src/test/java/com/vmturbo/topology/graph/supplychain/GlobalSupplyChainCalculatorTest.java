@@ -93,7 +93,8 @@ public class GlobalSupplyChainCalculatorTest {
     @Test
     public void testCalculateOnPremSupplyChain() {
         final Map<UIEntityType, SupplyChainNode> nodesByType =
-            globalSupplyChainCalculator.getSupplyChainNodes(topology, UIEnvironmentType.ON_PREM);
+            globalSupplyChainCalculator.getSupplyChainNodes(topology, UIEnvironmentType.ON_PREM,
+                    GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
         assertThat(nodesByType.keySet(), containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE,
                                                             UIEntityType.PHYSICAL_MACHINE,
@@ -129,7 +130,8 @@ public class GlobalSupplyChainCalculatorTest {
     @Test
     public void testCalculateCloudSupplyChain() {
         final Map<UIEntityType, SupplyChainNode> nodesByType =
-                globalSupplyChainCalculator.getSupplyChainNodes(topology, UIEnvironmentType.CLOUD);
+                globalSupplyChainCalculator.getSupplyChainNodes(topology, UIEnvironmentType.CLOUD,
+                        GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
         // Note that tiers are ignored
         assertThat(nodesByType.keySet(),
@@ -151,4 +153,24 @@ public class GlobalSupplyChainCalculatorTest {
         assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.REGION)),
                    containsInAnyOrder(REGION_ID));
     }
+
+    /**
+     * Verify that "non-displayed" entity type nodes will be returned if you request the supply chain
+     * with no entity type filtering.
+     */
+    @Test
+    public void testCalculateCloudSupplyChainNoFilterForDisplay() {
+        final Map<UIEntityType, SupplyChainNode> nodesByType =
+                globalSupplyChainCalculator.getSupplyChainNodes(topology, UIEnvironmentType.CLOUD, type -> false);
+
+        // Verify that the compute tiers are included in this response
+        assertThat(nodesByType.keySet(),
+                containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE, UIEntityType.COMPUTE_TIER, UIEntityType.REGION));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.VIRTUAL_MACHINE)),
+                containsInAnyOrder(cloudVm.getOid()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.COMPUTE_TIER)),
+                containsInAnyOrder(computeTier.getOid()));
+    }
+
+
 }

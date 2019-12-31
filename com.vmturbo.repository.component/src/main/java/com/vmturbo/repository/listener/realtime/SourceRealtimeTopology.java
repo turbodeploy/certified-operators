@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -101,11 +102,14 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      * than the subsequent ones.
      *
      * @param envType possibly restrict results to a specific environment type
+     * @param entityTypesToSkip a predicate used to determine if an entity type should be skipped
+     *                          during traversal or not.
      * @return (entity type) -> ({@link SupplyChainNode} for the entity type)
      */
     @Nonnull
     public synchronized Map<UIEntityType, SupplyChainNode> globalSupplyChainNodes(
-            @Nonnull final Optional<EnvironmentType> envType) {
+            @Nonnull final Optional<EnvironmentType> envType,
+            @Nonnull final Predicate<Integer> entityTypesToSkip) {
         final UIEnvironmentType environmentType = envType.map(UIEnvironmentType::fromEnvType)
                                                          .orElse(UIEnvironmentType.HYBRID);
         if (environmentType == UIEnvironmentType.UNKNOWN) {
@@ -116,7 +120,7 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
             globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
 
         return envTypeNodes.ensureSet(() ->
-            globalSupplyChainCalculator.getSupplyChainNodes(entityGraph, environmentType));
+            globalSupplyChainCalculator.getSupplyChainNodes(entityGraph, environmentType, entityTypesToSkip));
     }
 
     @Nonnull

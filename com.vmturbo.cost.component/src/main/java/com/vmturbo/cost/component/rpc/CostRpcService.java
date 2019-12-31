@@ -404,137 +404,135 @@ public class CostRpcService extends CostServiceImplBase {
     @Override
     public void getAccountExpenseStats(GetCloudExpenseStatsRequest request,
                                           StreamObserver<GetCloudCostStatsResponse> responseObserver) {
-        if (request.hasGroupBy()) {
-            try {
-                final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+        if (!request.hasGroupBy()) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("The request includes unsupported group by type: " + request
+                            + ", currently only group by CSP, CloudService and target (Account) are supported")
+                    .asException());
+            return;
+        }
 
-                final AccountExpenseFilterBuilder filterBuilder =
-                    createAccountExpenseFilter(request);
-                final CostFilter accountCostFilter = filterBuilder.build();
+        final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+        final AccountExpenseFilterBuilder filterBuilder = createAccountExpenseFilter(request);
+        final CostFilter accountCostFilter = filterBuilder.build();
 
-                final Map<Long, Map<Long, AccountExpenses>> expensesByTimeAndAccountId =
-                    accountExpensesStore.getAccountExpenses(accountCostFilter);
+        final Map<Long, Map<Long, AccountExpenses>> expensesByTimeAndAccountId;
+        try {
+            expensesByTimeAndAccountId = accountExpensesStore.getAccountExpenses(accountCostFilter);
+        } catch (DbException e) {
+            logger.error("Error getting stats snapshots for {}", request);
+            logger.error("    ", e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
+                            + e.getMessage())
+                    .asException());
+            return;
+        }
 
-                // Mapping from AccountId -> {Timestamp -> Stat Value}
-                Map<Long, Map<Long, Float>> historicData = new HashMap<>();
-                Map<Long, Set<Long>> accountIdToEntitiesMap = new HashMap<>();
-                final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-                boolean isCloudServiceRequest = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
-                boolean isGroupByTargetRequest  = request.getGroupBy().equals(GroupByType.TARGET);
-                expensesByTimeAndAccountId.forEach((snapshotTime, accountIdToExpensesMap) -> {
-                    final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
-                    snapshotBuilder.setSnapshotDate(snapshotTime);
-                    final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
-                    accountIdToExpensesMap.values().forEach(accountExpenses -> {
-                        accountExpenses.getAccountExpensesInfo().getServiceExpensesList().forEach(serviceExpenses -> {
+        Map<Long, Map<Long, Float>> historicData = new HashMap<>();
+        Map<Long, Set<Long>> accountIdToEntitiesMap = new HashMap<>();
+        final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
+        boolean createStatsByCloudService = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
+
+        // create cost stat records from the account expenses from the DB
+        expensesByTimeAndAccountId.forEach((snapshotTime, accountIdToExpensesMap) -> {
+            final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
+            snapshotBuilder.setSnapshotDate(snapshotTime);
+            final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
+            accountIdToExpensesMap.values().forEach(accountExpenses -> {
+                accountExpenses.getAccountExpensesInfo().getServiceExpensesList()
+                        .forEach(serviceExpenses -> {
                             final double amount = serviceExpenses.getExpenses().getAmount();
-                            // build the record for this stat (commodity type)
-                            if (isCloudServiceRequest) {
+                            if (createStatsByCloudService) {
+                                // create stat with associated entity ID = service ID
                                 updateAccountExpenses(accountExpenseStats,
                                         historicData,
                                         accountIdToEntitiesMap,
                                         snapshotTime,
                                         serviceExpenses.getAssociatedServiceId(), amount);
                             } else {
+                                // create stat with associated entity ID = target ID
                                 businessAccountHelper
                                         .resolveTargetId(accountExpenses.getAssociatedAccountId())
-                                        .forEach(targetId -> updateAccountExpenses(accountExpenseStats,
+                                        .forEach(targetId -> updateAccountExpenses(
+                                                accountExpenseStats,
                                                 historicData,
                                                 accountIdToEntitiesMap,
                                                 snapshotTime,
                                                 targetId, amount));
                             }
                         });
+            });
+            snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
+            cloudStatRecords.add(snapshotBuilder.build());
+        });
 
-                        // TODO: understand what is the use-case for group by target
-                        if (isGroupByTargetRequest) {
-                            accountExpenses.getAccountExpensesInfo()
-                                    .getTierExpensesList().forEach(tierExpenses -> {
-                                businessAccountHelper
-                                        .resolveTargetId(accountExpenses.getAssociatedAccountId())
-                                        .forEach(targetId -> {
-                                            double existingStatAmount = 0.0f;
-                                            if (historicData.containsKey(targetId)) {
-                                                existingStatAmount = historicData.get(targetId)
-                                                        .getOrDefault(snapshotTime, 0.0f);
-                                            }
-                                            final double amount = tierExpenses.getExpenses()
-                                                    .getAmount() + existingStatAmount;
-                                            updateAccountExpenses(accountExpenseStats,
-                                                    historicData,
-                                                    accountIdToEntitiesMap,
-                                                    snapshotTime,
-                                                    targetId, amount);
-                                        });
-                            });
-                        }
-                    });
-
-                    snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
-                    cloudStatRecords.add(snapshotBuilder.build());
-                });
-
-                // For the projected stats, forecast data from the historic stats.
-                if (request.hasStartDate() && request.hasEndDate()) {
-                    final CloudCostStatRecord.Builder projectedSnapshotBuilder = CloudCostStatRecord.newBuilder();
-                    long projectedTime = request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
-                    projectedSnapshotBuilder.setSnapshotDate(projectedTime);
-                    final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
-
-                    for (Entry<Long, Map<Long, Float>> stats : historicData.entrySet()) {
-                        try {
-                            SortedMap<Long, Float> forecast =
-                                    (SortedMap)forecastingContext.computeForecast(request.getStartDate(),
-                                            projectedTime,
-                                            com.vmturbo.commons.TimeFrame.valueOf(accountCostFilter
-                                                .getTimeFrame().name()),
-                                            stats.getValue());
-                            accountExpenseStats.add(new AccountExpenseStat(stats.getKey(),
-                                    Math.round(forecast.get(forecast.lastKey()))));
-                        } catch (InvalidForecastingDateRangeException invalidDateRangeException) {
-                            logger.error("Error getting stats snapshots for {}." +
-                                    "Forecast requested for an invalid time range", request, invalidDateRangeException);
-                            responseObserver.onError(Status.INTERNAL
-                                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
-                                            + invalidDateRangeException.getMessage())
-                                    .asException());
-                            return;
-                        } catch (ForecastingStrategyNotProvidedException strategyNotProvidedException) {
-                            logger.error("Error getting stats snapshots for {}." +
-                                            "Forecast requested but forecasting strategy not specified",
-                                    request, strategyNotProvidedException);
-                            responseObserver.onError(Status.INTERNAL
-                                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
-                                            + strategyNotProvidedException.getMessage())
-                                    .asException());
-                            return;
-                        }
-                    }
-                    projectedSnapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
-                    cloudStatRecords.add(projectedSnapshotBuilder.build());
-                }
-
-                GetCloudCostStatsResponse response =
-                        GetCloudCostStatsResponse.newBuilder()
-                                .addAllCloudStatRecord(cloudStatRecords)
-                                .build();
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
-
-            } catch (DbException e) {
-                logger.error("Error getting stats snapshots for {}", request);
-                logger.error("    ", e);
+        // For the projected stats, forecast data from the historic stats.
+        if (request.hasStartDate() && request.hasEndDate()) {
+            try {
+                final CloudCostStatRecord.Builder projectedSnapshotBuilder =
+                        createProjectedStatRecords(request, historicData, timeFrame);
+                cloudStatRecords.add(projectedSnapshotBuilder.build());
+            } catch (InvalidForecastingDateRangeException invalidDateRangeException) {
+                logger.error("Error getting stats snapshots for {}." +
+                                "Forecast requested for an invalid time range",
+                        request, invalidDateRangeException);
                 responseObserver.onError(Status.INTERNAL
-                        .withDescription("Internal Error fetching stats for: " + request + ", cause: "
-                                + e.getMessage())
+                        .withDescription("Internal Error fetching stats for: " + request
+                                + ", cause: " + invalidDateRangeException.getMessage())
                         .asException());
+                return;
+            } catch (ForecastingStrategyNotProvidedException strategyNotProvidedException) {
+                logger.error("Error getting stats snapshots for {}." +
+                                "Forecast requested but forecasting strategy not specified",
+                        request, strategyNotProvidedException);
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("Internal Error fetching stats for: " + request
+                                + ", cause: " + strategyNotProvidedException.getMessage())
+                        .asException());
+                return;
             }
-        } else {
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("The request includes unsupported group by type: " + request
-                            + ", currently only group by CSP, CloudService and target (Account) are supported")
-                    .asException());
         }
+
+        GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
+                .addAllCloudStatRecord(cloudStatRecords)
+                .build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Create a future expense record, based on historic expenses from the DB.
+     *
+     * @param request the requested stats.
+     * @param historicData expenses from the DB.
+     * @param timeFrame the requested time frame (daily/monthly).
+     * @return a stat record builder, containing the projected stats.
+     * @throws InvalidForecastingDateRangeException in case of a forecasting error.
+     * @throws ForecastingStrategyNotProvidedException in case of a forecasting error.
+     */
+    private CloudCostStatRecord.Builder createProjectedStatRecords(GetCloudExpenseStatsRequest request,
+                                   Map<Long, Map<Long, Float>> historicData, TimeFrame timeFrame)
+            throws InvalidForecastingDateRangeException, ForecastingStrategyNotProvidedException {
+
+        final CloudCostStatRecord.Builder projectedSnapshotBuilder = CloudCostStatRecord.newBuilder();
+        long projectedTime = request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
+        projectedSnapshotBuilder.setSnapshotDate(projectedTime);
+        final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
+
+        for (Entry<Long, Map<Long, Float>> stats : historicData.entrySet()) {
+            SortedMap<Long, Float> forecast =
+                    (SortedMap<Long, Float>)forecastingContext.computeForecast(
+                            request.getStartDate(),
+                            projectedTime,
+                            com.vmturbo.commons.TimeFrame.valueOf(timeFrame.name()),
+                            stats.getValue());
+            accountExpenseStats.add(new AccountExpenseStat(stats.getKey(),
+                    Math.round(forecast.get(forecast.lastKey()))));
+
+        }
+        projectedSnapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
+        return projectedSnapshotBuilder;
     }
 
     private AccountExpenseFilterBuilder createAccountExpenseFilter(GetCloudExpenseStatsRequest request) {

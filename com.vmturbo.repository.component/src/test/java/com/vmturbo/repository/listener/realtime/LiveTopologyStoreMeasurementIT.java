@@ -99,20 +99,23 @@ public class LiveTopologyStoreMeasurementIT {
 
         stopwatch.reset();
         stopwatch.start();
-        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, x -> true);
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, x -> true,
+                GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
         stopwatch.stop();
         logger.info("Hybrid GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
         logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
 
         stopwatch.reset();
         stopwatch.start();
-        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.CLOUD);
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.CLOUD,
+                GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
         stopwatch.stop();
         logger.info("Cloud GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
         stopwatch.reset();
         stopwatch.start();
-        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.ON_PREM);
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.ON_PREM,
+                GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
         stopwatch.stop();
         logger.info("On-prem GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
     }

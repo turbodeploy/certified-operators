@@ -98,10 +98,10 @@ public class PriceTableMerge {
                 final Map<Long, OnDemandPriceTable> srcOnDemandPriceTables = nextPriceTable.getOnDemandPriceByRegionIdMap();
                 srcOnDemandPriceTables.forEach((regionId, priceTable) -> {
                     if (mergeBuilder.containsOnDemandPriceByRegionId(regionId)) {
-                        // This shouldn't happen, because different price tables should be coming from
-                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
-                        // region IDs.
-                        logger.error("Region {} exists in two separate price tables (for on " +
+                        // This can happen if Azure EA is added and there are multiple price tables
+                        // containing overlapping region ids.
+                        //TODO Fix this when Azure Buy RI support is added
+                        logger.warn("Region {} exists in two separate price tables (for on " +
                             "demand instances)! This means region ID assignment isn't working as " +
                             "expected. Ignoring one of them.", regionId);
                     } else {
@@ -112,10 +112,10 @@ public class PriceTableMerge {
                 final Map<Long, SpotInstancePriceTable> srcSpotPriceTables = nextPriceTable.getSpotPriceByRegionIdMap();
                 srcSpotPriceTables.forEach((regionId, priceTable) -> {
                     if (mergeBuilder.containsSpotPriceByRegionId(regionId)) {
-                        // This shouldn't happen, because different price tables should be coming from
-                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
-                        // region IDs.
-                        logger.error("Region {} exists in two separate price tables (for " +
+                        // This can happen if Azure EA is added and there are multiple price tables
+                        // containing the overlapping region ids
+                        // TODO Fix this when Azure Buy RI support is added
+                        logger.warn("Region {} exists in two separate price tables (for " +
                             "spot instances)! This means region ID assignment isn't working as " +
                             "expected. Ignoring one of them.", regionId);
                     } else {

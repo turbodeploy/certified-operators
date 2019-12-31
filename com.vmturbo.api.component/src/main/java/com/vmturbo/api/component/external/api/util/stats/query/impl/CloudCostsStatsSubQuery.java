@@ -34,6 +34,7 @@ import com.google.common.collect.Sets;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -110,7 +111,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     /**
      * Cloud service provider constant to match UI request, also used in test cases
      */
-    private static final String CSP = "CSP";
+    public static final String CSP = "CSP";
 
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
@@ -138,6 +139,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     private final BuyRiScopeHandler buyRiScopeHandler;
 
+    private final CloudTypeMapper cloudTypeMapper;
+
     public CloudCostsStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
                                    @Nonnull final CostServiceBlockingStub costServiceRpc,
                                    @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
@@ -148,6 +151,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.thinTargetCache = thinTargetCache;
         this.buyRiScopeHandler = buyRiScopeHandler;
+        this.cloudTypeMapper = new CloudTypeMapper();
     }
 
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
@@ -523,9 +527,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      * @return a type function which returns the relevant filter type
      */
     private Supplier<String> getTypeFunction(@Nonnull final Set<String> requestGroupBySet) {
-        if (requestGroupBySet.contains(TARGET)) return () -> TARGET;
-        if (requestGroupBySet.contains(CSP)) return () -> CSP;
-        if (requestGroupBySet.contains(CLOUD_SERVICE)) return () -> CLOUD_SERVICE;
+        if (requestGroupBySet.contains(TARGET)) { return () -> TARGET; }
+        if (requestGroupBySet.contains(CSP)) { return () -> CSP; }
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) { return () -> CLOUD_SERVICE; }
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -548,23 +552,31 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         // When grouping by target, the filter's value should be the target's display name.
         // in this case the associated entity is a target, so just get its display name from the
         // thin targets cache.
-        if (requestGroupBySet.contains(TARGET))
+        if (requestGroupBySet.contains(TARGET)) {
             return (associatedEntityId, cloudServiceDTOs) ->
                     thinTargetCache.getTargetInfo(associatedEntityId)
                             .flatMap(thinTargetInfo -> Optional.of(thinTargetInfo.displayName()));
+        }
 
         // When grouping by cloud provider, the filter's value should be the cloud provider name.
-        // TODO: implement
-        if (requestGroupBySet.contains(CSP))
-            return (associatedEntityId, cloudServiceDTOs) -> Optional.empty();
+        // The associated entity is a target, therefore we need to get the CPS name by the
+        // target ID.
+        if (requestGroupBySet.contains(CSP)) {
+            return (associatedEntityId, cloudServiceDTOs) ->
+                    thinTargetCache.getTargetInfo(associatedEntityId)
+                            .flatMap(thinTargetInfo ->
+                                    Optional.of(cloudTypeMapper.fromTargetType(
+                                            thinTargetInfo.probeInfo().type()).name()));
+        }
 
         // When grouping by cloud service, the filter's value should be the cloud service name.
         // Since the associated entity is a cloud service, just get the entity's display name from
         // the cloud service entities that we got from the repository before.
-        if (requestGroupBySet.contains(CLOUD_SERVICE))
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) {
             return (associatedEntityId, cloudServiceDTOs) ->
                     Optional.ofNullable(cloudServiceDTOs.get(associatedEntityId))
                             .flatMap(entityDTO -> Optional.of(entityDTO.getDisplayName()));
+        }
 
         throw ApiUtils.notImplementedInXL();
     }

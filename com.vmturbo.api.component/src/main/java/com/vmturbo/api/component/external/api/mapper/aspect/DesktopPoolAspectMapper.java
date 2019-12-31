@@ -5,6 +5,9 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entityaspect.DesktopPoolEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -12,8 +15,8 @@ import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.DesktopPoolAssignmentType;
 import com.vmturbo.api.enums.DesktopPoolCloneType;
 import com.vmturbo.api.enums.DesktopPoolProvisionType;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
@@ -24,7 +27,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -36,6 +38,7 @@ import com.vmturbo.platform.sdk.common.util.SDKUtil;
 public class DesktopPoolAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
     private final GroupServiceBlockingStub groupServiceBlockingStub;
+    private final Logger logger = LogManager.getLogger(getClass());
 
     /**
      * Constructor.
@@ -111,18 +114,20 @@ public class DesktopPoolAspectMapper extends AbstractAspectMapper {
                                                 UIEntityType.PHYSICAL_MACHINE.apiStr())))
                         .build()).getMinimalEntities().findFirst();
         if (physicalMachine.isPresent()) {
-            final GetGroupForEntityResponse response =
-                    groupServiceBlockingStub.getGroupForEntity(
-                            GetGroupForEntityRequest.newBuilder()
-                                    .setEntityId(physicalMachine.get().getOid())
+            final long pmId = physicalMachine.get().getOid();
+            final GetGroupsForEntitiesResponse response =
+                    groupServiceBlockingStub.getGroupsForEntities(
+                            GetGroupsForEntitiesRequest.newBuilder()
+                                    .addEntityId(pmId)
+                                    .addGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                                    .setLoadGroupObjects(true)
                                     .build());
-            Optional<String> clusterName = response.getGroupList()
-                            .stream()
-                            .filter(group -> group.getDefinition().getType()
-                                            == GroupType.COMPUTE_HOST_CLUSTER)
-                            .findAny()
-                            .map(group -> group.getDefinition().getDisplayName());
-
+            // response contains only clusters related to this entity. It is expected that
+            // there will be only one cluster
+            final Optional<String> clusterName = response.getGroupsList()
+                    .stream()
+                    .findAny()
+                    .map(group -> group.getDefinition().getDisplayName());
             if (clusterName.isPresent()) {
                 aspect.setvCenterClusterName(clusterName.get());
             }

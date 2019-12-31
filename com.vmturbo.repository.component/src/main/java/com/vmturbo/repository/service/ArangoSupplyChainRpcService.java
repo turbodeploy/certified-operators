@@ -34,6 +34,7 @@ import javaslang.control.Either;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
@@ -65,6 +66,8 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     private final GraphDBService graphDBService;
 
     private final UserSessionContext userSessionContext;
+
+    private final long realtimeTopologyContextId;
 
     private static final DataMetricSummary GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY = DataMetricSummary
         .builder()
@@ -101,10 +104,12 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
 
     public ArangoSupplyChainRpcService(@Nonnull final GraphDBService graphDBService,
                                        @Nonnull final SupplyChainService supplyChainService,
-                                       @Nonnull final UserSessionContext userSessionContext) {
+                                       @Nonnull final UserSessionContext userSessionContext,
+                                       final long realtimeTopologyContextId) {
         this.graphDBService = Objects.requireNonNull(graphDBService);
         this.supplyChainService = Objects.requireNonNull(supplyChainService);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -142,10 +147,10 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
         if (scope.getStartingEntityOidCount() > 0) {
             getMultiSourceSupplyChain(scope.getStartingEntityOidList(),
                     scope.getEntityTypesToIncludeList(), contextId, envType,
-                    request.getEnforceUserScope(), responseObserver);
+                    request.getFilterForDisplay(), responseObserver);
         } else {
             getGlobalSupplyChain(scope.getEntityTypesToIncludeList(), envType,
-                    contextId, responseObserver);
+                    contextId, request.getFilterForDisplay(), responseObserver);
         }
     }
 
@@ -214,15 +219,18 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      *                                 returned to the entityTypes listed here
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
+     * @param filterForDisplay whether or not to filter out non-display nodes (such as business accounts)
+     *                         from the supply chain view.
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
                                                         @Nonnull final Optional<UIEnvironmentType> environmentType,
                                                         @Nonnull final Optional<Long> contextId,
+                                                        final boolean filterForDisplay,
                                                         @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             supplyChainService.getGlobalSupplyChain(contextId, environmentType,
-                    IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)
+                    filterForDisplay ? IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN : Collections.emptySet())
                 .subscribe(supplyChainNodes -> {
                     final GetSupplyChainResponse.Builder respBuilder =
                         GetSupplyChainResponse.newBuilder();
@@ -258,14 +266,15 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
      * @param envType
-     * @param enforceUserScope whether or not user scope rules should be enforced
+     * @param filterForDisplay if true, then entity types not intended for display in the UI supply
+     *                         chain will be filtered out.
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
                                            @Nonnull final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
                                            @Nonnull final Optional<UIEnvironmentType> envType,
-                                           final boolean enforceUserScope,
+                                           final boolean filterForDisplay,
                                            @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
 
@@ -281,11 +290,11 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             }
             final UIEntityType startingVertexEntityType = startingVertexEntityTypeOpt.get();
             final SingleSourceSupplyChain singleSourceSupplyChain = getSingleSourceSupplyChain(oid,
-                contextId, envType, enforceUserScope, Collections.emptySet(),
-                getExclusionEntityTypes(startingVertexEntityType));
+                contextId, envType, Collections.emptySet(),
+                filterForDisplay ? getExclusionEntityTypes(startingVertexEntityType) : Collections.emptySet());
 
             // remove BusinessAccount from supply chain nodes, since we don't want to show it
-            if (startingVertexEntityType == UIEntityType.BUSINESS_ACCOUNT) {
+            if (startingVertexEntityType == UIEntityType.BUSINESS_ACCOUNT && filterForDisplay) {
                 singleSourceSupplyChain.removeSupplyChainNodes(Sets.newHashSet(UIEntityType.BUSINESS_ACCOUNT));
             }
 
@@ -294,7 +303,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
 
             // handle the special case for cloud if zone is returned in supply chain
             getAndAddSupplyChainFromZone(singleSourceSupplyChain, supplyChainMerger,
-                startingVertexEntityType, contextId, envType, enforceUserScope,
+                startingVertexEntityType, contextId, envType, filterForDisplay,
                     zoneSupplyChainComplete, zoneSupplyChainOnlyRegion);
         }
 
@@ -321,7 +330,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                     @Nonnull UIEntityType startingVertexEntityType,
                     @Nonnull Optional<Long> contextId,
                     @Nonnull Optional<UIEnvironmentType> envType,
-                    final boolean enforceUserScope,
+                    final boolean filterForDisplay,
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainComplete,
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion) {
         // collect all the availability zones' ids returned by the supply chain
@@ -336,9 +345,10 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             // inclusionEntityTypes to be empty
             zoneIds.stream()
                 .map(zoneId -> zoneSupplyChainComplete.computeIfAbsent(zoneId,
-                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType, enforceUserScope,
-                        Collections.emptySet(),
-                        getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE))))
+                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType, Collections.emptySet(),
+                        filterForDisplay
+                                ? getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE)
+                                : Collections.emptySet())))
                 .forEach(supplyChainMerger::addSingleSourceSupplyChain);
         } else if (startingVertexEntityType != UIEntityType.AVAILABILITY_ZONE) {
             // if starting from other entity types (not zone, since we can get all we need
@@ -348,9 +358,11 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             // to be ["AvailabilityZone", "Region"] to improve performance
             zoneIds.stream()
                 .map(zoneId -> zoneSupplyChainOnlyRegion.computeIfAbsent(zoneId,
-                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType, enforceUserScope,
+                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType,
                         Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
-                        getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE))))
+                        filterForDisplay
+                            ? getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE)
+                            : Collections.emptySet())))
                 .forEach(supplyChainMerger::addSingleSourceSupplyChain);
         }
     }
@@ -389,7 +401,6 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     private SingleSourceSupplyChain getSingleSourceSupplyChain(@Nonnull final Long startingVertexOid,
                                                                @Nonnull final Optional<Long> contextId,
                                                                @Nonnull final Optional<UIEnvironmentType> envType,
-                                                               final boolean enforceUserScope,
                                                                @Nonnull final Set<Integer> inclusionEntityTypes,
                                                                @Nonnull final Set<Integer> exclusionEntityTypes) {
         logger.debug("Getting a supply chain starting from {} in topology {}",
@@ -397,10 +408,14 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
         final SingleSourceSupplyChain singleSourceSupplyChain =
             new SingleSourceSupplyChain(Collections.singleton(startingVertexOid));
 
+        // if we are requesting a plan supply chain, we will not enforce use scoping restrictions.
+        Optional<EntityAccessScope> accessScope = (contextId.isPresent() && contextId.get() != realtimeTopologyContextId)
+                ? Optional.empty()
+                : Optional.of(userSessionContext.getUserAccessScope());
+
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             Either<Throwable, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                contextId, envType, startingVertexOid.toString(),
-                    enforceUserScope ? Optional.of(userSessionContext.getUserAccessScope()) : Optional.empty(),
+                contextId, envType, startingVertexOid.toString(), accessScope,
                     inclusionEntityTypes, exclusionEntityTypes);
 
             Match(supplyChain).of(

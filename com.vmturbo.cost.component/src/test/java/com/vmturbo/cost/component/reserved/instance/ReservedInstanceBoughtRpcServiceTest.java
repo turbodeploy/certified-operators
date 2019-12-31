@@ -284,7 +284,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         .build();
 
         final Map<EntityType, Set<Long>> topologyMap =
-            repositoryClient.parseSupplyChainResponseToEntityOidsMap(response, 777777L);
+            repositoryClient.parseSupplyChainResponseToEntityOidsMap(response.getSupplyChain());
 
         assertTrue(topologyMap.size() > 0);
         // There should be 2 AZ's, 2 Regions and 3 Business Accounts associated with
