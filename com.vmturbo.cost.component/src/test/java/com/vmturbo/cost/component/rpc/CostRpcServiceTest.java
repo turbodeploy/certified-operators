@@ -1146,11 +1146,11 @@ public class CostRpcServiceTest {
     }
 
     @Test
-    public void testGetAccountExpensesStatsWithFilterGroupByTarget() throws Exception {
+    public void testGetAccountExpensesStatsWithFilterGroupByBusinessUnit() throws Exception {
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
-                .setGroupBy(GroupByType.TARGET)
+                .setGroupBy(GroupByType.BUSINESS_UNIT)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
                 .setStartDate(TIME)
                 .setEndDate(TIME)

@@ -432,7 +432,6 @@ public class CostRpcService extends CostServiceImplBase {
         Map<Long, Map<Long, Float>> historicData = new HashMap<>();
         Map<Long, Set<Long>> accountIdToEntitiesMap = new HashMap<>();
         final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-        boolean createStatsByCloudService = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
 
         // create cost stat records from the account expenses from the DB
         expensesByTimeAndAccountId.forEach((snapshotTime, accountIdToExpensesMap) -> {
@@ -443,13 +442,20 @@ public class CostRpcService extends CostServiceImplBase {
                 accountExpenses.getAccountExpensesInfo().getServiceExpensesList()
                         .forEach(serviceExpenses -> {
                             final double amount = serviceExpenses.getExpenses().getAmount();
-                            if (createStatsByCloudService) {
+                            if (request.getGroupBy().equals(GroupByType.CLOUD_SERVICE)) {
                                 // create stat with associated entity ID = service ID
                                 updateAccountExpenses(accountExpenseStats,
                                         historicData,
                                         accountIdToEntitiesMap,
                                         snapshotTime,
                                         serviceExpenses.getAssociatedServiceId(), amount);
+                            } else if (request.getGroupBy().equals(GroupByType.BUSINESS_UNIT)) {
+                                // create stat with associated entity ID = business account ID
+                                updateAccountExpenses(accountExpenseStats,
+                                        historicData,
+                                        accountIdToEntitiesMap,
+                                        snapshotTime,
+                                        accountExpenses.getAssociatedAccountId(), amount);
                             } else {
                                 // create stat with associated entity ID = target ID
                                 businessAccountHelper

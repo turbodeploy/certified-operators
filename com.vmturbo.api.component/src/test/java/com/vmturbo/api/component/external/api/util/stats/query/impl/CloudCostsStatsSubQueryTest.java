@@ -1,17 +1,15 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
-import static com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery.COST_COMPONENT;
-import static com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,13 +22,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -58,6 +55,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -98,11 +97,25 @@ public class CloudCostsStatsSubQueryTest {
 
     private static final long ACCOUNT_ID_1 = 1L;
     private static final long ACCOUNT_ID_2 = 2L;
+    private static final String ACCOUNT_NAME_1 = "Development";
+    private static final String ACCOUNT_NAME_2 = "Engineering";
     private static final long BILLING_FAMILY_ID = 3L;
     private static final long CLOUD_SERVICE_ID_1 = 1L;
     private static final long CLOUD_SERVICE_ID_2 = 2L;
     private static final String CLOUD_SERVICE_NAME_1 = "CLOUD_SERVICE_1";
     private static final String CLOUD_SERVICE_NAME_2 = "CLOUD_SERVICE_2";
+
+    private final MinimalEntity businessAccount1 = MinimalEntity.newBuilder()
+            .setDisplayName(ACCOUNT_NAME_1)
+            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setOid(ACCOUNT_ID_1)
+            .build();
+
+    private final MinimalEntity businessAccount2 = MinimalEntity.newBuilder()
+            .setDisplayName(ACCOUNT_NAME_2)
+            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setOid(ACCOUNT_ID_2)
+            .build();
 
     private final MinimalEntity cloudService1 = MinimalEntity.newBuilder()
             .setDisplayName(CLOUD_SERVICE_NAME_1)
@@ -200,6 +213,75 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     /**
+     * Tests the case where we are getting the stats grouped by business account.
+     */
+    @Test
+    public void testGetAggregateStatsGroupByAccount() {
+
+        // expected filters
+        StatFilterApiDTO filter1 = new StatFilterApiDTO();
+        filter1.setType(CloudCostsStatsSubQuery.BUSINESS_UNIT);
+        filter1.setValue(ACCOUNT_NAME_1);
+
+        StatFilterApiDTO filter2 = new StatFilterApiDTO();
+        filter2.setType(CloudCostsStatsSubQuery.BUSINESS_UNIT);
+        filter2.setValue(ACCOUNT_NAME_2);
+
+        // build
+        Set<MinimalEntity> businessAccountDTOs = new HashSet<>();
+        businessAccountDTOs.add(businessAccount1);
+        businessAccountDTOs.add(businessAccount2);
+        SearchRequest searchRequest = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
+        when(searchRequest.getMinimalEntities()).thenReturn(businessAccountDTOs.stream());
+
+        StatApiInputDTO queryStat = new StatApiInputDTO();
+        queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.BUSINESS_UNIT));
+        final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
+
+        StatsQueryContext context = mock(StatsQueryContext.class);
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.getScopeTypes()).thenReturn(Optional.empty());
+        when(context.getInputScope()).thenReturn(apiId);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+
+        GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
+                .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                        .setSnapshotDate(1234L)
+                        .addStatRecords(createCloudServiceStatRecord(ACCOUNT_ID_1, 10.0f))
+                        .addStatRecords(createCloudServiceStatRecord(ACCOUNT_ID_2, 12.0f))
+                        .build())
+                .build();
+        when(costServiceMole.getAccountExpenseStats(any(GetCloudExpenseStatsRequest.class)))
+                .thenReturn(response);
+
+        // test
+        try {
+            List<StatSnapshotApiDTO> statSnapshots = query.getAggregateStats(requestedStats, context);
+
+            // assert
+            assertThat(statSnapshots.size(), is(1));
+
+            Map<String, List<StatFilterApiDTO>> accountIdToFilters = statSnapshots.stream()
+                    .map(StatSnapshotApiDTO::getStatistics)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList())
+                    .stream()
+                    .collect(Collectors.toMap(
+                            statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
+                            StatApiDTO::getFilters));
+
+            assertThat(accountIdToFilters.get(Long.toString(ACCOUNT_ID_1)).size(), is(1));
+            assertThat(accountIdToFilters.get(Long.toString(ACCOUNT_ID_1)).get(0), is(filter1));
+            assertThat(accountIdToFilters.get(Long.toString(ACCOUNT_ID_2)).size(), is(1));
+            assertThat(accountIdToFilters.get(Long.toString(ACCOUNT_ID_2)).get(0), is(filter2));
+
+        } catch (OperationFailedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * Tests the case where we are getting the stats grouped by cloud services.
      */
     @Test
@@ -215,11 +297,12 @@ public class CloudCostsStatsSubQueryTest {
         filter2.setValue(CLOUD_SERVICE_NAME_2);
 
         // build
-        Map<Long, MinimalEntity> cloudServiceDTOs = ImmutableMap.<Long, MinimalEntity>builder()
-                .put(CLOUD_SERVICE_ID_1, cloudService1)
-                .put(CLOUD_SERVICE_ID_2, cloudService2)
-                .build();
-        Mockito.doReturn(cloudServiceDTOs).when(query).getDiscoveredServiceDTO();
+        Set<MinimalEntity> cloudServiceDTOs = new HashSet<>();
+        cloudServiceDTOs.add(cloudService1);
+        cloudServiceDTOs.add(cloudService2);
+        SearchRequest searchRequest = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
+        when(searchRequest.getMinimalEntities()).thenReturn(cloudServiceDTOs.stream());
 
         StatApiInputDTO queryStat = new StatApiInputDTO();
         queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.CLOUD_SERVICE));
@@ -227,15 +310,19 @@ public class CloudCostsStatsSubQueryTest {
 
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
+        when(apiId.getScopeTypes()).thenReturn(Optional.empty());
         when(context.getInputScope()).thenReturn(apiId);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
 
-        List<CloudCostStatRecord> records = Collections.singletonList(CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(1234L)
-                .addStatRecords(createCloudServiceStatRecord(CLOUD_SERVICE_ID_1, 10.0f))
-                .addStatRecords(createCloudServiceStatRecord(CLOUD_SERVICE_ID_2, 12.0f))
-                .build());
-        Mockito.doReturn(records).when(query).getCloudExpensesRecordList(anySetOf(String.class),
-                anySetOf(Long.class), any(StatsQueryContext.class));
+        GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
+                .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                        .setSnapshotDate(1234L)
+                        .addStatRecords(createCloudServiceStatRecord(CLOUD_SERVICE_ID_1, 10.0f))
+                        .addStatRecords(createCloudServiceStatRecord(CLOUD_SERVICE_ID_2, 12.0f))
+                        .build())
+                .build();
+        when(costServiceMole.getAccountExpenseStats(any(GetCloudExpenseStatsRequest.class)))
+                .thenReturn(response);
 
         // test
         try {
@@ -245,13 +332,13 @@ public class CloudCostsStatsSubQueryTest {
             assertThat(statSnapshots.size(), is(1));
 
             Map<String, List<StatFilterApiDTO>> cloudServiceToFilters = statSnapshots.stream()
-                .map(StatSnapshotApiDTO::getStatistics)
-                .flatMap(List::stream)
-                .collect(Collectors.toList())
-                .stream()
-                .collect(Collectors.toMap(
-                    statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
-                    StatApiDTO::getFilters));
+                    .map(StatSnapshotApiDTO::getStatistics)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList())
+                    .stream()
+                    .collect(Collectors.toMap(
+                            statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
+                            StatApiDTO::getFilters));
 
             assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_1)).size(), is(1));
             assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_1)).get(0), is(filter1));
@@ -280,15 +367,19 @@ public class CloudCostsStatsSubQueryTest {
 
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
+        when(apiId.getScopeTypes()).thenReturn(Optional.empty());
         when(context.getInputScope()).thenReturn(apiId);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
 
-        List<CloudCostStatRecord> records = Collections.singletonList(CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(1234L)
-                .addStatRecords(createCloudServiceStatRecord(TARGET_ID_1, 10.0f))
-                .addStatRecords(createCloudServiceStatRecord(TARGET_ID_2, 12.0f))
-                .build());
-        Mockito.doReturn(records).when(query).getCloudExpensesRecordList(anySetOf(String.class),
-                anySetOf(Long.class), any(StatsQueryContext.class));
+        GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
+                .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                        .setSnapshotDate(1234L)
+                        .addStatRecords(createCloudServiceStatRecord(TARGET_ID_1, 10.0f))
+                        .addStatRecords(createCloudServiceStatRecord(TARGET_ID_2, 12.0f))
+                        .build())
+                .build();
+        when(costServiceMole.getAccountExpenseStats(any(GetCloudExpenseStatsRequest.class)))
+                .thenReturn(response);
 
         // test
         try {
@@ -327,10 +418,10 @@ public class CloudCostsStatsSubQueryTest {
 
     private Set<StatApiInputDTO> createRequestStats() {
         StatFilterApiDTO computeFilter = new StatFilterApiDTO();
-        computeFilter.setType(COST_COMPONENT);
+        computeFilter.setType(CloudCostsStatsSubQuery.COST_COMPONENT);
         computeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
         StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
-        vmCostStatApi.setName(COST_PRICE_QUERY_KEY);
+        vmCostStatApi.setName(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY);
         vmCostStatApi.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
         return Collections.singleton(vmCostStatApi);
@@ -645,10 +736,10 @@ public class CloudCostsStatsSubQueryTest {
     public void testGetAggregateStatsGroupOfVms() throws Exception {
         // ARRANGE
         StatFilterApiDTO computeFilter = new StatFilterApiDTO();
-        computeFilter.setType(COST_COMPONENT);
+        computeFilter.setType(CloudCostsStatsSubQuery.COST_COMPONENT);
         computeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
         StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
-        vmCostStatApi.setName(COST_PRICE_QUERY_KEY );
+        vmCostStatApi.setName(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY );
         vmCostStatApi.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(vmCostStatApi);
