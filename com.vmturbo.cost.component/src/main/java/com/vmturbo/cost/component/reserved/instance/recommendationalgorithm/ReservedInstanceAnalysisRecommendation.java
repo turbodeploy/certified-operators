@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -397,8 +398,18 @@ public class ReservedInstanceAnalysisRecommendation {
             .setFixedCost(CurrencyAmount.newBuilder().setAmount(riUpFrontRate *
                     ReservedInstanceAnalyzerRateAndRIs.HOURS_IN_A_MONTH * 12 * getTermInYears()).build())
             .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(riRecurringRate).build())
-            .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build())
-            .setOndemandCostPerHour(CurrencyAmount.newBuilder().setAmount(onDemandHourlyCost).build());
+            .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build());
+
+        final ReservedInstanceDerivedCost riDerivedCost = ReservedInstanceDerivedCost.newBuilder()
+                .setAmortizedCostPerHour(
+                        CurrencyAmount.newBuilder()
+                                .setAmount(riHourlyCost)
+                                .build())
+                .setOnDemandRatePerHour(
+                        CurrencyAmount.newBuilder()
+                                .setAmount(onDemandHourlyCost)
+                                .build())
+                .build();
 
         final int numOfCoupons = context.getComputeTier().getTypeSpecificInfo().getComputeTier()
                 .getNumCoupons();
@@ -425,6 +436,7 @@ public class ReservedInstanceAnalysisRecommendation {
                 .setNumBought(getCount())
                 .setReservedInstanceSpec(getRiSpec().getId())
                 .setReservedInstanceBoughtCost(riBoughtCost)
+                .setReservedInstanceDerivedCost(riDerivedCost)
                 .setReservedInstanceBoughtCoupons(riBoughtCoupons)
                 .setStartTime(Instant.now().toEpochMilli());
         return riBoughtInfoBuilder.build();

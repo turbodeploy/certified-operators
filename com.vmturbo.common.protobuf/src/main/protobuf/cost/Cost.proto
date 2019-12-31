@@ -103,6 +103,8 @@ message ReservedInstanceBought {
         // Information about the scope within RI can be applied.
         optional ReservedInstanceScopeInfo reserved_instance_scope_info = 11;
 
+        optional ReservedInstanceDerivedCost reserved_instance_derived_cost = 12;
+
         message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;
@@ -112,9 +114,19 @@ message ReservedInstanceBought {
 
             // Hourly cost for reserved instance, regardless of usageCost.
             optional common_dto.CurrencyAmount recurring_cost_per_hour = 3;
+        }
+
+        // Holds costs derived from RI attributes and other data (including the price tables).
+        // Attributes of this message should not be expected to be set on upload to the cost
+        // component and may not be a stored value (e.g. on-demand rate is queried dynamically
+        // at request time)
+        message ReservedInstanceDerivedCost {
+
+            // The up front + recurring costs of the RI, amortized over the term
+            optional common_dto.CurrencyAmount amortized_cost_per_hour = 1;
 
             // The equivalent hourly on demand cost for the Reserved Instance.
-            optional common_dto.CurrencyAmount ondemand_cost_per_hour = 4;
+            optional common_dto.CurrencyAmount on_demand_rate_per_hour = 2;
         }
 
         // Coupons is a our internal way compare different instance types in a family. For example,

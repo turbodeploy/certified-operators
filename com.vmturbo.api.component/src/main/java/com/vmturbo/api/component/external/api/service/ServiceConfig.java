@@ -673,7 +673,9 @@ public class ServiceConfig {
                 new RIStatsSubQuery(
                         communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
                         communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
-                        communicationConfig.repositoryApi());
+                        communicationConfig.repositoryApi(),
+                        communicationConfig.reservedInstanceCostServiceBlockingStub(),
+                        mapperConfig.buyRiScopeHandler());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
     }

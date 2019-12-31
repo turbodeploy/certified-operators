@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
@@ -46,6 +47,7 @@ import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
@@ -302,6 +304,11 @@ public class ReservedInstanceBoughtStoreTest {
         Assertions
          */
         assertThat(actualRIBoughtInstances, hasSize(1));
+        final double fixedCost = actualRIBoughtInstances.get(0).getReservedInstanceBoughtInfo()
+                .getReservedInstanceBoughtCost().getFixedCost().getAmount();
+        final double recurringCost = actualRIBoughtInstances.get(0).getReservedInstanceBoughtInfo()
+                .getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount();
+        final double expectedAmortizedCost = calculateExpectedAmortizedCost(fixedCost, recurringCost, 2);
         assertThat(actualRIBoughtInstances.get(0).getReservedInstanceBoughtInfo(), equalTo(
                 riInfoTwo.toBuilder()
                         // This will be stitched to ReservedInstanceUtilizationStore, which
@@ -309,6 +316,8 @@ public class ReservedInstanceBoughtStoreTest {
                         .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                                 .setNumberOfCouponsUsed(0)
                                 .build())
+                        .setReservedInstanceDerivedCost(ReservedInstanceDerivedCost.newBuilder()
+                                .setAmortizedCostPerHour(CurrencyAmount.newBuilder().setAmount(expectedAmortizedCost).build()).build())
                         .build()));
     }
 

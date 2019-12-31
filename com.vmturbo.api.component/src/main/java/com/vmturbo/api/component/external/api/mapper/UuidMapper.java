@@ -716,6 +716,18 @@ public class UuidMapper {
                                     .orElse(Collections.emptyMap()));
         }
 
+        /**
+         * Determines the topology context ID of this scope.
+         *
+         * @return If this scope is a plan scope, returns the plan ID. If the scope is not a plan
+         * instance (based on {@link #getPlanInstance()}), returns the realtime context ID.
+         */
+        public long getTopologyContextId() {
+            return getPlanInstance()
+                    .map(PlanInstance::getPlanId)
+                    .orElse(realtimeContextId);
+        }
+
         @Override
         public boolean equals(Object other) {
             if (other == this) return true;

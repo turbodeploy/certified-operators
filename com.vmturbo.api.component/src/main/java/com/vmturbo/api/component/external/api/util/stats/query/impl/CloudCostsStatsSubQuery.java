@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
@@ -125,7 +126,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     private static final String NUM_WORKLOAD_REQUEST_KEY = "numWorkloads";
 
     private static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE,
-        CURRENT_COST_PRICE, StringConstants.RI_COST);
+        CURRENT_COST_PRICE);
 
     private final RepositoryApi repositoryApi;
 
@@ -271,10 +272,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     private boolean shouldQueryUsingFilter(ApiId inputScope) {
-        return inputScope.getScopeTypes().isPresent()
-            && inputScope.getScopeTypes().get().size() == 1
-            && ENTITY_TYPES_TO_GET_COST_BY_FILTER
-            .contains(inputScope.getScopeTypes().get().iterator().next());
+        return inputScope.isRealtimeMarket() ||
+                inputScope.getScopeTypes()
+                        .map(scopeTypes -> scopeTypes.size() == 1 &&
+                                ENTITY_TYPES_TO_GET_COST_BY_FILTER.contains(Iterables.getOnlyElement(scopeTypes)))
+                        .orElse(false);
     }
 
     /**

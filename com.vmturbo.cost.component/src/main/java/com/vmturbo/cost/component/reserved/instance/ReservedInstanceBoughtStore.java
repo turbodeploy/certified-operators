@@ -37,10 +37,12 @@ import reactor.core.publisher.FluxSink;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
@@ -164,14 +166,14 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
 
         final Cost.ReservedInstanceCostStat reservedInstanceCostStat = Cost.ReservedInstanceCostStat.newBuilder()
                         .setAmortizedCost(riAggregatedCostResult
-                                        .getValues(RI_AMORTIZED_SUM, Double.class).stream()
+                                        .getValues(RI_AMORTIZED_SUM, Double.class).stream().filter(s -> s != null)
                                         .findFirst().orElse(0D))
                         .setRecurringCost(
                                         riAggregatedCostResult.getValues(RI_RECURRING_COST_SUM,
-                                                        Double.class).stream().findFirst()
+                                                        Double.class).stream().filter(s -> s != null).findFirst()
                                                         .orElse(0D))
                         .setFixedCost(riAggregatedCostResult
-                                        .getValues(RI_FIXED_COST_SUM, Double.class).stream()
+                                        .getValues(RI_FIXED_COST_SUM, Double.class).stream().filter(s -> s != null)
                                         .findFirst().orElse(0D))
                         .setSnapshotTime(now()).build();
         return reservedInstanceCostStat;
@@ -186,7 +188,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      */
     public List<Cost.ReservedInstanceCostStat> getReservedInstanceCostStats(@Nonnull ReservedInstanceCostFilter filter) {
         final Result<Record4<Long, Double, Double, Double>> riCostResult =
-                        dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID,
+                        dsl.select(RESERVED_INSTANCE_BOUGHT.ID,
                                         RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_AMORTIZED_COST_HOURLY
                                                         .mul(RESERVED_INSTANCE_BOUGHT.COUNT)
                                                         .as(RI_AMORTIZED_COST),
@@ -204,7 +206,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
         for (Record4<Long, Double, Double, Double> record : riCostResult) {
             final Cost.ReservedInstanceCostStat riCostStat = Cost.ReservedInstanceCostStat.newBuilder()
                             .setReservedInstanceOid(
-                                            record.get(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID))
+                                            record.get(RESERVED_INSTANCE_BOUGHT.ID))
                             .setRecurringCost(record.get(RI_RECURRING_COST, Double.class))
                             .setFixedCost(record.get(RI_FIXED_COST, Double.class))
                             .setAmortizedCost(record.get(RI_AMORTIZED_COST, Double.class))
@@ -430,6 +432,21 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
         }
     }
 
+    private ReservedInstanceBoughtInfo addDerivedCostRIBoughtInfo(
+            @Nonnull ReservedInstanceBoughtInfo riBoughtInfo,
+            @Nullable Double amortizedCost) {
+
+        return riBoughtInfo.toBuilder()
+                .setReservedInstanceDerivedCost(
+                        ReservedInstanceDerivedCost.newBuilder()
+                                .setAmortizedCostPerHour(
+                                        CurrencyAmount.newBuilder()
+                                                .setAmount(amortizedCost)
+                                                .build())
+                                .build())
+                .build();
+    }
+
     /**
      * Create a new {@link ReservedInstanceBoughtRecord} based on input {@link ReservedInstanceBoughtInfo}.
      *
@@ -446,13 +463,14 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
             logger.debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
                             reservedInstanceInfo.getProbeReservedInstanceId());
         }
+
         return context.newRecord(RESERVED_INSTANCE_BOUGHT, new ReservedInstanceBoughtRecord(
                 identityProvider.next(),
                 reservedInstanceInfo.getBusinessAccountId(),
                 reservedInstanceInfo.getProbeReservedInstanceId(),
                 reservedInstanceInfo.getReservedInstanceSpec(),
                 reservedInstanceInfo.getAvailabilityZoneId(),
-                reservedInstanceInfo,
+                addDerivedCostRIBoughtInfo(reservedInstanceInfo, amortizedCost),
                 reservedInstanceInfo.getNumBought(),
                 reservedInstanceInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(),
                 reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
@@ -479,7 +497,8 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
         reservedInstanceRecord.setAvailabilityZoneId(reservedInstanceInfo.getAvailabilityZoneId());
         reservedInstanceRecord.setProbeReservedInstanceId(reservedInstanceInfo.getProbeReservedInstanceId());
         reservedInstanceRecord.setReservedInstanceSpecId(reservedInstanceInfo.getReservedInstanceSpec());
-        reservedInstanceRecord.setReservedInstanceBoughtInfo(reservedInstanceInfo);
+        reservedInstanceRecord.setReservedInstanceBoughtInfo(
+                addDerivedCostRIBoughtInfo(reservedInstanceInfo, amortizedCost));
         reservedInstanceRecord.setCount(reservedInstanceInfo.getNumBought());
         reservedInstanceRecord.setPerInstanceFixedCost(reservedInstanceInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount());
         reservedInstanceRecord.setPerInstanceRecurringCostHourly(reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount());

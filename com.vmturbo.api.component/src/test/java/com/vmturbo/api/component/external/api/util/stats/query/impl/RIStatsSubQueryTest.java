@@ -33,6 +33,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
@@ -55,6 +56,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatVal
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceBoughtServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -86,6 +88,8 @@ public class RIStatsSubQueryTest {
     @Rule
     public GrpcTestServer riBoughtServer = GrpcTestServer.newServer(riBoughtBackend);
 
+    private BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
+
     private RIStatsMapper mapper = mock(RIStatsMapper.class);
 
     private RIStatsSubQuery query;
@@ -105,7 +109,10 @@ public class RIStatsSubQueryTest {
         query = new RIStatsSubQuery(
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel()),
                 ReservedInstanceBoughtServiceGrpc.newBlockingStub(riBoughtServer.getChannel()),
-                mapper, repositoryApi);
+                mapper,
+                repositoryApi,
+                ReservedInstanceCostServiceGrpc.newBlockingStub(testServer.getChannel()),
+                buyRiScopeHandler);
 
         when(context.getInputScope()).thenReturn(scope);
         Set<UIEntityType> inputScopeTypes = new HashSet<>();
@@ -238,7 +245,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(true);
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -254,7 +261,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.REGION)));
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -271,7 +278,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -289,7 +296,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -302,7 +309,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(false);
 
-        new RIStatsMapper().createUtilizationRequest(context);
+        new RIStatsMapper(buyRiScopeHandler).createUtilizationRequest(context);
     }
 
     @Test(expected = OperationFailedException.class)
@@ -312,7 +319,7 @@ public class RIStatsSubQueryTest {
                         Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         when(context.isGlobalScope()).thenReturn(false);
 
-        new RIStatsMapper().createUtilizationRequest(context);
+        new RIStatsMapper(buyRiScopeHandler).createUtilizationRequest(context);
     }
 
 
@@ -322,7 +329,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(true);
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -338,7 +345,7 @@ public class RIStatsSubQueryTest {
         when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
         when(context.getInputScope().isGroup()).thenReturn(true);
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -355,7 +362,7 @@ public class RIStatsSubQueryTest {
         when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
         when(context.getInputScope().isGroup()).thenReturn(true);
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -369,7 +376,7 @@ public class RIStatsSubQueryTest {
                         Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         when(context.isGlobalScope()).thenReturn(false);
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -386,7 +393,7 @@ public class RIStatsSubQueryTest {
         when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
         when(context.getInputScope().isGroup()).thenReturn(true);
 
-        final RIStatsMapper mapper = new RIStatsMapper();
+        final RIStatsMapper mapper = new RIStatsMapper(buyRiScopeHandler);
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
         assertThat(req.getStartDate(), is(TIME_WINDOW.startTime()));
         assertThat(req.getEndDate(), is(TIME_WINDOW.endTime()));
@@ -399,7 +406,7 @@ public class RIStatsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(false);
 
-        new RIStatsMapper().createCoverageRequest(context);
+        new RIStatsMapper(buyRiScopeHandler).createCoverageRequest(context);
     }
 
     @Test
@@ -423,7 +430,7 @@ public class RIStatsSubQueryTest {
             .setValues(value)
             .build();
 
-        final List<StatSnapshotApiDTO> snapshots = new RIStatsMapper()
+        final List<StatSnapshotApiDTO> snapshots = new RIStatsMapper(buyRiScopeHandler)
             .convertRIStatsRecordsToStatSnapshotApiDTO(Collections.singletonList(record), true);
 
         assertThat(snapshots.size(), is(1));
@@ -451,7 +458,7 @@ public class RIStatsSubQueryTest {
             .setSnapshotDate(MILLIS)
             .build();
 
-        final List<StatSnapshotApiDTO> snapshots = new RIStatsMapper()
+        final List<StatSnapshotApiDTO> snapshots = new RIStatsMapper(buyRiScopeHandler)
             .convertRIStatsRecordsToStatSnapshotApiDTO(Collections.singletonList(record), false);
         assertThat(snapshots.size(), is(1));
         StatSnapshotApiDTO snapshot = snapshots.get(0);

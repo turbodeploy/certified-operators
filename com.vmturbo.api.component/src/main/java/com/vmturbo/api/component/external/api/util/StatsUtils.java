@@ -3,16 +3,21 @@ package com.vmturbo.api.component.external.api.util;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -30,6 +35,10 @@ public class StatsUtils {
         CommodityType.NET_THROUGHPUT_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.IO_THROUGHPUT_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.SWAPPING_VALUE, new Pair<>(BIT_SEC, 8));
+
+    private static final Set<UIEntityType> SUPPORTED_RI_FILTER_TYPES =
+            ImmutableSet.of(UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE,
+                    UIEntityType.BUSINESS_ACCOUNT);
 
     /**
      * Convert the default commodity units into converted units with multiplier that we need to
@@ -77,6 +86,16 @@ public class StatsUtils {
     @Nullable
     private static Float multiply(@Nullable final Float d, int multiplier) {
         return d != null && !Float.isNaN(d) && !Float.isInfinite(d) ? d * multiplier : null;
+    }
+
+    public static boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
+        return scope.getScopeTypes()
+                // If this is scoped to a set of entity types, if any of the scope entity types
+                // are supported, RIs will be scoped through the supported types and non-supported
+                // types will be ignored
+                .map(scopeEntityTypes -> !Sets.union(SUPPORTED_RI_FILTER_TYPES, scopeEntityTypes).isEmpty())
+                // this is a global or plan scope
+                .orElse(true);
     }
 
     /**

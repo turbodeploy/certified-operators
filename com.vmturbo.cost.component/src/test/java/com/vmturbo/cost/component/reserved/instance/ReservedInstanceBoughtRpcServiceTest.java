@@ -309,10 +309,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 response.getReservedInstanceBoughtsList();
         Assert.assertFalse(reservedInstancesBought.isEmpty());
         final ReservedInstanceBought riBought = reservedInstancesBought.iterator().next();
-        Assert.assertTrue(riBought.getReservedInstanceBoughtInfo().getReservedInstanceBoughtCost()
-        .hasOndemandCostPerHour());
+        Assert.assertTrue(riBought.getReservedInstanceBoughtInfo().getReservedInstanceDerivedCost().hasOnDemandRatePerHour());
         final double onDemandCost = riBought.getReservedInstanceBoughtInfo()
-                .getReservedInstanceBoughtCost().getOndemandCostPerHour()
+                .getReservedInstanceDerivedCost().getOnDemandRatePerHour()
                 .getAmount();
         Assert.assertEquals(TIER_PRICE, onDemandCost, delta);
     }

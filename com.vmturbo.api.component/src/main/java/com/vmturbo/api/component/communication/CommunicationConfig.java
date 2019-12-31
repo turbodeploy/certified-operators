@@ -37,6 +37,8 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc.ReservedInstanceCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
@@ -364,6 +366,11 @@ public class CommunicationConfig {
     @Bean
     public ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecServiceBlockingStub() {
         return ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
+    public ReservedInstanceCostServiceBlockingStub reservedInstanceCostServiceBlockingStub() {
+        return ReservedInstanceCostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean

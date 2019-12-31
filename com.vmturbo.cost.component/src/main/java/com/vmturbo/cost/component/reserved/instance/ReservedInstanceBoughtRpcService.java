@@ -198,8 +198,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                                     priceTableByRegion))
                             .ifPresent(amount -> riBoughtBuilder
                             .getReservedInstanceBoughtInfoBuilder()
-                            .getReservedInstanceBoughtCostBuilder()
-                            .setOndemandCostPerHour(amount));
+                            .getReservedInstanceDerivedCostBuilder()
+                            .setOnDemandRatePerHour(amount));
 
                     logger.trace("ReservedInstanceBought after stitching currency amount: {}",
                             () -> riBoughtBuilder);

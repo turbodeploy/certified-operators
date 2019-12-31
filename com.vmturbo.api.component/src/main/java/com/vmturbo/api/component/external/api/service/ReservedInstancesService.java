@@ -1,11 +1,8 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,11 +15,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
@@ -31,9 +24,9 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
@@ -45,7 +38,6 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -63,7 +55,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
@@ -85,10 +76,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
     private final StatsQueryExecutor statsQueryExecutor;
 
     private final UuidMapper uuidMapper;
-
-    private static final Set<UIEntityType> SUPPORTED_RI_FILTER_TYPES =
-                    ImmutableSet.of(UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE,
-                                    UIEntityType.BUSINESS_ACCOUNT);
 
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
@@ -172,7 +159,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
     private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nonnull ApiId scope)
             throws UnknownObjectException {
 
-        if (isValidScopeForRIBoughtQuery(scope)) {
+        if (StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
             final Optional<PlanInstance> optPlan = scope.getPlanInstance();
             if (optPlan.isPresent()) {
                 final PlanInstance plan = optPlan.get();
@@ -334,16 +321,5 @@ public class ReservedInstancesService implements IReservedInstancesService {
         } catch (IllegalArgumentException | StatusRuntimeException e) {
             return Optional.empty();
         }
-    }
-
-    private boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
-
-        return scope.getScopeTypes()
-                // If this is scoped to a set of entity types, if any of the scope entity types
-                // are supported, RIs will be scoped through the supported types and non-supported
-                // types will be ignored
-                .map(scopeEntityTypes -> !Sets.union(SUPPORTED_RI_FILTER_TYPES, scopeEntityTypes).isEmpty())
-                // this is a global or plan scope
-                .orElse(true);
     }
 }

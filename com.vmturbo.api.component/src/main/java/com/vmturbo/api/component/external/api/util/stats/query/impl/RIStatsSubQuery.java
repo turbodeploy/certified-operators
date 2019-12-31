@@ -19,6 +19,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
@@ -36,11 +38,17 @@ import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest.GroupBy;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.StatsRequestTimeWindow;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc.ReservedInstanceCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -54,25 +62,34 @@ public class RIStatsSubQuery implements StatsSubQuery {
 
     private final RIStatsMapper riStatsMapper;
     private final RepositoryApi repositoryApi;
+    private final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService;
+    private final BuyRiScopeHandler buyRiScopeHandler;
 
     private static final Set<String> SUPPORTED_STATS =
-            ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION,
-                    StringConstants.RI_COUPON_COVERAGE, StringConstants.NUM_RI);
+            ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_COUPON_COVERAGE,
+                    StringConstants.NUM_RI, StringConstants.RI_COST);
 
     public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                            @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
-                           @Nonnull final RepositoryApi repositoryApi) {
-        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper(), repositoryApi);
+                           @Nonnull final RepositoryApi repositoryApi,
+                           @Nonnull final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService,
+                           @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
+        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper(buyRiScopeHandler),
+                repositoryApi, reservedInstanceCostService, buyRiScopeHandler);
     }
 
     RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                     @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
                     @Nonnull final RIStatsMapper riStatsMapper,
-                    @Nonnull final RepositoryApi repositoryApi) {
+                    @Nonnull final RepositoryApi repositoryApi,
+                    @Nonnull final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService,
+                    @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
         this.riUtilizationCoverageService = riUtilizationCoverageService;
         this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
         this.repositoryApi = repositoryApi;
+        this.reservedInstanceCostService = reservedInstanceCostService;
+        this.buyRiScopeHandler = buyRiScopeHandler;
     }
 
     @Override
@@ -106,7 +123,8 @@ public class RIStatsSubQuery implements StatsSubQuery {
                                                       @Nonnull final StatsQueryContext context)
             throws OperationFailedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
-        if (containsStat(StringConstants.NUM_RI, stats) && isValidScopeForNumRIRequest(context)) {
+        if (containsStat(StringConstants.NUM_RI, stats)
+                && StatsUtils.isValidScopeForRIBoughtQuery(context.getInputScope())) {
             final GetReservedInstanceBoughtCountRequest countRequest = riStatsMapper
                     .createRIBoughtCountRequest(context);
 
@@ -117,7 +135,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
 
             final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
                     repositoryApi.entitiesRequest(riBoughtCountsByTierId.keySet())
-                    .getSEMap();
+                            .getSEMap();
 
             final Map<String, Long> riBoughtCountByTierName = riBoughtCountsByTierId
                     .entrySet().stream()
@@ -129,79 +147,50 @@ public class RIStatsSubQuery implements StatsSubQuery {
                     .convertNumRIStatsRecordsToStatSnapshotApiDTO(riBoughtCountByTierName));
         }
 
-        if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats) && isValidScopeForCoverageRequest(context)) {
-            final GetReservedInstanceCoverageStatsRequest coverageRequest =
-                riStatsMapper.createCoverageRequest(context);
-            snapshots.addAll(riStatsMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
-                riUtilizationCoverageService.getReservedInstanceCoverageStats(coverageRequest)
-                    .getReservedInstanceStatsRecordsList(), true));
+        if (containsStat(StringConstants.RI_COST, stats)
+                && StatsUtils.isValidScopeForRIBoughtQuery(context.getInputScope())) {
+            final GetReservedInstanceCostStatsRequest riCostRequest = riStatsMapper
+                    .createRICostRequest(context);
+            final GetReservedInstanceCostStatsResponse response = reservedInstanceCostService
+                    .getReservedInstanceCostStats(riCostRequest);
+            snapshots.addAll(riStatsMapper.createRICostStatApiDTO(response.getStatsList()));
         }
 
-        if (containsStat(StringConstants.RI_COUPON_UTILIZATION, stats) && isValidScopeForUtilizationRequest(context)) {
-            final GetReservedInstanceUtilizationStatsRequest utilizationRequest =
-                riStatsMapper.createUtilizationRequest(context);
+        if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats) && isValidScopeForCoverageRequest(context)) {
+            final GetReservedInstanceCoverageStatsRequest coverageRequest =
+                    riStatsMapper.createCoverageRequest(context);
             snapshots.addAll(riStatsMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
-                riUtilizationCoverageService.getReservedInstanceUtilizationStats(utilizationRequest)
-                .getReservedInstanceStatsRecordsList(), false));
+                    riUtilizationCoverageService.getReservedInstanceCoverageStats(coverageRequest)
+                            .getReservedInstanceStatsRecordsList(), true));
+        }
+
+        if (containsStat(StringConstants.RI_COUPON_UTILIZATION, stats)
+                && StatsUtils.isValidScopeForRIBoughtQuery(context.getInputScope())) {
+            final GetReservedInstanceUtilizationStatsRequest utilizationRequest =
+                    riStatsMapper.createUtilizationRequest(context);
+            snapshots.addAll(riStatsMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
+                    riUtilizationCoverageService.getReservedInstanceUtilizationStats(utilizationRequest)
+                            .getReservedInstanceStatsRecordsList(), false));
         }
 
         return snapshots.stream()
-            .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
-                Function.identity(), (v1, v2) -> {
-                    // Merge stats lists with the same date.
-                    final List<StatApiDTO> stats1 = v1.getStatistics();
-                    final List<StatApiDTO> stats2 = v2.getStatistics();
-                    final List<StatApiDTO> combinedList =
-                        new ArrayList<>(stats1.size() + stats2.size());
-                    combinedList.addAll(stats1);
-                    combinedList.addAll(stats2);
-                    v1.setStatistics(combinedList);
-                    return v1;
-                })).values().stream().collect(Collectors.toList());
-    }
-
-    /**
-     * Check if valid scope for RI Utilization request.
-     * @param context - query context
-     * @return boolean
-     */
-    private boolean isValidScopeForUtilizationRequest(@Nonnull final StatsQueryContext context) {
-        if (context.getInputScope().getScopeTypes().isPresent()) {
-            final UIEntityType type = context.getInputScope().getScopeTypes().get()
-                    .iterator().next();
-            if (type == UIEntityType.REGION || type == UIEntityType.AVAILABILITY_ZONE ||
-            type == UIEntityType.BUSINESS_ACCOUNT) {
-                return true;
-            }
-        } else if (context.isGlobalScope()) {
-           return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if valid scope for numRI request.
-     * @param context - query context
-     * @return boolean
-     */
-    private boolean isValidScopeForNumRIRequest(@Nonnull final StatsQueryContext context) {
-        if (context.getInputScope().getScopeTypes().isPresent()) {
-            final UIEntityType type = context.getInputScope().getScopeTypes().get()
-                    .iterator().next();
-            if (type == UIEntityType.REGION || type == UIEntityType.AVAILABILITY_ZONE ||
-                    type == UIEntityType.BUSINESS_ACCOUNT) {
-                return true;
-            }
-        } else if (context.isGlobalScope()) {
-            return true;
-        }
-
-        return false;
+                .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
+                        Function.identity(), (v1, v2) -> {
+                            // Merge stats lists with the same date.
+                            final List<StatApiDTO> stats1 = v1.getStatistics();
+                            final List<StatApiDTO> stats2 = v2.getStatistics();
+                            final List<StatApiDTO> combinedList =
+                                    new ArrayList<>(stats1.size() + stats2.size());
+                            combinedList.addAll(stats1);
+                            combinedList.addAll(stats2);
+                            v1.setStatistics(combinedList);
+                            return v1;
+                        })).values().stream().collect(Collectors.toList());
     }
 
     /**
      * Check if valid scope for RI Coverage request.
+     *
      * @param context - query context
      * @return boolean
      */
@@ -219,12 +208,17 @@ public class RIStatsSubQuery implements StatsSubQuery {
 
     @VisibleForTesting
     static class RIStatsMapper {
+        private BuyRiScopeHandler buyRiScopeHandler;
+
+        public RIStatsMapper(BuyRiScopeHandler buyRiScopeHandler) {
+            this.buyRiScopeHandler = buyRiScopeHandler;
+        }
 
         @Nonnull
         GetReservedInstanceBoughtCountRequest createRIBoughtCountRequest(
                 @Nonnull final StatsQueryContext context) throws OperationFailedException {
             final GetReservedInstanceBoughtCountRequest.Builder reqBuilder =
-                                        GetReservedInstanceBoughtCountRequest.newBuilder();
+                    GetReservedInstanceBoughtCountRequest.newBuilder();
             if (context.getInputScope().getScopeTypes().isPresent()) {
                 final Set<Long> scopeEntities = new HashSet<>();
                 if (context.getInputScope().isGroup()) {
@@ -242,7 +236,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 final UIEntityType type = uiEntityTypes.stream().findFirst().get();
 
                 switch (type) {
-                    case REGION :
+                    case REGION:
                         reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                                 .addAllRegionId(scopeEntities));
                         break;
@@ -268,7 +262,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
         GetReservedInstanceUtilizationStatsRequest createUtilizationRequest(@Nonnull final StatsQueryContext context)
                 throws OperationFailedException {
             final GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder =
-                GetReservedInstanceUtilizationStatsRequest.newBuilder();
+                    GetReservedInstanceUtilizationStatsRequest.newBuilder();
             context.getTimeWindow().ifPresent(timeWindow -> {
                 reqBuilder.setStartDate(timeWindow.startTime());
                 reqBuilder.setEndDate(timeWindow.endTime());
@@ -291,7 +285,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 final UIEntityType type = uiEntityTypes.stream().findFirst().get();
 
                 switch (type) {
-                    case REGION :
+                    case REGION:
                         reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                                 .addAllRegionId(scopeEntities));
                         break;
@@ -308,7 +302,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 }
             } else if (!context.isGlobalScope()) {
                 throw new OperationFailedException("Invalid scope for query." +
-                    " Must be global or have an entity type.");
+                        " Must be global or have an entity type.");
             }
 
             return reqBuilder.build();
@@ -318,14 +312,14 @@ public class RIStatsSubQuery implements StatsSubQuery {
         GetReservedInstanceCoverageStatsRequest createCoverageRequest(
                 @Nonnull final StatsQueryContext context) throws OperationFailedException {
             final GetReservedInstanceCoverageStatsRequest.Builder reqBuilder =
-                GetReservedInstanceCoverageStatsRequest.newBuilder();
+                    GetReservedInstanceCoverageStatsRequest.newBuilder();
             context.getTimeWindow().ifPresent(timeWindow -> {
                 reqBuilder.setStartDate(timeWindow.startTime());
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
             if (context.getInputScope().getScopeTypes().isPresent()
-                            && !context.getInputScope().getScopeTypes().get().isEmpty()) {
+                    && !context.getInputScope().getScopeTypes().get().isEmpty()) {
 
                 final Set<Long> scopeEntities = new HashSet<>();
                 if (context.getInputScope().isGroup()) {
@@ -349,7 +343,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 final UIEntityType type = uiEntityTypes.stream().findFirst().get();
 
                 switch (type) {
-                    case REGION :
+                    case REGION:
                         reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                                 .addAllRegionId(scopeEntities));
                         break;
@@ -372,8 +366,69 @@ public class RIStatsSubQuery implements StatsSubQuery {
             return reqBuilder.build();
         }
 
+        @Nonnull
+        GetReservedInstanceCostStatsRequest createRICostRequest(
+                @Nonnull final StatsQueryContext context) throws OperationFailedException {
+            final GetReservedInstanceCostStatsRequest.Builder reqBuilder
+                    = GetReservedInstanceCostStatsRequest.newBuilder();
+
+            if (context.getInputScope().getScopeTypes().isPresent()
+                    && !context.getInputScope().getScopeTypes().get().isEmpty()) {
+
+                final Set<Long> scopeEntities = new HashSet<>();
+                if (context.getInputScope().isGroup()) {
+                    if (context.getInputScope().getCachedGroupInfo().isPresent()) {
+                        scopeEntities.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                    }
+                } else {
+                    scopeEntities.add(context.getInputScope().oid());
+                }
+
+                if (context.getInputScope().getScopeTypes().get().size() != 1) {
+                    //TODO (mahdi) Change the logic to support scopes with more than one type
+                    throw new IllegalStateException("Scopes with more than one type is not supported.");
+                }
+
+                final Set<UIEntityType> uiEntityTypes = context.getInputScope().getScopeTypes().get();
+                if (CollectionUtils.isEmpty(uiEntityTypes)) {
+                    throw new OperationFailedException("Entity type not present");
+                }
+                final UIEntityType type = uiEntityTypes.stream().findFirst().get();
+                switch (type) {
+                    case REGION:
+                        reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                                .addAllRegionId(scopeEntities));
+                        break;
+                    case AVAILABILITY_ZONE:
+                        reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                                .addAllAvailabilityZoneId(scopeEntities));
+                        break;
+                    case BUSINESS_ACCOUNT:
+                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
+                                .addAllAccountId(scopeEntities));
+                        break;
+                    default:
+                        throw new OperationFailedException("Invalid scope for query: " + type.apiStr());
+                }
+            } else if (!context.isGlobalScope()) {
+                throw new OperationFailedException("Invalid context - must be global or have entity type");
+            }
+
+            final boolean shouldIncludeBuyRI = buyRiScopeHandler
+                    .shouldIncludeBuyRiDiscount(context.getInputScope());
+
+            reqBuilder.setTimeWindow(StatsRequestTimeWindow.newBuilder().setQueryLatest(true).build());
+
+            return reqBuilder.setIncludeProjected(true)
+                    .setGroupBy(GroupBy.SNAPSHOT_TIME)
+                    .setIncludeBuyRi(shouldIncludeBuyRI)
+                    .setTopologyContextId(context.getInputScope().getTopologyContextId())
+                    .build();
+        }
+
         /**
          * Convert numRI records to StatSnapshotApiDTO
+         *
          * @param records - map containing template types and counts from users RI inventory
          * @return a list {@link StatSnapshotApiDTO}
          */
@@ -395,31 +450,31 @@ public class RIStatsSubQuery implements StatsSubQuery {
         /**
          * Convert a list of {@link ReservedInstanceStatsRecord} to a list of {@link StatSnapshotApiDTO}.
          *
-         * @param records a list of {@link ReservedInstanceStatsRecord}.
+         * @param records      a list of {@link ReservedInstanceStatsRecord}.
          * @param isRICoverage a boolean which true means it's a reserved instance coverage stats request,
          *                     false means it's a reserved instance utilization stats request.
          * @return a list {@link ReservedInstanceStatsRecord}.
          */
         public List<StatSnapshotApiDTO> convertRIStatsRecordsToStatSnapshotApiDTO(
-            @Nonnull final List<ReservedInstanceStatsRecord> records,
-            final boolean isRICoverage) {
+                @Nonnull final List<ReservedInstanceStatsRecord> records,
+                final boolean isRICoverage) {
             return records.stream()
-                .map(record -> {
-                    final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
-                    snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
-                    // TODO: Can these be projected?
-                    snapshotApiDTO.setEpoch(Epoch.HISTORICAL);
-                    final StatApiDTO statApiDTO = createRIUtilizationStatApiDTO(record, isRICoverage);
-                    snapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
-                    return snapshotApiDTO;
-                })
-                .collect(Collectors.toList());
+                    .map(record -> {
+                        final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
+                        snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
+                        // TODO: Can these be projected?
+                        snapshotApiDTO.setEpoch(Epoch.HISTORICAL);
+                        final StatApiDTO statApiDTO = createRIUtilizationStatApiDTO(record, isRICoverage);
+                        snapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
+                        return snapshotApiDTO;
+                    })
+                    .collect(Collectors.toList());
         }
 
         /**
          * Create a {@link StatApiDTO} from input {@link ReservedInstanceStatsRecord}.
          *
-         * @param record a {@link ReservedInstanceStatsRecord}.
+         * @param record       a {@link ReservedInstanceStatsRecord}.
          * @param isRICoverage a boolean which true means it's a reserved instance coverage stats request,
          *                     false means it's a reserved instance utilization stats request.
          * @return a {@link StatApiDTO}.
@@ -450,18 +505,18 @@ public class RIStatsSubQuery implements StatsSubQuery {
          * Create StatApiDTO for NumRI stats.
          *
          * @param template - template type key
-         * @param count - number of RIs in users inventory for given template type
+         * @param count    - number of RIs in users inventory for given template type
          * @return a {@link StatApiDTO}
          */
         private StatApiDTO createNumRIStatApiDTO(@Nonnull String template, @Nonnull Long count) {
             StatApiDTO statsDto = new StatApiDTO();
-            statsDto.setValue((float)count);
+            statsDto.setValue((float) count);
             statsDto.setName(StringConstants.NUM_RI);
             StatValueApiDTO statsValueDto = new StatValueApiDTO();
-            statsValueDto.setAvg((float)count);
-            statsValueDto.setMax((float)count);
-            statsValueDto.setMin((float)count);
-            statsValueDto.setTotal((float)count);
+            statsValueDto.setAvg((float) count);
+            statsValueDto.setMax((float) count);
+            statsValueDto.setMin((float) count);
+            statsValueDto.setTotal((float) count);
             statsDto.setValues(statsValueDto);
             List<StatFilterApiDTO> filterList = new ArrayList<>();
             StatFilterApiDTO filterDto = new StatFilterApiDTO();
@@ -470,6 +525,29 @@ public class RIStatsSubQuery implements StatsSubQuery {
             filterList.add(filterDto);
             statsDto.setFilters(filterList);
             return statsDto;
+        }
+
+        private List<StatSnapshotApiDTO> createRICostStatApiDTO(List<ReservedInstanceCostStat> rICostStats) {
+            List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
+
+            for (ReservedInstanceCostStat stat : rICostStats) {
+                StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                StatApiDTO statApiDTO = new StatApiDTO();
+                statApiDTO.setName(StringConstants.RI_COST);
+                statApiDTO.setUnits(StringConstants.DOLLARS_PER_HOUR);
+                float totalCost = (float)stat.getAmortizedCost();
+                StatValueApiDTO statsValueDto = new StatValueApiDTO();
+                statsValueDto.setAvg(totalCost);
+                statsValueDto.setMax(totalCost);
+                statsValueDto.setMin(totalCost);
+                statsValueDto.setTotal(totalCost);
+                statApiDTO.setValues(statsValueDto);
+                statApiDTO.setCapacity(statsValueDto);
+                statSnapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
+                statSnapshotApiDTO.setDate(DateTimeUtil.toString(stat.getSnapshotTime()));
+                statSnapshotApiDTOS.add(statSnapshotApiDTO);
+            }
+            return statSnapshotApiDTOS;
         }
     }
 }
