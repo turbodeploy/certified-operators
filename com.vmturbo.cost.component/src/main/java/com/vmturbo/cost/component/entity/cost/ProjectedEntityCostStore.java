@@ -290,33 +290,33 @@ public class ProjectedEntityCostStore {
     @Nonnull
     @VisibleForTesting
     public StatRecord mergeStats(@Nonnull final StatRecord newIncomingValue,
-                                  @Nullable final StatRecord currentVal) {
+                                 @Nullable final StatRecord currentVal) {
         if (currentVal == null) {
             return newIncomingValue;
         }
         final Builder currentBuilder = currentVal.toBuilder();
-        boolean allAttirbuteMismatch = true;
 
         if (newIncomingValue.getAssociatedEntityId() != currentVal.getAssociatedEntityId()) {
             currentBuilder.clearAssociatedEntityId();
-            allAttirbuteMismatch = false;
         }
         if (newIncomingValue.getAssociatedEntityType() != currentVal.getAssociatedEntityType()) {
             currentBuilder.clearAssociatedEntityType();
-            allAttirbuteMismatch = false;
         }
         if (!newIncomingValue.getCategory().equals(currentVal.getCategory())) {
             currentBuilder.clearCategory();
-            allAttirbuteMismatch = false;
         }
-        Preconditions.checkArgument(!allAttirbuteMismatch, "None of the common fields matched." +
-                "Can not merge cost entities.");
+        if (!currentBuilder.hasAssociatedEntityId() &&
+                !currentBuilder.hasAssociatedEntityType() &&
+                !currentBuilder.hasCategory()) {
+            logger.error("None of the common fields matched. Might lead to wrong merged cost entities. {},  {}",
+                    currentVal, newIncomingValue);
+        }
         return currentBuilder.setValues(StatValue.newBuilder()
                 .setTotal(newIncomingValue.getValues().getTotal() + currentVal.getValues().getTotal())
                 .setMax(Math.max(newIncomingValue.getValues().getMax(), currentVal.getValues().getMax()))
                 .setMin(Math.min(newIncomingValue.getValues().getMin(), currentVal.getValues().getMin()))
                 .setAvg((newIncomingValue.getValues().getAvg() + currentVal.getValues().getAvg()) / 2)
                 .build())
-            .build();
+                .build();
     }
 }
