@@ -716,10 +716,12 @@ public class ActionInterpreter {
                 changeProviders.add(createChangeProvider(sourceAzOrRegion.getOid(),
                     destAzOrRegion.getOid(), null, projectedTopology));
             }
+            // Note that we also generate accounting actions for complete loss of RI coverage.
             final boolean isAccountingAction = destinationRegion == sourceRegion
                     && destTier == sourceTier
-                    && move.hasCouponDiscount()
-                    && move.hasCouponId();
+                    && (move.hasCouponDiscount() && move.hasCouponId() ||
+                        sourceMarketTier instanceof RiDiscountedMarketTier);
+
             if (destTier != sourceTier || isAccountingAction) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
