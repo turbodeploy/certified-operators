@@ -14,12 +14,43 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Utilities for extracting information from plan-related protobufs
  * (in com.vmturbo.common.protobuf/.../protobuf/plan)
  */
 public class PlanDTOUtil {
+
+    /**
+     * List of commodities used for CPU headroom calculation.
+     */
+    public static final Set<Integer> CPU_HEADROOM_COMMODITIES = ImmutableSet.of(
+        CommodityType.CPU_VALUE, CommodityType.CPU_PROVISIONED_VALUE);
+
+    /**
+     * List of commodities used for Memory headroom calculation.
+     */
+    public static final Set<Integer> MEM_HEADROOM_COMMODITIES = ImmutableSet.of(
+        CommodityType.MEM_VALUE, CommodityType.MEM_PROVISIONED_VALUE);
+
+    /**
+     * List of commodities used for Storage headroom calculation.
+     */
+    public static final Set<Integer> STORAGE_HEADROOM_COMMODITIES = ImmutableSet.of(
+        CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE);
+
+    /**
+     * List of commodities used for headroom calculation.
+     */
+    public static final Set<Integer> HEADROOM_COMMODITIES;
+
+    static {
+        HEADROOM_COMMODITIES = ImmutableSet.<Integer>builder()
+            .addAll(CPU_HEADROOM_COMMODITIES)
+            .addAll(MEM_HEADROOM_COMMODITIES)
+            .addAll(STORAGE_HEADROOM_COMMODITIES).build();
+    }
 
     /**
      * Return the OIDs of entities involved in list of {@link ScenarioChange}.

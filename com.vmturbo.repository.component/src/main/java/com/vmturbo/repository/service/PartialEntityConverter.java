@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -16,6 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.HeadroomPlanPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -119,6 +121,7 @@ public class PartialEntityConverter {
                         apiBldr.addProviders(relatedEntity(provider)));
                 partialEntityBldr.setApi(apiBldr);
                 break;
+            case HEADROOM_PLAN:
             default:
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);
         }
@@ -218,6 +221,20 @@ public class PartialEntityConverter {
                                                                     .getProviderEntityType())
                                                 .build()));
                 partialEntityBldr.setApi(apiBldr);
+                break;
+            case HEADROOM_PLAN:
+                // Information required by the cluster headroom plan.
+                final HeadroomPlanPartialEntity.Builder headroomPlanEntityBuilder =
+                    HeadroomPlanPartialEntity.newBuilder()
+                        .setOid(topoEntity.getOid())
+                        .setDisplayName(topoEntity.getDisplayName())
+                        .setEntityType(topoEntity.getEntityType())
+                        .setEntityState(topoEntity.getEntityState());
+                topoEntity.getCommoditySoldListList().stream()
+                    .filter(comm -> PlanDTOUtil.HEADROOM_COMMODITIES.contains(
+                        comm.getCommodityType().getType()))
+                    .forEach(headroomPlanEntityBuilder::addCommoditySold);
+                partialEntityBldr.setHeadroomPlanPartialEntity(headroomPlanEntityBuilder);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);
