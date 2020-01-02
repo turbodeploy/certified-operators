@@ -2,17 +2,14 @@ package com.vmturbo.topology.processor.ncm;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.FLOW;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CHASSIS;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER_POD;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.REGION;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +36,12 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
  */
 public class FlowCommoditiesGenerator {
     /**
+     * The k8s flow capacities.
+     */
+    private static final double[] K8S_FLOW_CAPACITIES = new double[]{Float.MAX_VALUE, 1000000f,
+                                                                     500000f, 100000f};
+
+    /**
      * The matrix.
      */
     private final MatrixInterface matrix;
@@ -61,11 +64,69 @@ public class FlowCommoditiesGenerator {
         // Generate Underlay graph.
         generateUnderlayGraph(graph);
         // Populate DPoDs.
-        graph.entities().filter(e -> e.getEntityType().equals(CHASSIS))
-             .forEach(this::getNetworkDpods);
-        // Get PMs.
-        graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
-             .forEach(this::sellFlowCommoditiesPM);
+        graph.entities().filter(EntityType::isChassis).forEach(this::getNetworkDpods);
+        // Handle placement of Pods on Vms
+        final List<StitchingEntity> pods = graph.entities().filter(EntityType::isContainerPod)
+                                                .collect(Collectors.toList());
+        containersInProvider(pods).forEach((k, v) -> v.forEach(pod -> matrix.place(pod, k)));
+        // We've got PoD VMs. Now - group into DPODs.
+        // DPoD in this case equals to cluster. This is determined by the ClusterCommodity key.
+        containerDpods(pods).forEach(matrix::populateDpod);
+        // Handle PMs and VMs.
+        graph.entities().filter(EntityType::isPM).forEach(this::sellFlowCommoditiesPM);
+        // Handle ContainerPODs.
+        graph.entities().filter(EntityType::isContainerPod).forEach(this::handlePodFlows);
+    }
+
+    /**
+     * Constructs the DPODs for Containers.
+     * <br>
+     * Returns a map of {@code k8s node oid, list of pods on that node}.
+     *
+     * @param pods The container pods in the graph.
+     * @return The pods per node map.
+     */
+    private Map<Long, List<Long>> containersInProvider(@Nonnull final List<StitchingEntity> pods) {
+        final Map<Long, List<Long>> pods4vm = new HashMap<>();
+        for (StitchingEntity pod : pods) {
+            Optional<StitchingEntity> vm = pod.getProviders().stream().filter(EntityType::isVM)
+                                              .findFirst();
+            if (!vm.isPresent()) {
+                continue;
+            }
+            pods4vm.computeIfAbsent(vm.get().getOid(), k -> new ArrayList<>()).add(pod.getOid());
+        }
+        return pods4vm;
+    }
+
+    /**
+     * Constructs the DPODs for Containers.
+     * <br>
+     * Returns a collection of {@code list of pods on that node}.
+     *
+     * @param pods The container pods in the graph.
+     * @return The DPODs for Containers.
+     */
+    private Collection<Set<Long>> containerDpods(@Nonnull final List<StitchingEntity> pods) {
+        final Map<String, Set<Long>> dpods = new HashMap<>();
+        for (StitchingEntity pod : pods) {
+            Optional<StitchingEntity> vmO = pod.getProviders().stream().filter(EntityType::isVM)
+                                               .findFirst();
+            if (!vmO.isPresent()) {
+                continue;
+            }
+            StitchingEntity vm = vmO.get();
+            Optional<Builder> clusterComm;
+            clusterComm = vm.getCommoditiesSold()
+                            .filter(c -> c.getCommodityType()
+                                          .equals(CommonDTO.CommodityDTO.CommodityType.CLUSTER))
+                            .findFirst();
+            if (!clusterComm.isPresent() || clusterComm.get().getKey().trim().isEmpty()) {
+                continue;
+            }
+            dpods.computeIfAbsent(clusterComm.get().getKey(), k -> new HashSet<>()).add(vm.getOid());
+        }
+        return dpods.values();
     }
 
     /**
@@ -75,14 +136,10 @@ public class FlowCommoditiesGenerator {
      */
     private void generateUnderlayGraph(final @Nonnull TopologyStitchingGraph graph) {
         matrix.resetUnderlay();
-        graph.entities().filter(e -> e.getEntityType().equals(AVAILABILITY_ZONE))
-             .forEach(this::setAZTopology);
-        graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
-             .forEach(this::setPMTopology);
-        graph.entities().filter(e -> e.getEntityType().equals(VIRTUAL_MACHINE))
-             .forEach(this::setVMTopology);
-        graph.entities().filter(e -> e.getEntityType().equals(CONTAINER_POD))
-             .forEach(this::setPodTopology);
+        graph.entities().filter(EntityType::isAZ).forEach(this::setAZTopology);
+        graph.entities().filter(EntityType::isPM).forEach(this::setPMTopology);
+        graph.entities().filter(EntityType::isVM).forEach(this::setVMTopology);
+        graph.entities().filter(EntityType::isContainerPod).forEach(this::setPodTopology);
     }
 
     /**
@@ -91,16 +148,12 @@ public class FlowCommoditiesGenerator {
      * @param pm The physical host.
      * @return The optional DC.
      */
-    private Optional<StitchingEntity> getDCForPM(final @Nonnull TopologyStitchingEntity pm) {
-        Optional<StitchingEntity> dc = pm.getProviders().stream()
-                                         .filter(p -> p.getEntityType().equals(DATACENTER))
+    private Optional<StitchingEntity> getDCForPM(final @Nonnull StitchingEntity pm) {
+        Optional<StitchingEntity> dc = pm.getProviders().stream().filter(EntityType::isDC)
                                          .findFirst();
         if (!dc.isPresent()) {
-            dc = pm.getProviders().stream().filter(p -> p.getEntityType().equals(CHASSIS))
-                   .findFirst();
-            return dc.flatMap(
-                e -> e.getProviders().stream().filter(p -> p.getEntityType().equals(DATACENTER))
-                      .findFirst());
+            dc = pm.getProviders().stream().filter(EntityType::isChassis).findFirst();
+            return dc.flatMap(e -> e.getProviders().stream().filter(EntityType::isDC).findFirst());
         }
         return dc;
     }
@@ -114,9 +167,7 @@ public class FlowCommoditiesGenerator {
     private Optional<StitchingEntity> getRegionForAZ(final @Nonnull TopologyStitchingEntity az) {
         return az.getConnectedFromByType()
                  .getOrDefault(ConnectionType.OWNS_CONNECTION, Collections.emptySet())
-                 .stream()
-                 .filter(p -> p.getEntityType().equals(REGION))
-                 .findAny();
+                 .stream().filter(EntityType::isRegion).findAny();
     }
 
     /**
@@ -125,8 +176,7 @@ public class FlowCommoditiesGenerator {
      * @param az The availability zone.
      */
     private void setAZTopology(final @Nonnull TopologyStitchingEntity az) {
-        getRegionForAZ(az).ifPresent(stitchingEntity ->
-            matrix.populateUnderlay(az.getOid(), stitchingEntity.getOid()));
+        getRegionForAZ(az).ifPresent(e -> matrix.populateUnderlay(az.getOid(), e.getOid()));
     }
 
     /**
@@ -135,9 +185,7 @@ public class FlowCommoditiesGenerator {
      * @param pm The physical host.
      */
     private void setPMTopology(final @Nonnull TopologyStitchingEntity pm) {
-        final Optional<StitchingEntity> dc = getDCForPM(pm);
-        dc.ifPresent(stitchingEntity -> matrix.populateUnderlay(pm.getOid(),
-                                                                stitchingEntity.getOid()));
+        getDCForPM(pm).ifPresent(e -> matrix.populateUnderlay(pm.getOid(), e.getOid()));
     }
 
     /**
@@ -146,15 +194,23 @@ public class FlowCommoditiesGenerator {
      * @param vm The Virtual Machine.
      */
     private void setVMTopology(final @Nonnull TopologyStitchingEntity vm) {
+        Optional<StitchingEntity> pm = vm.getProviders().stream().filter(EntityType::isPM)
+                                         .findFirst();
+        // No parent, skip.
+        if (!pm.isPresent()) {
+            return;
+        }
+        // This is a kubernetes node, it may only live in the underlay network.
+        if (isK8sNode(vm)) {
+            getDCForPM(pm.get()).ifPresent(e -> matrix.populateUnderlay(vm.getOid(), e.getOid()));
+            return;
+        }
         // Find all IP addresses and do the association.
         for (String ip : vm.getEntityBuilder().getVirtualMachineData().getIpAddressList()) {
             matrix.setEndpointOID(vm.getOid(), ip);
         }
         // Do the place.
-        Optional<StitchingEntity> pm = vm.getProviders().stream()
-                                         .filter(p -> p.getEntityType().equals(PHYSICAL_MACHINE))
-                                         .findFirst();
-        pm.ifPresent(stitchingEntity -> matrix.place(vm.getOid(), stitchingEntity.getOid()));
+        matrix.place(vm.getOid(), pm.get().getOid());
     }
 
     /**
@@ -167,8 +223,7 @@ public class FlowCommoditiesGenerator {
         matrix.setEndpointOID(pod.getOid(),
                               pod.getEntityBuilder().getContainerPodData().getIpAddress());
         // Do the place.
-        Optional<StitchingEntity> vm = pod.getProviders().stream()
-                                          .filter(p -> p.getEntityType().equals(VIRTUAL_MACHINE))
+        Optional<StitchingEntity> vm = pod.getProviders().stream().filter(EntityType::isVM)
                                           .findFirst();
         vm.ifPresent(stitchingEntity -> matrix.place(pod.getOid(), stitchingEntity.getOid()));
     }
@@ -179,8 +234,7 @@ public class FlowCommoditiesGenerator {
      * @param chassis The Chassis.
      */
     private void getNetworkDpods(final @Nonnull TopologyStitchingEntity chassis) {
-        Set<Long> dpod = chassis.getConsumers().stream()
-                                .filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
+        Set<Long> dpod = chassis.getConsumers().stream().filter(EntityType::isPM)
                                 .map(StitchingEntity::getOid).collect(Collectors.toSet());
         matrix.populateDpod(dpod);
     }
@@ -228,14 +282,46 @@ public class FlowCommoditiesGenerator {
         }
         List<StitchingEntity> vms = new ArrayList<>();
         // Get the VDCs.
-        pm.getConsumers().stream().filter(e -> e.getEntityType().equals(VIRTUAL_DATACENTER))
+        pm.getConsumers().stream().filter(EntityType::isVDC)
           .forEach(vdc -> vdc.getConsumers().stream()
-                             .filter(e -> e.getEntityType().equals(VIRTUAL_MACHINE))
+                             .filter(EntityType::isVM)
                              .collect(Collectors.toCollection(() -> vms)));
         // Get the VMs.
-        pm.getConsumers().stream().filter(e -> e.getEntityType().equals(VIRTUAL_MACHINE))
+        pm.getConsumers().stream().filter(EntityType::isVM)
           .collect(Collectors.toCollection(() -> vms));
-        vms.forEach(c -> setFlowCommoditiesVMs(pm.getLocalId(), c, soldComms));
+        // Skip if we are a kubernetes node.
+        vms.stream().filter(this::isNotK8sNode)
+           .forEach(c -> setFlowCommoditiesVMs(pm.getLocalId(), c, soldComms));
+    }
+
+    /**
+     * Checks whether a VM is a Kubernetes node.
+     *
+     * @param vm The VM in question.
+     * @return {@code true} iff VM is a k8s node.
+     */
+    private boolean isK8sNode(final @Nonnull StitchingEntity vm) {
+        return vm.getConsumers().stream().anyMatch(EntityType::isContainerPod);
+    }
+
+    /**
+     * Checks whether a VM is a Kubernetes node.
+     *
+     * @param vm The VM in question.
+     * @return {@code true} iff VM is a k8s node.
+     */
+    private boolean isK8sNode(final @Nonnull TopologyEntity vm) {
+        return vm.getConsumers().stream().anyMatch(EntityType::isContainerPod);
+    }
+
+    /**
+     * Checks whether a VM is not a Kubernetes node.
+     *
+     * @param vm The VM in question.
+     * @return {@code true} iff VM is not a k8s node.
+     */
+    private boolean isNotK8sNode(final @Nonnull StitchingEntity vm) {
+        return !isK8sNode(vm);
     }
 
     /**
@@ -249,12 +335,8 @@ public class FlowCommoditiesGenerator {
     private @Nonnull CommonDTO.CommodityDTO.Builder genBoughtComm(final @Nonnull String key,
                                                                   final double used,
                                                                   final double capacity) {
-        return CommonDTO.CommodityDTO.newBuilder()
-                                     .setCommodityType(FLOW)
-                                     .setActive(true)
-                                     .setResizable(true)
-                                     .setKey(key)
-                                     .setUsed(used)
+        return CommonDTO.CommodityDTO.newBuilder().setCommodityType(FLOW).setActive(true)
+                                     .setResizable(true).setKey(key).setUsed(used)
                                      .setCapacity(capacity);
     }
 
@@ -282,24 +364,20 @@ public class FlowCommoditiesGenerator {
         if (vm.getCommoditiesSold().anyMatch(c -> c.getKey().startsWith("FLOW"))) {
             return;
         }
-        CommodityBought.Builder cb = CommodityBought.newBuilder()
-                                                    .setProviderId(providerID)
+        CommodityBought.Builder cb = CommodityBought.newBuilder().setProviderId(providerID)
                                                     .setProviderType(PHYSICAL_MACHINE);
         final double[] flows = getFlows(vm);
         if (flows.length == 0) {
             return;
         }
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
-            cb.addBought(genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
+            cb.addBought(
+                genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
             vm.addCommoditySold(buildSoldFlowComm(FlowsCommonUtils.FLOW_KEYS[i],
                                                   soldComms[i].getCapacity()),
                                 Optional.empty());
         }
         addBoughtComm(vm, PHYSICAL_MACHINE, cb);
-        Set<StitchingEntity> consumers = vm.getConsumers().stream()
-                                           .filter(e -> e.getEntityType().equals(CONTAINER_POD))
-                                           .collect(Collectors.toSet());
-        consumers.forEach(c -> setFlowCommoditiesPods(vm.getLocalId(), c, soldComms));
     }
 
     /**
@@ -330,15 +408,45 @@ public class FlowCommoditiesGenerator {
     }
 
     /**
+     * Sets the flow commodities for K8s Node VMs.
+     *
+     * @param vm The entity (VM).
+     */
+    private void setFlowCommoditiesK8sVMs(final @Nonnull StitchingEntity vm) {
+        // Check whether we've been here already.
+        if (vm.getCommoditiesSold().anyMatch(c -> c.getKey().startsWith("FLOW"))) {
+            return;
+        }
+        for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
+            vm.addCommoditySold(buildSoldFlowComm(FlowsCommonUtils.FLOW_KEYS[i],
+                                                  K8S_FLOW_CAPACITIES[i]),
+                                Optional.empty());
+        }
+    }
+
+    /**
+     * Handle ContainerPod flows.
+     *
+     * @param pod The container PODs.
+     */
+    private void handlePodFlows(final @Nonnull StitchingEntity pod) {
+        Optional<StitchingEntity> vm = pod.getProviders().stream().filter(EntityType::isVM)
+                                          .findFirst();
+        // Handle Pods with a proper provider.
+        if (vm.isPresent()) {
+            setFlowCommoditiesK8sVMs(vm.get());
+            setFlowCommoditiesPods(vm.get().getLocalId(), pod);
+        }
+    }
+
+    /**
      * Sets the flow commodities for Container Pods.
      *
      * @param providerID The provider ID.
      * @param pod        The entity.
-     * @param soldComms  The array of sold commodities.
      */
     private void setFlowCommoditiesPods(final @Nonnull String providerID,
-                                        final @Nonnull StitchingEntity pod,
-                                        final @Nonnull Builder[] soldComms) {
+                                        final @Nonnull StitchingEntity pod) {
         CommodityBought.Builder cb = CommodityBought.newBuilder()
                                                     .setProviderId(providerID)
                                                     .setProviderType(VIRTUAL_MACHINE);
@@ -347,7 +455,8 @@ public class FlowCommoditiesGenerator {
             return;
         }
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
-            cb.addBought(genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
+            cb.addBought(genBoughtComm(FlowsCommonUtils.FLOW_KEYS[i],
+                                       flows[i], K8S_FLOW_CAPACITIES[i]));
         }
         addBoughtComm(pod, VIRTUAL_MACHINE, cb);
     }
@@ -363,29 +472,31 @@ public class FlowCommoditiesGenerator {
      */
     public void setFlowCapacities(final @Nonnull TopologyGraph<TopologyEntity> graph) {
         graph.entities().filter(e -> e.getEntityType() == PHYSICAL_MACHINE.getNumber())
-             .forEach(this::setPMFlowCapacities);
+             .forEach(this::setUnderlayNodeFlowCapacities);
+        graph.entities().filter(e -> e.getEntityType() == VIRTUAL_MACHINE.getNumber())
+             .filter(this::isK8sNode).forEach(this::setUnderlayNodeFlowCapacities);
     }
 
     /**
-     * Sets the flow capacities for the PM.
+     * Sets the flow capacities for an underlay nodes.
      *
-     * @param pm The physical host.
+     * @param underlayNode The underlay node.
      */
-    private void setPMFlowCapacities(final @Nonnull TopologyEntity pm) {
-        double[] capacities = new double[FlowsCommonUtils.FLOW_KEYS.length];
-        double[] utilThresholds = new double[FlowsCommonUtils.FLOW_KEYS.length];
+    private void setUnderlayNodeFlowCapacities(final @Nonnull TopologyEntity underlayNode) {
+        final double[] capacities = new double[FlowsCommonUtils.FLOW_KEYS.length];
+        final double[] utilThresholds = new double[FlowsCommonUtils.FLOW_KEYS.length];
         // Using local variable to assist with formatting down the line.
-        for (TopologyDTO.CommoditySoldDTO comm : pm.getTopologyEntityDtoBuilder()
-                                                   .getCommoditySoldListList()) {
+        for (TopologyDTO.CommoditySoldDTO comm : underlayNode.getTopologyEntityDtoBuilder()
+                                                             .getCommoditySoldListList()) {
             final String key = comm.getCommodityType().getKey();
             if (!key.startsWith(FlowsCommonUtils.KEY_PREFIX)) {
                 continue;
             }
-            int index = Integer.parseInt(
-                comm.getCommodityType().getKey().substring(key.length() - 1));
+            final int index = Integer.parseInt(comm.getCommodityType().getKey()
+                                                   .substring(key.length() - 1));
             capacities[index] = comm.getCapacity();
             utilThresholds[index] = Math.ceil(comm.getEffectiveCapacityPercentage() / 100D);
         }
-        matrix.setCapacities(pm.getOid(), capacities, utilThresholds);
+        matrix.setCapacities(underlayNode.getOid(), capacities, utilThresholds);
     }
 }

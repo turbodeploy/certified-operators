@@ -242,9 +242,10 @@ public class LivePipelineFactory {
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
+        final MatrixInterface mi = matrix.copy();
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
-                .addStage(new Stages.FlowGenerationStage(matrix))
+                .addStage(new Stages.FlowGenerationStage(mi))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
@@ -264,7 +265,7 @@ public class LivePipelineFactory {
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver, consistentScalingManager))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
-                .addStage(new Stages.MatrixUpdateStage(matrix))
+                .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
@@ -272,7 +273,7 @@ public class LivePipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
-                .addStage(new BroadcastStage(managers, matrix))
+                .addStage(new BroadcastStage(managers, mi))
                 .build();
     }
 
