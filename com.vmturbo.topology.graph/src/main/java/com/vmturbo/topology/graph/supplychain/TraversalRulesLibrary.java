@@ -77,6 +77,9 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // and storage to the seed
                 new VolumeRule<>(),
 
+                // never traverse from parent to child account
+                new AccountRule<>(),
+
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
 
@@ -273,6 +276,28 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             for (E e : entity.getConsumers()) {
                 frontier.add(new TraversalState(e.getOid(), TraversalMode.START, newDepth));
             }
+        }
+    }
+
+    /**
+     * Account-specific rule: never traverse to the sub-accounts.
+     *
+     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
+     */
+    private static class AccountRule<E extends TopologyGraphEntity<E>>
+            extends DefaultTraversalRule<E> {
+        @Override
+        public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE
+                        && traversalMode == TraversalMode.START;
+        }
+
+        @Override
+        protected List<E> getFilteredIncludedEntities(@Nonnull E entity,
+                                                      @Nonnull TraversalMode traversalMode) {
+            return entity.getOwnedOrAggregatedEntities().stream()
+                        .filter(e -> e.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .collect(Collectors.toList());
         }
     }
 }

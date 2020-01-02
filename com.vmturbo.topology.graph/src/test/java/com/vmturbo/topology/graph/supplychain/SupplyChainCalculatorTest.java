@@ -3,6 +3,7 @@ package com.vmturbo.topology.graph.supplychain;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collection;
@@ -795,6 +796,54 @@ public class SupplyChainCalculatorTest {
                    containsInAnyOrder(UIEntityType.STORAGE.apiStr()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(UIEntityType.DISKARRAY.typeNumber())),
+                   is(1));
+    }
+
+    /**
+     * Tests that the ownership between two accounts is not traversed.
+     */
+    @Test
+    public void testAccountRule() {
+        /*
+         * Acc1 -owns-> Acc2
+         *   |owns        | owns
+         *  VM1          VM2    <-aggregates both- Reg
+         *
+         *  Scoping on Acc1 should not bring VM2.
+         */
+        final long acc1Id = 1L;
+        final long acc2Id = 2L;
+        final long vm1Id = 11L;
+        final long vm2Id = 22L;
+        final long regId = 333L;
+        final TopologyGraph<TestGraphEntity> graph =
+            TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(acc1Id, UIEntityType.BUSINESS_ACCOUNT)
+                    .addConnectedEntity(acc2Id, ConnectionType.OWNS_CONNECTION)
+                    .addConnectedEntity(vm1Id, ConnectionType.OWNS_CONNECTION),
+                TestGraphEntity.newBuilder(acc2Id, UIEntityType.BUSINESS_ACCOUNT)
+                    .addConnectedEntity(vm2Id, ConnectionType.OWNS_CONNECTION),
+                TestGraphEntity.newBuilder(vm1Id, UIEntityType.VIRTUAL_MACHINE)
+                    .addConnectedEntity(regId, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(vm2Id, UIEntityType.VIRTUAL_MACHINE)
+                    .addConnectedEntity(regId, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(regId, UIEntityType.REGION));
+
+        final Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, acc1Id);
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                        supplychain.get(UIEntityType.BUSINESS_ACCOUNT.typeNumber())),
+                   is(1));
+        assertEquals(acc1Id, supplychain.get(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+                                    .getMembersByStateMap().values().iterator().next()
+                                    .getMemberOids(0));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                        supplychain.get(UIEntityType.VIRTUAL_MACHINE.typeNumber())),
+                   is(1));
+        assertEquals(vm1Id, supplychain.get(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                                    .getMembersByStateMap().values().iterator().next()
+                                    .getMemberOids(0));
+        assertThat(RepositoryDTOUtil.getMemberCount(
+                        supplychain.get(UIEntityType.REGION.typeNumber())),
                    is(1));
     }
 
