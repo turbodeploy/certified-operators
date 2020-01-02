@@ -74,13 +74,11 @@ public class AccountExpensesUploaderTest {
     private static final long PROBE_ID_AWS_BILLING = 2L;
     private static final long TARGET_ID_AWS_DISCOVERY_1 = 1L;
     private static final long TARGET_ID_AWS_BILLING_1 = 2L;
-    private static final long TARGET_ID_AWS_BILLING_2 = 3L;
 
     private static final long ACCOUNT_ID_1 = 11L;
     private static final long ACCOUNT_ID_2 = 22L;
     private static final String ACCOUNT_NAME_1 = "account-1";
     private static final String ACCOUNT_NAME_2 = "account-2";
-    private static final String ACCOUNT_NAME_3 = "account-3";
 
     private static final long USAGE_DATE_1 = 1576800000000L;
     private static final long USAGE_DATE_2 = 1576886400000L;
@@ -98,7 +96,6 @@ public class AccountExpensesUploaderTest {
 
     private static final String AWS_CS_ID_1 = "aws::account-1::CS::AmazonEC2";
     private static final String AWS_CS_ID_2 = "aws::account-2::CS::AmazonEC2";
-    private static final String AWS_CS_ID_3 = "aws::account-3::CS::AmazonEC2";
     private static final String AZURE_CS_ID_1 = "azure::CS::Storage::26080bd2-d98f-4420-a737-9de8";
     private static final String BAD_CS_ID =
             "azure::CS::Storage::BUSINESS_ACCOUNT::26080bd2-d98f-4420-a737-9de8";
@@ -120,9 +117,7 @@ public class AccountExpensesUploaderTest {
 
     private final Discovery discoveryTopology =
             new Discovery(PROBE_ID_AWS_DISCOVERY, TARGET_ID_AWS_DISCOVERY_1, identityProvider);
-    private final Discovery discoveryBilling1 =
-            new Discovery(PROBE_ID_AWS_BILLING, TARGET_ID_AWS_BILLING_1, identityProvider);
-    private final Discovery discoveryBilling2 =
+    private final Discovery discoveryBilling =
             new Discovery(PROBE_ID_AWS_BILLING, TARGET_ID_AWS_BILLING_1, identityProvider);
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
@@ -148,15 +143,14 @@ public class AccountExpensesUploaderTest {
     @Before
     public void setup() {
         costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
-        accountExpensesUploader = spy(new AccountExpensesUploader(costServiceClient, 60, Clock.systemUTC()));
+        accountExpensesUploader = spy(new AccountExpensesUploader(costServiceClient, 0, Clock.systemUTC()));
 
         probeTypeMap = new HashMap<>();
         probeTypeMap.put(TARGET_ID_AWS_DISCOVERY_1, SDKProbeType.AWS);
         probeTypeMap.put(TARGET_ID_AWS_BILLING_1, SDKProbeType.AWS_BILLING);
 
         discoveryTopology.success();
-        discoveryBilling1.success();
-        discoveryBilling2.success();
+        discoveryBilling.success();
 
         // set up the test discovered data cache
         costDataByTargetId = new HashMap<>();
@@ -166,7 +160,7 @@ public class AccountExpensesUploaderTest {
         List<NonMarketEntityDTO> nonMarketEntityDTOs = createNonMarketEntityDTOs();
         List<CostDataDTO> costDataDTOS = createCostDataDTOs();
         costDataByTargetId.put(TARGET_ID_AWS_BILLING_1,
-                createTargetCostData(TARGET_ID_AWS_BILLING_1, discoveryBilling1,
+                createTargetCostData(TARGET_ID_AWS_BILLING_1, discoveryBilling,
                         nonMarketEntityDTOs, costDataDTOS));
 
         setupMockStitchingContext();
@@ -421,61 +415,13 @@ public class AccountExpensesUploaderTest {
         TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyId(TOPOLOGY_ID).build();
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(mockStitchingContext, probeTypeMap);
 
-        // call uploadAccountExpenses twice - should create expenses and send them only once.
-        accountExpensesUploader.uploadAccountExpenses(costDataByTargetId, topologyInfo,
-                mockStitchingContext, cloudEntitiesMap);
         accountExpensesUploader.uploadAccountExpenses(costDataByTargetId, topologyInfo,
                 mockStitchingContext, cloudEntitiesMap);
 
         Mockito.verify(accountExpensesUploader, Mockito.times(1))
                 .createAccountExpenses(cloudEntitiesMap, mockStitchingContext, costDataByTargetId);
+
         Mockito.verify(costServiceSpy, Mockito.times(1))
-                .uploadAccountExpenses(any(UploadAccountExpensesRequest.class), any());
-    }
-
-    /**
-     * Test that the account expenses are uploaded even if some expenses were already uploaded in
-     * the last hour (test lastUploadTime per target).
-     */
-    @Test
-    public void testUploadAccountExpensesWithNewExpenses() {
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyId(TOPOLOGY_ID).build();
-        CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(mockStitchingContext, probeTypeMap);
-
-        // call uploadAccountExpenses with the discovered expenses
-        accountExpensesUploader.uploadAccountExpenses(costDataByTargetId, topologyInfo,
-                mockStitchingContext, cloudEntitiesMap);
-
-        // make sure that the expenses were uploaded to the cost component
-        Mockito.verify(accountExpensesUploader, Mockito.times(1))
-                .createAccountExpenses(cloudEntitiesMap, mockStitchingContext, costDataByTargetId);
-        Mockito.verify(costServiceSpy, Mockito.times(1))
-                .uploadAccountExpenses(any(UploadAccountExpensesRequest.class), any());
-
-        // new expenses discovered
-        costDataByTargetId.put(TARGET_ID_AWS_BILLING_2,
-                createTargetCostData(TARGET_ID_AWS_BILLING_2, discoveryBilling2,
-                        Collections.singletonList(NonMarketEntityDTO.newBuilder()
-                                .setEntityType(NonMarketEntityType.CLOUD_SERVICE)
-                                .setId(AWS_CS_ID_3).setDisplayName("AWS EC2")
-                                .setCloudServiceData(CloudServiceData.newBuilder()
-                                        .setAccountId(ACCOUNT_NAME_3)
-                                        .setCloudProvider("AWS")
-                                        .setBillingData(BillingData.newBuilder()))
-                                .build()),
-                        Collections.singletonList(CostDataDTO.newBuilder()
-                                .setAccountId(ACCOUNT_NAME_2).setId(AWS_CS_ID_2)
-                                .setEntityType(EntityType.CLOUD_SERVICE).setCost(COST_AMOUNT_FLOAT)
-                                .setAppliesProfile(false)
-                                .build())));
-
-        // upload expenses again, since TARGET_ID_AWS_BILLING_2 upload time is not initialized yet
-        accountExpensesUploader.uploadAccountExpenses(costDataByTargetId, topologyInfo,
-                mockStitchingContext, cloudEntitiesMap);
-
-        Mockito.verify(accountExpensesUploader, Mockito.times(2))
-                .createAccountExpenses(cloudEntitiesMap, mockStitchingContext, costDataByTargetId);
-        Mockito.verify(costServiceSpy, Mockito.times(2))
                 .uploadAccountExpenses(any(UploadAccountExpensesRequest.class), any());
     }
 
@@ -495,9 +441,8 @@ public class AccountExpensesUploaderTest {
                 mockStitchingContext, cloudEntitiesMap);
 
         Mockito.verify(accountExpensesUploader, Mockito.times(0))
-                .shouldSkipProcessingExpenses(any());
-        Mockito.verify(accountExpensesUploader, Mockito.times(0))
                 .createAccountExpenses(any(), any(), any());
+
         Mockito.verify(costServiceSpy, Mockito.times(0))
                 .uploadAccountExpenses(any(UploadAccountExpensesRequest.class), any());
     }
@@ -519,9 +464,8 @@ public class AccountExpensesUploaderTest {
                 emptyStitchingContext, cloudEntitiesMap);
 
         Mockito.verify(accountExpensesUploader, Mockito.times(0))
-                .shouldSkipProcessingExpenses(any());
-        Mockito.verify(accountExpensesUploader, Mockito.times(0))
                 .createAccountExpenses(any(), any(), any());
+
         Mockito.verify(costServiceSpy, Mockito.times(0))
                 .uploadAccountExpenses(any(UploadAccountExpensesRequest.class), any());
     }

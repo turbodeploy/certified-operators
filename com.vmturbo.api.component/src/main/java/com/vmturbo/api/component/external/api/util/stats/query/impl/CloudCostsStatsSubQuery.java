@@ -100,20 +100,17 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         UIEntityType.BUSINESS_ACCOUNT, UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE
     );
     /**
-     * Cloud target constant to match UI request, also used in test case.
-     * This is used for the "Cost Breakdown by Cloud Account" widget.
+     * Cloud target constant to match UI request, also used in test case
      */
-    public static final String BUSINESS_UNIT = "businessUnit";
+    private static final String TARGET = "target";
 
     /**
-     * Cloud service constant to match UI request, also used in test cases.
-     * This is used for the "Cost Breakdown by Cloud Service" widget.
+     * Cloud service constant to match UI request, also used in test cases
      */
     public static final String CLOUD_SERVICE = "cloudService";
 
     /**
-     * Cloud service provider constant to match UI request, also used in test cases.
-     * This is used for the "Cost Breakdown by Cloud Provider" widget.
+     * Cloud service provider constant to match UI request, also used in test cases
      */
     public static final String CSP = "CSP";
 
@@ -205,32 +202,21 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction =
                     getValueFunction(requestGroupBySet);
 
-            // get entities to use later to create the stat filters.
-            final Map<Long, MinimalEntity> entityDTOs;
-            if (requestGroupBySet.contains(CLOUD_SERVICE)) {
-                // for group by Cloud services, we need to find all the services and
-                // stitch with expenses in Cost component
-                entityDTOs = getDiscoveredEntityDTOs(UIEntityType.CLOUD_SERVICE);
-            } else if (requestGroupBySet.contains(BUSINESS_UNIT)) {
-                // get business accounts
-                entityDTOs = getDiscoveredEntityDTOs(UIEntityType.BUSINESS_ACCOUNT);
-            } else {
-                entityDTOs = Collections.emptyMap();
-            }
+            // for group by Cloud services, we need to find all the services and
+            // stitch with expenses in Cost component
+            final Map<Long, MinimalEntity> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
+                getDiscoveredServiceDTO() : Collections.emptyMap();
 
             final List<CloudCostStatRecord> cloudStatRecords =
-                    getCloudExpensesRecordList(requestGroupBySet,
-                            // if groupBy = cloudService, get only the service costs from the DB.
-                            requestGroupBySet.contains(CLOUD_SERVICE) ?
-                                    entityDTOs.keySet() :
-                                    Collections.emptySet(),
-                            context);
+                getCloudExpensesRecordList(requestGroupBySet,
+                    cloudServiceDTOs.keySet(),
+                    context);
             statsResponse = cloudStatRecords.stream()
-                    .map(snapshot -> toStatSnapshotApiDTO(snapshot,
-                            typeFunction,
-                            valueFunction,
-                            entityDTOs))
-                    .collect(toList());
+                .map(snapshot -> toStatSnapshotApiDTO(snapshot,
+                    typeFunction,
+                    valueFunction,
+                    cloudServiceDTOs))
+                .collect(toList());
         } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() ||
                 context.getInputScope().isCloud()) {
             final Set<Long> cloudEntityOids;
@@ -454,7 +440,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     @Nonnull
-    private List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final Set<String> requestGroupBySet,
+    @VisibleForTesting
+    List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final Set<String> requestGroupBySet,
                                                                  @Nonnull final Set<Long> entities,
                                                                  @Nonnull final StatsQueryContext context) {
         final GetCloudExpenseStatsRequest.Builder builder = GetCloudExpenseStatsRequest.newBuilder();
@@ -466,8 +453,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         if (!entities.isEmpty()) {
             builder.getEntityFilterBuilder().addAllEntityId(entities);
         }
-        if (requestGroupBySet.contains(BUSINESS_UNIT)) {
-            builder.setGroupBy(GroupByType.BUSINESS_UNIT);
+        if (requestGroupBySet.contains(TARGET)) {
+            builder.setGroupBy(GroupByType.TARGET);
         } else if (requestGroupBySet.contains(CSP)) {
             builder.setGroupBy(GroupByType.CSP);
         } else if (requestGroupBySet.contains(CLOUD_SERVICE)) {
@@ -519,17 +506,18 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         return scopeBuilder;
     }
 
-    // Get discovered entities.
-    private Map<Long, MinimalEntity> getDiscoveredEntityDTOs(UIEntityType entityType) {
+    // Search discovered Cloud services.
+    @VisibleForTesting
+    Map<Long, MinimalEntity> getDiscoveredServiceDTO() {
         // find all cloud services
         return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(entityType)).build())
+            SearchProtoUtil.entityTypeFilter(UIEntityType.CLOUD_SERVICE)).build())
                 .getMinimalEntities()
             .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
     }
 
     private static boolean isTopDownRequest(final Set<String> requestGroupBySet) {
-        return requestGroupBySet.contains(BUSINESS_UNIT)
+        return requestGroupBySet.contains(TARGET)
             || requestGroupBySet.contains(CSP)
             || requestGroupBySet.contains(CLOUD_SERVICE);
     }
@@ -537,19 +525,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     /**
      * Return a type function which returns the filter type according to the "groupBy" part of the query.
      *
-     * @param requestGroupBySet the "groupBy" value (businessUnit/CSP/CloudService)
+     * @param requestGroupBySet the "groupBy" value (Target/CSP/CloudService)
      * @return a type function which returns the relevant filter type
      */
     private Supplier<String> getTypeFunction(@Nonnull final Set<String> requestGroupBySet) {
-        if (requestGroupBySet.contains(BUSINESS_UNIT)) {
-            return () -> BUSINESS_UNIT;
-        }
-        if (requestGroupBySet.contains(CSP)) {
-            return () -> CSP;
-        }
-        if (requestGroupBySet.contains(CLOUD_SERVICE)) {
-            return () -> CLOUD_SERVICE;
-        }
+        if (requestGroupBySet.contains(TARGET)) { return () -> TARGET; }
+        if (requestGroupBySet.contains(CSP)) { return () -> CSP; }
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) { return () -> CLOUD_SERVICE; }
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -569,25 +551,32 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     private BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> getValueFunction(
             @Nonnull final Set<String> requestGroupBySet) {
 
+        // When grouping by target, the filter's value should be the target's display name.
+        // in this case the associated entity is a target, so just get its display name from the
+        // thin targets cache.
+        if (requestGroupBySet.contains(TARGET)) {
+            return (associatedEntityId, cloudServiceDTOs) ->
+                    thinTargetCache.getTargetInfo(associatedEntityId)
+                            .flatMap(thinTargetInfo -> Optional.of(thinTargetInfo.displayName()));
+        }
+
         // When grouping by cloud provider, the filter's value should be the cloud provider name.
-        // In this case entityDTOs is empty.
+        // The associated entity is a target, therefore we need to get the CPS name by the
+        // target ID.
         if (requestGroupBySet.contains(CSP)) {
-            return (targetId, entityDTOs) ->
-                    thinTargetCache.getTargetInfo(targetId)
+            return (associatedEntityId, cloudServiceDTOs) ->
+                    thinTargetCache.getTargetInfo(associatedEntityId)
                             .flatMap(thinTargetInfo ->
                                     Optional.of(cloudTypeMapper.fromTargetType(
                                             thinTargetInfo.probeInfo().type()).name()));
         }
 
         // When grouping by cloud service, the filter's value should be the cloud service name.
-        // In this case, the associated entity ID is a cloud service ID, and the DTOs are
-        // cloud service DTOs.
-        // When grouping by business account, the filter's value should be the account name.
-        // In this case, the associated entity ID is a business account ID, and the DTOs are
-        // business account DTOs.
-        if (requestGroupBySet.contains(CLOUD_SERVICE) || requestGroupBySet.contains(BUSINESS_UNIT)) {
-            return (associatedEntityId, entityDTOs) ->
-                    Optional.ofNullable(entityDTOs.get(associatedEntityId))
+        // Since the associated entity is a cloud service, just get the entity's display name from
+        // the cloud service entities that we got from the repository before.
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) {
+            return (associatedEntityId, cloudServiceDTOs) ->
+                    Optional.ofNullable(cloudServiceDTOs.get(associatedEntityId))
                             .flatMap(entityDTO -> Optional.of(entityDTO.getDisplayName()));
         }
 
@@ -598,7 +587,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     public StatSnapshotApiDTO toStatSnapshotApiDTO(@Nonnull final CloudCostStatRecord statSnapshot,
            @Nonnull final Supplier<String> typeFunction,
            @Nonnull final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction,
-           @Nonnull final Map<Long, MinimalEntity> entityDTOs) {
+           @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         // TODO: Store Epoch information in the CloudCostStatRecord, and map it here
         if (statSnapshot.hasSnapshotDate()) {
@@ -608,16 +597,15 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 .map(statApiDTO -> toStatApiDto(statApiDTO,
                         typeFunction,
                         valueFunction,
-                        entityDTOs))
+                        cloudServiceDTOs))
                 .collect(toList()));
         return dto;
     }
 
-    @Nonnull
     private StatApiDTO toStatApiDto(@Nonnull final CloudCostStatRecord.StatRecord statRecord,
            @Nonnull final Supplier<String> typeFunction,
            @Nonnull final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction,
-           @Nonnull final Map<Long, MinimalEntity> entityDTOs) {
+           @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
         final StatApiDTO statApiDTO = toStatApiDTO(statRecord.getName(), statRecord);
         final long associatedEntityId = statRecord.getAssociatedEntityId();
 
@@ -627,7 +615,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
         // Build filters
         final List<StatFilterApiDTO> filters = new ArrayList<>();
-        Optional<String> filterValue = valueFunction.apply(associatedEntityId, entityDTOs);
+        Optional<String> filterValue = valueFunction.apply(associatedEntityId, cloudServiceDTOs);
         if (filterValue.isPresent()) {
             final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
             resultsTypeFilter.setType(typeFunction.get());

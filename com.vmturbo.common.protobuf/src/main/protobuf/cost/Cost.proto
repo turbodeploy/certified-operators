@@ -830,8 +830,8 @@ message GetCloudExpenseStatsRequest {
         // Cloud service provider
         CSP = 1;
 
-        // Business Account
-        BUSINESS_UNIT = 2;
+        // Target
+        TARGET = 2;
 
         // Cloud Service
         CLOUD_SERVICE = 3;

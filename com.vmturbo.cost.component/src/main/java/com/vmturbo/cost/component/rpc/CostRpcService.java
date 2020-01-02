@@ -432,10 +432,7 @@ public class CostRpcService extends CostServiceImplBase {
         Map<Long, Map<Long, Float>> historicData = new HashMap<>();
         Map<Long, Set<Long>> accountIdToEntitiesMap = new HashMap<>();
         final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-
-        boolean groupByCloudService = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
-        boolean groupByBusinessAccount = request.getGroupBy().equals(GroupByType.BUSINESS_UNIT);
-        boolean groupByCloudProvider = request.getGroupBy().equals(GroupByType.CSP);
+        boolean createStatsByCloudService = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
 
         // create cost stat records from the account expenses from the DB
         expensesByTimeAndAccountId.forEach((snapshotTime, accountIdToExpensesMap) -> {
@@ -446,27 +443,18 @@ public class CostRpcService extends CostServiceImplBase {
                 accountExpenses.getAccountExpensesInfo().getServiceExpensesList()
                         .forEach(serviceExpenses -> {
                             final double amount = serviceExpenses.getExpenses().getAmount();
-                            if (groupByCloudService) {
+                            if (createStatsByCloudService) {
                                 // create stat with associated entity ID = service ID
                                 updateAccountExpenses(accountExpenseStats,
                                         historicData,
                                         accountIdToEntitiesMap,
                                         snapshotTime,
                                         serviceExpenses.getAssociatedServiceId(), amount);
-                            } else if (groupByBusinessAccount) {
-                                // create stat with associated entity ID = business account ID
-                                updateAccountExpenses(accountExpenseStats,
-                                        historicData,
-                                        accountIdToEntitiesMap,
-                                        snapshotTime,
-                                        accountExpenses.getAssociatedAccountId(), amount);
-                            } else if (groupByCloudProvider) {
+                            } else {
                                 // create stat with associated entity ID = target ID
                                 businessAccountHelper
                                         .resolveTargetId(accountExpenses.getAssociatedAccountId())
-                                        .stream()
-                                        .findAny()
-                                        .ifPresent(targetId -> updateAccountExpenses(
+                                        .forEach(targetId -> updateAccountExpenses(
                                                 accountExpenseStats,
                                                 historicData,
                                                 accountIdToEntitiesMap,
