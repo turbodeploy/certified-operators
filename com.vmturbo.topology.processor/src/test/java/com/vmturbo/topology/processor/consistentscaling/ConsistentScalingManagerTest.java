@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -148,9 +149,16 @@ public class ConsistentScalingManagerTest {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         Map<Long, Builder> topologyMap = new HashMap<>();
         topologyMap.put(100L, topologyEntity(100L, EntityType.PHYSICAL_MACHINE));
-        for (long vmNum = 1; vmNum < 8; vmNum++) {
-            topologyMap.put(vmNum, topologyEntityWithName(vmNum, EntityType.VIRTUAL_MACHINE,
-                "VM-" + Long.toString(vmNum), 100L));
+        for (long vmNum = 1; vmNum <= 12; vmNum++) {
+            TopologyEntity.Builder builder =
+                topologyEntityWithName(vmNum, EntityType.VIRTUAL_MACHINE,
+                    "VM-" + Long.toString(vmNum), 100L);
+            // Make VMs 10 and above not controllable.
+            if (vmNum >= 10) {
+                builder.getEntityBuilder().setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setControllable(false));
+            }
+            topologyMap.put(vmNum, builder);
         }
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         testGroups = new HashMap<>();
@@ -160,12 +168,17 @@ public class ConsistentScalingManagerTest {
         makeGrouping(104L, "DiscoveredGroup-A", 4L, 6L);
         makeGrouping(105L, "DiscoveredGroup-B", 7L);
         makeGrouping(106L, "One-VM-in-DiscoveredGroup-A", 6L);
+        // VMs 10, 11 and 12 are powered off
+        makeGrouping(109L, "One-VM-powered-off", 9L, 10L);
+        makeGrouping(111L, "All-VMs-powered-off", 11L, 12L);
 
         // Create the consistent scaling setting policies
         makeSettingPolicy(1001L, 101L, true);
         makeSettingPolicy(1002L, 102L, true);
         makeSettingPolicy(1003L, 103L, true);
         makeSettingPolicy(1006L, 106L, false);
+        makeSettingPolicy(1009L, 109L, true);
+        makeSettingPolicy(1011L, 111L, true);
     }
 
     private InterpretedGroup makeInterpretedGroup(String groupName, boolean consistentResizing) {
@@ -188,7 +201,7 @@ public class ConsistentScalingManagerTest {
         // The are 7 VMs in the topology, and VM-6 has consistent scaling disabled via policy.
         // Ensure that there are 6 entries in the user settings map and that 6 does not exist.
         Assert.assertEquals(userSettingsByEntityAndName.keySet(),
-                new HashSet<>(Arrays.asList(1L, 2L, 3L, 4L, 5L, 7L)));
+                new HashSet<>(Arrays.asList(1L, 2L, 3L, 4L, 5L, 7L, 9L)));
         // Ensure that the "scalingGroupMembership" setting is present for all of these
         Assert.assertTrue(userSettingsByEntityAndName.values().stream()
             .allMatch(m -> m.keySet()
@@ -209,7 +222,7 @@ public class ConsistentScalingManagerTest {
             uniqueGroups.addAll(p.second.stream().map(SettingPolicy::getId)
                 .collect(Collectors.toList()));
         });
-        Assert.assertEquals(new HashSet<>(Arrays.asList(1001L, 1002L, 1003L)), uniqueGroups);
+        Assert.assertEquals(new HashSet<>(Arrays.asList(1001L, 1002L, 1003L, 1009L)), uniqueGroups);
     }
 
     @Test
@@ -222,6 +235,30 @@ public class ConsistentScalingManagerTest {
         // There should be no groups or policies defined
         Assert.assertFalse(csm.getScalingGroupId(1L).isPresent());
         Assert.assertTrue(csm.getPoliciesStream().count() == 0);
+    }
+
+    /**
+     * Ensure that non-controllable entities are not included in scaling groups.  Also, ensure that
+     * a group with no controllable entities is not created.
+     */
+    @Test
+    public void testDisabledEntities() {
+        ConsistentScalingManager csm = createCSM(true);
+        populateCSMWithTestData(csm);
+
+        buildScalingGroups(csm);
+        // Group 1009 and 1011 have two VMs each.  Group 1009 (VM-9 and VM-10) has one
+        // non-controllable VM.
+        Assert.assertTrue(csm.getScalingGroupId(9L).isPresent());
+        Assert.assertFalse(csm.getScalingGroupId(10L).isPresent());
+        Assert.assertEquals("One-VM-powered-off", csm.getScalingGroupId(9L).get());
+        // Group 1011 (VM-11, VM-12) has both VMs non-controllable, so the scaling group should
+        // not be created.  The internal group list is not exposed in the CSM and I don't feel like
+        // doing it just for test, so if the scaling group ID query for both members returns empty,
+        // then we can be assured that there was no group created for them.
+        // testGetPoliciesStream also confirms that the scaling geoup was not created.
+        Assert.assertFalse(csm.getScalingGroupId(11L).isPresent());
+        Assert.assertFalse(csm.getScalingGroupId(12L).isPresent());
     }
 
     @Test
