@@ -78,9 +78,7 @@ public class ConsistentScalingHelper {
     }
 
     /**
-     * Initializes the consistent resizer.  The market component expects that the CSM will only add
-     * entities to a scaling group that are eligible for placement (e.g., non-controllable entities
-     * will not be added to scaling groups).
+     * Initializes the consistent resizer
      * - Queries the group component for scaling group membership
      * - Initializes top usage tracker. As each topology entity is processed, the top usage for each
      *   group will be updated.
@@ -114,13 +112,15 @@ public class ConsistentScalingHelper {
                     continue;
                 }
                 group.addMember(oid);
-                groupFactor++;
-                if (groupFactor == 1) {
-                    // The first leader candidate is the group leader
-                    group.setGroupLeader(entity);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Scaling group leader for {} is {}", groupName,
-                            entity.getDisplayName());
+                if (canBeGroupLeader(entity)) {
+                    groupFactor++;
+                    if (groupFactor == 1) {
+                        // The first leader candidate is the group leader
+                        group.setGroupLeader(entity);
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Scaling group leader for {} is {}", groupName,
+                                entity.getDisplayName());
+                        }
                     }
                 }
                 if (logger.isDebugEnabled()) {
@@ -146,6 +146,16 @@ public class ConsistentScalingHelper {
             }
         }
         logger.info("ConsistentScalingHelper initialization complete");
+    }
+
+    /**
+     * Return whether the entity can be a group leader.  A member can be a group leader if it
+     * can be placed in the market.
+     * @param entity entity to check
+     * @return true if the entity can be a scaling group leader
+     */
+    private boolean canBeGroupLeader(final TopologyEntityDTO entity) {
+        return entity.getEntityState() == EntityState.POWERED_ON;
     }
 
     /**
