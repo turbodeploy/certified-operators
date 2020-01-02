@@ -1783,8 +1783,7 @@ public class TopologyConverter {
             if (bottomOfSupplyChain && active) {
                 suspendable = false;
             }
-            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE) ||
-                (isOptimizeCloudPlan() && entityType == EntityType.LOAD_BALANCER_VALUE)) {
+            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE)) {
                 suspendable = false;
             }
             // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
