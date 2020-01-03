@@ -36,7 +36,7 @@ env:
     value: kafka:9092
 
 resources:
-   limits:
+  limits:
     memory: 1Gi
-   requests:
+  requests:
     memory: 512Mi
