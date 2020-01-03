@@ -21,6 +21,7 @@ import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
@@ -245,13 +246,19 @@ public class ServiceConfig {
         return new BusinessUnitsService(
             communicationConfig.costServiceBlockingStub(),
             mapperConfig.discountMapper(),
-            targetService(),
+            communicationConfig.thinTargetCache(),
             communicationConfig.getRealtimeTopologyContextId(),
             mapperConfig.uuidMapper(),
             entitiesService(),
             communicationConfig.supplyChainFetcher(),
             communicationConfig.repositoryApi(),
-            businessAccountRetriever());
+            businessAccountRetriever(),
+            cloudTypeMapper());
+    }
+
+    @Bean
+    public CloudTypeMapper cloudTypeMapper() {
+        return new CloudTypeMapper();
     }
 
     @Bean

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -19,12 +20,14 @@ import com.google.common.collect.Lists;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.DiscountMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -38,7 +41,9 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.HierarchicalRelationship;
@@ -50,7 +55,6 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
-import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
@@ -64,6 +68,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * {@inheritDoc}
@@ -81,7 +86,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private final DiscountMapper mapper;
 
-    private final ITargetsService targetsService;
+    private final ThinTargetCache thinTargetCache;
 
     private final UuidMapper uuidMapper;
 
@@ -93,24 +98,28 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private final BusinessAccountRetriever businessAccountRetriever;
 
+    private final CloudTypeMapper cloudTypeMapper;
+
     public BusinessUnitsService(@Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                                 @Nonnull final DiscountMapper mapper,
-                                @Nonnull final ITargetsService targetsService,
+                                @Nonnull final ThinTargetCache thinTargetCache,
                                 final long realtimeTopologyContextId,
                                 @Nonnull final UuidMapper uuidMapper,
                                 @Nonnull final EntitiesService entitiesService,
                                 @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                 @Nonnull final RepositoryApi repositoryApi,
-                                @Nonnull final BusinessAccountRetriever businessAccountRetriever) {
+                                @Nonnull final BusinessAccountRetriever businessAccountRetriever,
+                                @Nonnull final CloudTypeMapper cloudTypeMapper) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.costService = Objects.requireNonNull(costServiceBlockingStub);
         this.mapper = Objects.requireNonNull(mapper);
-        this.targetsService = Objects.requireNonNull(targetsService);
+        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.entitiesService = entitiesService;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
+        this.cloudTypeMapper = Objects.requireNonNull(cloudTypeMapper);
     }
 
     /**
@@ -126,7 +135,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         // TODO OM-35804 implement required behavior for other types other than discount
         if (BusinessUnitType.DISCOUNT.equals(type)) {
             final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()
-                    .build());
+                .build());
             // We also create discounts for sub-accounts when creating a discount for a master
             // account. We should filter them when sending the discounts to UI.
             List<Discount> discountsList = Lists.newArrayList(discounts);
@@ -149,9 +158,57 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
             return mapper.toDiscountBusinessUnitApiDTO(discountsList.iterator());
         } else if (BusinessUnitType.DISCOVERED.equals(type)) {
-            return businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList(), null);
-        }
+            final List<BusinessUnitApiDTO> cloudTypeScopedBusinessUnits =
+                businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList(), null)
+                    .stream()
+                    .filter(businessUnit -> cloudType == null ||
+                        matchesCloudType(cloudType, businessUnit))
+                    .collect(Collectors.toList());
+            if (hasParent == null) {
+                return cloudTypeScopedBusinessUnits;
+            }
+            final Set<String> childrenBusinessUnits = cloudTypeScopedBusinessUnits.stream()
+                .flatMap(businessUnitApiDTO ->
+                    businessUnitApiDTO.getChildrenBusinessUnits().stream())
+                .collect(Collectors.toSet());
+            if (!hasParent) {
+                return cloudTypeScopedBusinessUnits.stream()
+                    .filter(businessUnit -> !childrenBusinessUnits.contains(businessUnit.getUuid()))
+                    .collect(Collectors.toList());
+            }
+            // hasParent == true
+            return cloudTypeScopedBusinessUnits.stream()
+                .filter(businessUnit -> childrenBusinessUnits.contains(businessUnit.getUuid()))
+                .collect(Collectors.toList());
+            }
         return ImmutableList.of(new BusinessUnitApiDTO());
+    }
+
+    /**
+     * Check if a given {@link BusinessUnitApiDTO} is of the given cloudType.
+     *
+     * @param cloudType String representing the cloud type to check for.
+     * @param businessUnit {@link BusinessUnitApiDTO} whose cloud type we're checking.
+     * @return true if the {@link BusinessUnitApiDTO} is discovered by a target of the given cloud
+     * type.
+     */
+    private boolean matchesCloudType(@Nonnull String cloudType,
+                                     @Nonnull BusinessUnitApiDTO businessUnit) {
+        Optional<CloudType> optCloudTypeEnum = CloudType.getByName(cloudType);
+        if (!optCloudTypeEnum.isPresent()) {
+            logger.warn("No matching CloudType found for string {}", cloudType);
+            return false;
+        }
+        return businessUnit.getTargets().stream()
+            .map(TargetApiDTO::getUuid)
+            .filter(StringUtils::isNumeric)
+            .map(Long::parseLong)
+            .map(thinTargetCache::getTargetInfo)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .filter(thinTargetInfo -> !thinTargetInfo.isHidden())
+            .anyMatch(thinTargetInfo -> optCloudTypeEnum.get().equals(
+                cloudTypeMapper.fromTargetType(thinTargetInfo.probeInfo().type())));
     }
 
     @Override

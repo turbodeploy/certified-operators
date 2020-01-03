@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -19,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -37,6 +39,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.DiscountMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -51,7 +54,9 @@ import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.HierarchicalRelationship;
 import com.vmturbo.api.enums.ServicePricingModel;
@@ -59,7 +64,6 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
-import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
@@ -70,6 +74,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Test services for the {@link BusinessUnitsService}
@@ -106,7 +115,7 @@ public class BusinessUnitsServiceTest {
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
 
-    private ITargetsService targetsService = Mockito.mock(TargetsService.class);
+    private ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
@@ -115,6 +124,8 @@ public class BusinessUnitsServiceTest {
     private CostServiceBlockingStub costService;
 
     private IBusinessUnitsService businessUnitsService;
+
+    private final CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
 
 
     private static CloudServicePriceAdjustmentApiDTO populateServiceDto() {
@@ -145,13 +156,14 @@ public class BusinessUnitsServiceTest {
         businessUnitsService = new BusinessUnitsService(
             costService,
             mapper,
-            targetsService,
+            thinTargetCache,
             CONTEXT_ID,
             uuidMapper,
             entitiesService,
             supplyChainFetcherFactory,
             repositoryApi,
-            accountRetriever);
+            accountRetriever,
+            cloudTypeMapper);
     }
 
     @Test
@@ -212,6 +224,104 @@ public class BusinessUnitsServiceTest {
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());
         assertEquals(UUID_STRING, businessUnitApiDTOList.get(0).getUuid());
         assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOList.get(0).getBusinessUnitType());
+    }
+
+    /**
+     * Test that the hasParent flag for getBusinessUnits works properly with discovered BUs.
+     *
+     * @throws Exception if getBusinessUnits throws an exception.
+     */
+    @Test
+    public void testGetBusinessUnitsWithDiscoveredTypeAndParentFlag() throws Exception {
+        final String parentUuid = "234";
+        final String childUuid = "567";
+        final BusinessUnitApiDTO parentApiDTO = new BusinessUnitApiDTO();
+        parentApiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        parentApiDTO.setUuid(parentUuid);
+        parentApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
+        parentApiDTO.setChildrenBusinessUnits(Collections.singleton(childUuid));
+        final BusinessUnitApiDTO childApiDTO = new BusinessUnitApiDTO();
+        childApiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        childApiDTO.setUuid(childUuid);
+        childApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
+        when(accountRetriever.getBusinessAccountsInScope(any(), any()))
+            .thenReturn(ImmutableList.of(parentApiDTO, childApiDTO));
+        List<BusinessUnitApiDTO> businessUnitApiDTOList =
+            businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null, null);
+        assertEquals(2, businessUnitApiDTOList.size());
+        assertThat(businessUnitApiDTOList.stream().map(BusinessUnitApiDTO::getUuid).collect(Collectors.toList()),
+            containsInAnyOrder(parentUuid, childUuid));
+        // set hasParent = true.  Now we should only get the child unit.
+        businessUnitApiDTOList =
+            businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, true, null);
+        assertEquals(1, businessUnitApiDTOList.size());
+        assertEquals(childUuid, businessUnitApiDTOList.get(0).getUuid());
+        // set hasParent = false.  Now we should only get the parent unit.
+        businessUnitApiDTOList =
+            businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, false, null);
+        assertEquals(1, businessUnitApiDTOList.size());
+        assertEquals(parentUuid, businessUnitApiDTOList.get(0).getUuid());
+    }
+
+    /**
+     * Test that filtering by cloud type works properly for discovered BUs.
+     *
+     * @throws Exception if getBusinessUnits throws an exception.
+     */
+    @Test
+    public void testGetBusinessUnitsWithDiscoveredTypeAndCloudType() throws Exception {
+        final TargetApiDTO awsTarget = new TargetApiDTO();
+        awsTarget.setUuid("11");
+        awsTarget.setCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory());
+        awsTarget.setType(SDKProbeType.AWS.getProbeType());
+        final TargetApiDTO azureTarget = new TargetApiDTO();
+        azureTarget.setUuid("22");
+        azureTarget.setCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory());
+        azureTarget.setType(SDKProbeType.AZURE.getProbeType());
+        final ThinProbeInfo awsProbeInfo = Mockito.mock(ThinProbeInfo.class);
+        final ThinProbeInfo azureProbeInfo = Mockito.mock(ThinProbeInfo.class);
+        final ThinTargetInfo awsThinTargetInfo = Mockito.mock(ThinTargetInfo.class);
+        final ThinTargetInfo azureThinTargetInfo = Mockito.mock(ThinTargetInfo.class);
+        when(thinTargetCache.getTargetInfo(11L)).thenReturn(Optional.of(awsThinTargetInfo));
+        when(thinTargetCache.getTargetInfo(22L))
+            .thenReturn(Optional.of(azureThinTargetInfo));
+        when(awsThinTargetInfo.isHidden()).thenReturn(false);
+        when(awsThinTargetInfo.probeInfo()).thenReturn(awsProbeInfo);
+        when(awsProbeInfo.type()).thenReturn(SDKProbeType.AWS.getProbeType());
+        when(azureThinTargetInfo.isHidden()).thenReturn(false);
+        when(azureThinTargetInfo.probeInfo()).thenReturn(azureProbeInfo);
+        when(azureProbeInfo.type()).thenReturn(SDKProbeType.AZURE.getProbeType());
+        final String awsBusinessUnitUuid = "111";
+        final String azureBusinessUnitUuid = "222";
+        final BusinessUnitApiDTO awsApiDTO = new BusinessUnitApiDTO();
+        awsApiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        awsApiDTO.setUuid(awsBusinessUnitUuid);
+        awsApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
+        awsApiDTO.setTargets(Collections.singletonList(awsTarget));
+        final BusinessUnitApiDTO azureApiDTO = new BusinessUnitApiDTO();
+        azureApiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        azureApiDTO.setUuid(azureBusinessUnitUuid);
+        azureApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
+        azureApiDTO.setTargets(Collections.singletonList(azureTarget));
+        when(accountRetriever.getBusinessAccountsInScope(any(), any()))
+            .thenReturn(ImmutableList.of(awsApiDTO, azureApiDTO));
+        List<BusinessUnitApiDTO> businessUnitApiDTOList =
+            businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null, null);
+        assertEquals(2, businessUnitApiDTOList.size());
+        assertThat(businessUnitApiDTOList.stream().map(BusinessUnitApiDTO::getUuid).collect(Collectors.toList()),
+            containsInAnyOrder(awsBusinessUnitUuid, azureBusinessUnitUuid));
+        // set hasParent = true.  Now we should only get the child unit.
+        businessUnitApiDTOList =
+            businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED,
+                CloudType.AWS.name(), null, null);
+        assertEquals(1, businessUnitApiDTOList.size());
+        assertEquals(awsBusinessUnitUuid, businessUnitApiDTOList.get(0).getUuid());
+        // set hasParent = false.  Now we should only get the parent unit.
+        businessUnitApiDTOList =
+            businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED,
+                CloudType.AZURE.name(), null, null);
+        assertEquals(1, businessUnitApiDTOList.size());
+        assertEquals(azureBusinessUnitUuid, businessUnitApiDTOList.get(0).getUuid());
     }
 
     @Test
