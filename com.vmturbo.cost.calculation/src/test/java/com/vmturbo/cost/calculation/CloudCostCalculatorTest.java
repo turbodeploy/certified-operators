@@ -93,11 +93,14 @@ public class CloudCostCalculatorTest {
     private static final double WSQL_ENTERPRISE_1 = 10;
     private static final double WSQL_ENTERPRISE_2 = 20;
     private static final double WSQL_ENTERPRISE_8 = 40;
+    private static final long DEFAULT_ELASTIC_IPS_BOUGHT = 10;
     private static final int IP_COUNT = 5;
     private static final int IP_RANGE = 3;
     private static final double IP_PRICE_RANGE_1 = 8;
     private static final double IP_PRICE = 14;
     private static final double EXPECTED_IP_COST = IP_RANGE * IP_PRICE_RANGE_1 + (IP_COUNT - IP_RANGE) * IP_PRICE;
+    private static final double EXPECTED_IDLE_IP_COST =
+        IP_RANGE * IP_PRICE_RANGE_1 + (DEFAULT_ELASTIC_IPS_BOUGHT - IP_RANGE) * IP_PRICE;
     private static final double MYSQL_ADJUSTMENT = 5;
     private static final int GB_RANGE = 11;
     private static final double GB_PRICE_RANGE_1 = 13.0; // price per GB within GB_RANGE
@@ -119,7 +122,6 @@ public class CloudCostCalculatorTest {
     private static final long VOLUME_ID = 7;
     private static final long DEFAULT_VM_ID = 7;
     private static final long DEFAULT_SERVICE_ID = 0;
-    private static final long DEFAULT_ELASTIC_IPS_BOUGHT = 10;
 
     private static final TestEntityClass region = TestEntityClass.newBuilder(REGION_ID)
                     .build(infoExtractor);
@@ -523,13 +525,13 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(vm);
 
         // Assert
-        assertThat(journal.getTotalHourlyCost().getValue(), closeTo(EXPECTED_IP_COST, DELTA));
+        assertThat(journal.getTotalHourlyCost().getValue(), closeTo(EXPECTED_IDLE_IP_COST, DELTA));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
                 closeTo(0D, DELTA));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
                 closeTo(0D, DELTA));
         assertThat(journal.getHourlyCostForCategory(CostCategory.IP).getValue(),
-                closeTo(EXPECTED_IP_COST, DELTA));
+                closeTo(EXPECTED_IDLE_IP_COST, DELTA));
     }
 
     /**

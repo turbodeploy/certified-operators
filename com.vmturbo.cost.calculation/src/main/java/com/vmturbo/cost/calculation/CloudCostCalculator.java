@@ -494,6 +494,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      */
     private void recordVMIpCost(ENTITY_CLASS entity, ENTITY_CLASS computeTier, OnDemandPriceTable onDemandPriceTable,
                                 CostJournal.Builder<ENTITY_CLASS> journal) {
+        EntityState state = entityInfoExtractor.getEntityState(entity);
         entityInfoExtractor.getNetworkConfig(entity).ifPresent(networkConfigBought -> {
             Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
                 entityInfoExtractor.getId(computeTier));
@@ -503,10 +504,22 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 onDemandPriceTable.getIpPrices().getIpPriceList().stream()
                     .findFirst()
                     .ifPresent(ipPriceList -> {
+                        TraxNumber freeIps = trax(ipPriceList.getFreeIpCount(), "free ips");
+
+                        // If the entity is not in powered on state, it is going to be charged
+                        // for even free ips
+                        if (state != EntityState.POWERED_ON) {
+                            freeIps = freeIps.minus(ipPriceList.getFreeIpCount(),
+                                "non-eligible free ips")
+                                .compute("free  ips");
+                        }
+
                         // Excess of Elastic IPs needed beyond the freeIPs available in the region
                         final TraxNumber numElasticIps = trax(networkConfigBought.getNumElasticIps(), "elastic ips")
-                            .minus(ipPriceList.getFreeIpCount(), "free ips")
+                            .minus(freeIps)
                             .compute("ips to buy");
+
+
                         recordPriceRangeEntries(numElasticIps,
                             ipPriceList.getPricesList(),
                             (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
