@@ -1,10 +1,17 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +27,11 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -33,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 
@@ -53,18 +66,29 @@ public class CloudAspectMapperTest {
     private static final String ARCHITECTURE = "64-bit";
     private static final String VIRTUALIZATION_TYPE = "HVM";
     private static final String NVME = "Installed";
+    private static final int VM_COUPON_CAPACITY = 10;
+    private static final double DELTA = 0.001;
 
-    private final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
+    private ReservedInstanceUtilizationCoverageServiceMole riCoverageServiceMole =
+            spy(new ReservedInstanceUtilizationCoverageServiceMole());
+    private GrpcTestServer testServer = GrpcTestServer.newServer(riCoverageServiceMole);
+    private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
     private CloudAspectMapper cloudAspectMapper;
     private TopologyEntityDTO.Builder topologyEntityBuilder;
     private ApiPartialEntity.Builder apiPartialEntityBuilder;
 
     /**
      * Objects initialization necessary for a unit test.
+     *
+     * @throws IOException if testServer::start throws IOException.
      */
     @Before
-    public void setUp() {
-        cloudAspectMapper = new CloudAspectMapper(repositoryApi);
+    public void setUp() throws IOException {
+        testServer.start();
+        final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService =
+                ReservedInstanceUtilizationCoverageServiceGrpc
+                        .newBlockingStub(testServer.getChannel());
+        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService);
         topologyEntityBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(VIRTUAL_MACHINE_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -155,6 +179,92 @@ public class CloudAspectMapperTest {
     }
 
     /**
+     * Test that partially covered VM has a Hybrid BillingType.
+     */
+    @Test
+    public void testRiCoverageInfoPartiallyReserved() {
+        // given
+        final float couponsCovered = 3;
+        stubRiCoverage(couponsCovered);
+
+        // when
+        final CloudAspectApiDTO aspect = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+                        topologyEntityBuilder.build());
+
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertEquals(couponsCovered * 100 / VM_COUPON_CAPACITY,
+                aspect.getRiCoveragePercentage(), DELTA);
+        Assert.assertEquals(couponsCovered, aspect.getRiCoverage().getValue(), DELTA);
+        Assert.assertEquals(VMBillingType.HYBRID.name(), aspect.getBillingType());
+    }
+
+    /**
+     * Test that a fully covered VM has a Reserved BillingType.
+     */
+    @Test
+    public void testRiCoverageInfoFullyReserved() {
+        // given
+        final float couponsCovered = 9.999f;
+        stubRiCoverage(couponsCovered);
+
+        // when
+        final CloudAspectApiDTO aspect = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+                        topologyEntityBuilder.build());
+
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertEquals(couponsCovered * 100 / VM_COUPON_CAPACITY,
+                aspect.getRiCoveragePercentage(), DELTA);
+        Assert.assertEquals(couponsCovered, aspect.getRiCoverage().getValue(), DELTA);
+        Assert.assertEquals(VMBillingType.RESERVED.name(), aspect.getBillingType());
+    }
+
+    /**
+     * Test that an uncovered VM has an On demand BillingType.
+     */
+    @Test
+    public void testRiCoverageInfoOnDemand() {
+        // given
+        final float couponsCovered = 0;
+        stubRiCoverage(couponsCovered);
+
+        // when
+        final CloudAspectApiDTO aspect = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+                        topologyEntityBuilder.build());
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertEquals(VMBillingType.ONDEMAND.name(), aspect.getBillingType());
+    }
+
+    /**
+     * Test that for VM with billing type Bidding, the RI coverage information is not considered.
+     */
+    @Test
+    public void testBiddingInstanceBillingType() {
+        // given
+        topologyEntityBuilder.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                .setBillingType(VMBillingType.BIDDING);
+        // when
+        final CloudAspectApiDTO aspect = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+                topologyEntityBuilder.build());
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertEquals(VMBillingType.BIDDING.name(), aspect.getBillingType());
+    }
+
+    private void stubRiCoverage(float couponsCovered) {
+        when(riCoverageServiceMole.getEntityReservedInstanceCoverage(any())).thenReturn(
+                GetEntityReservedInstanceCoverageResponse.newBuilder()
+                        .putCoverageByEntityId(VIRTUAL_MACHINE_OID,
+                                EntityReservedInstanceCoverage.newBuilder()
+                                        .setEntityCouponCapacity(VM_COUPON_CAPACITY)
+                                        .putCouponsCoveredByRi(1111L, couponsCovered)
+                                        .build())
+                        .build());
+    }
+
+    /**
      * Test for {@link CloudAspectMapper#mapEntityToAspect(com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity)}
      * method.
      *
@@ -214,5 +324,13 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(REGION_NAME, aspect.getRegion().getDisplayName());
         Assert.assertEquals(UIEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
         Assert.assertNull(aspect.getZone());
+    }
+
+    /**
+     * Clean up test resources.
+     */
+    @After
+    public void cleanUp() {
+        testServer.close();
     }
 }

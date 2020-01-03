@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1119,13 +1120,13 @@ public class SupplyChainFetcherFactory {
                 Set<Entry<String, SupplychainEntryDTO>> seMapEntrySet = resultApiDTO.getSeMap().entrySet();
 
                 Map<String, List<ServiceEntityApiDTO>> entityTypeToSeList =  seMapEntrySet.stream().collect(Collectors.toMap(
-                    e -> e.getKey(),
-                    e -> e.getValue().getInstances().values().stream().collect(Collectors.toList())
+                        Entry::getKey,
+                    e -> new ArrayList<>(e.getValue().getInstances().values())
                 ));
 
                 Map<String, List<TopologyEntityDTO>> entityTypeToTeList = entityTypeToSeList.entrySet().stream()
                     .collect(Collectors.toMap(
-                        entityTypeEntry -> entityTypeEntry.getKey(),
+                            Entry::getKey,
                         entityTypeEntry -> repositoryApi.entitiesRequest(
                             entityTypeEntry.getValue().stream()
                                 .map(se -> Long.valueOf(se.getUuid()))

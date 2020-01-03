@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,8 +21,15 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -35,6 +43,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualMachineData.VMBillingType;
 
 /**
  * Mapper for getting {@link CloudAspectApiDTO}.
@@ -51,14 +61,19 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE);
 
     private final RepositoryApi repositoryApi;
+    private final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService;
 
     /**
      * Constructor.
      *
      * @param repositoryApi the {@link RepositoryApi}
+     * @param riCoverageService service to retrieve entity RI coverage information.
      */
-    public CloudAspectMapper(@Nonnull final RepositoryApi repositoryApi) {
-        this.repositoryApi = repositoryApi;
+    public CloudAspectMapper(@Nonnull final RepositoryApi repositoryApi,
+                             @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub
+                                     riCoverageService) {
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.riCoverageService = Objects.requireNonNull(riCoverageService);
     }
 
     /**
@@ -143,7 +158,69 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             return aspect;
         }
         setVirtualMachineSpecificInfo(entity, aspect);
+        final boolean riCoverageApplicable = entity.getTypeSpecificInfo().getVirtualMachine()
+                .getBillingType() != VirtualMachineData.VMBillingType.BIDDING;
+        if (riCoverageApplicable) {
+            setRiCoverageRelatedInformation(entity.getOid(), aspect);
+        }
         return aspect;
+    }
+
+    private void setRiCoverageRelatedInformation(final long oid, final CloudAspectApiDTO aspect) {
+        final GetEntityReservedInstanceCoverageRequest entityRiCoverageRequest =
+                GetEntityReservedInstanceCoverageRequest.newBuilder()
+                        .setEntityFilter(EntityFilter.newBuilder()
+                                .addEntityId(oid)
+                                .build())
+                        .build();
+
+        final GetEntityReservedInstanceCoverageResponse entityRiCoverageResponse = riCoverageService
+                .getEntityReservedInstanceCoverage(entityRiCoverageRequest);
+
+        final EntityReservedInstanceCoverage entityRiCoverage = entityRiCoverageResponse
+                .getCoverageByEntityIdMap().get(oid);
+        logger.trace("Setting RI Coverage info for  with VM oid: {}, entityRiCoverage: {}",
+                () -> oid, () -> entityRiCoverage);
+        if (entityRiCoverage != null) {
+            final int couponCapacity = entityRiCoverage.getEntityCouponCapacity();
+            final double couponsUsed = entityRiCoverage.getCouponsCoveredByRiMap().values()
+                    .stream()
+                    .reduce(Double::sum)
+                    .orElse(0D);
+            final float percentageCovered = (float)couponsUsed * 100 / couponCapacity;
+
+            aspect.setRiCoveragePercentage(percentageCovered);
+            final StatApiDTO riCoverageStatsDto = createRiCoverageStatsDto((float)couponsUsed,
+                    (float)couponCapacity);
+            aspect.setRiCoverage(riCoverageStatsDto);
+
+            // Set Billing Type based on percentageCovered
+            if (Math.abs(100 - percentageCovered) < 0.1) {
+                aspect.setBillingType(VMBillingType.RESERVED.name());
+            } else if (percentageCovered > 0) {
+                aspect.setBillingType(VMBillingType.HYBRID.name());
+            } else {
+                aspect.setBillingType(VMBillingType.ONDEMAND.name());
+            }
+        }
+    }
+
+    private static StatApiDTO createRiCoverageStatsDto(float value, float capacity) {
+        final StatValueApiDTO statsValueDto = new StatValueApiDTO();
+        statsValueDto.setMin(value);
+        statsValueDto.setMax(value);
+        statsValueDto.setAvg(value);
+        statsValueDto.setTotal(value);
+        final StatApiDTO statsDto = new StatApiDTO();
+        statsDto.setValues(statsValueDto);
+        statsDto.setValue(value);
+        final StatValueApiDTO capacityDto = new StatValueApiDTO();
+        capacityDto.setMin(capacity);
+        capacityDto.setMax(capacity);
+        capacityDto.setAvg(capacity);
+        statsDto.setCapacity(capacityDto);
+        statsDto.setUnits(StringConstants.RI_COUPON_UNITS);
+        return statsDto;
     }
 
     private static void setVirtualMachineSpecificInfo(@Nonnull TopologyEntityDTO entity,
