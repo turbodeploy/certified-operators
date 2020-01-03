@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -72,6 +73,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
     private ProjectedRICoverageAndUtilStore store;
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore =
             mock(ReservedInstanceBoughtStore.class);
+    private final BuyReservedInstanceStore buyReservedInstanceStore =
+            mock(BuyReservedInstanceStore.class);
     private final Clock clock = Clock.systemUTC();
 
     private static final long VM_1_ID = 1L;
@@ -84,12 +87,14 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 .setEntityId(VM_1_ID)
                 .setEntityCouponCapacity(200)
                 .putCouponsCoveredByRi(10L, 100.0)
+                .putCouponsCoveredByBuyRi(11L, 100.0)
                 .build();
     private static final EntityReservedInstanceCoverage SECOND_RI_COVERAGE =
                     EntityReservedInstanceCoverage.newBuilder()
                             .setEntityId(VM_2_ID)
                             .setEntityCouponCapacity(100)
-                            .putCouponsCoveredByRi(4L, 50.0).build();
+                            .putCouponsCoveredByRi(4L, 50.0)
+                            .putCouponsCoveredByBuyRi(7L, 25.0).build();
     private final TopologyInfo topoInfo =
                     TopologyInfo.newBuilder().setTopologyContextId(realtimeTopologyContextId)
                                     .setTopologyId(0L).build();
@@ -112,6 +117,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 repositoryClient,
                 supplyChainService,
                 reservedInstanceBoughtStore,
+                buyReservedInstanceStore,
                 clock));
     }
 
@@ -177,7 +183,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
 
         // Get the stats record for coverage
         final ReservedInstanceStatsRecord statsRecord =
-                store.getReservedInstanceCoverageStats(filter);
+                store.getReservedInstanceCoverageStats(filter, false);
 
         // Assertions
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(100.0F));
@@ -307,6 +313,36 @@ public class ProjectedRICoverageAndUtilStoreTest {
     }
 
     @Test
+    public void testGetReservedInstanceCoverageStatsWithBuyRI() {
+
+        // Store a map with coverage for both VM_1_ID and VM_2_ID
+        store.updateProjectedRICoverage(topoInfo,
+                Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
+        // Create a filter, the when below means we ignore the contents
+        ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
+                .regionFilter(RegionFilter.newBuilder()
+                        .addRegionId(REGION_1_ID)
+                        .build())
+                .build();
+
+        // Scope to both VM_1 and VM_2 only
+        final Map<EntityType, Set<Long>> scopedOids =
+                ImmutableMap.of(EntityType.VIRTUAL_MACHINE, ImmutableSet.of(VM_1_ID, VM_2_ID),
+                        EntityType.REGION, ImmutableSet.of(REGION_1_ID));
+        when(repositoryClient.getEntitiesByTypePerScope(any(), any()))
+                .thenReturn(Stream.of(scopedOids));
+
+        // Get the stats record for coverage
+        final ReservedInstanceStatsRecord statsRecord =
+                store.getReservedInstanceCoverageStats(filter, true);
+
+        // Assertions
+        assertThat(statsRecord.getCapacity().getTotal(), equalTo(300.0F));
+        assertThat(statsRecord.getValues().getTotal(), equalTo(275.0F));
+        assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
+    }
+
+    @Test
     public void testGetReservedInstanceUtilizationStats() {
 
         final ReservedInstanceBought riCoveringVm2 = ReservedInstanceBought.newBuilder()
@@ -325,15 +361,71 @@ public class ProjectedRICoverageAndUtilStoreTest {
                         .build())
                 .build();
 
-        // setup expected RI bought filter
-        final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
+        // setup RI bought store
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(Lists.newArrayList(riCoveringVm2));
+
+        // invoke SUT
+        store.updateProjectedRICoverage(topoInfo,
+                Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
+        final ReservedInstanceStatsRecord statsRecord =
+                store.getReservedInstanceUtilizationStats(riUtilizationFilter, false);
+
+
+        // Assertions
+        assertThat(statsRecord.getCapacity().getTotal(), equalTo(75.0F));
+        assertThat(statsRecord.getValues().getTotal(), equalTo(50.0F));
+        assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
+    }
+
+
+    @Test
+    public void testGetReservedInstanceUtilizationStatsWithBuyRI() {
+
+        // Setup RI inventory
+        final ReservedInstanceBought riCoveringVm2 = ReservedInstanceBought.newBuilder()
+                .setId(4L)
+                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                .setNumberOfCoupons(75)
+                                .build()))
+                .build();
+
+        // Setup Buy RI
+        final ReservedInstanceBought buyRICoveringVm2 = ReservedInstanceBought.newBuilder()
+                .setId(7L)
+                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                .setNumberOfCoupons(100)
+                                .build()))
+                .build();
+
+        // setup input RI utilization filter
+        final List<Long> scopeOids = Lists.newArrayList(3L, 11L);
+        final ReservedInstanceUtilizationFilter riUtilizationFilter = ReservedInstanceUtilizationFilter.newBuilder()
                 .regionFilter(RegionFilter.newBuilder()
                         .addAllRegionId(scopeOids)
                         .build())
                 .build();
 
         // setup RI bought store
-        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(eq(riBoughtFilter)))
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(riCoveringVm2));
+
+        // setup By RI store
+        when(buyReservedInstanceStore.getBuyReservedInstances(any()))
+                .thenReturn(Lists.newArrayList(buyRICoveringVm2));
+
+        // invoke SUT
+        store.updateProjectedRICoverage(topoInfo,
+                Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
+        final ReservedInstanceStatsRecord statsRecord =
+                store.getReservedInstanceUtilizationStats(riUtilizationFilter, true);
+
+
+        // Assertions
+        assertThat(statsRecord.getCapacity().getTotal(), equalTo(175.0F));
+        assertThat(statsRecord.getValues().getTotal(), equalTo(75.0F));
+        assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
     }
 }

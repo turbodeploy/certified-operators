@@ -2,11 +2,16 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.cost.component.db.Tables;
 
 /**
@@ -23,17 +28,9 @@ public abstract class BuyReservedInstanceTableFilter {
     //Topology Context ID.
     private final long topologyContextId;
 
-    //Boolean flag indicating if region filter is set.
-    private final boolean hasRegionFilter;
+    private final RegionFilter regionFilter;
 
-    //List of Region IDs.
-    private final List<Long> regionIdList;
-
-    //Boolean flag indicating if account filter is set.
-    private final boolean hasAccountFilter;
-
-    //List of Account IDs.
-    private final List<Long> accountIdList;
+    private final AccountFilter accountFilter;
 
     //List of BuyRI IDs.
     private final List<Long> buyRIIdList;
@@ -44,22 +41,21 @@ public abstract class BuyReservedInstanceTableFilter {
      *
      * @param hasTopologyContextId boolean attribute indicating if topology context ID is set in the filter.
      * @param topologyContextId long value indicating Topology Context ID.
-     * @param hasRegionFilter boolean attribute indicating if regionIDs are set in the filter.
-     * @param regionIdList List of regionIDs set in the filter.
-     * @param hasAccountFilter boolean attribute indicating if accountIDs are set in the filter.
-     * @param accountIdList List of accountIDs set in the filter.
+     * @param regionFilter A {@link RegionFilter}, used to filter Buy RI instance by region OID, if
+     *                     the filter list is set
+     * @param accountFilter A {@link AccountFilter}, used to filter Buy RI instances by account OID,
+     *                      if the filter list is set
      * @param buyRIIdList List of Buy RI IDs.
      */
     protected BuyReservedInstanceTableFilter(boolean hasTopologyContextId, long topologyContextId,
-                    boolean hasRegionFilter, List<Long> regionIdList, boolean hasAccountFilter,
-                    List<Long> accountIdList, List<Long> buyRIIdList) {
+                                             @Nonnull RegionFilter regionFilter,
+                                             @Nonnull AccountFilter accountFilter,
+                                             @Nonnull List<Long> buyRIIdList) {
         this.hasTopologyContextId = hasTopologyContextId;
         this.topologyContextId = topologyContextId;
-        this.hasRegionFilter = hasRegionFilter;
-        this.regionIdList = regionIdList;
-        this.hasAccountFilter = hasAccountFilter;
-        this.accountIdList = accountIdList;
-        this.buyRIIdList = buyRIIdList;
+        this.regionFilter = Objects.requireNonNull(regionFilter);
+        this.accountFilter = Objects.requireNonNull(accountFilter);
+        this.buyRIIdList = Objects.requireNonNull(buyRIIdList);
         this.conditions = generateConditions();
     }
 
@@ -83,12 +79,12 @@ public abstract class BuyReservedInstanceTableFilter {
             conditions.add(Tables.BUY_RESERVED_INSTANCE.TOPOLOGY_CONTEXT_ID.eq(this.topologyContextId));
         }
 
-        if (this.hasRegionFilter && !this.regionIdList.isEmpty()) {
-            conditions.add(Tables.BUY_RESERVED_INSTANCE.REGION_ID.in(this.regionIdList));
+        if (regionFilter.getRegionIdCount() > 0) {
+            conditions.add(Tables.BUY_RESERVED_INSTANCE.REGION_ID.in(regionFilter.getRegionIdList()));
         }
 
-        if (this.hasAccountFilter && !this.accountIdList.isEmpty()) {
-            conditions.add(Tables.BUY_RESERVED_INSTANCE.BUSINESS_ACCOUNT_ID.in(this.accountIdList));
+        if (accountFilter.getAccountIdCount() > 0 ) {
+            conditions.add(Tables.BUY_RESERVED_INSTANCE.BUSINESS_ACCOUNT_ID.in(accountFilter.getAccountIdList()));
         }
 
         if (!this.buyRIIdList.isEmpty()) {
@@ -106,19 +102,15 @@ public abstract class BuyReservedInstanceTableFilter {
      * @param <U> Child Bulilder Classes that extend the AbstractBuilder class.
      */
     abstract static class AbstractBuilder<T extends BuyReservedInstanceTableFilter, U extends AbstractBuilder<T, U>> {
-        boolean hasTopologyContextId = false;
-        long topologyContextId = 0L;
-        boolean hasRegionFilter = false;
-        final List<Long> regionIdList = new ArrayList<>();
-        boolean hasAccountFilter = false;
-        final List<Long> accountIdList = new ArrayList<>();
-        final List<Long> buyRIIdList = new ArrayList<>();
+        protected boolean hasTopologyContextId = false;
+        protected long topologyContextId = 0L;
+        protected RegionFilter regionFilter = RegionFilter.getDefaultInstance();
+        protected AccountFilter accountFilter = AccountFilter.getDefaultInstance();
+        protected final List<Long> buyRIIdList = new ArrayList<>();
 
         AbstractBuilder() {}
 
         public abstract T build();
-
-        abstract U getThis();
 
         /**
          * Add the Topology Context ID. Also set the hasTopologyContextId flag to true.
@@ -130,33 +122,34 @@ public abstract class BuyReservedInstanceTableFilter {
         public U addTopologyContextId(long topologyContextId) {
             this.topologyContextId = topologyContextId;
             this.hasTopologyContextId = true;
-            return getThis();
+            return (U)this;
         }
 
         /**
-         * Add the list of Region IDs. Also set the hasRegionFilter flag to true.
-         *
-         * @param ids List of region IDs.
-         * @return Builder for this class.
+         * Add a region filter to the aggregate filter
+         * @param regionFilter The region filter or null, if BuyRI instances should not
+         *                     be filtered by region
+         * @return This builder for method chaining
          */
         @Nonnull
-        public U addAllRegionIdList(@Nonnull final List<Long> ids) {
-            this.regionIdList.addAll(ids);
-            this.hasRegionFilter = true;
-            return getThis();
+        public U setRegionFilter(@Nullable RegionFilter regionFilter) {
+            this.regionFilter = Optional.ofNullable(regionFilter)
+                    .orElseGet(RegionFilter::getDefaultInstance);
+            return (U)this;
         }
 
         /**
          * Add the list of Account IDs. Also set the hasAccountFilter flag to true.
          *
-         * @param ids List of AccountIDs.
+         * @param accountFilter The account filter or null, if BuyRI instances should not
+         *                      be filtered by purchasing account ID
          * @return Builder for this class.
          */
         @Nonnull
-        public U addAllAccountIdList(@Nonnull final List<Long> ids) {
-            this.accountIdList.addAll(ids);
-            this.hasAccountFilter = true;
-            return getThis();
+        public U setAccountFilter(@Nullable AccountFilter accountFilter) {
+            this.accountFilter = Optional.ofNullable(accountFilter)
+                    .orElseGet(AccountFilter::getDefaultInstance);
+            return (U)this;
         }
 
         /**
@@ -168,7 +161,7 @@ public abstract class BuyReservedInstanceTableFilter {
         @Nonnull
         public U addBuyRIIdList(@Nonnull final List<Long> ids) {
             this.buyRIIdList.addAll(ids);
-            return getThis();
+            return (U)this;
         }
     }
 }

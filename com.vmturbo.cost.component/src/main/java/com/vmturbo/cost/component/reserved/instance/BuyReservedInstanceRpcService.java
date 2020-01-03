@@ -49,15 +49,12 @@ public class BuyReservedInstanceRpcService extends BuyReservedInstanceServiceImp
 
     @VisibleForTesting
     private static BuyReservedInstanceFilter constructBuyRIFilter(GetBuyReservedInstancesByFilterRequest request) {
-        BuyReservedInstanceFilter.Builder filterBuilder = BuyReservedInstanceFilter.newBuilder();
-        if (request.hasAccountFilter()) {
-            filterBuilder.addAllAccountIdList(request.getAccountFilter().getAccountIdList());
-        }
+        BuyReservedInstanceFilter.Builder filterBuilder = BuyReservedInstanceFilter.newBuilder()
+                .setRegionFilter(request.getRegionFilter())
+                .setAccountFilter(request.getAccountFilter());
+
         if (request.hasTopologyContextId()) {
             filterBuilder.addTopologyContextId(request.getTopologyContextId());
-        }
-        if (request.hasRegionFilter()) {
-            filterBuilder.addAllRegionIdList(request.getRegionFilter().getRegionIdList());
         }
         if (request.getBuyRiIdCount() > 0) {
             filterBuilder.addBuyRIIdList(request.getBuyRiIdList());

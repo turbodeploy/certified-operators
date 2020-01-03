@@ -159,6 +159,7 @@ public class ReservedInstanceConfig {
                 repositoryClientConfig.repositoryClient(),
                 supplyChainRpcServiceConfig.supplyChainRpcService(),
                 reservedInstanceBoughtStore(),
+                buyReservedInstanceStore(),
                 costComponentGlobalConfig.clock());
     }
 

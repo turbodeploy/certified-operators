@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
@@ -59,6 +60,8 @@ public class ProjectedRICoverageAndUtilStore {
 
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
+    private final BuyReservedInstanceStore buyReservedInstanceStore;
+
     private final Clock clock;
 
     // This should be the same as realtimeTopologyContextId.
@@ -81,11 +84,13 @@ public class ProjectedRICoverageAndUtilStore {
                     @Nonnull RepositoryClient repositoryClient,
                     @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
                     @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
+                    @Nonnull BuyReservedInstanceStore buyReservedInstanceStore,
                     @Nonnull Clock clock) {
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.supplyChainServiceBlockingStub =
                         Objects.requireNonNull(supplyChainServiceBlockingStub);
         this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
+        this.buyReservedInstanceStore = Objects.requireNonNull(buyReservedInstanceStore);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -187,23 +192,40 @@ public class ProjectedRICoverageAndUtilStore {
      *
      * @param filter The filter, applied to entities within the projected {@link EntityReservedInstanceCoverage}
      *               data.
+     * @param includeBuyRICoverage A flag indicating whether coverage from Buy RI instances should be
+     *                             included in the returned stats record.
      * @return A {@link ReservedInstanceStatsRecord}, in which capacity represents the coverage capacity
      * of entities within scope and the value of the record represented the covered amount (assumed
      * to be in coupons) of the entities within scope.
      */
     @Nonnull
     public ReservedInstanceStatsRecord getReservedInstanceCoverageStats(
-            @Nonnull ReservedInstanceCoverageFilter filter) {
+            @Nonnull ReservedInstanceCoverageFilter filter,
+            boolean includeBuyRICoverage) {
 
         final Map<Long, EntityReservedInstanceCoverage> projectedEntitiesRICoverages =
                 getScopedProjectedEntitiesRICoverages(filter);
         double usedCouponsTotal = 0d;
         double entityCouponsCapTotal = 0d;
         for (EntityReservedInstanceCoverage entityRICoverage : projectedEntitiesRICoverages.values()) {
-            final Map<Long, Double> riMap = entityRICoverage.getCouponsCoveredByRiMap();
-            if (riMap != null) {
-                usedCouponsTotal += riMap.values().stream().mapToDouble(Double::doubleValue).sum();
+
+            // Add coverage from RI inventory
+            usedCouponsTotal += entityRICoverage.getCouponsCoveredByRiMap()
+                    .values()
+                    .stream()
+                    .mapToDouble(Double::doubleValue)
+                    .sum();
+
+            // Add coverage from Buy RI actions, if requested
+            if (includeBuyRICoverage) {
+                usedCouponsTotal += entityRICoverage.getCouponsCoveredByBuyRiMap()
+                        .values()
+                        .stream()
+                        .mapToDouble(Double::doubleValue)
+                        .sum();
             }
+
+
             entityCouponsCapTotal += entityRICoverage.getEntityCouponCapacity();
         }
         final long projectedTime = clock.instant()
@@ -219,14 +241,17 @@ public class ProjectedRICoverageAndUtilStore {
      * the {@link ReservedInstanceBoughtStore}.
      * @param filter The {@link ReservedInstanceUtilizationFilter} instance, assumed to be applied to
      *               all utilization records for a larger stats request.
+     * @param includeBuyRIUtilization Indicates whether utilization of Buy RI instances should be included
+     *                                in the returned stats record.
      * @return An instance of {@link ReservedInstanceStatsRecord}, in which the capacity is the coupon
      * capacity of all RIs in scope and the value is the coverage amount used for all RIs in scope.
      */
     @Nonnull
     public ReservedInstanceStatsRecord getReservedInstanceUtilizationStats(
-            @Nonnull ReservedInstanceUtilizationFilter filter) {
+            @Nonnull ReservedInstanceUtilizationFilter filter,
+            boolean includeBuyRIUtilization) {
 
-        // FIrst, query the RI bought store to determine the RIs in scope. The full ReservedInstanceBoughtInfo
+        // First, query the RI bought store to determine the RIs in scope. The full ReservedInstanceBoughtInfo
         // is queried, in order to determine the RI capacity as well.
         final ReservedInstanceBoughtFilter riBoughtFilter = filter.toReservedInstanceBoughtFilter();
         final List<ReservedInstanceBought> risInScope =
@@ -235,28 +260,82 @@ public class ProjectedRICoverageAndUtilStore {
                 .map(ReservedInstanceBought::getId)
                 .collect(ImmutableSet.toImmutableSet());
 
+        // Resolve Buy RI instances in scope
+        final List<ReservedInstanceBought> buyRIsInScope = includeBuyRIUtilization ?
+                resolveBuyRIsInScope(filter) : Collections.emptyList();
+        final Set<Long> buyRIIdsInScope = buyRIsInScope.stream()
+                .map(ReservedInstanceBought::getId)
+                .collect(ImmutableSet.toImmutableSet());
+
         final long projectedTime = clock.instant()
                 .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
 
-        final long coverageCapacity = risInScope.stream()
+        // Determine the capacity of both RI inventory and buy RI instances.
+        final long coverageCapacity = Stream.of(risInScope, buyRIsInScope)
+                .flatMap(List::stream)
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceBoughtCoupons)
                 .mapToLong(ReservedInstanceBoughtCoupons::getNumberOfCoupons)
                 .sum();
 
         synchronized (lockObject) {
-            final double coverageUtilization = projectedEntitiesRICoverage.values()
-                    .stream()
-                    .map(EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
-                    .map(Map::entrySet)
-                    .flatMap(Set::stream)
-                    .filter(riEntry -> riBoughtIdsInScope.contains(riEntry.getKey()))
-                    .mapToDouble(Entry::getValue)
-                    .sum();
+            final double riInventoryCoverageUtilization =
+                    riBoughtIdsInScope.isEmpty() ? 0.0 :
+                            projectedEntitiesRICoverage.values()
+                                    .stream()
+                                    .map(EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
+                                    .map(Map::entrySet)
+                                    .flatMap(Set::stream)
+                                    .filter(riEntry -> riBoughtIdsInScope.contains(riEntry.getKey()))
+                                    .mapToDouble(Entry::getValue)
+                                    .sum();
+
+            // Look through the EntityReservedInstanceCoverage::getCouponsCoveredByBuyRiMap, containing
+            // RI coverage from buy RI instance from BuyRIImpactAnalysis
+            final double buyRICoverageUtilization =
+                    buyRIIdsInScope.isEmpty() ? 0.0 :
+                            projectedEntitiesRICoverage.values()
+                                    .stream()
+                                    .map(EntityReservedInstanceCoverage::getCouponsCoveredByBuyRiMap)
+                                    .map(Map::entrySet)
+                                    .flatMap(Set::stream)
+                                    .filter(riEntry -> buyRIIdsInScope.contains(riEntry.getKey()))
+                                    .mapToDouble(Entry::getValue)
+                                    .sum();
+
+            final double totalCoverageUtilization = riInventoryCoverageUtilization + buyRICoverageUtilization;
 
             return ReservedInstanceUtil.createRIStatsRecord((float)coverageCapacity,
-                    (float)coverageUtilization, projectedTime);
+                    (float)totalCoverageUtilization, projectedTime);
 
+        }
+    }
+
+    /**
+     * Determines the RIs in scope of the {@code riUitlizationFilter}. First, the filter is converted
+     * to a {@link BuyReservedInstanceFilter}. The {@link BuyReservedInstanceStore} is queried with
+     * the converted filter, using the realtime topology context ID
+     *
+     * @param riUtilizationFilter The source filter to scope BuyRI instances
+     * @return A list of BuyRI instances (represented by {@link ReservedInstanceBought}) in scope
+     */
+    private List<ReservedInstanceBought> resolveBuyRIsInScope(
+            @Nonnull ReservedInstanceUtilizationFilter riUtilizationFilter) {
+
+        // The API should not request buy RI utilization in zone scopes. Therefore, if this is a zone
+        // scope and buy RI utilization is requested, throw an unsupported operation exception to
+        // indicate an invalid request.
+        if (riUtilizationFilter.isZoneFiltered()) {
+            throw new UnsupportedOperationException(
+                    "Zone filtering is not compatible with Buy RI utilization");
+        } else {
+            final BuyReservedInstanceFilter buyReservedInstanceFilter = BuyReservedInstanceFilter.newBuilder()
+                    .addTopologyContextId(topologyContextId)
+                    .setAccountFilter(riUtilizationFilter.getAccountFilter())
+                    .setRegionFilter(riUtilizationFilter.getRegionFilter())
+                    .build();
+
+            return buyReservedInstanceStore.getBuyReservedInstances(buyReservedInstanceFilter);
         }
     }
 }

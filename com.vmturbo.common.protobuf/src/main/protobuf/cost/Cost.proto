@@ -750,6 +750,10 @@ message GetReservedInstanceUtilizationStatsRequest {
     // get reserved instance utilization stats filter by account ids.
     optional AccountFilter account_filter = 5;
 
+    // whether utilization of Buy RI instances should be included in the
+    // projected utilization stats returned
+    optional bool include_buy_ri_utilization = 6 [default = false];
+
 }
 
 // A response of reserved instance utilization stats.
@@ -776,6 +780,10 @@ message GetReservedInstanceCoverageStatsRequest {
     optional AccountFilter account_filter = 5;
 
     optional EntityFilter entity_filter = 6;
+
+    // whether coverage from BuyRI instances should be included in the
+    // projected coverage stat returned.
+    optional bool include_buy_ri_coverage = 7 [default = false];
 }
 
 // A response of reserved instance coverage stats.

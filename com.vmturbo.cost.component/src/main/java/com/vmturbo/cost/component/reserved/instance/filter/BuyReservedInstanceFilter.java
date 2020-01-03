@@ -2,6 +2,10 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.List;
 
+import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 
@@ -17,17 +21,18 @@ public class BuyReservedInstanceFilter extends BuyReservedInstanceTableFilter {
      *
      * @param hasTopologyContextId boolean attribute indicating if topology context ID is set in the filter.
      * @param topologyContextId long value indicating Topology Context ID.
-     * @param hasRegionFilter boolean attribute indicating if regionIDs are set in the filter.
-     * @param regionIdList List of regionIDs set in the filter.
-     * @param hasAccountFilter boolean attribute indicating if accountIDs are set in the filter.
-     * @param accountIdList List of accountIDs set in the filter.
+     * @param regionFilter A {@link RegionFilter}, used to filter Buy RI instance by region OID, if
+     *                     the filter list is set
+     * @param accountFilter A {@link AccountFilter}, used to filter Buy RI instances by account OID,
+     *                      if the filter list is set
      * @param buyRIIdList List of Buy RI IDs.
      */
-    private BuyReservedInstanceFilter(boolean hasTopologyContextId, long topologyContextId,
-                    boolean hasRegionFilter, List<Long> regionIdList, boolean hasAccountFilter,
-                    List<Long> accountIdList, List<Long> buyRIIdList) {
-        super(hasTopologyContextId, topologyContextId, hasRegionFilter, regionIdList,
-                        hasAccountFilter, accountIdList, buyRIIdList);
+    private BuyReservedInstanceFilter(boolean hasTopologyContextId,
+                                      long topologyContextId,
+                                      @Nonnull RegionFilter regionFilter,
+                                      @Nonnull AccountFilter accountFilter,
+                                      @Nonnull List<Long> buyRIIdList) {
+        super(hasTopologyContextId, topologyContextId, regionFilter, accountFilter, buyRIIdList);
     }
 
     /**
@@ -49,13 +54,12 @@ public class BuyReservedInstanceFilter extends BuyReservedInstanceTableFilter {
 
         @Override
         public BuyReservedInstanceFilter build() {
-            return new BuyReservedInstanceFilter(hasTopologyContextId, topologyContextId, hasRegionFilter,
-                            regionIdList, hasAccountFilter, accountIdList, buyRIIdList);
-        }
-
-        @Override
-        Builder getThis() {
-            return this;
+            return new BuyReservedInstanceFilter(
+                    hasTopologyContextId,
+                    topologyContextId,
+                    regionFilter,
+                    accountFilter,
+                    buyRIIdList);
         }
     }
 }

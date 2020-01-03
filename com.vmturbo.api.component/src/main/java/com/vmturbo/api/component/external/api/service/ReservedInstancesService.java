@@ -161,6 +161,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
             final Optional<PlanInstance> optPlan = scope.getPlanInstance();
+            // Currently, the RIs within scope of a plan are not indexed within the cost component
+            // by the plan ID/topology context ID. Instead, when the scope seed OIDs are sent to the
+            // cost component, they are expanded. As part of this expansion, the billing families
+            // linked to any accounts in scope are pulled in. This differs from realtime behavior in
+            // that there is no scope expansion. At the point RIs are stored within the cost component
+            // by topology context iD (which plans will have to do at some point to correctly snapshot
+            // RI inventory at the point the plan was run), this logic will be collapsed to a single
+            // branch for both RT and plans
             if (optPlan.isPresent()) {
                 final PlanInstance plan = optPlan.get();
                 final Set<Long> scopeIds = MarketMapper.getPlanScopeIds(plan);

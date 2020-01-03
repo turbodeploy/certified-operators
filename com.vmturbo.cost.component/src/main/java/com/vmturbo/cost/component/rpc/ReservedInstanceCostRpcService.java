@@ -131,25 +131,11 @@ public class ReservedInstanceCostRpcService extends
     }
 
     private ReservedInstanceCostFilter buildReservedInstanceCostFilter(Cost.GetReservedInstanceCostStatsRequest request) {
-        final ReservedInstanceCostFilter.Builder builder = ReservedInstanceCostFilter.newBuilder();
-        if (request.hasAccountFilter() && request.getAccountFilter().getAccountIdCount() != 0) {
-            final List<Long> accountIdsList = request.getAccountFilter().getAccountIdList();
-            final Cost.AccountFilter accountFilter =
-                            Cost.AccountFilter.newBuilder().addAllAccountId(accountIdsList).build();
-            builder.accountFilter(accountFilter);
-        }
-        if (request.hasAvailabilityZoneFilter() && request.getAvailabilityZoneFilter().getAvailabilityZoneIdCount() != 0) {
-            final List<Long> availabilityZoneIdList = request.getAvailabilityZoneFilter().getAvailabilityZoneIdList();
-            final Cost.AvailabilityZoneFilter availabilityZoneFilter = Cost.AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(availabilityZoneIdList).build();
-            builder.availabilityZoneFilter(availabilityZoneFilter);
-        }
-        if (request.hasRegionFilter() && request.getRegionFilter().getRegionIdCount() != 0) {
-            final List<Long> regionIdList = request.getRegionFilter().getRegionIdList();
-            final Cost.RegionFilter regionFilter =
-                            Cost.RegionFilter.newBuilder().addAllRegionId(regionIdList).build();
-            builder.regionFilter(regionFilter);
-        }
+        final ReservedInstanceCostFilter.Builder builder = ReservedInstanceCostFilter.newBuilder()
+                .accountFilter(request.getAccountFilter())
+                .regionFilter(request.getRegionFilter())
+                .availabilityZoneFilter(request.getAvailabilityZoneFilter());
+
         if (request.hasGroupBy()) {
             final Cost.GetReservedInstanceCostStatsRequest.GroupBy groupBy = request.getGroupBy();
             builder.addGroupBy(groupBy);
@@ -158,15 +144,10 @@ public class ReservedInstanceCostRpcService extends
     }
 
     private BuyReservedInstanceCostFilter buildBuyReservedInstanceCostFilter(Cost.GetReservedInstanceCostStatsRequest request) {
-        final BuyReservedInstanceCostFilter.Builder builder = BuyReservedInstanceCostFilter.newBuilder();
-        if (request.hasAccountFilter() && request.getAccountFilter().getAccountIdCount() != 0) {
-            final List<Long> accountIdsList = request.getAccountFilter().getAccountIdList();
-            builder.addAllAccountIdList(accountIdsList);
-        }
-        if (request.hasRegionFilter() && request.getRegionFilter().getRegionIdCount() != 0) {
-            final List<Long> regionIdList = request.getRegionFilter().getRegionIdList();
-            builder.addAllRegionIdList(regionIdList);
-        }
+        final BuyReservedInstanceCostFilter.Builder builder = BuyReservedInstanceCostFilter.newBuilder()
+                .setAccountFilter(request.getAccountFilter())
+                .setRegionFilter(request.getRegionFilter());
+
         if (request.hasTopologyContextId() && request.getTopologyContextId() != 0) {
             builder.addTopologyContextId(request.getTopologyContextId());
         }

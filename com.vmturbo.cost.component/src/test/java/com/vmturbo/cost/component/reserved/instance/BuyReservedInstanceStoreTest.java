@@ -124,7 +124,7 @@ public class BuyReservedInstanceStoreTest {
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                 .newBuilder().setRegionFilter(RegionFilter.newBuilder().addRegionId(400L).build()).build();
         final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder()
-                        .addAllRegionIdList(request.getRegionFilter().getRegionIdList()).build();
+                        .setRegionFilter(request.getRegionFilter()).build();
         Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(1, buyRIs.size());
         assertEquals(1001L, buyRIs.iterator().next().getId());
@@ -139,7 +139,7 @@ public class BuyReservedInstanceStoreTest {
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                         .newBuilder().setRegionFilter(RegionFilter.newBuilder().addRegionId(400L).build()).build();
         final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder()
-                        .addAllRegionIdList(request.getRegionFilter().getRegionIdList()).build();
+                        .setRegionFilter(request.getRegionFilter()).build();
         final Result<BuyReservedInstanceRecord> fetch =
                         dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
                                         .fetch();
@@ -158,7 +158,7 @@ public class BuyReservedInstanceStoreTest {
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                 .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
         final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder()
-                        .addAllAccountIdList(request.getAccountFilter().getAccountIdList()).build();
+                        .setAccountFilter(request.getAccountFilter()).build();
         Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(1, buyRIs.size());
         assertEquals(1002L, buyRIs.iterator().next().getId());
@@ -173,7 +173,7 @@ public class BuyReservedInstanceStoreTest {
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                         .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
         final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder()
-                        .addAllAccountIdList(request.getAccountFilter().getAccountIdList()).build();
+                        .setAccountFilter(request.getAccountFilter()).build();
         final Result<BuyReservedInstanceRecord> fetch =
                         dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
                                         .fetch();
@@ -227,7 +227,7 @@ public class BuyReservedInstanceStoreTest {
                 .setRegionFilter(RegionFilter.newBuilder().addRegionId(300L).build())
                 .build();
         final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder().addTopologyContextId(request.getTopologyContextId())
-                        .addAllRegionIdList(request.getRegionFilter().getRegionIdList()).build();
+                        .setRegionFilter(request.getRegionFilter()).build();
         Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(1, buyRIs.size());
         assertEquals(1000L, buyRIs.iterator().next().getId());

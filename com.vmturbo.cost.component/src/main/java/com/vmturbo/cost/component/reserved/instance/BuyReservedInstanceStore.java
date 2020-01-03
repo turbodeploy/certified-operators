@@ -61,7 +61,8 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore {
         this.dsl = Objects.requireNonNull(dsl);
     }
 
-    public Collection<ReservedInstanceBought> getBuyReservedInstances(
+    @Nonnull
+    public List<ReservedInstanceBought> getBuyReservedInstances(
             @Nonnull final BuyReservedInstanceFilter filter) {
         List<BuyReservedInstanceRecord> buyRiRecords =  dsl.selectFrom(BUY_RESERVED_INSTANCE)
                 .where(filter.getConditions())

@@ -32,6 +32,20 @@ public abstract class ReservedInstanceFilter {
         this.availabilityZoneFilter = Objects.requireNonNull(builder.availabilityZoneFilter);
     }
 
+    public boolean isZoneFiltered() {
+        return availabilityZoneFilter.getAvailabilityZoneIdCount() > 0;
+    }
+
+    @Nonnull
+    public RegionFilter getRegionFilter() {
+        return regionFilter;
+    }
+
+    @Nonnull
+    public AccountFilter getAccountFilter() {
+        return accountFilter;
+    }
+
     /**
      * An abstract builder class for subclasses of {@link ReservedInstanceFilter}
      * @param <FILTER_CLASS> The subclass of {@link ReservedInstanceFilter}

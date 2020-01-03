@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -261,23 +262,28 @@ public class RIStatsSubQuery implements StatsSubQuery {
         @Nonnull
         GetReservedInstanceUtilizationStatsRequest createUtilizationRequest(@Nonnull final StatsQueryContext context)
                 throws OperationFailedException {
+
+            final ApiId inputScope = context.getInputScope();
             final GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder =
-                    GetReservedInstanceUtilizationStatsRequest.newBuilder();
+                GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                    .setIncludeBuyRiUtilization(
+                            buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
+
             context.getTimeWindow().ifPresent(timeWindow -> {
                 reqBuilder.setStartDate(timeWindow.startTime());
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
-            if (context.getInputScope().getScopeTypes().isPresent()) {
+            if (inputScope.getScopeTypes().isPresent()) {
                 final Set<Long> scopeEntities = new HashSet<>();
-                if (context.getInputScope().isGroup()) {
-                    if (context.getInputScope().getCachedGroupInfo().isPresent()) {
-                        scopeEntities.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                if (inputScope.isGroup()) {
+                    if (inputScope.getCachedGroupInfo().isPresent()) {
+                        scopeEntities.addAll(inputScope.getCachedGroupInfo().get().getEntityIds());
                     }
                 } else {
-                    scopeEntities.add(context.getInputScope().oid());
+                    scopeEntities.add(inputScope.oid());
                 }
-                final Set<UIEntityType> uiEntityTypes = context.getInputScope().getScopeTypes().get();
+                final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
 
                 if (CollectionUtils.isEmpty(uiEntityTypes)) {
                     throw new OperationFailedException("Entity type not present");
@@ -311,31 +317,36 @@ public class RIStatsSubQuery implements StatsSubQuery {
         @Nonnull
         GetReservedInstanceCoverageStatsRequest createCoverageRequest(
                 @Nonnull final StatsQueryContext context) throws OperationFailedException {
+
+            final ApiId inputScope = context.getInputScope();
             final GetReservedInstanceCoverageStatsRequest.Builder reqBuilder =
-                    GetReservedInstanceCoverageStatsRequest.newBuilder();
+                GetReservedInstanceCoverageStatsRequest.newBuilder()
+                    .setIncludeBuyRiCoverage(
+                            buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
+
             context.getTimeWindow().ifPresent(timeWindow -> {
                 reqBuilder.setStartDate(timeWindow.startTime());
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
-            if (context.getInputScope().getScopeTypes().isPresent()
-                    && !context.getInputScope().getScopeTypes().get().isEmpty()) {
+            if (inputScope.getScopeTypes().isPresent()
+                            && !inputScope.getScopeTypes().get().isEmpty()) {
 
                 final Set<Long> scopeEntities = new HashSet<>();
-                if (context.getInputScope().isGroup()) {
-                    if (context.getInputScope().getCachedGroupInfo().isPresent()) {
-                        scopeEntities.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                if (inputScope.isGroup()) {
+                    if (inputScope.getCachedGroupInfo().isPresent()) {
+                        scopeEntities.addAll(inputScope.getCachedGroupInfo().get().getEntityIds());
                     }
                 } else {
-                    scopeEntities.add(context.getInputScope().oid());
+                    scopeEntities.add(inputScope.oid());
                 }
 
-                if (context.getInputScope().getScopeTypes().get().size() != 1) {
+                if (inputScope.getScopeTypes().get().size() != 1) {
                     //TODO (mahdi) Change the logic to support scopes with more than one type
                     throw new IllegalStateException("Scopes with more than one type is not supported.");
                 }
 
-                final Set<UIEntityType> uiEntityTypes = context.getInputScope().getScopeTypes().get();
+                final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
 
                 if (CollectionUtils.isEmpty(uiEntityTypes)) {
                     throw new OperationFailedException("Entity type not present");

@@ -2,6 +2,10 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.List;
 
+import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest.GroupBy;
 
 /**
@@ -17,18 +21,19 @@ public class BuyReservedInstanceCostFilter extends BuyReservedInstanceTableFilte
      *
      * @param hasTopologyContextId boolean attribute indicating if topology context ID is set in the filter.
      * @param topologyContextId long value indicating Topology Context ID.
-     * @param hasRegionFilter boolean attribute indicating if regionIDs are set in the filter.
-     * @param regionIdList List of regionIDs set in the filter.
-     * @param hasAccountFilter boolean attribute indicating if accountIDs are set in the filter.
-     * @param accountIdList List of accountIDs set in the filter.
+     * @param regionFilter A {@link RegionFilter}, used to filter Buy RI instance by region OID, if
+     *                     the filter list is set
+     * @param accountFilter A {@link AccountFilter}, used to filter Buy RI instances by account OID,
+     *                      if the filter list is set
      * @param buyRIIdList List of Buy RI IDs.
      * @param groupBy Enumeration of type GroupBy.
      */
     private BuyReservedInstanceCostFilter(boolean hasTopologyContextId, long topologyContextId,
-                    boolean hasRegionFilter, List<Long> regionIdList, boolean hasAccountFilter,
-                    List<Long> accountIdList, List<Long> buyRIIdList, GroupBy groupBy) {
-        super(hasTopologyContextId, topologyContextId, hasRegionFilter, regionIdList,
-                        hasAccountFilter, accountIdList, buyRIIdList);
+                                          @Nonnull RegionFilter regionFilter,
+                                          @Nonnull AccountFilter accountFilter,
+                                          @Nonnull List<Long> buyRIIdList,
+                                          @Nonnull GroupBy groupBy) {
+        super(hasTopologyContextId, topologyContextId, regionFilter, accountFilter, buyRIIdList);
         this.groupBy = groupBy;
     }
 
@@ -68,18 +73,18 @@ public class BuyReservedInstanceCostFilter extends BuyReservedInstanceTableFilte
          */
         public Builder addGroupBy(GroupBy groupBy) {
             this.groupBy = groupBy;
-            return getThis();
+            return this;
         }
 
         @Override
         public BuyReservedInstanceCostFilter build() {
-            return new BuyReservedInstanceCostFilter(hasTopologyContextId, topologyContextId, hasRegionFilter,
-                            regionIdList, hasAccountFilter, accountIdList, buyRIIdList, groupBy);
-        }
-
-        @Override
-        Builder getThis() {
-            return this;
+            return new BuyReservedInstanceCostFilter(
+                    hasTopologyContextId,
+                    topologyContextId,
+                    regionFilter,
+                    accountFilter,
+                    buyRIIdList,
+                    groupBy);
         }
     }
 }
