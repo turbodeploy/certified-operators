@@ -161,60 +161,54 @@ public class QuoteCacheTest {
             int traderIndex1, int shoppingListIndex1, double quoteValue1,
             int traderIndex2, int shoppingListIndex2, double quoteValue2,
             int traderIndex3, int shoppingListIndex3, double quoteValue3) {
+        // Put the arguments into arrays to enable processing using loops
+        int[] traderIndices = {traderIndex1, traderIndex2, traderIndex3};
+        int[] shoppingListIndices = {shoppingListIndex1, shoppingListIndex2, shoppingListIndex3};
+        double[] quoteValues = {quoteValue1, quoteValue2, quoteValue3};
+        // Also keep results into an array.
+        MutableQuote[] quoteObjects = new MutableQuote[traderIndices.length];
+
+        // Initialize the cache
         QuoteCache cache = new QuoteCache(nTradersInEconomy, nPotentialSellers, nShoppingLists);
 
-        // Initial state should be empty.
-        assertNull(cache.get(traderIndex1, shoppingListIndex1));
-        assertNull(cache.get(traderIndex2, shoppingListIndex2));
-        assertNull(cache.get(traderIndex3, shoppingListIndex3));
+        // For each entry to be added to the cache, but also before the first entry is added.
+        for (int curPos = -1; curPos < traderIndices.length; curPos++) {
+            if (curPos >= 0) { // if it's time to add the first entry
+                quoteObjects[curPos] = new CommodityQuote(null, quoteValues[curPos]);
+                assertSame(cache, cache.put(traderIndices[curPos],
+                                            shoppingListIndices[curPos], quoteObjects[curPos]));
+            }
 
-        // put 1st value
-        MutableQuote quoteObject1 = new CommodityQuote(null, quoteValue1);
-        assertSame(cache, cache.put(traderIndex1, shoppingListIndex1, quoteObject1));
-        // 1st position should now have the 1st value
-        assertSame(quoteObject1, cache.get(traderIndex1, shoppingListIndex1));
-        assertEquals(quoteValue1, quoteObject1.getQuoteValue(), 0.0);
-        // other positions should be unaffected unless they happen to be the same as 1st position
-        if (traderIndex1 != traderIndex2 || shoppingListIndex1 != shoppingListIndex2) {
-            assertNull(cache.get(traderIndex2, shoppingListIndex2));
-        }
-        if (traderIndex1 != traderIndex3 || shoppingListIndex1 != shoppingListIndex3) {
-            assertNull(cache.get(traderIndex3, shoppingListIndex3));
-        }
+            // For each entry that was added to the cache before the current one, but also for the
+            // current one.
+            before: for (int pastPos = 0; pastPos <= curPos; pastPos++) {
+                // Check to see if there is a newer entry that was added at the same position
+                for (int futPos = pastPos + 1; futPos <= curPos; futPos++) {
+                    if (traderIndices[futPos] == traderIndices[pastPos]
+                            && shoppingListIndices[futPos] == shoppingListIndices[pastPos]) {
+                        continue before;
+                    }
+                }
+                // If the entry isn't supposed to be overridden by a newer one, assert it has
+                // preserved its value.
+                assertSame(quoteObjects[pastPos],
+                            cache.get(traderIndices[pastPos], shoppingListIndices[pastPos]));
+                assertEquals(quoteValues[pastPos], quoteObjects[pastPos].getQuoteValue(), 0.0);
+            }
 
-        // put 2nd value
-        MutableQuote quoteObject2 = new CommodityQuote(null, quoteValue2);
-        assertSame(cache, cache.put(traderIndex2, shoppingListIndex2, quoteObject2));
-        // 2nd position should now have the 2nd value
-        assertSame(quoteObject2, cache.get(traderIndex2, shoppingListIndex2));
-        assertEquals(quoteValue2, quoteObject2.getQuoteValue(), 0.0);
-        // other positions should be unaffected unless they happen to be the same as 1st or 2nd
-        // position
-        if (traderIndex2 != traderIndex1 || shoppingListIndex2 != shoppingListIndex1) {
-            assertSame(quoteObject1, cache.get(traderIndex1, shoppingListIndex1));
-            assertEquals(quoteValue1, quoteObject1.getQuoteValue(), 0.0);
-        }
-        if ((traderIndex1 != traderIndex3 || shoppingListIndex1 != shoppingListIndex3)
-                && (traderIndex2 != traderIndex3 || shoppingListIndex2 != shoppingListIndex3)) {
-            assertNull(cache.get(traderIndex3, shoppingListIndex3));
-        }
-
-        // put 3rd value
-        MutableQuote quoteObject3 = new CommodityQuote(null, quoteValue3);
-        assertSame(cache, cache.put(traderIndex3, shoppingListIndex3, quoteObject3));
-        // 3rd position should now have the 3rd value
-        assertSame(quoteObject3, cache.get(traderIndex3, shoppingListIndex3));
-        assertEquals(quoteValue3, quoteObject3.getQuoteValue(), 0.0);
-        // other positions should be unaffected unless they happen to be the same as 3rd or 2nd
-        // position
-        if (traderIndex3 != traderIndex2 || shoppingListIndex3 != shoppingListIndex2) {
-            assertSame(quoteObject2, cache.get(traderIndex2, shoppingListIndex2));
-            assertEquals(quoteValue2, quoteObject2.getQuoteValue(), 0.0);
-        }
-        if ((traderIndex3 != traderIndex1 || shoppingListIndex3 != shoppingListIndex1)
-                && (traderIndex2 != traderIndex1 || shoppingListIndex2 != shoppingListIndex1)) {
-            assertSame(quoteObject1, cache.get(traderIndex1, shoppingListIndex1));
-            assertEquals(quoteValue1, quoteObject1.getQuoteValue(), 0.0);
+            // For each entry that will be added in the future
+            after: for (int futPos = curPos + 1; futPos < traderIndices.length; futPos++) {
+                // Check whether it happens to share a position with an existing entry.
+                for (int pastPos = 0; pastPos <= curPos; pastPos++) {
+                    if (traderIndices[futPos] == traderIndices[pastPos]
+                            && shoppingListIndices[futPos] == shoppingListIndices[pastPos]) {
+                        continue after;
+                    }
+                }
+                // If the position isn't supposed to be already populated, assert that it's not
+                // populated.
+                assertNull(cache.get(traderIndices[futPos], shoppingListIndices[futPos]));
+            }
         }
     } // end testPutGet_emptyCache_sequence_positive
 
