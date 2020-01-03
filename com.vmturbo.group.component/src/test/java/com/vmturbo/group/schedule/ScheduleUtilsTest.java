@@ -31,7 +31,7 @@ public class ScheduleUtilsTest {
         .setId(SCHEDULE_ID)
         .setStartTime(START_TIME)
         .setEndTime(END_TIME)
-        .setTimezoneId(ZoneId.systemDefault().getId())
+        .setTimezoneId(ZoneId.of("UTC").getId())
         .build();
 
     /** Expected exceptions to test against. */
@@ -405,6 +405,12 @@ public class ScheduleUtilsTest {
         assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
 
+        final long periodStartAfter = Instant.parse("2010-02-15T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
     }
 
     /**
@@ -468,6 +474,13 @@ public class ScheduleUtilsTest {
             testSchedulePerpetual.toBuilder(), periodStart);
         assertTrue(updatedSchedule.hasNextOccurrence());
         assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-02-15T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-15T09:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
 
         final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
@@ -534,6 +547,12 @@ public class ScheduleUtilsTest {
         assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
 
+        final long periodStartAfter = Instant.parse("2010-02-23T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
     }
 
     /**
@@ -597,6 +616,13 @@ public class ScheduleUtilsTest {
             testSchedulePerpetual.toBuilder(), periodStart);
         assertTrue(updatedSchedule.hasNextOccurrence());
         assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-02-23T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-23T09:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
 
         final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
