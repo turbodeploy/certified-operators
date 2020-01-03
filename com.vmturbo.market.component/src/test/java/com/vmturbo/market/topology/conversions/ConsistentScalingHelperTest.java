@@ -132,10 +132,6 @@ public class ConsistentScalingHelperTest {
         // Sole member of scaling group, so no group should be created
         TopologyEntityDTO te5 = topology.get(5L);
         Assert.assertFalse(csh.getScalingGroup(te5, false).isPresent());
-
-        // No leader candidate in group, so the group should not exist
-        TopologyEntityDTO te6 = topology.get(6L);
-        Assert.assertFalse(csh.getScalingGroup(te6, false).isPresent());
     }
 
     private ConsistentScalingHelper createConsistentScalingHelper(long[][] membership) {

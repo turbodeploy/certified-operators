@@ -229,6 +229,10 @@ public class ConsistentScalingManager {
     private void addEntity(ScalingGroupMember member) {
         Grouping grouping = member.grouping;
         TopologyEntity te = member.entity;
+        // Do not add non-controllable entities to scaling groups
+        if (!member.entity.getTopologyEntityDtoBuilder().getAnalysisSettings().getControllable()) {
+            return;
+        }
         Long entityId = te.getOid();
         // If the SE is already in a group, and this is a new group, reuse the group
         ScalingGroup memberOf = entityToScalingGroup.get(entityId);
