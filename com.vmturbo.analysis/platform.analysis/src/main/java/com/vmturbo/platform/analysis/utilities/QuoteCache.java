@@ -145,7 +145,7 @@ public final class QuoteCache {
 
         if (rowAssignments[traderEconomyIndex] == 0) { // 0 means "no assignment"
             checkState(nextRowAssignment * nShoppingLists < cache.length, "This cache cannot hold "
-                + "quotes for any more distinct sellers. Up to %s are allowed!", nextRowAssignment);
+                + "quotes for any more distinct sellers. Up to %s are allowed.", nextRowAssignment);
             rowAssignments[traderEconomyIndex] = nextRowAssignment++;
         }
         cache[rowAssignments[traderEconomyIndex] * nShoppingLists + shoppingListIndex] = quote;

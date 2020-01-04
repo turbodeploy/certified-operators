@@ -103,7 +103,24 @@ public class QuoteCacheTest {
      * to a position doesn't effect other positions.
      *
      * <p>If more or less than 3 put operations need to be tested in the future this better be
-     * refactored to get an array of tuples as and argument.</p>
+     * refactored to get an array of tuples as an argument.</p>
+     *
+     * <p>The test cases are organized in the following way:</p>
+     *
+     * <li>Each string corresponds to a single test case.</li>
+     * <li>Within each string, test parameters are separated into 4 groups of 3 using spaces.</li>
+     * <li>The first group of 3 corresponds to the 3 parameters of the
+     * {@link QuoteCache#QuoteCache(int, int, int)} constructor in the same order. You can find more
+     * details in the constructor Javadoc about their meaning.</li>
+     * <li>The next 3 groups of 3, each corresponds to a triplet of arguments to the
+     * {@link QuoteCache#put(int, int, Quote.MutableQuote)} method in the same order. The only
+     * difference is that, for simplicity, a single double-precision value is included instead of a
+     * full quote object as the 3rd argument and that value is used to create a quote object
+     * internally.</li>
+     * <li>Quote values can be arbitrary: as long as the 3 values (one for each group) are
+     * distinct, the test should be able to catch the intended bugs.</li>
+     * <li>Where there are 2 test cases on the same line, the first 3 groups of parameters should be
+     * the same and the 4th different.</li>
      */
     @Test
     @Parameters({
@@ -231,7 +248,7 @@ public class QuoteCacheTest {
 
         try {
             cache.put(traderEconomyIndex, shoppingListIndex, new CommodityQuote(null, 42));
-            fail("Expected IllegalArgumentException | ArrayIndexOutOfBoundsException!");
+            fail("Expected IllegalArgumentException | ArrayIndexOutOfBoundsException.");
         } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException e) {
             // check all valid indices.
             for (int traderIndex = 0; traderIndex < nTradersInEconomy; traderIndex++) {
@@ -283,7 +300,7 @@ public class QuoteCacheTest {
                     MutableQuote quote3 = new CommodityQuote(null, 42);
                     cache.put(traderIndex3, shoppingListIndex3, quote3);
                     fail("At least one of the put operations should have failed with an " +
-                        "IllegalStateException!");
+                        "IllegalStateException.");
                 } catch (IllegalStateException e) {
                     if (traderIndex1 != traderIndex2 || shoppingListIndex1 != shoppingListIndex2) {
                         assertSame(quote1, cache.get(traderIndex1, shoppingListIndex1));
@@ -731,7 +748,7 @@ public class QuoteCacheTest {
             }
             // attempt to invalidate an out-of-bounds row
             cache.invalidate(traderIndexToInvalidate);
-            fail("Expected IllegalArgumentException | ArrayIndexOutOfBoundsException!");
+            fail("Expected IllegalArgumentException | ArrayIndexOutOfBoundsException.");
         } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException e) {
             // check cache contents remain unchanged.
             generator.setSeed(0); // repeat the same sequence used when populating the cache

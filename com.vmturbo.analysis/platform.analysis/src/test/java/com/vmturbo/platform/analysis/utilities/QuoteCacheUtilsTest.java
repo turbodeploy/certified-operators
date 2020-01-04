@@ -2,9 +2,6 @@ package com.vmturbo.platform.analysis.utilities;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -19,6 +16,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
  * A test case for the {@link QuoteCacheUtils} class.
@@ -41,11 +39,56 @@ public class QuoteCacheUtilsTest {
     /**
      * Tests that invalidating certain cache rows removes quote associations for these entire rows
      * without affecting other rows and that null values are handled properly.
+     *
+     * @param supplyCache whether the 1st argument to
+     *     {@link QuoteCacheUtils#invalidate(QuoteCache, Move)} should be a pre-populated cache or
+     *     {@code null}. Currently the size and initial contents of this pre-populated cache aren't
+     *     parameterizable.
+     * @param moveSource Which seller to use as the source of the move that will be used as the 2nd
+     *     argument to {@link QuoteCacheUtils#invalidate(QuoteCache, Move)}. The economy used for
+     *     the test isn't parameterizable and only contains 3 sellers. Use 0, 1 or 2 to select one
+     *     of those sellers or -1 for a {@code null} source.
+     * @param moveDestination Which seller to use as the destination of the move that will be used
+     *     as the 2nd argument to {@link QuoteCacheUtils#invalidate(QuoteCache, Move)}. The economy
+     *     used for the test isn't parameterizable and only contains 3 sellers. Use 0, 1 or 2 to
+     *     select one of those sellers or -1 for a {@code null} destination.
+     * @param expectedCacheState A rectangular array of arrays representing the state of the cache
+     *     after the call to {@link QuoteCacheUtils#invalidate(QuoteCache, Move)}. {@code null}
+     *     values mean that the corresponding entry of the cache is empty, while non-{@code null}
+     *     values mean that the corresponding entry of the cache stores a {@link MutableQuote} with
+     *     that value. Since the size of the cache used in the test isn't currently parameterizable
+     *     the size of this array is always 4x2, or empty when <b>supplyCache</b> is false.
      */
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: invalidate({0},{1}); cache == {2}")
-    public void testInvalidate(QuoteCache cache, Move move, Double[][] expectedCacheState) {
+    @TestCaseName("Test #{index}: invalidate({0},{1}->{2}); cache == {3}")
+    public void testInvalidate(boolean supplyCache, int moveSource, int moveDestination,
+                               Double[][] expectedCacheState) {
+        // Generate classes from test input
+        Economy e = new Economy();
+
+        Trader buyer = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader[] sellers = {
+            null, // sentinel element to simplify translation from -1 to a null trader.
+            e.addTrader(1, TraderState.ACTIVE, EMPTY),
+            e.addTrader(1, TraderState.ACTIVE, EMPTY),
+            e.addTrader(1, TraderState.ACTIVE, EMPTY),
+        };
+
+        ShoppingList sl = e.addBasketBought(buyer, EMPTY);
+        e.addBasketBought(buyer, EMPTY);
+
+        QuoteCache cache = null;
+        if (supplyCache) {
+            cache = new QuoteCache(e.getTraders().size(), 3, 2);
+            cache.put(1, 0, new CommodityQuote(null, 0.2));
+            cache.put(2, 1, new CommodityQuote(null, 0.1));
+            cache.put(1, 1, new CommodityQuote(null, 4.2));
+        }
+
+        Move move = new Move(e, sl, sellers[moveSource + 1], sellers[moveDestination + 1]);
+
+        // Perform the test
         QuoteCacheUtils.invalidate(cache, move);
 
         for (int rowIndex = 0; rowIndex < expectedCacheState.length; ++rowIndex) {
@@ -58,135 +101,60 @@ public class QuoteCacheUtilsTest {
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static List<Object[]> parametersForTestInvalidate() {
-        List<Object[]> testCases = new ArrayList<>();
-
-        // null cache, null -> null move
-        Economy e = new Economy();
-        ShoppingList sl = e.addBasketBought(e.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        testCases.add(new Object[]{null, new Move(e, sl, null, null), new Double[][]{}});
-
-        // null cache, non-null -> null move
-        e = new Economy();
-        sl = e.addBasketBought(e.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        Trader source = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        sl.move(source);
-        testCases.add(new Object[]{null, new Move(e, sl, source, null), new Double[][]{}});
-
-        // null cache, null -> non-null move
-        e = new Economy();
-        sl = e.addBasketBought(e.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        Trader destination = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        testCases.add(new Object[]{null, new Move(e, sl, null, destination), new Double[][]{}});
-
-        // null cache, non-null -> non-null move
-        e = new Economy();
-        sl = e.addBasketBought(e.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        source = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        destination = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        sl.move(source);
-        testCases.add(new Object[]{null, new Move(e, sl, source, destination), new Double[][]{}});
-
-        // non-null cache, null -> null move
-        e = new Economy();
-        Trader buyer = e.addTrader(0, TraderState.ACTIVE, EMPTY);
-        sl = e.addBasketBought(buyer, EMPTY);
-        e.addBasketBought(buyer, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-
-        QuoteCache cache = new QuoteCache(e.getTraders().size(), 3, 2);
-        cache.put(1, 0, new CommodityQuote(null, 0.2));
-        cache.put(2, 1, new CommodityQuote(null, 0.1));
-        cache.put(1, 1, new CommodityQuote(null, 4.2));
-
-        testCases.add(new Object[]{
-            cache,
-            new Move(e, sl, null, null),
-            new Double[][]{
-                {null, null},
-                {0.2, 4.2},
-                {null, 0.1},
-                {null, null},
-            }
-        });
-
-        // non-null cache, non-null -> null move
-        e = new Economy();
-        buyer = e.addTrader(0, TraderState.ACTIVE, EMPTY);
-        sl = e.addBasketBought(buyer, EMPTY);
-        e.addBasketBought(buyer, EMPTY);
-        source = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-
-        cache = new QuoteCache(e.getTraders().size(), 3, 2);
-        cache.put(1, 0, new CommodityQuote(null, 0.2));
-        cache.put(2, 1, new CommodityQuote(null, 0.1));
-        cache.put(1, 1, new CommodityQuote(null, 4.2));
-
-        testCases.add(new Object[]{
-            cache,
-            new Move(e, sl, source, null),
-            new Double[][]{
-                {null, null},
-                {null, null},
-                {null, 0.1},
-                {null, null},
-            }
-        });
-
-        // non-null cache, null -> non-null move
-        e = new Economy();
-        buyer = e.addTrader(0, TraderState.ACTIVE, EMPTY);
-        sl = e.addBasketBought(buyer, EMPTY);
-        e.addBasketBought(buyer, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        destination = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-
-        cache = new QuoteCache(e.getTraders().size(), 3, 2);
-        cache.put(1, 0, new CommodityQuote(null, 0.2));
-        cache.put(2, 1, new CommodityQuote(null, 0.1));
-        cache.put(1, 1, new CommodityQuote(null, 4.2));
-
-        testCases.add(new Object[]{
-            cache,
-            new Move(e, sl, null, destination),
-            new Double[][]{
-                {null, null},
-                {0.2, 4.2},
-                {null, null},
-                {null, null},
-            }
-        });
-
-        // non-null cache, non-null -> non-null move
-        e = new Economy();
-        buyer = e.addTrader(0, TraderState.ACTIVE, EMPTY);
-        sl = e.addBasketBought(buyer, EMPTY);
-        e.addBasketBought(buyer, EMPTY);
-        source = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        destination = e.addTrader(1, TraderState.ACTIVE, EMPTY);
-        e.addTrader(1, TraderState.ACTIVE, EMPTY);
-
-        cache = new QuoteCache(e.getTraders().size(), 3, 2);
-        cache.put(1, 0, new CommodityQuote(null, 0.2));
-        cache.put(2, 1, new CommodityQuote(null, 0.1));
-        cache.put(1, 1, new CommodityQuote(null, 4.2));
-
-        testCases.add(new Object[]{
-            cache,
-            new Move(e, sl, source, destination),
-            new Double[][]{
-                {null, null},
-                {null, null},
-                {null, null},
-                {null, null},
-            }
-        });
-
-        return testCases;
+    private static Object[] parametersForTestInvalidate() {
+        return new Object[][]{
+            {
+                false, -1, -1, // null cache, null -> null move
+                new Double[][]{}
+            },
+            {
+                false, 0, -1, // null cache, non-null -> null move
+                new Double[][]{}
+            },
+            {
+                false, -1, 0, // null cache, null -> non-null move
+                new Double[][]{}
+            },
+            {
+                false, 0, 1, // null cache, non-null -> non-null move
+                new Double[][]{}
+            },
+            {
+                true, -1, -1, // non-null cache, null -> null move
+                new Double[][]{
+                    {null, null},
+                    {0.2, 4.2},
+                    {null, 0.1},
+                    {null, null},
+                }
+            },
+            {
+                true, 0, -1, // non-null cache, non-null -> null move
+                new Double[][]{
+                    {null, null},
+                    {null, null},
+                    {null, 0.1},
+                    {null, null},
+                }
+            },
+            {
+                true, -1, 1, // non-null cache, null -> non-null move
+                new Double[][]{
+                    {null, null},
+                    {0.2, 4.2},
+                    {null, null},
+                    {null, null},
+                }
+            },
+            {
+                true, 0, 1, // non-null cache, non-null -> non-null move
+                new Double[][]{
+                    {null, null},
+                    {null, null},
+                    {null, null},
+                    {null, null},
+                }
+            },
+        };
     }
 } // end QuoteCacheUtilsTest
