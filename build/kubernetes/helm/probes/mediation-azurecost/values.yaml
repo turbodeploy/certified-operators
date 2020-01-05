@@ -10,7 +10,8 @@ image:
   pullPolicy: IfNotPresent
 
 java:
-  options: "-XX:+UseG1GC -Xms16m -XX:MaxRAMPercentage=75.0 -XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError -verbose:gc
+  options: "-XX:+UseG1GC -Xms16m -XX:MaxRAMPercentage=45.0 -XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError -verbose:gc
+            -XX:NativeMemoryTracking=summary
             -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintConcurrentLocks -XX:+PrintClassHistogram
             -XX:+PrintCommandLineFlags -XX:+UseStringDeduplication -XX:StringDeduplicationAgeThreshold=1
             -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
@@ -39,6 +40,6 @@ env:
 
 resources:
   limits:
-    memory: 512Mi
+    memory: 768Mi
   requests:
     memory: 384Mi
