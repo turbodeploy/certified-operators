@@ -156,6 +156,10 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                         entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                                         .get(0);
         Assert.assertThat(commSold.getIsResizeable(), CoreMatchers.is(expectedResizable));
+        Assert.assertNotNull(entity.getTopologyEntityDtoBuilder().getAnalysisSettings());
+        Assert.assertThat(entity.getTopologyEntityDtoBuilder()
+                .getAnalysisSettings().getControllable(), CoreMatchers.is(expectedResizable));
+
     }
 
     private ICommodityFieldAccessor createAccessor(long currentTime) {

@@ -19,6 +19,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -200,7 +202,15 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
         if (field.getProviderOid() == null) {
             getCommodityBuilder(soldBuilders, field, SOLD_BUILDER_EXTRACTOR)
                             .ifPresent(builder -> builder.setIsResizeable(false));
+            // We need to set the entity as not controllable as well.
+            Optional<TopologyEntity> entity = graph.getEntity(field.getEntityOid());
+            entity.ifPresent(e -> {
+                final Builder entityBuilder = e.getTopologyEntityDtoBuilder();
+                final AnalysisSettings.Builder settingsBuilder = entityBuilder.getAnalysisSettingsBuilder();
+                entityBuilder.setAnalysisSettings(settingsBuilder.setControllable(false).build());
+            });
         }
         //TODO:implementation for BusinessUser use-case.
     }
+
 }
