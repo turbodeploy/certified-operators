@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import java.net.URL;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,7 +15,9 @@ import org.junit.Test;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.conversion.util.TestUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -54,7 +57,9 @@ public class AwsBillingDiscoveryConverterTest {
         entitiesByType.get(EntityType.VIRTUAL_MACHINE).forEach(vm -> {
             assertEquals(EntityOrigin.PROXY, vm.getOrigin());
             assertFalse(vm.getKeepStandalone());
+            assertFalse(vm.getCommoditiesBoughtList().stream()
+                    .map(CommodityBought::getBoughtList).flatMap(Collection::stream)
+            .anyMatch(commodity -> commodity.getCommodityType() == CommodityType.COUPON));
         });
-
     }
 }

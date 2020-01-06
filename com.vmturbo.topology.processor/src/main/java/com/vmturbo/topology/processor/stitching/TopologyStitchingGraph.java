@@ -161,8 +161,9 @@ public class TopologyStitchingGraph {
                 final StitchingEntityData providerData = entityMap.get(providerId);
                 if (providerData == null) {
                     // This is a pretty serious error if it happens, so it's worth the error level.
-                    logger.error("Entity {} (local id: {}) buying commodities from non-existing provider {}",
-                        entityData.getOid(), entityData.getLocalId(), providerId);
+                    logger.error("Entity {} (local id: {}) buying commodities {} from non-existent "
+                                    + "provider {}", entityData.getOid(), entityData.getLocalId(),
+                            commodityBought.getBoughtList(), providerId);
                     errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_BOUGHT,
                         k -> new MutableInt(0)).increment();
                     invalidCommBought.add(i);

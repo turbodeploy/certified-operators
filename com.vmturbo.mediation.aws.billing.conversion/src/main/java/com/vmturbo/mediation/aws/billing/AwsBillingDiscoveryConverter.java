@@ -1,5 +1,6 @@
 package com.vmturbo.mediation.aws.billing;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -8,9 +9,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
@@ -50,14 +52,29 @@ public class AwsBillingDiscoveryConverter {
                 .clone()
                 .setOrigin(EntityOrigin.PROXY)
                 .setKeepStandalone(false)
-                .build()
-        ).collect(Collectors.toList());
+        ).map(this::removeCouponCommodityIfPresent)
+                .map(Builder::build)
+                .collect(Collectors.toList());
         if (logger.isDebugEnabled()) {
             convertedVMs.forEach(e ->
                 logger.debug("VM {} has guest name {}", e.getId(),
                     e.getVirtualMachineData().getGuestName()));
         }
         discoveryResponseBuilder.addAllEntityDTO(convertedVMs);
+    }
+
+    private CommonDTO.EntityDTO.Builder removeCouponCommodityIfPresent(
+            final CommonDTO.EntityDTO.Builder entityBuilder) {
+        final List<CommodityBought.Builder> mutableCommodityBoughtList =
+                new ArrayList<>(entityBuilder.getCommoditiesBoughtBuilderList());
+        mutableCommodityBoughtList.removeIf(commodityBought ->
+                commodityBought.getBoughtBuilderList().stream()
+                        .anyMatch(commodity -> commodity.getCommodityType()
+                                == CommodityType.COUPON));
+        entityBuilder.clearCommoditiesBought();
+        entityBuilder.addAllCommoditiesBought(mutableCommodityBoughtList.stream()
+                .map(CommodityBought.Builder::build).collect(Collectors.toList()));
+        return entityBuilder;
     }
 
     /**
