@@ -7,7 +7,7 @@ spec:
   # Global settings
   global:
     repository: turbonomic
-    tag: 7.21.0-SNAPSHOT
+    tag: 7.21.200-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     debug: true
