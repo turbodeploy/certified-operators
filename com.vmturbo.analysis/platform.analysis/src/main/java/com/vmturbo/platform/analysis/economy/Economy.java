@@ -887,9 +887,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         //TODO Have Cloud Context extend a Context class so that the setting is generic for
         // on prem and cloud
         Context context = trader.getSettings().getContext();
-        Context cloneTraderContext = cloneTrader.getSettings().getContext();
-        if (cloneTraderContext != null && context != null) {
-            cloneTrader.getSettings().setContext(cloneTraderContext);
+        if (context != null) {
+            cloneTrader.getSettings().setContext(context);
         }
         cloneTrader.getSettings().setCostFunction(trader.getSettings().getCostFunction());
         cloneCommoditiesSold(trader, cloneTrader);
@@ -1153,6 +1152,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return getPeerShoppingLists(shoppingList.getShoppingListId());
     }
 
+    @Override
     public List<ShoppingList> getPeerShoppingLists(UUID shoppingListId) {
         if (shoppingListId == null) {
             return Collections.emptyList();
