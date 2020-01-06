@@ -98,5 +98,7 @@ message PaginationResponse {
     //
     // If not set, there are no more results.
     optional string next_cursor = 1;
-}
 
+    //The total number of records that subsequent pagination calls can return
+    optional int32 total_record_count = 2;
+}

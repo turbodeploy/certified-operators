@@ -9,17 +9,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -65,7 +62,6 @@ import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -74,9 +70,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse.TypeCase;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -90,7 +83,6 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -610,7 +602,8 @@ public class StatsService implements IStatsService {
      * @throws OperationFailedException If any part of the operation failed.
      */
     @Nonnull
-    private EntityStatsScope createEntityStatsScope(@Nonnull final StatScopesApiInputDTO inputDto)
+    @VisibleForTesting
+    protected EntityStatsScope createEntityStatsScope(@Nonnull final StatScopesApiInputDTO inputDto)
             throws OperationFailedException {
         final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
         final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
@@ -685,7 +678,8 @@ public class StatsService implements IStatsService {
      * @throws OperationFailedException exception thrown if the scope can not be recognized
      */
     @Nonnull
-    private EntityStatsPaginationResponse getLiveEntityStats(
+    @VisibleForTesting
+    protected EntityStatsPaginationResponse getLiveEntityStats(
                     @Nonnull final StatScopesApiInputDTO inputDto,
                     @Nonnull final EntityStatsPaginationRequest paginationRequest)
                 throws OperationFailedException {
@@ -785,8 +779,8 @@ public class StatsService implements IStatsService {
         return paginationResponseOpt
             .map(paginationResponse ->
                 PaginationProtoUtil.getNextCursor(paginationResponse)
-                    .map(nextCursor -> paginationRequest.nextPageResponse(dto, nextCursor))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(dto)))
+                    .map(nextCursor -> paginationRequest.nextPageResponse(dto, nextCursor, paginationResponse.getTotalRecordCount()))
+                    .orElseGet(() -> paginationRequest.finalPageResponse(dto, paginationResponse.getTotalRecordCount())))
             .orElseGet(() -> paginationRequest.allResultsResponse(dto));
     }
 

@@ -684,6 +684,7 @@ public class StatsHistoryRpcServiceTest {
                 .setCursor("foo")
                 .build();
         final String retCursor = "bar";
+        final Integer totalRecordCount = 100;
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
         when(paginationParamsFactory.newPaginationParams(paginationParameters)).thenReturn(paginationParams);
@@ -692,6 +693,7 @@ public class StatsHistoryRpcServiceTest {
         final Map<Long, List<Record>> recordPage = ImmutableMap.of(1L, Collections.singletonList(record));
         when(statRecordPage.getNextPageRecords()).thenReturn(recordPage);
         when(statRecordPage.getNextCursor()).thenReturn(Optional.of(retCursor));
+        when(statRecordPage.getTotalRecordCount()).thenReturn(Optional.of(totalRecordCount));
 
         when(mockLivestatsreader.getPaginatedStatsRecords(scope, filter, paginationParams))
                 .thenReturn(statRecordPage);
@@ -710,6 +712,7 @@ public class StatsHistoryRpcServiceTest {
                 .addStatSnapshots(statSnapshotBuilder)
                 .build()));
         assertThat(response.getPaginationResponse().getNextCursor(), is(retCursor));
+        assertThat(response.getPaginationResponse().getTotalRecordCount(), is(totalRecordCount));
     }
 
     /**

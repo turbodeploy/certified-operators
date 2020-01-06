@@ -118,10 +118,14 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         private final Optional<String> nextCursor;
 
+        private final Optional<Integer> totalRecordCount;
+
         StatRecordPage(@Nonnull final Map<Long, List<Record>> nextPageRecords,
-                       @Nonnull final Optional<String> nextCursor) {
+                       @Nonnull final Optional<String> nextCursor,
+                       @Nonnull final Optional<Integer> totalRecordCount) {
             this.nextPageRecords = nextPageRecords;
             this.nextCursor = nextCursor;
+            this.totalRecordCount = totalRecordCount;
         }
 
         /**
@@ -145,7 +149,11 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         }
 
         private static StatRecordPage empty() {
-            return new StatRecordPage(Collections.emptyMap(), Optional.empty());
+            return new StatRecordPage(Collections.emptyMap(), Optional.empty(), Optional.empty());
+        }
+
+        public Optional<Integer> getTotalRecordCount() {
+            return totalRecordCount;
         }
     }
 
@@ -259,8 +267,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             }
         });
 
-
-        return new StatRecordPage(recordsByEntityId, nextPageInfo.getNextCursor());
+        return new StatRecordPage(recordsByEntityId, nextPageInfo.getNextCursor(), nextPageInfo.getTotalRecordCount());
     }
 
     /**

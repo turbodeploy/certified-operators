@@ -684,7 +684,8 @@ public class SearchService implements ISearchService {
      * @param searchEntityOidsRequest {@link Search.SearchEntityOidsRequest}.
      * @return {@link SearchPaginationResponse}.
      */
-    private SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
+    @VisibleForTesting
+    protected SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
             @Nonnull final GroupApiDTO inputDTO,
             @Nullable final String nameQuery,
             @Nonnull final SearchPaginationRequest paginationRequest,
@@ -707,7 +708,8 @@ public class SearchService implements ISearchService {
         List<EntitySeverity> entitySeverityList = new ArrayList<>();
         Iterable<EntitySeveritiesResponse> entitySeveritiesResponse =
             () -> entitySeverityRpc.getEntitySeverities(multiEntityRequest);
-        Builder paginationResponse = PaginationResponse.newBuilder();
+        Builder paginationResponse = PaginationResponse.newBuilder()
+                .setTotalRecordCount(candidates.size());
         StreamSupport.stream(entitySeveritiesResponse.spliterator(), false)
             .forEach(chunk -> {
                 if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
@@ -763,8 +765,8 @@ public class SearchService implements ISearchService {
         // of same entity type are search candidates.
         final boolean isGlobalEntities =
                 isGlobalScope && inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery);
-        // the search query with order by utilizaiton workflow will be:
-        // 1: (if necessary) query repository componnet to get all candidate entity oids.
+        // the search query with order by utilization workflow will be:
+        // 1: (if necessary) query repository component to get all candidate entity oids.
         // 2: query history component to get top X entity oids from the candidates sorted by price index.
         // 3: query repository to get full entity information only for top X entity oids.
         final EntityStatsScope.Builder statsScope = EntityStatsScope.newBuilder();
@@ -797,7 +799,8 @@ public class SearchService implements ISearchService {
         return buildPaginationResponse(entities, response.getPaginationResponse(), paginationRequest);
     }
 
-    private Set<Long> getCandidateEntitiesForSearch(
+    @VisibleForTesting
+    protected Set<Long> getCandidateEntitiesForSearch(
             @Nonnull final GroupApiDTO inputDTO,
             @Nullable final String nameQuery,
             @Nonnull final Set<Long> expandedIds,
@@ -820,8 +823,10 @@ public class SearchService implements ISearchService {
             @Nonnull final SearchPaginationRequest paginationRequest) {
         final List<? extends BaseApiDTO> results = entities;
         return PaginationProtoUtil.getNextCursor(paginationResponse)
-                .map(nexCursor -> paginationRequest.nextPageResponse((List<BaseApiDTO>) results, nexCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse((List<BaseApiDTO>) results));
+                .map(nexCursor -> paginationRequest.nextPageResponse(
+                        (List<BaseApiDTO>) results, nexCursor, paginationResponse.getTotalRecordCount()))
+                .orElseGet(() -> paginationRequest.finalPageResponse(
+                        (List<BaseApiDTO>) results, paginationResponse.getTotalRecordCount()));
     }
 
     /**

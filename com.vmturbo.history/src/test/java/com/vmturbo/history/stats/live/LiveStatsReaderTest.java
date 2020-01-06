@@ -3,7 +3,7 @@ package com.vmturbo.history.stats.live;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
@@ -25,6 +25,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -36,10 +39,6 @@ import org.jooq.Select;
 import org.jooq.impl.DSL;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -59,10 +58,10 @@ import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.PmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
-import com.vmturbo.history.stats.readers.LiveStatsReader;
-import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 
 public class LiveStatsReaderTest {
 
@@ -120,6 +119,7 @@ public class LiveStatsReaderTest {
         when(nextPageInfo.getEntityOids()).thenReturn(Lists.newArrayList(entityIds));
         when(nextPageInfo.getTable()).thenReturn(TABLE);
         when(nextPageInfo.getNextCursor()).thenReturn(nextCursor);
+        when(nextPageInfo.getTotalRecordCount()).thenReturn(Optional.of(100));
         when(mockHistorydbIO.getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams, entityType))
                 .thenReturn(nextPageInfo);
 
@@ -148,6 +148,7 @@ public class LiveStatsReaderTest {
 
         assertThat(result.getNextCursor(), is(nextCursor));
         assertThat(result.getNextPageRecords(), is(ImmutableMap.of(1L, Collections.singletonList(testRecord))));
+        assertTrue(result.getTotalRecordCount().get().equals(100));
     }
 
     @Test

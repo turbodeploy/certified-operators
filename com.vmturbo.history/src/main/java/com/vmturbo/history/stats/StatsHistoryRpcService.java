@@ -429,6 +429,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
                 final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
                 recordPage.getNextCursor().ifPresent(paginationResponse::setNextCursor);
+                recordPage.getTotalRecordCount().ifPresent(paginationResponse::setTotalRecordCount);
 
                 responseObserver.onNext(GetEntityStatsResponse.newBuilder()
                     .addAllEntityStats(entityStats)

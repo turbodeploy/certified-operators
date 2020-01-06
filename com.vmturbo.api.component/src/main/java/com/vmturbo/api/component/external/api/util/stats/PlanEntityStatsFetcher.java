@@ -203,8 +203,8 @@ public class PlanEntityStatsFetcher {
             });
         if (paginationResponseReference.get().isPresent()) {
             return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, null))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, null));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }
@@ -281,8 +281,8 @@ public class PlanEntityStatsFetcher {
             });
         if (paginationResponseReference.get().isPresent()) {
             return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, null))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, null));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }

@@ -973,10 +973,10 @@ public class GroupsService implements IGroupsService {
                     }
                     Long nextCursor = skipCount + nextPageIds.size();
                     if (nextCursor == groupAndMembers.members().size()) {
-                        return request.finalPageResponse(Lists.newArrayList(results));
+                        return request.finalPageResponse(Lists.newArrayList(results), null);
                     }
                     return request.nextPageResponse(Lists.newArrayList(results),
-                        Long.toString(nextCursor));
+                        Long.toString(nextCursor), null);
 
                 }
             }
@@ -1353,13 +1353,13 @@ public class GroupsService implements IGroupsService {
 
         long nextCursor = skipCount + paginatedGroupApiDTOs.size();
         if (nextCursor == idToGroupAndMembers.values().size()) {
-            return paginationRequest.finalPageResponse(retList);
+            return paginationRequest.finalPageResponse(retList, null);
         }
         if (nextCursor > idToGroupAndMembers.values().size()) {
             logger.warn("Illegal cursor: the value is bigger than the total amount of groups");
-            return paginationRequest.finalPageResponse(retList);
+            return paginationRequest.finalPageResponse(retList, null);
         }
-        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor));
+        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor), null);
     }
 
     /**

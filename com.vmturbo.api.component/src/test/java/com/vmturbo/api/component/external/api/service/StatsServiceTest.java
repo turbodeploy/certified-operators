@@ -13,6 +13,7 @@ import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -75,6 +76,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -349,7 +351,7 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(statsMapper).toStatsSnapshotApiDtoList(ENTITY_STATS);
 
-        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor), any());
 
 
         assertThat(response.getRawResults().size(), equalTo(1));
@@ -423,7 +425,7 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(statsMapper).toStatsSnapshotApiDtoList(ENTITY_STATS);
 
-        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor), any());
 
 
         assertThat(response.getRawResults().size(), equalTo(1));
@@ -484,7 +486,7 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy).getProjectedEntityStats(request);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
-        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor), any());
 
 
         assertThat(response.getRawResults().size(), equalTo(1));
@@ -719,7 +721,7 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(repositoryApi).entitiesRequest(expandedIds);
         verify(statsMapper).toStatsSnapshotApiDtoList(entityStats);
-        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor), any());
 
         assertThat(response.getRawResults().size(), equalTo(1));
         final EntityStatsApiDTO resultEntity = response.getRawResults().get(0);
@@ -1017,4 +1019,68 @@ public class StatsServiceTest {
     private void verifySupplyChainTraversal() throws OperationFailedException, InterruptedException {
         verify(supplyChainFetcherFactory).expandScope(any(), any());
     }
+
+    /**
+     * Tests {@link EntityStatsPaginationRequest}.finalResponse called with totalRecordCount.
+     *
+     * <p>Total Record Count set from {@link Pagination.PaginationResponse}</p>
+     *
+     * @throws OperationFailedException If any part of the operation failed.
+     */
+    @Test
+    public void testGetLiveEntityStatsSetsTotalRecordCountWhenNoNextCursorPresent() throws OperationFailedException {
+        //GIVEN
+        StatScopesApiInputDTO statScopesApiInputDTO = mock(StatScopesApiInputDTO.class);
+        EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+
+        doReturn(EntityStatsScope.newBuilder().build()).when(statsService).createEntityStatsScope(statScopesApiInputDTO);
+
+        Pagination.PaginationResponse pagResponse = PaginationResponse.newBuilder().setTotalRecordCount(100).build();
+
+        GetEntityStatsResponse getEntityStatsResponse = GetEntityStatsResponse.newBuilder()
+                .setPaginationResponse(pagResponse)
+                .build();
+
+        doReturn(getEntityStatsResponse).when(statsHistoryServiceSpy).getEntityStats(any());
+
+        //WHEN
+        EntityStatsPaginationResponse response = statsService.getLiveEntityStats(statScopesApiInputDTO, paginationRequest);
+
+        //THEN
+        verify(paginationRequest).finalPageResponse(any(), eq(100));
+    }
+
+    /**
+     * Tests {@link EntityStatsPaginationRequest}.nextPageResponse called with totalRecordCount.
+     *
+     * <p>Total Record Count set from {@link Pagination.PaginationResponse}</p>
+     *
+     * @throws OperationFailedException If any part of the operation failed.
+     */
+    @Test
+    public void testGetLiveEntityStatsSetsTotalRecordCountWhenNextCursorPresent() throws OperationFailedException {
+        //GIVEN
+        StatScopesApiInputDTO statScopesApiInputDTO = mock(StatScopesApiInputDTO.class);
+        EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+
+        doReturn(EntityStatsScope.newBuilder().build()).when(statsService).createEntityStatsScope(statScopesApiInputDTO);
+
+        Pagination.PaginationResponse pagResponse = PaginationResponse.newBuilder()
+                .setTotalRecordCount(100)
+                .setNextCursor("NextCursor")
+                .build();
+
+        GetEntityStatsResponse getEntityStatsResponse = GetEntityStatsResponse.newBuilder()
+                .setPaginationResponse(pagResponse)
+                .build();
+
+        doReturn(getEntityStatsResponse).when(statsHistoryServiceSpy).getEntityStats(any());
+
+        //WHEN
+        EntityStatsPaginationResponse response = statsService.getLiveEntityStats(statScopesApiInputDTO, paginationRequest);
+
+        //THEN
+        verify(paginationRequest).nextPageResponse(any(), eq("NextCursor"), eq(100));
+    }
+
 }

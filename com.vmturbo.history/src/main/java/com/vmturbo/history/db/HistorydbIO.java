@@ -910,6 +910,8 @@ public class  HistorydbIO extends BasedbIO {
                 // Add one to the limit so we can tests to see if there are more results.
                 .limit(paginationParams.getLimit() + 1)
                 .fetch();
+
+            Integer totalRecordCount = getTotalRecordsCount(conn, aggregatedStats);
             if (results.size() > paginationParams.getLimit()) {
                 // If there are more results, we trim the last result (since that goes beyond
                 // the page limit).
@@ -917,14 +919,30 @@ public class  HistorydbIO extends BasedbIO {
                     results.getValues(aggregateUuidField).subList(0, paginationParams.getLimit());
                 final int lastIdx = nextPageIds.size() - 1;
                 return new NextPageInfo(nextPageIds, table,
-                    SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
-                        results.getValue(lastIdx, aggregateValueField)));
+                        SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
+                                results.getValue(lastIdx, aggregateValueField)),
+                        totalRecordCount);
             } else {
-                return new NextPageInfo(results.getValues(aggregateUuidField), table, SeekPaginationCursor.empty());
+                return new NextPageInfo(results.getValues(aggregateUuidField),
+                        table,
+                        SeekPaginationCursor.empty(),
+                        totalRecordCount);
             }
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
+    }
+
+    /**
+     * Will count total records in {@link Table}.
+     *
+     * @param conn db connection used to run query
+     * @param aggregatedStats {@link Table} used to count total records
+     * @return Total records in {@link Table}
+     */
+    @VisibleForTesting
+    protected int getTotalRecordsCount(Connection conn, Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats) {
+        return using(conn).fetchCount(aggregatedStats);
     }
 
     /**
@@ -1590,7 +1608,7 @@ public class  HistorydbIO extends BasedbIO {
         // this can be used as an empty first page for a query from which a table type cannot
         // be determined. Take care that the caller does not depend on a non-null table.
         static final NextPageInfo EMPTY_INSTANCE
-            = new NextPageInfo(Collections.emptyList(), null, null);
+            = new NextPageInfo(Collections.emptyList(), null, null, null);
 
         private final List<String> entityOids;
 
@@ -1598,13 +1616,18 @@ public class  HistorydbIO extends BasedbIO {
 
         private final Optional<String> nextCursor;
 
+        //Total Record Count available for current paginated query
+        private final Optional<Integer> totalRecordCount;
+
         private NextPageInfo(final List<String> entityOids,
-                             final Table<?> table,
-                             final SeekPaginationCursor seekPaginationCursor) {
+                @Nullable final Table<?> table,
+                @Nullable final SeekPaginationCursor seekPaginationCursor,
+                             @Nullable final Integer totalRecordCount) {
             this.entityOids = Objects.requireNonNull(entityOids);
             this.table = table;
             this.nextCursor = seekPaginationCursor != null ? seekPaginationCursor.toCursorString()
                 : Optional.empty();
+            this.totalRecordCount = Optional.ofNullable(totalRecordCount);
         }
 
         /**
@@ -1633,6 +1656,10 @@ public class  HistorydbIO extends BasedbIO {
          */
         public Table getTable() {
             return table;
+        }
+
+        public Optional<Integer> getTotalRecordCount() {
+            return totalRecordCount;
         }
     }
 

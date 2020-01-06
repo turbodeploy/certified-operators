@@ -157,7 +157,7 @@ public class ActionSearchUtil {
         return
             PaginationProtoUtil
                 .getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results));
+                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
+                .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
     }
 }
