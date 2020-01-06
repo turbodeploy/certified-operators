@@ -85,5 +85,5 @@ public class TopologyConversionConstants {
     public static final double RESIZE_AVG_WEIGHT = 0.1f;
     public static final double RESIZE_MAX_WEIGHT = 0.9f;
     public static final double RESIZE_PEAK_WEIGHT = 0.0f;
-    public static final float FLOAT_COMPARISON_DELTA = 0.0000001f;
+    public static final float FLOAT_COMPARISON_DELTA = 0.0001f;
 }

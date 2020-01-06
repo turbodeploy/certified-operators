@@ -120,7 +120,7 @@ public class InterpretCloudExplanationTest {
         projectedCoverage = EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
             .putCouponsCoveredByRi(1L, 8)
             .putCouponsCoveredByRi(2L, 8).build();
-        doReturn(interpretedMoveAction).when(ai).interpretMoveAction(move.getMove(), projectedTopology, originalCloudTopology);
+        doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopology, originalCloudTopology);
         when(cloudTc.isMarketTier(any())).thenReturn(true);
 
         IdentityGenerator.initPrefix(5L);

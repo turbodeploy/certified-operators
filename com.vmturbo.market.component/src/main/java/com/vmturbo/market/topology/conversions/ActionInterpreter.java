@@ -24,6 +24,7 @@ import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -167,8 +168,13 @@ public class ActionInterpreter {
 
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
-                    infoBuilder.setMove(interpretMoveAction(
-                            actionTO.getMove(), projectedTopology, originalCloudTopology));
+                    Optional<ActionDTO.Move> move = interpretMoveAction(
+                            actionTO.getMove(), projectedTopology, originalCloudTopology);
+                    if (move.isPresent()) {
+                        infoBuilder.setMove(move.get());
+                    } else {
+                        return Optional.empty();
+                    }
                     break;
                 case COMPOUND_MOVE:
                     infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
@@ -451,7 +457,7 @@ public class ActionInterpreter {
      * @return {@link ActionDTO.Move} representing the move
      */
     @Nonnull
-    ActionDTO.Move interpretMoveAction(@Nonnull final MoveTO moveTO,
+    Optional<ActionDTO.Move> interpretMoveAction(@Nonnull final MoveTO moveTO,
                                        @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                        @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingList =
@@ -460,15 +466,20 @@ public class ActionInterpreter {
             throw new IllegalStateException(
                     "Market returned invalid shopping list for MOVE: " + moveTO);
         } else {
-            ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
-                    .addAllChanges(createChangeProviders(moveTO,
-                        projectedTopology, originalCloudTopology, shoppingList.buyerId));
-            if (moveTO.hasScalingGroupId()) {
-                builder.setScalingGroupId(moveTO.getScalingGroupId());
+            List<ChangeProvider> changeProviderList = createChangeProviders(moveTO,
+                    projectedTopology, originalCloudTopology, shoppingList.buyerId);
+            if (!CollectionUtils.isEmpty(changeProviderList)) {
+                ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
+                        .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
+                        .addAllChanges(createChangeProviders(moveTO,
+                                projectedTopology, originalCloudTopology, shoppingList.buyerId));
+                if (moveTO.hasScalingGroupId()) {
+                    builder.setScalingGroupId(moveTO.getScalingGroupId());
+                }
+                return Optional.of(builder.build());
             }
-            return builder.build();
         }
+        return Optional.empty();
     }
 
     /**
@@ -722,7 +733,27 @@ public class ActionInterpreter {
                     && (move.hasCouponDiscount() && move.hasCouponId() ||
                         sourceMarketTier instanceof RiDiscountedMarketTier);
 
-            if (destTier != sourceTier || isAccountingAction) {
+            if (isAccountingAction) {
+                // We need to check if the original projected RI coverage of the target are the same.
+                // If they are the same, we should drop the action.
+                Optional<EntityReservedInstanceCoverage> originalRICoverage = cloudTc.getRiCoverageForEntity(targetOid);
+                float originialRICoverageValue = 0f;
+                if (originalRICoverage.isPresent()) {
+                    originialRICoverageValue = (float) originalRICoverage.get().getCouponsCoveredByRiMap()
+                            .values().stream().mapToDouble(Double::new).sum();
+                }
+                float projectedRICoverageValue = 0f;
+                Optional<EntityReservedInstanceCoverage> projectedRICoverage = Optional.ofNullable(projectedRiCoverage.get(targetOid));
+                if (projectedRICoverage.isPresent()) {
+                    projectedRICoverageValue = (float)projectedRICoverage.get().getCouponsCoveredByRiMap()
+                            .values().stream().mapToDouble(Double::new).sum();
+                }
+                if (originialRICoverageValue != projectedRICoverageValue) {
+                    // Tier change provider
+                    changeProviders.add(createChangeProvider(sourceTier.getOid(),
+                            destTier.getOid(), resourceId, projectedTopology));
+                }
+            } else if (destTier != sourceTier) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
                         destTier.getOid(), resourceId, projectedTopology));
