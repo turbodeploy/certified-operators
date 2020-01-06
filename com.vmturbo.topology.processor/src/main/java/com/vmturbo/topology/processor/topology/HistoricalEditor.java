@@ -117,8 +117,7 @@ public class HistoricalEditor {
         final DataMetricTimer loadDurationTimer =
             HISTORICAL_USED_AND_PEAK_VALUES_LOAD_TIME_SUMMARY.startTimer();
         HistoricalInfoRecord record = historicalUtilizationDatabase.getInfo();
-        double loadTime = loadDurationTimer.observe();
-        logger.info("Historical used and peak values were loaded from the database in {} seconds", loadTime);
+        loadDurationTimer.observe();
 
         if (record != null) {
             byte[] bytes = record.getInfo();
