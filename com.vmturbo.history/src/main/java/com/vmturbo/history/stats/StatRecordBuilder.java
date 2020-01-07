@@ -16,7 +16,6 @@ import com.vmturbo.history.stats.readers.LiveStatsReader;
  * The default protobuf builders will throw exceptions if passed null values.
  */
 public interface StatRecordBuilder {
-
     /**
      * Create a {@link StatRecord} protobuf to contain aggregate stats values.
      *
@@ -99,6 +98,11 @@ public interface StatRecordBuilder {
      * The default implementation of {@link StatRecordBuilder}, for production use.
      */
     class DefaultStatRecordBuilder implements StatRecordBuilder {
+        /**
+         * The Flow names.
+         */
+        private static final String[] FLOW_NAMES = new String[]{"InProvider", "InDPOD",
+                                                                "CrossDPOD", "CrossSite"};
 
         private final LiveStatsReader liveStatsReader;
 
@@ -114,15 +118,20 @@ public interface StatRecordBuilder {
                                           @Nullable final Float reserved,
                                           @Nullable final String relatedEntityType,
                                           @Nullable final Long producerId,
-                                          @Nullable final Float avgValue,
-                                          @Nullable final Float minValue,
-                                          @Nullable final Float maxValue,
+                                          @Nullable Float avgValue,
+                                          @Nullable Float minValue,
+                                          @Nullable Float maxValue,
                                           @Nullable final String commodityKey,
-                                          @Nullable final Float totalValue,
+                                          @Nullable Float totalValue,
                                           @Nullable final String relation,
                                           @Nullable final StatValue percentileUtilization) {
-            final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
-                    .setName(propertyType);
+            final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder();
+            if (propertyType.contains("Flow") && commodityKey != null && commodityKey.length() > 5) {
+                int index = Integer.parseInt(commodityKey.substring(5));
+                statRecordBuilder.setName(FLOW_NAMES[index]);
+            } else {
+                statRecordBuilder.setName(propertyType);
+            }
 
             if (capacityStat != null) {
                 statRecordBuilder.setCapacity(capacityStat);

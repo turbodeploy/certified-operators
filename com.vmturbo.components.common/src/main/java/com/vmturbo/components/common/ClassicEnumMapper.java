@@ -167,7 +167,7 @@ public class ClassicEnumMapper {
         DB_CACHE_HIT_RATE("DBCacheHitRate", "%"),
         DB_MEM("DBMem", "KB"),
         EXTENT("Extent", ""),
-        FLOW("Flow", "Bytes"),
+        FLOW("Flow", "KByte/sec"),
         FLOW_ALLOCATION("FlowAllocation", "Bytes"),
         HEAP("Heap", "KB"),
         IMAGE_CPU("ImageCPU", "MHz"),

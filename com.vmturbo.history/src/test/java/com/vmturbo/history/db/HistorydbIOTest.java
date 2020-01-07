@@ -239,6 +239,7 @@ public class HistorydbIOTest {
         HistorydbIO.mappedSchemaForTests = testDbName;
         HistorydbIO.setSharedInstance(historydbIO);
         historydbIO.init(true, null, testDbName, Optional.empty());
+        historydbIO.setSchemaForTests(testDbName);
 
         BasedbIO.setSharedInstance(historydbIO);
 
