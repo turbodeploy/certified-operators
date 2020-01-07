@@ -120,6 +120,52 @@ public class FunctionalOperatorUtil {
             Context c = buyer.getBuyer().getSettings().getContext();
             long oid = economy.getTopology().getTraderOid(seller);
             int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
+
+            // Find the template matched with the buyer
+            final Set<Entry<ShoppingList, Market>>
+                    shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
+            Market market = shoppingListsInMarket.iterator().next().getValue();
+            List<Trader> sellers = market.getActiveSellers();
+            List<Trader> mutableSellers = new ArrayList<Trader>();
+            mutableSellers.addAll(sellers);
+            mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
+            // Get cheapest quote, that will be provided by the matching template
+            final QuoteMinimizer minimizer = mutableSellers.stream().collect(
+                    () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
+                    QuoteMinimizer::combine);
+            Trader matchingTP = minimizer.getBestSeller();
+
+            if (matchingTP == null) {
+                logger.error("UPDATE_COUPON_COMM cannot find a best seller for:"
+                        + buyer.getBuyer().getDebugInfoNeverUseInCode()
+                        + " which moved to: "
+                        + seller.getDebugInfoNeverUseInCode()
+                        + " mutable sellers: "
+                        + mutableSellers.stream()
+                        .map(Trader::getDebugInfoNeverUseInCode)
+                        .collect(Collectors.toList()));
+                return new double[]{commSold.getQuantity(), 0};
+            }
+
+            // The capacity of coupon commodity sold by the matching tp holds the
+            // number of coupons associated with the template. This is the number of
+            // coupons consumed by a vm that got placed on a cbtp.
+
+            // Determining the coupon quantity for buyers in consistent scaling
+            // groups requires special handling when there is partial RI coverage.
+            //
+            // For example, if a m4.large needs 16 coupons and there are three VMs
+            // in the scaling group. There is an m4.large CBTP that has 16 coupons.
+            //
+            // Since scaling actions are synthesized from a master buyer, we need to
+            // spread the available coupons over all VMs in the scaling group in
+            // order to be able to provide a consistent discounted cost for all
+            // actions.  So, instead of one VM having 100% RI coverage and the other
+            // two having 0% coverage, all VMs will have 33% coverage.
+            int indexOfCouponCommByTp = matchingTP.getBasketSold().indexOfBaseType(couponCommBaseType);
+            CommoditySold couponCommSoldByTp = matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
+            double requestedCoupons = couponCommSoldByTp.getCapacity();
+
             Map<Long, Double> totalCouponsToRelinquish = new HashMap<>();
             // if gf > 1 (its a group leader), reset coverage of the CSG and relinquish coupons to the CBTP
             // we do this irrespective of weather the buyer is moving in or out. If we did this only while moving out,
@@ -129,18 +175,21 @@ public class FunctionalOperatorUtil {
                 // and the usage of sold coupon
                 List<ShoppingList> peers = economy.getPeerShoppingLists(buyer.getShoppingListId());
                 peers.retainAll(seller.getCustomers());
+                double couponsBought = 0;
                 for (ShoppingList peer : peers) {
                     int couponBoughtIndex = peer.getBasket().indexOfBaseType(couponCommBaseType);
                     Long supplierOid =  economy.getTopology().getTraderOid(buyer.getSupplier());
                     Double couponsToRelinquish = totalCouponsToRelinquish.getOrDefault(supplierOid, new Double(0));
-                    couponsToRelinquish += peer.getQuantity(couponBoughtIndex);
+                    couponsBought = peer.getQuantity(couponBoughtIndex);
+                    couponsToRelinquish += Math.max(0, couponsBought - requestedCoupons);
                     totalCouponsToRelinquish.put(supplierOid, couponsToRelinquish);
-                    peer.setQuantity(couponBoughtIndex, 0);
+                    peer.setQuantity(couponBoughtIndex, Math.min(requestedCoupons, couponsBought));
                 }
                 Double relinquishedCouponsOnSeller = totalCouponsToRelinquish.getOrDefault(oid, new Double(0));
-                relinquishedCouponsOnSeller += buyer.getQuantity(boughtIndex);
+                couponsBought = buyer.getQuantity(boughtIndex);
+                relinquishedCouponsOnSeller += Math.max(0, couponsBought - requestedCoupons);
                 totalCouponsToRelinquish.put(oid, relinquishedCouponsOnSeller);
-                buyer.setQuantity(boughtIndex, 0);
+                buyer.setQuantity(boughtIndex, Math.min(requestedCoupons, couponsBought));
                 // unplacing the buyer completely. Clearing up the context that contains complete
                 // coverage information for the scalingGroup/individualVM
                 for (Map.Entry<Long, Double> entry: totalCouponsToRelinquish.entrySet()) {
@@ -154,57 +203,14 @@ public class FunctionalOperatorUtil {
                 // reset usage while moving out
                 double boughtQnty = buyer.getQuantity(boughtIndex);
                 buyer.setQuantity(boughtIndex, 0);
-                Double relinquishedCoupons = totalCouponsToRelinquish.getOrDefault(oid, 0d);
+                // relinquish coupons to the coverageTracked
+                c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) - boughtQnty);
                 // for a consumer moving out of a CBTP, we have already updated the usage we just return the updated usage here
-                return new double[] {Math.max(0.0, commSold.getQuantity() - (relinquishedCoupons.doubleValue() == 0 ? boughtQnty : 0)), 0.0};
+                return new double[] {Math.max(0.0, commSold.getQuantity() - boughtQnty), 0.0};
             } else {
                 // consumer moving into CBTP. Use coupons and update the coupon bought
                 // and the usage of sold coupon
                 CbtpCostDTO cbtpResourceBundle = costDTO.getCbtpResourceBundle();
-                // Find the template matched with the buyer
-                final Set<Entry<ShoppingList, Market>>
-                        shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
-                Market market = shoppingListsInMarket.iterator().next().getValue();
-                List<Trader> sellers = market.getActiveSellers();
-                List<Trader> mutableSellers = new ArrayList<Trader>();
-                mutableSellers.addAll(sellers);
-                mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
-                // Get cheapest quote, that will be provided by the matching template
-                final QuoteMinimizer minimizer = mutableSellers.stream().collect(
-                        () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
-                        QuoteMinimizer::combine);
-                Trader matchingTP = minimizer.getBestSeller();
-
-                if (matchingTP == null) {
-                    logger.error("UPDATE_COUPON_COMM cannot find a best seller for:"
-                            + buyer.getBuyer().getDebugInfoNeverUseInCode()
-                            + " which moved to: "
-                            + seller.getDebugInfoNeverUseInCode()
-                            + " mutable sellers: "
-                            + mutableSellers.stream()
-                            .map(Trader::getDebugInfoNeverUseInCode)
-                            .collect(Collectors.toList()));
-                    return new double[]{commSold.getQuantity(), 0};
-                }
-
-                // The capacity of coupon commodity sold by the matching tp holds the
-                // number of coupons associated with the template. This is the number of
-                // coupons consumed by a vm that got placed on a cbtp.
-
-                // Determining the coupon quantity for buyers in consistent scaling
-                // groups requires special handling when there is partial RI coverage.
-                //
-                // For example, if a m4.large needs 16 coupons and there are three VMs
-                // in the scaling group. There is an m4.large CBTP that has 16 coupons.
-                //
-                // Since scaling actions are synthesized from a master buyer, we need to
-                // spread the available coupons over all VMs in the scaling group in
-                // order to be able to provide a consistent discounted cost for all
-                // actions.  So, instead of one VM having 100% RI coverage and the other
-                // two having 0% coverage, all VMs will have 33% coverage.
-                int indexOfCouponCommByTp = matchingTP.getBasketSold().indexOfBaseType(couponCommBaseType);
-                CommoditySold couponCommSoldByTp = matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                double requestedCoupons = couponCommSoldByTp.getCapacity();
                 // QuoteFunctionFactory.computeCost() already returns a cost that is
                 // scaled by the group factor, so adjust for a single buyer.
                 double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
@@ -218,6 +224,10 @@ public class FunctionalOperatorUtil {
                 double discountedCost = 0;
                 double discountCoefficient = 0;
                 double totalAllocatedCoupons = 0;
+                if (buyer.getGroupFactor() > 0) {
+                    // group leader updates the coupon requested for the group
+                    c.setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
+                }
                 if (availableCoupons > 0) {
                     totalAllocatedCoupons = Math.min(requestedCoupons, availableCoupons);
                     discountCoefficient = totalAllocatedCoupons / requestedCoupons;
@@ -225,10 +235,6 @@ public class FunctionalOperatorUtil {
                     buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
                     // tier information is updated here indirectly through TotalRequestedCoupons update
                     c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) + totalAllocatedCoupons);
-                    if (buyer.getGroupFactor() > 0) {
-                        // group leader updates the coupon requested for the group
-                        c.setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
-                    }
                     discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                             * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                 }

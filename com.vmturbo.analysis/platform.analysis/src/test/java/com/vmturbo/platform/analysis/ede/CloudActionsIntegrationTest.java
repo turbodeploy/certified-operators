@@ -297,7 +297,7 @@ public class CloudActionsIntegrationTest {
 
     /*
      * when there is a partially covered VM on a CBTP, if there is some other VM that shops before it,
-     * it will try to move but not get any coupons as the partially covered VM will take up all coupons.
+     * it will try to move and will get the coupons available based on its request.
      */
     @Test
     public void testCouponUpdationOnMoves3() {
@@ -380,7 +380,7 @@ public class CloudActionsIntegrationTest {
         assertEquals(16, slVM1.getQuantity(1), 0);
     }
 
-    // scale down on CBTP and different VM using the coupons
+    // scale down on CBTP and different VM uses the relinquished coupons
     @Test
     public void testCouponUpdationOnMoves5() {
         Economy e = new Economy();
@@ -628,6 +628,128 @@ public class CloudActionsIntegrationTest {
         assertEquals(4, slVM2.getQuantity(1), 0);
         assertEquals(4, slVM3.getQuantity(1), 0);
         assertEquals(12, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+    }
+
+    /*
+     * There is a redundant move that gets generated for the groupLeader. Though the VM had 100% coverage, we still generate a move
+     */
+    @Test
+    public void testCouponUpdationOnMoves11() {
+        // VM1 on CBTP1 consuming 8 coupons
+        // VM2 on TP2
+        // VM3 on TP1
+
+        // desired result:
+        // VM1 on CBTP1 consuming 8 coupons
+        // VM2 on CBTP1 consuming 4 coupons
+        // VM3 on TP1
+        Economy e = new Economy();
+        Topology t = new Topology();
+        Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
+        Trader[] sellers = setupProviders(e, t, 0);
+        sellers[2].getCommoditySold(COUPON).setCapacity(12).setQuantity(8);;
+        sellers[3].getCommoditySold(COUPON).setCapacity(4);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        ShoppingList slVM3 = getSl(e, vms[2]);
+        // VM3 on CBTP2 with full coverage
+        // same setup as 8. Except that VM1 is on CBTP2 consuming 4 coupons with the right context
+        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 8, 8));
+        slVM1.setQuantity(1, 8);
+        slVM1.move(sellers[2]);
+        slVM2.move(sellers[1]);
+        slVM3.move(sellers[0]);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        // UNNECESSARY move of VM1 from CBTP1 to CBTP1 and getting 100% coverage
+        // this move was triggered because of a change for a peer
+        PlacementResults result1 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(1, result1.getActions().get(0).getSubsequentActions().size());
+        assertEquals(sellers[2], ((Move)result1.getActions().get(0)).getDestination());
+        // moving each VM to CBTP consuming 8 coupons each
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 12, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        // assert that first follower VM picks the CBTP and uses up the remaining 4 coupons
+        assertEquals(sellers[2], ((Move)result1.getActions().get(0).getSubsequentActions().get(0)).getDestination());
+        assertEquals(4, slVM2.getQuantity(1), 0);
+        // VM3 is already on TP1 with 0 coverage. So no relinquishing needed
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+
+        // NO ACTIONS AGAIN!!! => NO FLIP-FLOPS!!!
+        PlacementResults result2 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(0, result2.getActions().size());
+        // moving each VM to CBTP consuming 8 coupons each
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 12, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        // assert that first follower VM picks the CBTP and uses up the remaining 4 coupons
+        assertEquals(4, slVM2.getQuantity(1), 0);
+        // VM3 is already on TP1 with 0 coverage. So no relinquishing needed
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+    }
+
+    /*
+     * A groupLeader on a TP does not force a peer to move out.
+     * The peer with full coverage continues to remain on the CBTP
+     */
+    @Test
+    public void testCouponUpdationOnMoves12() {
+        // VM1 on TP1
+        // VM2 on CBTP1
+        // VM3 on CBTP2
+
+        // desired result:
+        // VM1 remains on TP1
+        // VM2 on CBTP1 consuming 8 coupons
+        // VM3 TP1
+        Economy e = new Economy();
+        Topology t = new Topology();
+        Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
+        Trader[] sellers = setupProviders(e, t, 0);
+        sellers[2].getCommoditySold(COUPON).setCapacity(8).setQuantity(8);
+        sellers[3].getCommoditySold(COUPON).setCapacity(4).setQuantity(4);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        ShoppingList slVM3 = getSl(e, vms[2]);
+        // VM3 on CBTP2 with partial coverage
+        // Except that VM1 is on TP1 and VM2 on CBTP1 with full coverage
+        slVM1.move(sellers[0]);
+        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        slVM2.setQuantity(1, 8);
+        slVM2.move(sellers[2]);
+        vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
+        slVM3.setQuantity(1, 4);
+        slVM3.move(sellers[3]);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        // UNNECESSARY move of VM1 from CBTP1 to CBTP1 and getting 100% coverage
+        // this move was triggered because of a change for a peer
+        PlacementResults result1 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(2, result1.getActions().get(0).getSubsequentActions().size());
+        assertEquals(sellers[2], ((Move)result1.getActions().get(0)).getDestination());
+        // CBTP2's usage doesnt change
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
+        // VM1 IS PLACED ON CBTP BUT GETS 0 COUPONS
+        assertEquals(0, slVM1.getQuantity(1), 0);
+        assertEquals(sellers[2], ((Move)result1.getActions().get(0).getSubsequentActions().get(0)).getDestination());
+        // assert that VM3 moves into TP1 from CBTP2
+        assertEquals(sellers[0], ((Move)result1.getActions().get(0).getSubsequentActions().get(1)).getDestination());
+        assertEquals(8, slVM2.getQuantity(1), 0);
+        assertEquals(0, slVM3.getQuantity(1), 0);
+        // VM3 is already on TP1 with 0 coverage. So no relinquishing needed
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+
+        // NO ACTIONS AGAIN!!! => NO FLIP-FLOPS!!!
+        PlacementResults result2 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(0, result2.getActions().size());
+        // moving each VM to CBTP consuming 8 coupons each
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
+        assertEquals(0, slVM1.getQuantity(1), 0);
+        // assert that first follower VM picks the CBTP and uses up the remaining 4 coupons
+        assertEquals(8, slVM2.getQuantity(1), 0);
+        // VM3 is already on TP1 with 0 coverage. So no relinquishing needed
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
     @Test

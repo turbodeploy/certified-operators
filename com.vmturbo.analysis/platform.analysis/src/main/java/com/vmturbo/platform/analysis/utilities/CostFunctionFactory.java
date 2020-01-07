@@ -555,13 +555,23 @@ public class CostFunctionFactory {
         // Calculate the number of available coupons from cbtp
         int indexOfCouponCommByCbtp = seller.getBasketSold()
                         .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
+        int indexOfCouponCommBought = buyer.getBasket()
+                .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
         CommoditySold couponCommSoldByCbtp =
                         seller.getCommoditiesSold().get(indexOfCouponCommByCbtp);
 
         // if the groupLeader is asking for cost, reqlinquish all coupons and provide quote for the group
         double availableCoupons =
-                couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity() + (groupFactor > 0 ? currentCoverage : 0);
-
+                couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
+        if (groupFactor > 0) {
+            // when leader shops, relinquish group's coverage
+            availableCoupons += currentCoverage;
+        } else if (seller == buyer.getSupplier()) {
+            // when peer shops consider the coupons it used from the supplier. If we dont do that, VM might end up not
+            // finding the coupon and might move out of CBTP. We did not do this before before peer always relinquished
+            // before it shopped
+            availableCoupons += buyer.getQuantity(indexOfCouponCommBought);
+        }
         double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
 
         double discountedCost = 0;
