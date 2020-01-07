@@ -157,7 +157,8 @@ public class MarketStatsAccumulator {
      * are useful and we want to show them to user.
      */
     private static final Set<Integer> INACTIVE_COMMODITIES_TO_PERSIST = ImmutableSet.of(
-        CommodityType.SWAPPING_VALUE, CommodityType.BALLOONING_VALUE
+        CommodityType.SWAPPING_VALUE, CommodityType.BALLOONING_VALUE, CommodityType.COOLING_VALUE,
+        CommodityType.POWER_VALUE, CommodityType.NET_THROUGHPUT_VALUE
     );
 
     /**
