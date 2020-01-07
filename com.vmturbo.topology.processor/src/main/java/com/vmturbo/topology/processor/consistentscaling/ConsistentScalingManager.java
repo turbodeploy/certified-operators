@@ -309,8 +309,9 @@ public class ConsistentScalingManager {
                     .getStaticGroupMembers()
                     .getMembersByTypeList().forEach(g -> {
                         g.getMembersList().forEach(oid -> {
-                            enabledEntities.add(new ScalingGroupMember(grouping,
-                                graph.getEntity(oid).get(), null));
+                            graph.getEntity(oid).ifPresent(entity -> {
+                                enabledEntities.add(new ScalingGroupMember(grouping, entity, null));
+                            });
                         });
                     });
             }
