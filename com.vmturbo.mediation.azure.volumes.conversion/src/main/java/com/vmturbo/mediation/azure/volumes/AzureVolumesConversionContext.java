@@ -10,9 +10,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.mediation.azure.AzureConversionContext;
+import com.vmturbo.mediation.azure.AzureStorageConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
@@ -28,7 +28,7 @@ public class AzureVolumesConversionContext extends AzureConversionContext {
     // for Azure Volumes we only care about converting files inside storage_data to volumes
     private static Map<EntityType, IEntityConverter> AZURE_STORAGE_BROWSING_ENTITY_CONVERTERS =
         ImmutableMap.of(EntityType.STORAGE,
-            new StorageConverter(SDKProbeType.AZURE_STORAGE_BROWSE));
+            new AzureStorageConverter(SDKProbeType.AZURE_STORAGE_BROWSE));
 
     @Nonnull
     @Override

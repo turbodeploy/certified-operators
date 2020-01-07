@@ -44,7 +44,7 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));
         converters.put(EntityType.REGION, new RegionConverter(SDKProbeType.AZURE));
-        converters.put(EntityType.STORAGE, new AzureStorageConverter());
+        converters.put(EntityType.STORAGE, new AzureStorageConverter(SDKProbeType.AZURE));
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AZURE));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());

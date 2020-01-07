@@ -444,7 +444,7 @@ public class AzureCloudDiscoveryConverterTest {
             .named(AzureConstants.VOLUME_IS_ATTACHED_PROPERTY).withValue("true").build();
         final VirtualVolumeData preexisting = VirtualVolumeData.newBuilder().build();
 
-        final AzureStorageConverter converter = new AzureStorageConverter();
+        final AzureStorageConverter converter = new AzureStorageConverter(SDKProbeType.AZURE);
         final VirtualVolumeData resultWithAttachment = converter.updateVirtualVolumeData(preexisting,
             Arrays.asList(tagEntityProperty, attachmentEntityProperty, unknownEntityProperty));
 

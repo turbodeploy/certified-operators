@@ -94,7 +94,8 @@ public class EntityStore {
      */
     private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBES = ImmutableSet.of(
         SDKProbeType.AWS, SDKProbeType.AWS_BILLING, SDKProbeType.AZURE, SDKProbeType.GCP,
-        SDKProbeType.VCENTER, SDKProbeType.VC_STORAGE_BROWSE, SDKProbeType.HYPERV, SDKProbeType.VMM);
+        SDKProbeType.VCENTER, SDKProbeType.VC_STORAGE_BROWSE, SDKProbeType.HYPERV, SDKProbeType.VMM,
+        SDKProbeType.AZURE_STORAGE_BROWSE);
 
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,

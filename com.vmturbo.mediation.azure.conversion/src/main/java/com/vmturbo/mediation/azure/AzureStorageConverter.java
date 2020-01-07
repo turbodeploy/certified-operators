@@ -26,8 +26,13 @@ public class AzureStorageConverter extends StorageConverter {
             AzureConstants.VOLUME_IS_ATTACHED_PROPERTY, AzureStorageConverter::setVolumeAttachmentState
         );
 
-    AzureStorageConverter() {
-        super(SDKProbeType.AZURE);
+    /**
+     * Create an Azure storage converter, specifying what type of Azure probe.
+     *
+     * @param probeType specific type of Azure probe
+     */
+    public AzureStorageConverter(@Nonnull final SDKProbeType probeType) {
+        super(probeType);
     }
 
     @Override
