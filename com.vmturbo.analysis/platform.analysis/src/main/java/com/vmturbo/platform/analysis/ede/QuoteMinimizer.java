@@ -9,9 +9,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
-import org.javatuples.Triplet;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -37,7 +34,8 @@ public final class QuoteMinimizer {
 
     public static long cacheHits = 0;
 
-    private QuoteCache cache_;
+    private final QuoteCache cache_;
+    private final int shoppingListIndex_;
 
     // Auxiliary Fields
     private final @NonNull UnmodifiableEconomy economy_; // should contain all the seller arguments to #accept.
@@ -66,13 +64,17 @@ public final class QuoteMinimizer {
      * @param economy See {@link #getEconomy()}.
      * @param shoppingList See {@link #getShoppingList()}
      * @param cache see {@link QuoteCache}
+     * @param shoppingListIndex The index of <b>shoppingList</b> in the iteration order of the map
+     *                          returned by {@link Economy#getMarketsAsBuyer(Trader)}. i.e. the
+     *                          first key has index 0, the second index 1 and so on.
      */
     public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-                          @Nullable QuoteCache cache) {
+                          @Nullable QuoteCache cache, final int shoppingListIndex) {
         economy_ = economy;
         shoppingList_ = shoppingList;
         quoteTracker = new QuoteTracker(shoppingList);
         cache_ = cache;
+        shoppingListIndex_ = shoppingListIndex;
     }
 
     /**
@@ -86,6 +88,7 @@ public final class QuoteMinimizer {
         shoppingList_ = shoppingList;
         quoteTracker = new QuoteTracker(shoppingList);
         cache_ = null;
+        shoppingListIndex_ = 0;
     }
 
     // Getters
@@ -173,16 +176,12 @@ public final class QuoteMinimizer {
     public void accept(@NonNull Trader seller) {
         MutableQuote quote;
         if (cache_ != null) {
-            Triplet<ShoppingList, Trader, ImmutableList<ShoppingList>> key =
-                                                new Triplet<>(shoppingList_, seller,
-                                                            ImmutableList.copyOf(seller.getCustomers()));
-            // construct hash for the seller in the pricing cache
-            quote = cache_.get(key);
+            quote = cache_.get(seller.getEconomyIndex(), shoppingListIndex_);
             if(quote == null) {
                 // need to recompute complete quote without any stopping criteria
                 // since this cached quote could turn out to be the best in a different clique
                 quote = EdeCommon.quote(economy_, shoppingList_, seller, Double.POSITIVE_INFINITY, false);
-                cache_.put(key, quote);
+                cache_.put(seller.getEconomyIndex(), shoppingListIndex_, quote);
             } else {
                 cacheHits++;
             }

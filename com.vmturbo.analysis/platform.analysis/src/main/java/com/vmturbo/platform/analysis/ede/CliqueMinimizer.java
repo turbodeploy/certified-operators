@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.utilities.QuoteCacheUtils.invalidate;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -9,23 +11,23 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.vmturbo.platform.analysis.utilities.QuoteCache;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Lists;
-
-import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
@@ -98,7 +100,7 @@ final class CliqueMinimizer {
 
     private @NonNull Map<ShoppingList, QuoteTracker> infiniteQuoteTrackers = Collections.emptyMap();
 
-    private @NonNull QuoteCache cache_;
+    private @Nullable QuoteCache cache_;
     // Constructors
 
     /**
@@ -106,9 +108,12 @@ final class CliqueMinimizer {
      *
      * @param economy See {@link #getEconomy()}.
      * @param entries See {@link #getEntries()}.
+     * @param cache A cache where to store quotes to avoid recomputing them in case where the same
+     *              sellers are members of multiple cliques.
      */
-    public CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly Collection
-        <@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries, QuoteCache cache) {
+    CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly
+            Collection<@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries,
+            @Nullable QuoteCache cache) {
         economy_ = economy;
         entries_ = entries;
         cache_ = cache;
@@ -225,7 +230,10 @@ final class CliqueMinimizer {
         }
 
         economy_.getPlacementStats().incrementCliqueMinimizationCount();
-        Lists.reverse(quoteSummer.getSimulatedActions()).forEach(Action::rollback);
+        Lists.reverse(quoteSummer.getSimulatedActions()).forEach(move -> {
+            move.rollback();
+            invalidate(cache_, move);
+        });
     }
 
     /**

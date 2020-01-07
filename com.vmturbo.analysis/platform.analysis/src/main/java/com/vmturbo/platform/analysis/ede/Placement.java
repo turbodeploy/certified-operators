@@ -140,17 +140,23 @@ public class Placement {
      * @param shoppingList - The {@link ShoppingList} for which we try to find the cheapest
      * destination
      * @param cache - is the {@link QuoteCache} that contains previously computed quotes
+     * @param shoppingListIndex The index of <b>shoppingList</b> in the iteration order of the map
+     *                          returned by {@link Economy#getMarketsAsBuyer(Trader)}. i.e. the
+     *                          first key has index 0, the second index 1 and so on. If <b>cache</b>
+     *                          is {@code null}, the value of this argument is ignored.
      * @return the QuoteMinimizer
      */
     public static QuoteMinimizer initiateQuoteMinimizer(@NonNull Economy economy,
-                    @NonNull List<@NonNull Trader> sellers, ShoppingList shoppingList, QuoteCache cache) {
+                                @NonNull List<@NonNull Trader> sellers, ShoppingList shoppingList,
+                                QuoteCache cache, final int shoppingListIndex) {
         // If the shopping list's best provider is its current provider then obtain minimizer again
         // without consider the commodities in the unquoted commodities base type list.
         QuoteMinimizer minimizer;
         for (;;) {
             minimizer = (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                             ? sellers.stream() : sellers.parallelStream())
-                                .collect(() -> new QuoteMinimizer(economy, shoppingList, cache),
+                                .collect(() -> new QuoteMinimizer(economy, shoppingList,
+                                                                    cache, shoppingListIndex),
                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
             if (sellers.size() > 1 && (minimizer.getBestSeller() == null
                             || minimizer.getBestSeller() == shoppingList.getSupplier())) {
@@ -211,7 +217,8 @@ public class Placement {
             return results;
         }
 
-        final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList, null);
+        final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList,
+                                                    null, 0 /* ignored because cache == null */);
 
         final double cheapestQuote = minimizer.getTotalBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
@@ -620,8 +627,15 @@ public class Placement {
         if (commonCliques.isEmpty()) {
             return null;
         }
+
         List<Entry<ShoppingList, Market>> movableSlByMarket = economy.moveableSlByMarket(trader);
-        final QuoteCache cache = (commonCliques.size() > 2) ? new QuoteCache() : null;
+        final QuoteCache cache = economy.getSettings().getUseQuoteCacheDuringSNM()
+                && commonCliques.size() > 1
+            ? new QuoteCache(economy.getTraders().size(),
+                economy.getMarketsAsBuyer(trader).values().stream()
+                    .mapToInt(market -> market.getActiveSellers().size()).sum(),
+                economy.getMarketsAsBuyer(trader).size())
+            : null;
 
         return commonCliques.stream().collect(
             () -> new CliqueMinimizer(economy, movableSlByMarket, cache),
