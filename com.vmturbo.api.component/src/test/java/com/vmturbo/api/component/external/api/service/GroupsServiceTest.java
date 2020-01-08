@@ -783,6 +783,7 @@ public class GroupsServiceTest {
 
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(false);
+        Mockito.when(entityApiId.oid()).thenReturn(1L);
 
         when(uuidMapper.fromUuid("1")).thenReturn(entityApiId);
 
@@ -1171,6 +1172,7 @@ public class GroupsServiceTest {
 
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(false);
+        Mockito.when(entityApiId.oid()).thenReturn(111L);
         when(uuidMapper.fromUuid("111")).thenReturn(entityApiId);
         final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()

@@ -1210,12 +1210,19 @@ public class GroupsService implements IGroupsService {
                                 .addOrigin(GroupDTO.Origin.Type.USER));
             } else {
                 // add scopes to filter resulting groups
-                request.addAllScopes(scopes.stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toSet()));
+                request.addAllScopes(convertScopes(scopes));
             }
         }
         return request;
+    }
+
+    private Collection<Long> convertScopes(Collection<String> scopeUuids)
+                    throws OperationFailedException {
+        final Collection<Long> result = new HashSet<>();
+        for (String uuid : scopeUuids) {
+            result.add(uuidMapper.fromUuid(uuid).oid());
+        }
+        return Collections.unmodifiableCollection(result);
     }
 
     /**
