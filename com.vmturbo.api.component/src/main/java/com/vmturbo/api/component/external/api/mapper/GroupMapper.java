@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -16,18 +17,18 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import io.grpc.Status.Code;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
@@ -259,7 +260,8 @@ public class GroupMapper {
      * @param groupAndMembers - the parsed groupAndMembers object for a given group.
      * @return the EnvCloudMapper:
      * EnvironmentType:
-     *  - CLOUD if all group members are CLOUD entities
+     *  - CLOUD if all group members are CLOUD entities or it is empty cloud group or regular
+     *          group with cloud group members
      *  - ON_PREM if all group members are ON_PREM entities
      *  - HYBRID if the group contains members both CLOUD entities and ON_PREM entities.
      *  CloudType:
@@ -270,32 +272,47 @@ public class GroupMapper {
      */
     public EntityEnvironment getEnvironmentAndCloudTypeForGroup(@Nonnull final GroupAndMembers groupAndMembers) {
         // parse the entities members of groupDto
-        Set<CloudType> cloudTypes = new HashSet<>();
+        final Set<CloudType> cloudTypes = EnumSet.noneOf(CloudType.class);
         EnvironmentTypeEnum.EnvironmentType envType = null;
-        Set<Long> targetSet = new HashSet<>(groupAndMembers.entities());
-        for (MinimalEntity entity : repositoryApi.entitiesRequest(targetSet).getMinimalEntities().collect(Collectors.toList())) {
-            if (envType != entity.getEnvironmentType()) {
+        final Set<Long> targetSet = new HashSet<>(groupAndMembers.entities());
+        if (!targetSet.isEmpty()) {
+            for (MinimalEntity entity : repositoryApi.entitiesRequest(targetSet)
+                    .getMinimalEntities()
+                    .collect(Collectors.toList())) {
+                if (envType != entity.getEnvironmentType()) {
                     envType = (envType == null) ? entity.getEnvironmentType() : EnvironmentTypeEnum.EnvironmentType.HYBRID;
-            }
-            // Trying to determine the cloud type
-            if (entity.getDiscoveringTargetIdsCount() > 0 && !envType.equals(EnvironmentTypeEnum.EnvironmentType.ON_PREM)) {
-                // The first element is good enough to indicate the cloud type
-                 for (Long targetId: entity.getDiscoveringTargetIdsList()) {
-                    Optional<ThinTargetCache.ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(targetId);
-                    if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
-                        ThinTargetCache.ThinTargetInfo getProbeInfo = thinInfo.get();
-                        cloudTypes.add(cloudTypeMapper.fromTargetType(getProbeInfo.probeInfo().type()));
+                }
+                // Trying to determine the cloud type
+                if (entity.getDiscoveringTargetIdsCount() > 0 && !envType.equals(EnvironmentTypeEnum.EnvironmentType.ON_PREM)) {
+                    // The first element is good enough to indicate the cloud type
+                    for (Long targetId : entity.getDiscoveringTargetIdsList()) {
+                        Optional<ThinTargetCache.ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(targetId);
+                        if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
+                            ThinTargetCache.ThinTargetInfo getProbeInfo = thinInfo.get();
+                            cloudTypes.add(cloudTypeMapper.fromTargetType(getProbeInfo.probeInfo().type()));
+                            break;
+                        }
+                    }
+                    // Once we get more than one, we know it's HYBRID
+                    if (cloudTypes.size() > 1) {
                         break;
                     }
-                 }
-                // Once we get more than one, we know it's HYBRID
-                if (cloudTypes.size() > 1) {
-                    break;
                 }
+            }
+        } else {
+            final GroupType groupType = groupAndMembers.group().getDefinition().getType();
+            final List<MemberType> expectedTypes = groupAndMembers.group().getExpectedTypesList();
+            // case for empty cloud groups or regular groups with cloud groups
+            if (groupType == GroupType.RESOURCE || groupType == GroupType.BILLING_FAMILY ||
+                    expectedTypes.contains(
+                            MemberType.newBuilder().setGroup(GroupType.RESOURCE).build()) ||
+                    expectedTypes.contains(
+                            MemberType.newBuilder().setGroup(GroupType.BILLING_FAMILY).build())) {
+                envType = EnvironmentTypeEnum.EnvironmentType.CLOUD;
             }
         }
 
-        EnvironmentType environmentType = EnvironmentTypeMapper.fromXLToApi(envType != null ? envType
+        final EnvironmentType environmentType = EnvironmentTypeMapper.fromXLToApi(envType != null ? envType
                 : EnvironmentTypeEnum.EnvironmentType.ON_PREM ).orElse(EnvironmentType.ONPREM);
 
         final CloudType cloudType;

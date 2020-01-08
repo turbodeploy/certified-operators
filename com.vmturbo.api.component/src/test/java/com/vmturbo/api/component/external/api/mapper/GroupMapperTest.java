@@ -33,11 +33,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.api.enums.CloudType;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import io.grpc.Status;
 
 import org.junit.Assert;
@@ -64,6 +59,7 @@ import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -105,10 +101,14 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 public class GroupMapperTest {
 
@@ -1302,6 +1302,70 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
         EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
         assertEquals(envCloudType.getEnvironmentType(), EnvironmentType.HYBRID);
+    }
+
+    /**
+     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} in case when we
+     * have regular group with empty resource group members.
+     */
+    @Test
+    public void testGetEnvironmentAndCloudTypeForRegularGroupWithCloudGroupMembers() {
+        final Grouping rg = Grouping.newBuilder()
+                .setId(1L)
+                .addExpectedTypes(MemberType.newBuilder().setGroup(GroupType.RESOURCE).build())
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR).build())
+                .build();
+        final ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(rg)
+                .members(Arrays.asList(1L, 2L))
+                .entities(Collections.emptySet())
+                .build();
+        final EntityEnvironment entityEnvironment =
+                groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+        final EnvironmentType environmentType = entityEnvironment.getEnvironmentType();
+        assertEquals(environmentType, EnvironmentType.CLOUD);
+    }
+
+    /**
+     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} in case when we
+     * have empty resource group.
+     */
+    @Test
+    public void testGetEnvironmentAndCloudTypeForCloudResourceGroup() {
+        final Grouping rg = Grouping.newBuilder()
+                .setId(1L)
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.RESOURCE).build())
+                .build();
+        final ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(rg)
+                .members(Collections.emptySet())
+                .entities(Collections.emptySet())
+                .build();
+        final EntityEnvironment entityEnvironment =
+                groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+        final EnvironmentType environmentType = entityEnvironment.getEnvironmentType();
+        assertEquals(environmentType, EnvironmentType.CLOUD);
+    }
+
+    /**
+     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} in case when we
+     * have empty billing family.
+     */
+    @Test
+    public void testGetEnvironmentAndCloudTypeForBillingFamily() {
+        final Grouping rg = Grouping.newBuilder()
+                .setId(1L)
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BILLING_FAMILY).build())
+                .build();
+        final ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(rg)
+                .members(Collections.emptySet())
+                .entities(Collections.emptySet())
+                .build();
+        final EntityEnvironment entityEnvironment =
+                groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+        final EnvironmentType environmentType = entityEnvironment.getEnvironmentType();
+        assertEquals(environmentType, EnvironmentType.CLOUD);
     }
 
     /**
