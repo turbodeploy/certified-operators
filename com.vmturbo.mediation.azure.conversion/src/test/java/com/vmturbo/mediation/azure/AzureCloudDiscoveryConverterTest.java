@@ -238,7 +238,8 @@ public class AzureCloudDiscoveryConverterTest {
                     .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.CPU,
                     CommodityType.CPU_PROVISIONED, CommodityType.MEM, CommodityType.MEM_PROVISIONED,
                     CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT,
-                    CommodityType.NUM_DISK, CommodityType.LICENSE_ACCESS));
+                    CommodityType.NUM_DISK, CommodityType.LICENSE_ACCESS,
+                    CommodityType.NETWORK_INTERFACE_COUNT));
 
             // check ct owned by CloudService
             assertThat(azureConverter.getNewEntityBuilder(
