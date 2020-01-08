@@ -14,7 +14,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -35,11 +37,12 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
-import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever.BusinessAccountMapper;
-import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever.SupplementaryData;
-import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever.SupplementaryDataFactory;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.SupplementaryData;
+import com.vmturbo.api.component.external.api.util.businessaccount.SupplementaryDataFactory;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -48,9 +51,9 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
@@ -278,26 +281,12 @@ public class BusinessAccountRetrieverTest {
      */
     @Test
     public void testGetBusinessAccountByOid() throws Exception {
-        // ARRANGE
-        final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
-        when(repositoryApi.newSearchRequest(any()))
-            .thenReturn(mockReq);
-
         final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
-        when(mockMapper.convert(any(), anyBoolean()))
-            .thenReturn(Collections.singletonList(convertedDto));
-
-        // ACT
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(ENTITY_OID),
+                Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
+                .thenReturn(new RepositoryRequestResult(Collections.singleton(convertedDto),
+                        Collections.emptySet()));
         final BusinessUnitApiDTO result = businessAccountRetriever.getBusinessAccount(Long.toString(ENTITY_OID));
-
-        // ASSERT
-        verify(repositoryApi).newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.idFilter(ENTITY_OID))
-                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)))
-                .build());
-        verify(mockMapper).convert(Collections.singletonList(ACCOUNT), false);
-
         assertThat(result, is(convertedDto));
     }
 
@@ -318,10 +307,10 @@ public class BusinessAccountRetrieverTest {
      */
     @Test(expected = UnknownObjectException.class)
     public void testGetBusinessAccountByOidNotFound() throws Exception {
-        RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockEmptySearchReq();
-        when(repositoryApi.newSearchRequest(any()))
-            .thenReturn(mockReq);
-
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(ENTITY_OID),
+                Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
+                .thenReturn(new RepositoryRequestResult(Collections.emptySet(),
+                        Collections.emptySet()));
         businessAccountRetriever.getBusinessAccount(Long.toString(ENTITY_OID));
     }
 
@@ -413,27 +402,17 @@ public class BusinessAccountRetrieverTest {
         final RepositoryApi.SingleEntityRequest parentReq = ApiTestUtils.mockSingleEntityRequest(parentAccount);
         when(repositoryApi.entityRequest(anyLong())).thenReturn(parentReq);
 
-        RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
-        when(repositoryApi.newSearchRequest(any()))
-            .thenReturn(mockReq);
-
         final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
-        when(mockMapper.convert(any(), anyBoolean()))
-            .thenReturn(Collections.singletonList(convertedDto));
-
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(ENTITY_OID),
+                Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
+                .thenReturn(new RepositoryRequestResult(Collections.singleton(convertedDto),
+                        Collections.emptySet()));
         // ACT
-        final List<BusinessUnitApiDTO> results = businessAccountRetriever.getChildAccounts(Long.toString(parentAccount.getOid()));
+        final Collection<BusinessUnitApiDTO> results = businessAccountRetriever.getChildAccounts(Long.toString(parentAccount.getOid()));
 
         // ASSERT
         verify(repositoryApi).entityRequest(parentAccount.getOid());
-        verify(repositoryApi).newSearchRequest(
-            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(ENTITY_OID))
-                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)))
-                .build());
-        verify(mockMapper).convert(Collections.singletonList(ACCOUNT), false);
-
-        assertThat(results, is(Collections.singletonList(convertedDto)));
+        Assert.assertEquals(Collections.singleton(convertedDto), new HashSet<>(results));
     }
 
     /**
@@ -484,7 +463,7 @@ public class BusinessAccountRetrieverTest {
                 .setSpecificAccounts(IdList.newBuilder()
                     .addAllAccountIds(targetAccounts)))
             .build());
-        assertThat(data.getCostPrice(1L), is(svc1Price + svc2Price));
+        Assert.assertEquals(Optional.of(svc1Price + svc2Price), data.getCostPrice(1L));
     }
 
     /**
@@ -582,7 +561,7 @@ public class BusinessAccountRetrieverTest {
         final SupplementaryData supplementaryData = mock(SupplementaryData.class);
         when(supplementaryDataFactory.newSupplementaryData(any(), eq(false))).thenReturn(supplementaryData);
         final float costPrice = 11.0f;
-        when(supplementaryData.getCostPrice(any())).thenReturn(costPrice);
+        when(supplementaryData.getCostPrice(any())).thenReturn(Optional.of(costPrice));
         final BusinessAccountMapper businessAccountMapper =
             new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory);
 

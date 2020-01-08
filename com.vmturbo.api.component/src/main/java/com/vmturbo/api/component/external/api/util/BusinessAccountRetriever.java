@@ -1,9 +1,9 @@
 package com.vmturbo.api.component.external.api.util;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,56 +15,34 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableFloat;
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
-import com.vmturbo.api.enums.BusinessUnitType;
-import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
-import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
-import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Responsible for retrieving business accounts from the repository, and decorating them
@@ -92,27 +70,14 @@ public class BusinessAccountRetriever {
      *
      * @param repositoryApi Utility class to access the repository for searches.
      * @param groupExpander The group expander used to get the group members details.
-     * @param groupService Stub to get information about groups.
-     * @param costService Stub to get cost/expense information.
      * @param thinTargetCache Utility that cashes target-related information we need on each
      *                        business account.
      * @param entityFilterMapper entity filter mapping to perform search using FilterApiDTO
      * @param filterResolver filter resolver to search for criteria using services other then
      *          search service
+     * @param businessAccountMapper mapper to convert to REST API format
      */
     public BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
-                                    @Nonnull final GroupExpander groupExpander,
-                                    @Nonnull final GroupServiceBlockingStub groupService,
-                                    @Nonnull final CostServiceBlockingStub costService,
-                                    @Nonnull final ThinTargetCache thinTargetCache,
-                                    @Nonnull final EntityFilterMapper entityFilterMapper,
-                                    @Nonnull final SearchFilterResolver filterResolver) {
-        this(repositoryApi, groupExpander, thinTargetCache, entityFilterMapper,
-                new BusinessAccountMapper(thinTargetCache,
-                        new SupplementaryDataFactory(costService, groupService)), filterResolver);
-    }
-
-    protected BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final GroupExpander groupExpander,
                              @Nonnull final ThinTargetCache thinTargetCache,
                              @Nonnull final EntityFilterMapper entityFilterMapper,
@@ -125,8 +90,6 @@ public class BusinessAccountRetriever {
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.filterResolver = Objects.requireNonNull(filterResolver);
     }
-
-
 
     /**
      * Find master business accounts and convert them to BillingFamilyApiDTO.
@@ -246,7 +209,7 @@ public class BusinessAccountRetriever {
      * @throws UnknownObjectException If the input UUID does not refer to an existing business account.
      */
     @Nonnull
-    public List<BusinessUnitApiDTO> getChildAccounts(@Nonnull final String uuid)
+    public Collection<BusinessUnitApiDTO> getChildAccounts(@Nonnull final String uuid)
             throws InvalidOperationException, UnknownObjectException {
         if (!StringUtils.isNumeric(uuid)) {
             throw new InvalidOperationException("Business account ID must be numeric. Got: " + uuid);
@@ -269,297 +232,12 @@ public class BusinessAccountRetriever {
      * @param ids the oids of the business units to retrieve.
      * @return the business units with the oids provided.
      */
-    public List<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) {
-        if (ids.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        final List<TopologyEntityDTO> accounts = repositoryApi.newSearchRequest(
-                SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(ids))
-                    .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                        // We want to handle the case where some of the input IDs don't refer to
-                        // business accounts.
-                        SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)))
-                    .build())
-            .getFullEntities()
-            .collect(Collectors.toList());
-
-        return businessAccountMapper.convert(accounts, false);
-    }
-
-    /**
-     * Container class for all data from other components required to decorate the output
-     * {@link BusinessUnitApiDTO}s.
-     */
-    static class SupplementaryData {
-
-        private final Map<Long, Float> costsByAccountId;
-        private final Map<Long, Integer> countOfGroupsOwnedByAccount;
-
-        private SupplementaryData(final Map<Long, Float> costsByAccountId,
-                @Nonnull Map<Long, Integer> countOfGroupsOwnedByAccount) {
-            this.costsByAccountId = costsByAccountId;
-            this.countOfGroupsOwnedByAccount = Objects.requireNonNull(countOfGroupsOwnedByAccount);
-        }
-
-        @Nullable
-        Float getCostPrice(@Nonnull final Long accountId) {
-            if (costsByAccountId == null) {
-                return null;
-            }
-            return costsByAccountId.getOrDefault(accountId, 0.0f);
-        }
-
-        @Nonnull
-        Integer getResourceGroupCount(@Nonnull final Long accountId) {
-            return countOfGroupsOwnedByAccount.getOrDefault(accountId, 0);
-        }
-    }
-
-    /**
-     * Factory class for {@link SupplementaryData}, responsible for the heavy lifting of
-     * actually doing the bulk fetches of data from other components (e.g. costs from the cost
-     * component, severities from the action orchestrator, maybe resource groups from the
-     * group component).
-     *
-     * <p>Also helps unit test the {@link BusinessAccountRetriever} more manageably.
-     */
-    static class SupplementaryDataFactory {
-        private final CostServiceBlockingStub costService;
-        private final GroupServiceBlockingStub groupService;
-
-        SupplementaryDataFactory(final CostServiceBlockingStub costServiceBlockingStub,
-                GroupServiceBlockingStub groupServiceBlockingStub) {
-            this.costService = costServiceBlockingStub;
-            this.groupService = groupServiceBlockingStub;
-        }
-
-        /**
-         * Create a new {@link SupplementaryData} instance.
-         *
-         * @param accountIds set of accountIds
-         * @param allAccounts A hint to say whether these accounts represent ALL accounts. This
-         * allows us to optimize queries for related data, if necessary.
-         * @return The {@link SupplementaryData}.
-         */
-        SupplementaryData newSupplementaryData(@Nonnull Set<Long> accountIds, boolean allAccounts) {
-            Map<Long, Float> costsByAccount;
-            try {
-                costsByAccount = getCostsByAccount(accountIds, allAccounts);
-            } catch (StatusRuntimeException e) {
-                if (Code.UNAVAILABLE == e.getStatus().getCode()) {
-                    // Any component may be down at any time. APIs like search should not fail
-                    // when the cost component is down. We must log a warning when this happens,
-                    // or else it will be difficult for someone to explain why search does not
-                    // have cost data.
-                    logger.warn("The cost component is not available. As a result, we will not fill in the response with cost details for accountIds={} and allAccounts={}",
-                        () -> accountIds,
-                        () -> allAccounts);
-                    costsByAccount = null;
-                } else {
-                    // Cost component responded, so it's up an running. We need to make this
-                    // exception visible because there might be a bug in the cost component.
-                    throw e;
-                }
-            }
-            final Map<Long, Integer> groupsCountOwnedByAccount =
-                    getResourceGroupsCountOwnedByAccount(accountIds);
-            return new SupplementaryData(costsByAccount, groupsCountOwnedByAccount);
-        }
-
-        @Nonnull
-        private Map<Long, Integer> getResourceGroupsCountOwnedByAccount(@Nonnull Set<Long> accountIds) {
-            final Map<Long, Integer> groupsCountOwnedByAccount = new HashMap<>(accountIds.size());
-            accountIds.forEach(account -> {
-                final Integer groupsCount = groupService.countGroups(
-                        GetGroupsRequest.newBuilder()
-                                .setGroupFilter(GroupFilter.newBuilder()
-                                        .addPropertyFilters(
-                                                SearchProtoUtil.stringPropertyFilterExact(
-                                                        SearchableProperties.ACCOUNT_ID,
-                                                        Collections.singletonList(
-                                                                account.toString())))
-                                        .build())
-                                .build()).getCount();
-                groupsCountOwnedByAccount.put(account, groupsCount);
-            });
-            return groupsCountOwnedByAccount;
-        }
-
-        @Nonnull
-        private Map<Long, Float> getCostsByAccount(@Nonnull Set<Long> specificAccountIds, boolean allAccounts) {
-            final AccountExpenseQueryScope.Builder scopeBldr = AccountExpenseQueryScope.newBuilder();
-            if (allAccounts) {
-                scopeBldr.setAllAccounts(true);
-            } else {
-                scopeBldr.setSpecificAccounts(IdList.newBuilder()
-                    .addAllAccountIds(specificAccountIds));
-            }
-
-            final GetCurrentAccountExpensesResponse response = costService.getCurrentAccountExpenses(
-                GetCurrentAccountExpensesRequest.newBuilder()
-                    .setScope(scopeBldr)
-                    .build());
-
-            // Sum the expenses across services for each account.
-            //
-            // It's not clear whether we should also be adding the per-tier expenses, or if
-            // the per-tier expenses are part of the per-service expenses.
-            //
-            // As this logic gets more complex we should move it out to a separate calculator class.
-            final Map<Long, Float> costsByAccount = new HashMap<>();
-            response.getAccountExpenseList().forEach(expense -> {
-                final long accountId = expense.getAssociatedAccountId();
-                float totalExpense = 0.0f;
-                for (ServiceExpenses svcExpense : expense.getAccountExpensesInfo().getServiceExpensesList()) {
-                    totalExpense += svcExpense.getExpenses().getAmount();
-                }
-                costsByAccount.put(accountId, totalExpense);
-            });
-            return costsByAccount;
-        }
-
-    }
-
-    /**
-     * Isolates the logic for mapping {@link TopologyEntityDTO}s representing a business account
-     * to the {@link BusinessUnitApiDTO} that can be returned to the API.
-     */
-    @VisibleForTesting
-    static class BusinessAccountMapper {
-
-        private final ThinTargetCache thinTargetCache;
-
-        private final SupplementaryDataFactory supplementaryDataFactory;
-
-        @VisibleForTesting
-        BusinessAccountMapper(@Nonnull final ThinTargetCache thinTargetCache,
-                              @Nonnull final SupplementaryDataFactory supplementaryDataFactory) {
-            this.thinTargetCache = thinTargetCache;
-            this.supplementaryDataFactory = supplementaryDataFactory;
-        }
-
-        /**
-         * Convert a list of {@link TopologyEntityDTO}s to the appropriate {@link BusinessUnitApiDTO}s.
-         *
-         * @param entities The {@link TopologyEntityDTO} representations of the accounts.
-         * @param allAccounts A hint to say whether these accounts represent ALL accounts. This
-         *                    allows us to optimize queries for related data, if necessary.
-         * @return The {@link BusinessUnitApiDTO} representations of the input accounts.
-         */
-        @Nonnull
-        @VisibleForTesting
-        List<BusinessUnitApiDTO> convert(@Nonnull final List<TopologyEntityDTO> entities,
-                                         final boolean allAccounts) {
-            if (entities.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            final Set<Long> accountIds =
-                    entities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-            final SupplementaryData supplementaryData =
-                    supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts);
-
-            return entities.stream()
-                .map(entity -> buildDiscoveredBusinessUnitApiDTO(entity, supplementaryData))
-                .collect(Collectors.toList());
-        }
-
-        /**
-         * Build discovered business unit API DTO.
-         *
-         * @param businessAccount topology entity DTOP for the business account
-         * @param supplementaryData Supplementary data required to produce the final API DTO.
-         * @return The API DTO that can be returned to the UI.
-         */
-        private BusinessUnitApiDTO buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO businessAccount,
-                                                             @Nonnull final SupplementaryData supplementaryData) {
-            final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
-            final long businessAccountOid = businessAccount.getOid();
-            businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-            businessUnitApiDTO.setUuid(Long.toString(businessAccountOid));
-            businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
-            businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
-            businessUnitApiDTO.setBudget(new StatApiDTO());
-
-            Float costPrice = supplementaryData.getCostPrice(businessAccountOid);
-            if (costPrice != null) {
-                businessUnitApiDTO.setCostPrice(costPrice);
-            }
-            businessUnitApiDTO.setResourceGroupsCount(
-                    supplementaryData.getResourceGroupCount(businessAccountOid));
-            // discovered account doesn't have discount (yet)
-            businessUnitApiDTO.setDiscount(0.0f);
-
-            businessUnitApiDTO.setMemberType(StringConstants.WORKLOAD);
-
-            final MutableInt workloadMemberCount = new MutableInt(0);
-            final Set<String> childAccountIds = new HashSet<>();
-            businessAccount.getConnectedEntityListList().forEach(connectedEntity -> {
-                UIEntityType type = UIEntityType.fromType(connectedEntity.getConnectedEntityType());
-                if (UIEntityType.WORKLOAD_ENTITY_TYPES.contains(type)) {
-                    workloadMemberCount.increment();
-                }
-                if (type == UIEntityType.BUSINESS_ACCOUNT) {
-                    childAccountIds.add(Long.toString(connectedEntity.getConnectedEntityId()));
-                }
-            });
-
-            businessUnitApiDTO.setMembersCount(workloadMemberCount.intValue());
-            businessUnitApiDTO.setChildrenBusinessUnits(childAccountIds);
-
-            businessUnitApiDTO.setDisplayName(businessAccount.getDisplayName());
-            if (businessAccount.getTypeSpecificInfo().hasBusinessAccount()) {
-                final BusinessAccountInfo bizInfo = businessAccount.getTypeSpecificInfo().getBusinessAccount();
-                if (bizInfo.hasAccountId()) {
-                    businessUnitApiDTO.setAccountId(bizInfo.getAccountId());
-                }
-                if (bizInfo.hasAssociatedTargetId()) {
-                    businessUnitApiDTO.setAssociatedTargetId(
-                        bizInfo.getAssociatedTargetId());
-                }
-                businessUnitApiDTO.setPricingIdentifiers(bizInfo.getPricingIdentifiersList()
-                    .stream()
-                    .collect(Collectors.toMap(pricingId -> pricingId.getIdentifierName().name(),
-                        PricingIdentifier::getIdentifierValue)));
-            }
-
-            businessUnitApiDTO.setMaster(childAccountIds.size() > 0);
-
-            final List<ThinTargetInfo> discoveringTargets = businessAccount
-                .getOrigin()
-                .getDiscoveryOrigin()
-                .getDiscoveredTargetDataMap().keySet()
-                .stream()
-                .map(thinTargetCache::getTargetInfo)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
-
-            final CloudType cloudType = discoveringTargets.stream()
-                .findFirst()
-                .map(ThinTargetInfo::probeInfo)
-                .map(ThinProbeInfo::type)
-                .map(probeType -> com.vmturbo.common.protobuf.search.CloudType.fromProbeType(
-                            probeType).orElse(null))
-                .map(cloud -> CloudType.fromSimilarEnum(cloud).orElse(null))
-                .orElse(CloudType.UNKNOWN);
-
-            businessUnitApiDTO.setCloudType(cloudType);
-
-            final List<TargetApiDTO> targetApiDTOS = discoveringTargets.stream()
-                .map(thinTargetInfo -> {
-                    final TargetApiDTO apiDTO = new TargetApiDTO();
-                    apiDTO.setType(thinTargetInfo.probeInfo().type());
-                    apiDTO.setUuid(Long.toString(thinTargetInfo.oid()));
-                    apiDTO.setDisplayName(thinTargetInfo.displayName());
-                    apiDTO.setCategory(thinTargetInfo.probeInfo().category());
-                    return apiDTO;
-                })
-                .collect(Collectors.toList());
-            businessUnitApiDTO.setTargets(targetApiDTOS);
-            return businessUnitApiDTO;
-        }
+    @Nonnull
+    public Collection<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) {
+        final Collection<BusinessUnitApiDTO> result =
+                repositoryApi.getByIds(ids, Collections.singleton(EntityType.BUSINESS_ACCOUNT),
+                        false).getBusinessAccounts();
+        return result;
     }
 
     /**

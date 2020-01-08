@@ -228,12 +228,9 @@ public class ServiceConfig {
     @Bean
     public BusinessAccountRetriever businessAccountRetriever() {
         return new BusinessAccountRetriever(communicationConfig.repositoryApi(),
-            communicationConfig.groupExpander(),
-            communicationConfig.groupRpcService(),
-            communicationConfig.costServiceBlockingStub(),
-            communicationConfig.thinTargetCache(),
-            mapperConfig.entityFilterMapper(),
-            searchFilterResolver());
+                communicationConfig.groupExpander(), communicationConfig.thinTargetCache(),
+                mapperConfig.entityFilterMapper(), communicationConfig.businessAccountMapper(),
+                searchFilterResolver());
     }
 
     /**
@@ -315,7 +312,8 @@ public class ServiceConfig {
                 mapperConfig.settingsMapper(),
                 communicationConfig.thinTargetCache(),
                 entitySettingQueryExecutor(),
-                mapperConfig.groupFilterMapper());
+                mapperConfig.groupFilterMapper(),
+                businessAccountRetriever());
     }
 
     @Bean

@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -54,6 +55,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
@@ -218,6 +220,8 @@ public class GroupsService implements IGroupsService {
 
     private final Logger logger = LogManager.getLogger();
 
+    private final BusinessAccountRetriever businessAccountRetriever;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -237,7 +241,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final SettingsMapper settingsMapper,
                   @Nonnull final ThinTargetCache thinTargetCache,
                   @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
-                  @Nonnull final GroupFilterMapper groupFilterMapper) {
+                  @Nonnull final GroupFilterMapper groupFilterMapper,
+                  @Nonnull final BusinessAccountRetriever businessAccountRetriever) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -258,6 +263,7 @@ public class GroupsService implements IGroupsService {
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
         this.groupFilterMapper = Objects.requireNonNull(groupFilterMapper);
+        this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
     }
 
     /**
@@ -347,6 +353,7 @@ public class GroupsService implements IGroupsService {
         if (leafEntities.isEmpty()) {
             return Collections.emptyList();
         }
+
 
         // Get entities from the repository component
         final List<ServiceEntityApiDTO> entities = repositoryApi.entitiesRequest(leafEntities)
@@ -962,9 +969,13 @@ public class GroupsService implements IGroupsService {
                         .skip(skipCount)
                         .limit(request.getLimit())
                         .collect(Collectors.toSet());
-                    final Collection<ServiceEntityApiDTO> results =
-                        repositoryApi.entitiesRequest(nextPageIds)
-                            .getSEList();
+                    final RepositoryRequestResult entities =
+                            repositoryApi.getByIds(nextPageIds, Collections.emptyList(), false);
+                    final Collection<BaseApiDTO> results = new ArrayList<>(
+                            entities.getBusinessAccounts().size() +
+                                    entities.getServiceEntities().size());
+                    results.addAll(entities.getBusinessAccounts());
+                    results.addAll(entities.getServiceEntities());
 
                     final int missingEntities = nextPageIds.size() - results.size();
                     if (missingEntities > 0) {

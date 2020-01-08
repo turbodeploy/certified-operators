@@ -145,7 +145,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
-                List<BusinessUnitApiDTO> accounts = businessAccountRetriever.getBusinessAccounts(accountIds);
+                Collection<BusinessUnitApiDTO> accounts = businessAccountRetriever.getBusinessAccounts(accountIds);
                 Set<Long> masterAccounts = accounts.stream().filter(BusinessUnitApiDTO::isMaster)
                     .map(BusinessUnitApiDTO::getUuid)
                     .map(Long::valueOf)

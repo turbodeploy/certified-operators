@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.communication;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -15,14 +16,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -68,17 +70,20 @@ public class RepositoryApi {
     private final SearchServiceBlockingStub searchServiceBlockingStub;
 
     private final ServiceEntityMapper serviceEntityMapper;
+    private final BusinessAccountMapper businessAccountMapper;
 
     public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
                          @Nonnull final RepositoryServiceBlockingStub repositoryService,
                          @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                         @Nonnull BusinessAccountMapper businessAccountMapper,
                          final long realtimeTopologyContextId) {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.repositoryService = Objects.requireNonNull(repositoryService);
+        this.businessAccountMapper = Objects.requireNonNull(businessAccountMapper);
     }
 
     /**
@@ -164,6 +169,56 @@ public class RepositoryApi {
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
                                  severityPopulator, serviceEntityMapper,
                                  Collections.singleton(searchParameters));
+    }
+
+    /**
+     * Method returns repository contents by the specified OIDs. All the contents are mapped to the
+     * required types.
+     *
+     * @param oids oids of entities to retrieve
+     * @param entityTypes entity types to retrieve
+     * @param allAccounts whether all accounts are queried (true) of only some of them
+     *         (false). This value is used for queries optimization purpose. {@code false} value
+     *         does not affect results, it is just executed a little bit longer.
+     * @return query result, mapped to REST classes
+     */
+    @Nonnull
+    public RepositoryRequestResult getByIds(@Nonnull Collection<Long> oids,
+            @Nonnull Collection<EntityType> entityTypes, boolean allAccounts) {
+        if (oids.isEmpty()) {
+            return new RepositoryRequestResult(Collections.emptySet(), Collections.emptySet());
+        }
+        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(oids)
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setTopologyType(TopologyType.SOURCE)
+                .addAllEntityType(
+                        entityTypes.stream().map(EntityType::getNumber).collect(Collectors.toSet()))
+                .setReturnType(Type.FULL)
+                .build();
+        final Iterator<PartialEntityBatch> iterator =
+                repositoryService.retrieveTopologyEntities(request);
+        final List<TopologyEntityDTO> businessAccountsTE = new ArrayList<>();
+        final Collection<TopologyEntityDTO> serviceEntitiesTE = new ArrayList<>();
+        while (iterator.hasNext()) {
+            final PartialEntityBatch batch = iterator.next();
+            for (PartialEntity partialEntity : batch.getEntitiesList()) {
+                final TopologyEntityDTO entity = partialEntity.getFullEntity();
+                if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    businessAccountsTE.add(entity);
+                } else {
+                    serviceEntitiesTE.add(entity);
+                }
+            }
+        }
+
+        final Collection<ServiceEntityApiDTO> seList = serviceEntitiesTE.stream()
+                .map(serviceEntityMapper::toServiceEntityApiDTO)
+                .collect(Collectors.toList());
+        final Collection<BusinessUnitApiDTO> buList =
+                businessAccountMapper.convert(businessAccountsTE, allAccounts);
+        return new RepositoryRequestResult(buList,
+                severityPopulator.populate(realtimeTopologyContextId, seList));
     }
 
     /**
@@ -630,4 +685,38 @@ public class RepositoryApi {
         }
     }
 
+    /**
+     * Response from a repository holding all the available data: entities, business accounts.
+     */
+    public static class RepositoryRequestResult {
+        private final Collection<BusinessUnitApiDTO> businessAccounts;
+        private final Collection<ServiceEntityApiDTO> serviceEntities;
+
+        /**
+         * Constructs repository response.
+         *
+         * @param businessAccounts collection of business accounts retrieved
+         * @param serviceEntities collection of service entities retrieved.
+         */
+        public RepositoryRequestResult(@Nonnull Collection<BusinessUnitApiDTO> businessAccounts,
+                @Nonnull Collection<ServiceEntityApiDTO> serviceEntities) {
+            this.businessAccounts = Objects.requireNonNull(businessAccounts);
+            this.serviceEntities = Objects.requireNonNull(serviceEntities);
+        }
+
+        @Nonnull
+        public Collection<BusinessUnitApiDTO> getBusinessAccounts() {
+            return businessAccounts;
+        }
+
+        @Nonnull
+        public Collection<ServiceEntityApiDTO> getServiceEntities() {
+            return serviceEntities;
+        }
+
+        @Nonnull
+        public Iterable<BaseApiDTO> getAllResults() {
+            return Iterables.concat(businessAccounts, serviceEntities);
+        }
+    }
 }

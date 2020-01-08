@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -250,19 +251,22 @@ public class SearchService implements ISearchService {
             // not a group or cluster...fall through
         }
 
+        if (!StringUtils.isNumeric(uuidString)) {
+            throw new InvalidOperationException("Object UUID must be numeric. Got: " + uuidString);
+        }
+        final long oid = Long.parseLong(uuidString);
+
         // Search for business units next. We cannot use Repository API entity request call
         // because BusinessUnitApiDTO doesn't inherit from ServiceEntityApiDTO class.
-        try {
-            return businessAccountRetriever.getBusinessAccount(uuidString);
-        } catch (InvalidOperationException | UnknownObjectException ex) {
-            // Not a valid business account either
-            logger.info("Entity with " + uuidString + " UUID is not a valid Business Unit");
+        final Iterable<BaseApiDTO> dtos =
+                repositoryApi.getByIds(Collections.singleton(oid), Collections.emptySet(), false)
+                        .getAllResults();
+        final Iterator<BaseApiDTO> iterator = dtos.iterator();
+        if (iterator.hasNext()) {
+            return iterator.next();
+        } else {
+            throw new UnknownObjectException("No entity found: " + uuidString);
         }
-
-        // The input is the uuid for a single entity.
-        return repositoryApi.entityRequest(Long.valueOf(uuidString))
-            .getSE()
-            .orElseThrow(() -> new UnknownObjectException("No entity found: " + uuidString));
     }
 
     private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(@Nullable String nameRegex,

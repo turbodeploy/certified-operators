@@ -59,6 +59,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
@@ -277,8 +278,10 @@ public class SearchServiceTest {
         doThrow(UnknownObjectException.class)
             .when(businessAccountRetriever).getBusinessAccount(entityUuid);
 
-        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(desiredResponse);
-        when(repositoryApi.entityRequest(Long.valueOf(entityUuid))).thenReturn(req);
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(Long.valueOf(entityUuid)),
+                Collections.emptySet(), false))
+                .thenReturn(new RepositoryRequestResult(Collections.emptySet(),
+                        Collections.singleton(desiredResponse)));
 
         // Test the search service
         BaseApiDTO response = searchService.getObjectByUuid(entityUuid);

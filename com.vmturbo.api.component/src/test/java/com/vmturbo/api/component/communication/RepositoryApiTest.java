@@ -18,12 +18,14 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
@@ -66,13 +68,16 @@ public class RepositoryApiTest {
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
     private RepositoryApi repositoryApi;
+    private BusinessAccountMapper businessAccountMapper;
 
     @Before
     public void setup() {
+        this.businessAccountMapper = Mockito.mock(BusinessAccountMapper.class);
         repositoryApi = new RepositoryApi(severityPopulator,
             RepositoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             serviceEntityMapper,
+            businessAccountMapper,
             realtimeContextId);
     }
 

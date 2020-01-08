@@ -23,6 +23,8 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.SupplementaryDataFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
@@ -233,6 +235,7 @@ public class CommunicationConfig {
             repositoryRpcService(),
             searchServiceBlockingStub(),
             serviceEntityMapper(),
+            businessAccountMapper(),
             realtimeTopologyContextId);
     }
 
@@ -503,6 +506,26 @@ public class CommunicationConfig {
         // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
         // to introduce a circular dependency.
         return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), clock());
+    }
+
+    /**
+     * Supplementary data factory.
+     *
+     * @return supplementary data factory
+     */
+    @Bean
+    public SupplementaryDataFactory supplementaryDataFactory() {
+        return new SupplementaryDataFactory(costServiceBlockingStub(), groupRpcService());
+    }
+
+    /**
+     * REST Api mapper for business accounts.
+     *
+     * @return business account mapper
+     */
+    @Bean
+    public BusinessAccountMapper businessAccountMapper() {
+        return new BusinessAccountMapper(thinTargetCache(), supplementaryDataFactory());
     }
 
     /**

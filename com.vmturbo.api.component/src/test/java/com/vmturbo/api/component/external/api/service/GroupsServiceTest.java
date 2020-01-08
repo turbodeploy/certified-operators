@@ -24,6 +24,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -37,11 +39,13 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
@@ -56,6 +60,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
@@ -66,6 +71,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -207,6 +213,7 @@ public class GroupsServiceTest {
 
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
+    private BusinessAccountRetriever businessAccountRetriever;
 
     @Rule
     public GrpcTestServer grpcServer =
@@ -229,7 +236,7 @@ public class GroupsServiceTest {
                         paginationMapper, supplyChainFetcherFactory, groupExpander,
                         CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
-
+        this.businessAccountRetriever = Mockito.mock(BusinessAccountRetriever.class);
         groupsService =
             new GroupsService(
                 actionOrchestratorRpcService,
@@ -250,7 +257,8 @@ public class GroupsServiceTest {
                 settingPolicyServiceBlockingStub,
                 settingsMapper,
                 targetCache, entitySettingQueryExecutor,
-                groupFilterMapper) {
+                groupFilterMapper,
+                businessAccountRetriever) {
             @Override
             protected String getUsername() {
                 return "testUser";
@@ -503,15 +511,16 @@ public class GroupsServiceTest {
                 .build());
 
         final ServiceEntityApiDTO member1Dto = new ServiceEntityApiDTO();
-        member1Dto.setUuid("7");
+        member1Dto.setUuid(Long.toString(member1Id));
 
         final ServiceEntityApiDTO member2Dto = new ServiceEntityApiDTO();
-        member2Dto.setUuid("8");
+        member2Dto.setUuid(Long.toString(member2Id));
 
-        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(
-            member2Dto));
-        when(repositoryApi.entitiesRequest(Collections.singleton(member2Id)))
-            .thenReturn(req);
+        Mockito.when(
+                repositoryApi.getByIds(Collections.singleton(member2Id), Collections.emptyList(),
+                        false))
+                .thenReturn(new RepositoryRequestResult(Collections.emptySet(),
+                        Collections.singleton(member2Dto)));
 
         final GroupAndMembers groupAndMembers =
             groupAndMembers(1L, GroupType.REGULAR, new HashSet<>(Arrays.asList(7L, 8L)));
@@ -529,15 +538,68 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().get(0), is(member2Dto));
     }
 
-    private GroupAndMembers groupAndMembers(final long groupId,
-                                            GroupType groupType,
-                                            Set<Long> members) {
-        return ImmutableGroupAndMembers.builder()
-            .group(Grouping.newBuilder()
+    /**
+     * Tests retrieval of group of business accounts.
+     *
+     * @throws Exception on exceptions occured.
+     */
+    @Test
+    public void testGetGroupMembersOfBaByUuid() throws Exception {
+        // Arrange
+        final long member1Id = 7L;
+        final long member2Id = 8L;
+        final long groupId = 1L;
+        final Set<Long> membersSet = Sets.newHashSet(member1Id, member2Id);
+
+        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
+                .setId(1L)
+                .build()))
+                .thenReturn(GetMembersResponse.newBuilder()
+                        .setMembers(Members.newBuilder().addAllIds(Arrays.asList(member1Id, member2Id)))
+                        .build());
+
+        final BusinessUnitApiDTO member1Dto = new BusinessUnitApiDTO();
+        member1Dto.setUuid(Long.toString(member1Id));
+
+        final BusinessUnitApiDTO member2Dto = new BusinessUnitApiDTO();
+        member2Dto.setUuid(Long.toString(member2Id));
+
+        final GroupDefinition groupDefinition =
+                GroupDefinition.newBuilder().setType(GroupType.REGULAR).build();
+        final Grouping group = Grouping.newBuilder()
+                .setDefinition(groupDefinition)
                 .setId(groupId)
-                .setDefinition(GroupDefinition.newBuilder()
-                                .setType(groupType).build())
-                .build())
+                .addExpectedTypes(
+                        MemberType.newBuilder().setEntity(EntityType.BUSINESS_ACCOUNT_VALUE))
+                .build();
+        final GroupAndMembers groupAndMembers = groupAndMembers(group, membersSet);
+        Mockito.when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.of(groupAndMembers));
+        Mockito.when(repositoryApi.getByIds(Sets.newHashSet(member1Id, member2Id),
+                Collections.emptyList(), false))
+                .thenReturn(new RepositoryRequestResult(Arrays.asList(member1Dto, member2Dto),
+                        Collections.emptySet()));
+        final GroupMembersPaginationRequest request =
+                new GroupMembersPaginationRequest(null, null, false, GroupMemberOrderBy.DEFAULT);
+        // Act
+        final GroupMembersPaginationResponse response =
+                groupsService.getMembersByGroupUuid(Long.toString(groupId), request);
+        Assert.assertEquals(Sets.newHashSet(member2Dto, member1Dto),
+                new HashSet<>(response.getRestResponse().getBody()));
+    }
+
+    private GroupAndMembers groupAndMembers(final long groupId,
+            GroupType groupType,
+            Set<Long> members) {
+        final Grouping group = Grouping.newBuilder()
+                .setId(groupId)
+                .setDefinition(GroupDefinition.newBuilder().setType(groupType))
+                .build();
+        return groupAndMembers(group, members);
+    }
+
+    private GroupAndMembers groupAndMembers(@Nonnull Grouping group, Set<Long> members) {
+        return ImmutableGroupAndMembers.builder()
+            .group(group)
             .members(members)
             .entities(members)
             .build();
