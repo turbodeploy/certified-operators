@@ -8,6 +8,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
@@ -16,11 +19,6 @@ import com.google.common.collect.Multimap;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
@@ -43,14 +41,10 @@ public class WidgetsetMapper {
 
     private final GroupServiceBlockingStub groupRpcService;
 
-    private final RepositoryApi repositoryApi;
-
     public WidgetsetMapper(@Nonnull final GroupMapper groupMapper,
-                           @Nonnull final GroupServiceBlockingStub groupRpcService,
-                           @Nonnull final RepositoryApi repositoryApi) {
+                           @Nonnull final GroupServiceBlockingStub groupRpcService) {
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
-        this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
     /**
@@ -194,19 +188,13 @@ public class WidgetsetMapper {
         // We need the referenced groups so we can replace the "BaseApiDTO"s saved in the widget
         // with a full GroupApiDTO - including things like the group entity types.
         final Multimap<Long, WidgetApiDTO> groupScopedWidgets = HashMultimap.create();
-        final Multimap<Long, WidgetApiDTO> entityScopedWidgets = HashMultimap.create();
 
         final List<WidgetApiDTO> retList = Arrays.asList(widgets);
 
-        for (WidgetApiDTO widget : retList) {
-            // if it's global scope, no need for post processing
-            if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(widget.getScope().getClassName())) {
-                continue;
-            }
-
-            final String scopeUuid = widget.getScope().getUuid();
+        retList.forEach(widget -> {
             // Collect group UUIDs into the multimap.
             if (GroupMapper.GROUP_CLASSES.contains(widget.getScope().getClassName())) {
+                final String scopeUuid = widget.getScope().getUuid();
                 try {
                     groupScopedWidgets.put(Long.parseLong(scopeUuid), widget);
                 } catch (NumberFormatException e) {
@@ -215,16 +203,8 @@ public class WidgetsetMapper {
                     logger.error("Unable to format UUID {} as an oid for widget {}",
                         scopeUuid, widget.getDisplayName());
                 }
-            } else {
-                // must be entity uuid
-                try {
-                    entityScopedWidgets.put(Long.parseLong(scopeUuid), widget);
-                } catch (NumberFormatException e) {
-                    logger.error("Unable to parse entity uuid {} to long oid for widget {}",
-                            scopeUuid, widget.getDisplayName());
-                }
             }
-        }
+        });
 
         if (!groupScopedWidgets.isEmpty()) {
             try {
@@ -249,31 +229,6 @@ public class WidgetsetMapper {
                             .stream()
                             .map(WidgetApiDTO::getClassName)
                             .collect(Collectors.joining(", ")));
-            }
-        }
-
-        if (!entityScopedWidgets.isEmpty()) {
-            try {
-                repositoryApi.entitiesRequest(entityScopedWidgets.keySet()).getMinimalEntities()
-                        .forEach(entity -> {
-                            ServiceEntityApiDTO entityApiDTO = ServiceEntityMapper.toBasicEntity(entity);
-                            // also set environment type since it's needed by UI
-                            if (entity.hasEnvironmentType()) {
-                                EnvironmentTypeMapper.fromXLToApi(entity.getEnvironmentType())
-                                        .ifPresent(entityApiDTO::setEnvironmentType);
-                            } else {
-                                logger.warn("No environment type defined for entity {}.", entity);
-                            }
-                            entityScopedWidgets.get(entity.getOid()).forEach(
-                                    widgetWithEntityScope -> widgetWithEntityScope.setScope(entityApiDTO));
-                        });
-            } catch (StatusRuntimeException e) {
-                logger.error("Failed to retrieve the entities that the following widgets are " +
-                                " scoped to. Widgets may not render properly: {}",
-                        entityScopedWidgets.values()
-                                .stream()
-                                .map(WidgetApiDTO::getDisplayName)
-                                .collect(Collectors.joining(", ")), e);
             }
         }
 
