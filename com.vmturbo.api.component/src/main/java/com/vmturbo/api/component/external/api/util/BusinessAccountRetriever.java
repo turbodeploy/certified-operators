@@ -174,6 +174,11 @@ public class BusinessAccountRetriever {
         final List<TopologyEntityDTO> businessAccounts =
                 repositoryApi.newSearchRequestMulti(effectiveParameters)
                         .getFullEntities()
+                        // OM-53266: Only accounts that are monitored by a probe should be converted.
+                        // Accounts that are only submitted as a member of a BillingFamily should not be converted.
+                        .filter(businessAccount -> businessAccount.hasTypeSpecificInfo())
+                        .filter(businessAccount -> businessAccount.getTypeSpecificInfo().hasBusinessAccount())
+                        .filter(businessAccount -> businessAccount.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
                         .collect(Collectors.toList());
 
         return businessAccountMapper.convert(businessAccounts, allAccounts);

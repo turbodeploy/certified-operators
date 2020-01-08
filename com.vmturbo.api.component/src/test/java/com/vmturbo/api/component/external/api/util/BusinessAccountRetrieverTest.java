@@ -95,11 +95,24 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
  * Unit tests for {@link BusinessAccountRetriever}.
  */
 public class BusinessAccountRetrieverTest {
-    private static final long ENTITY_OID = 7L;
+
+    private static final long ACCOUNT_OID = 7L;
+    private static final long UNMONITORED_ACCOUNT_OID = 7L;
 
     private static final TopologyEntityDTO ACCOUNT = TopologyEntityDTO.newBuilder()
-        .setOid(ENTITY_OID)
-        .setDisplayName("foo")
+        .setOid(ACCOUNT_OID)
+        .setDisplayName("monitored account")
+        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                .setAssociatedTargetId(123L)
+                .build())
+            .build())
+        .build();
+
+    private static final TopologyEntityDTO UNMONITORED_ACCOUNT = TopologyEntityDTO.newBuilder()
+        .setOid(UNMONITORED_ACCOUNT_OID)
+        .setDisplayName("unmonitored account")
         .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
         .build();
 
@@ -235,11 +248,11 @@ public class BusinessAccountRetrieverTest {
     public void testGetBusinessAccountsInScopeOfGroup() {
         // ARRANGE
         final String groupId = "123";
-        final Set<Long> expandedOids = ImmutableSet.of(ENTITY_OID);
+        final Set<Long> expandedOids = ImmutableSet.of(ACCOUNT_OID);
 
         // Mock the search request to return the matching accounts
         final RepositoryApi.SearchRequest mockReq =
-            ApiTestUtils.mockSearchFullReq(Lists.newArrayList(ACCOUNT));
+            ApiTestUtils.mockSearchFullReq(Lists.newArrayList(ACCOUNT, UNMONITORED_ACCOUNT));
         when(repositoryApi.newSearchRequestMulti(Mockito.anyCollectionOf(SearchParameters.class)))
             .thenReturn(mockReq);
 
@@ -269,6 +282,10 @@ public class BusinessAccountRetrieverTest {
                                 SearchProtoUtil.idFilter(expandedOids)))
                         .build()));
 
+        // Only ACCOUNT should be converted.
+        // The UNMONITORED_ACCOUNT should not be converted because the account does not have an
+        // associated target id, indicating that it was not monitored by a cloud probe. It was only
+        // included as a member of a billing family.
         verify(mockMapper).convert(Lists.newArrayList(ACCOUNT), false);
 
         assertThat(results, is(Collections.singletonList(convertedDto)));
@@ -282,11 +299,11 @@ public class BusinessAccountRetrieverTest {
     @Test
     public void testGetBusinessAccountByOid() throws Exception {
         final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
-        Mockito.when(repositoryApi.getByIds(Collections.singleton(ENTITY_OID),
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(ACCOUNT_OID),
                 Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
                 .thenReturn(new RepositoryRequestResult(Collections.singleton(convertedDto),
                         Collections.emptySet()));
-        final BusinessUnitApiDTO result = businessAccountRetriever.getBusinessAccount(Long.toString(ENTITY_OID));
+        final BusinessUnitApiDTO result = businessAccountRetriever.getBusinessAccount(Long.toString(ACCOUNT_OID));
         assertThat(result, is(convertedDto));
     }
 
@@ -307,11 +324,11 @@ public class BusinessAccountRetrieverTest {
      */
     @Test(expected = UnknownObjectException.class)
     public void testGetBusinessAccountByOidNotFound() throws Exception {
-        Mockito.when(repositoryApi.getByIds(Collections.singleton(ENTITY_OID),
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(ACCOUNT_OID),
                 Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
                 .thenReturn(new RepositoryRequestResult(Collections.emptySet(),
                         Collections.emptySet()));
-        businessAccountRetriever.getBusinessAccount(Long.toString(ENTITY_OID));
+        businessAccountRetriever.getBusinessAccount(Long.toString(ACCOUNT_OID));
     }
 
     /**
@@ -323,12 +340,12 @@ public class BusinessAccountRetrieverTest {
     public void testGetBillingFamilies() {
         // ARRANGE
         final TopologyEntityDTO parentAccount = TopologyEntityDTO.newBuilder()
-            .setOid(ENTITY_OID + 1)
+            .setOid(ACCOUNT_OID + 1)
             .setDisplayName("bar")
             .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
-                .setConnectedEntityId(ENTITY_OID)
+                .setConnectedEntityId(ACCOUNT_OID)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .build();
 
@@ -343,7 +360,7 @@ public class BusinessAccountRetrieverTest {
         // If this gets more complex we should split the "mapping" part into a helper class and
         // mock.
         final BusinessUnitApiDTO convertedChild = new BusinessUnitApiDTO();
-        convertedChild.setUuid(Long.toString(ENTITY_OID));
+        convertedChild.setUuid(Long.toString(ACCOUNT_OID));
         convertedChild.setDisplayName(ACCOUNT.getDisplayName());
         convertedChild.setCostPrice(2.0f);
 
@@ -385,7 +402,7 @@ public class BusinessAccountRetrieverTest {
     @Test
     public void testGetChildAccounts() throws Exception {
         final EntityWithConnections parentAccount = EntityWithConnections.newBuilder()
-            .setOid(ENTITY_OID + 1)
+            .setOid(ACCOUNT_OID + 1)
             .setDisplayName("bar")
             .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
             // Owns a VM, and a child account.
@@ -395,7 +412,7 @@ public class BusinessAccountRetrieverTest {
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .addConnectedEntities(ConnectedEntity.newBuilder()
                 .setConnectedEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
-                .setConnectedEntityId(ENTITY_OID)
+                .setConnectedEntityId(ACCOUNT_OID)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .build();
 
@@ -403,7 +420,7 @@ public class BusinessAccountRetrieverTest {
         when(repositoryApi.entityRequest(anyLong())).thenReturn(parentReq);
 
         final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
-        Mockito.when(repositoryApi.getByIds(Collections.singleton(ENTITY_OID),
+        Mockito.when(repositoryApi.getByIds(Collections.singleton(ACCOUNT_OID),
                 Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
                 .thenReturn(new RepositoryRequestResult(Collections.singleton(convertedDto),
                         Collections.emptySet()));
@@ -529,7 +546,7 @@ public class BusinessAccountRetrieverTest {
         final String enrollmentNum = "enrollment";
         final long subaccountId = 234234;
         final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-            .setOid(ENTITY_OID)
+            .setOid(ACCOUNT_OID)
             .setDisplayName(accountId)
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOrigin(Origin.newBuilder().setDiscoveryOrigin(

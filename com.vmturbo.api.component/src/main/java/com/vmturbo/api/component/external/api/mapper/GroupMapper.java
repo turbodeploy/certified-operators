@@ -477,48 +477,48 @@ public class GroupMapper {
      * @return the converted object with some of the details filled in.
      */
      private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers) {
-        final Grouping group = groupAndMembers.group();
-        final GroupDefinition groupDefinition = group.getDefinition();
-        final GroupApiDTO outputDTO;
-        switch (groupDefinition.getType()) {
-            case BILLING_FAMILY:
+         final Grouping group = groupAndMembers.group();
+         final GroupDefinition groupDefinition = group.getDefinition();
+         final GroupApiDTO outputDTO;
+         switch (groupDefinition.getType()) {
+             case BILLING_FAMILY:
                 outputDTO = extractBillingFamilyInfo(groupAndMembers);
                 break;
-            case RESOURCE:
-                outputDTO = new ResourceGroupApiDTO();
-                if (groupDefinition.hasOwner()) {
-                    final long groupOwner = groupDefinition.getOwner();
-                    ((ResourceGroupApiDTO)outputDTO).setParentUuid(String.valueOf(groupOwner));
-                    repositoryApi.entityRequest(groupOwner)
+             case RESOURCE:
+                 outputDTO = new ResourceGroupApiDTO();
+                 if (groupDefinition.hasOwner()) {
+                     final long groupOwner = groupDefinition.getOwner();
+                     ((ResourceGroupApiDTO)outputDTO).setParentUuid(String.valueOf(groupOwner));
+                     repositoryApi.entityRequest(groupOwner)
                             .getMinimalEntity()
                             .ifPresent(el -> ((ResourceGroupApiDTO)outputDTO).setParentDisplayName(
                                     el.getDisplayName()));
-                } else {
-                    logger.error("The resource group '{}'({}) doesn't have owner",
+                 } else {
+                     logger.error("The resource group '{}'({}) doesn't have owner",
                             groupDefinition.getDisplayName(), group.getId());
-                }
-                break;
-            default:
+                 }
+                 break;
+             default:
                 outputDTO = new GroupApiDTO();
-        }
-        outputDTO.setUuid(String.valueOf(group.getId()));
+         }
+         outputDTO.setUuid(String.valueOf(group.getId()));
 
-        outputDTO.setClassName(convertGroupTypeToApiType(groupDefinition.getType()));
+         outputDTO.setClassName(convertGroupTypeToApiType(groupDefinition.getType()));
 
-        List<String> directMemberTypes = getDirectMemberTypes(groupDefinition);
+         List<String> directMemberTypes = getDirectMemberTypes(groupDefinition);
 
-        if (!directMemberTypes.isEmpty()) {
-            if (groupDefinition.getType() == GroupType.RESOURCE) {
-                outputDTO.setGroupType(StringConstants.WORKLOAD);
-            } else {
-                outputDTO.setGroupType(String.join(",", directMemberTypes));
-            }
-        } else {
-            outputDTO.setGroupType(UIEntityType.UNKNOWN.apiStr());
-        }
+         if (!directMemberTypes.isEmpty()) {
+             if (groupDefinition.getType() == GroupType.RESOURCE) {
+                 outputDTO.setGroupType(StringConstants.WORKLOAD);
+             } else {
+                 outputDTO.setGroupType(String.join(",", directMemberTypes));
+             }
+         } else {
+             outputDTO.setGroupType(UIEntityType.UNKNOWN.apiStr());
+         }
 
-        outputDTO.setMemberTypes(directMemberTypes);
-        outputDTO.setEntityTypes(group.getExpectedTypesList()
+         outputDTO.setMemberTypes(directMemberTypes);
+         outputDTO.setEntityTypes(group.getExpectedTypesList()
                         .stream()
                         .filter(MemberType::hasEntity)
                         .map(MemberType::getEntity)
@@ -526,62 +526,66 @@ public class GroupMapper {
                         .map(UIEntityType::apiStr)
                         .collect(Collectors.toList()));
 
-        outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
-        outputDTO.setTemporary(groupDefinition.getIsTemporary());
+         outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
+         outputDTO.setTemporary(groupDefinition.getIsTemporary());
 
-        switch (groupDefinition.getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS:
-                outputDTO.setMemberUuidList(GroupProtoUtil
+         switch (groupDefinition.getSelectionCriteriaCase()) {
+             case STATIC_GROUP_MEMBERS:
+                 outputDTO.setMemberUuidList(GroupProtoUtil
                                 .getStaticMembers(group)
                                 .stream()
                                 .map(String::valueOf)
                                 .collect(Collectors.toList()));
-                break;
+                 break;
 
-            case ENTITY_FILTERS:
-                if (groupDefinition.getEntityFilters().getEntityFilterCount() == 0) {
-                    logger.error("The dynamic group does not have any filters. Group {}",
+             case ENTITY_FILTERS:
+                 if (groupDefinition.getEntityFilters().getEntityFilterCount() == 0) {
+                     logger.error("The dynamic group does not have any filters. Group {}",
                                     group);
-                    break;
-                }
-                // currently api only supports homogeneous dynamic groups
-                if (groupDefinition.getEntityFilters().getEntityFilterCount() > 1) {
-                    logger.error("API does not support heterogeneous dynamic groups. Group {}",
-                                    group);
-                }
+                     break;
+                 }
+                 // currently api only supports homogeneous dynamic groups
+                 if (groupDefinition.getEntityFilters().getEntityFilterCount() > 1) {
+                     logger.error("API does not support heterogeneous dynamic groups. Group {}",
+                                     group);
+                 }
 
-                outputDTO.setCriteriaList(entityFilterMapper.convertToFilterApis(groupDefinition
+                 outputDTO.setCriteriaList(entityFilterMapper.convertToFilterApis(groupDefinition
                                 .getEntityFilters()
                                 .getEntityFilter(0)));
-                break;
+                 break;
 
-            case GROUP_FILTERS:
-                if (groupDefinition.getGroupFilters().getGroupFilterCount() == 0) {
-                    logger.error("The dynamic group of groups does not have any filters. Group {}",
+             case GROUP_FILTERS:
+                 if (groupDefinition.getGroupFilters().getGroupFilterCount() == 0) {
+                     logger.error("The dynamic group of groups does not have any filters. Group {}",
                                     group);
-                    break;
-                }
-                // currently api only supports homogeneous dynamic group of groups. It means
-                // it does not support a dynamic group of resource group and cluster
-                if (groupDefinition.getGroupFilters().getGroupFilterCount() > 1) {
-                    logger.error("API does not support heterogeneous dynamic groups of groups. Group {}",
+                     break;
+                 }
+                 // currently api only supports homogeneous dynamic group of groups. It means
+                 // it does not support a dynamic group of resource group and cluster
+                 if (groupDefinition.getGroupFilters().getGroupFilterCount() > 1) {
+                     logger.error("API does not support heterogeneous dynamic groups of groups. Group {}",
                                     group);
-                }
+                 }
 
-                outputDTO.setCriteriaList(groupFilterMapper.groupFilterToApiFilters(groupDefinition
+                 outputDTO.setCriteriaList(groupFilterMapper.groupFilterToApiFilters(groupDefinition
                                 .getGroupFilters()
                                 .getGroupFilter(0)));
-                break;
-            default:
-                break;
-        }
+                 break;
+             default:
+                 break;
+         }
 
-        outputDTO.setMembersCount(getMembersCount(groupAndMembers));
-        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
-            .map(oid -> Long.toString(oid))
-            .collect(Collectors.toList()));
+         // BillingFamily has custom code for determining the number of members. An undiscovered
+         // account is not considered a member in classic.
+         if (outputDTO.getMembersCount() == null) {
+             outputDTO.setMembersCount(getMembersCount(groupAndMembers));
+         }
+         outputDTO.setMemberUuidList(groupAndMembers.members().stream()
+             .map(oid -> Long.toString(oid))
+             .collect(Collectors.toList()));
 
-        return outputDTO;
+         return outputDTO;
     }
 
     private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers) {
@@ -591,6 +595,7 @@ public class GroupMapper {
         Map<String, String> uuidToDisplayNameMap = new HashMap<>();
         float cost = 0f;
         boolean hasCost = false;
+        int discoveredAccounts = 0;
 
         for (BusinessUnitApiDTO businessUnit : businessAccountRetriever.getBusinessAccounts(oidsToQuery)) {
             Float businessUnitCost = businessUnit.getCostPrice();
@@ -612,6 +617,12 @@ public class GroupMapper {
             }
 
             businessUnitApiDTOList.add(businessUnit);
+
+            // OM-53266: Member count should only consider accounts that are monitored by a probe.
+            // Accounts that are only submitted as a member of a BillingFamily should not be counted.
+            if (businessUnit.getAssociatedTargetId() != null) {
+                discoveredAccounts++;
+            }
         }
 
         if (hasCost) {
@@ -619,7 +630,7 @@ public class GroupMapper {
         }
         billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
         billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
-
+        billingFamilyApiDTO.setMembersCount(discoveredAccounts);
         return billingFamilyApiDTO;
     }
 

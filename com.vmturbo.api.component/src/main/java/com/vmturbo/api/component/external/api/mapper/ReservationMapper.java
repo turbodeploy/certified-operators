@@ -381,9 +381,16 @@ public class ReservationMapper {
                                         @Nonnull final String expireDateStr,
                                         @Nonnull final Reservation.Builder reservationBuilder)
             throws InvalidOperationException {
-        if (reserveDateStr == null || reserveDateStr == null) {
+        if (reserveDateStr == null) {
             throw new InvalidOperationException("Reservation date is missing.");
         }
+        if (expireDateStr == null) {
+            throw new InvalidOperationException("Expiry date is missing.");
+        }
+        if (reservationBuilder == null) {
+            throw new InvalidOperationException("reservationBuilder is missing.");
+        }
+
         // Right now, UI set reservation start date to empty string when start date is current date,
         // after UI fix this issue, we can remove empty string covert here.
         final long reserveDate = reserveDateStr.isEmpty() ? Instant.now().toEpochMilli() :

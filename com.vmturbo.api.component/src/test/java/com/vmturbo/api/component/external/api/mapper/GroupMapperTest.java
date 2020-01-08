@@ -110,6 +110,9 @@ import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
+/**
+ * Translates to {@link GroupApiDTO}s.
+ */
 public class GroupMapperTest {
 
     private static final SearchParameters.Builder SEARCH_PARAMETERS = SearchParameters.newBuilder()
@@ -161,9 +164,9 @@ public class GroupMapperTest {
     private GroupMapper groupMapper;
 
 
-    private static String AND = "AND";
-    private static String FOO = "foo";
-    private static String VM_TYPE = "VirtualMachine";
+    private static final String AND = "AND";
+    private static final String FOO = "foo";
+    private static final String VM_TYPE = "VirtualMachine";
 
     @Before
     public void setup() {
@@ -176,8 +179,9 @@ public class GroupMapperTest {
     }
 
     /**
-     * Test static group converting GroupApiDTO to GroupInfo
-     * @throws Exception if anything goes wrong.
+     * Test static group converting GroupApiDTO to GroupInfo.
+     *
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testToGroupInfoStaticGroup() throws Exception {
@@ -202,8 +206,9 @@ public class GroupMapperTest {
     }
 
     /**
-     * Test PM dynamic group which filtered only by PM name
-     * @throws Exception if anything goes wrong.
+     * Test PM dynamic group which filtered only by PM name.
+     *
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testToGroupInfoDynamicGroupByPM() throws Exception {
@@ -249,8 +254,9 @@ public class GroupMapperTest {
     }
 
     /**
-     * Test VM dynamic group which filtered by VM name and PM name
-     * @throws Exception if anything goes wrong.
+     * Test VM dynamic group which filtered by VM name and PM name.
+     *
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testToGroupInfoDynamicGroupByVM() throws Exception {
@@ -322,7 +328,7 @@ public class GroupMapperTest {
     }
 
     /**
-     * Test converting dynamic group info which only has starting filter to groupApiDTO
+     * Test converting dynamic group info which only has starting filter to groupApiDTO.
      */
     @Test
     public void testToGroupApiDTOOnlyWithStartingFilter() {
@@ -370,7 +376,7 @@ public class GroupMapperTest {
     }
 
     /**
-     *  Test converting dynamic group info which has multiple search parameters to groupApiDTO
+     *  Test converting dynamic group info which has multiple search parameters to groupApiDTO.
      */
     @Test
     public void testToGroupApiDTOWithMultipleSearchParameters() {
@@ -1594,6 +1600,7 @@ public class GroupMapperTest {
         masterAccountDevelopment.setUuid("2");
         masterAccountDevelopment.setDisplayName("Development");
         masterAccountDevelopment.setCostPrice(2.5F);
+        masterAccountDevelopment.setAssociatedTargetId(123L);
 
         BusinessUnitApiDTO productTrustSubAccount = new BusinessUnitApiDTO();
         productTrustSubAccount.setMaster(false);
@@ -1633,6 +1640,14 @@ public class GroupMapperTest {
             billingFamilyApiDTO.getUuidToNameMap());
 
         Assert.assertEquals(3.25F + 2.5F, billingFamilyApiDTO.getCostPrice(), 0.0000001F);
+
+        /* Member count should only consider accounts that are monitored by a probe. Accounts that
+         * are only submitted as a member of a BillingFamily should not be counted.
+         * - development account is discovered by a probe, indicted by associated target id being set
+         * - product trust is not discovered by a probe, because the associated target id is no set
+         * As a result, the final member count should be 1.
+         */
+        Assert.assertEquals(Integer.valueOf(1), billingFamilyApiDTO.getMembersCount());
     }
 
     /**
@@ -1679,5 +1694,4 @@ public class GroupMapperTest {
         BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
         Assert.assertNull(billingFamilyApiDTO.getCostPrice());
     }
-
 }
