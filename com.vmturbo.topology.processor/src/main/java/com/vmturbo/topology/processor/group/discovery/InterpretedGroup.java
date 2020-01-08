@@ -121,7 +121,7 @@ public class InterpretedGroup {
      * @return The {@link DiscoveredGroupInfo} representing this DTO.
      */
     @Nonnull
-    DiscoveredGroupInfo createDiscoveredGroupInfo() {
+    public DiscoveredGroupInfo createDiscoveredGroupInfo() {
         DiscoveredGroupInfo.Builder builder = DiscoveredGroupInfo.newBuilder();
         builder.setDiscoveredGroup(sdkDTO);
         groupDefinition.ifPresent(group ->

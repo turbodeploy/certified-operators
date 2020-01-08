@@ -30,11 +30,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
 import org.junit.Assert;
@@ -127,6 +125,8 @@ import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHa
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
+import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -177,11 +177,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             "{\"oid\":\"199\",\"entity\":"
             + "{\"entityType\":\"NETWORK\",\"id\":\"NW-1\"}}";
 
-    private final Map<Long, List<DiscoveredGroupInfo>> discoveredGroupMap = new HashMap<>();
-    private final Multimap<Long, DiscoveredSettingPolicyInfo> discoveredSettingPolicyMap =
-        ArrayListMultimap.create();
     private final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> discoveredProfileMap
         = new HashMap<>();
+    private final Map<Long, TargetDiscoveredData> discoveredGroupMap = new HashMap<>();
     private final Map<Long, ProbeInfo> probeMap = new HashMap<>();
 
     private static final String DISCOVERED_CLOUD_COST = "foo";
@@ -196,9 +194,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         when(entityStore.getTargetLastUpdatedTime(100001)).thenReturn(Optional.of(12345L));
 
         when(targetStore.getAll()).thenReturn(targets);
-        doReturn(discoveredGroupMap).when(groupUploader).getDiscoveredGroupInfoByTarget();
-        doReturn(discoveredSettingPolicyMap).when(groupUploader)
-            .getDiscoveredSettingPolicyInfoByTarget();
+        doReturn(discoveredGroupMap).when(groupUploader).getDataByTarget();
         doReturn(discoveredProfileMap).when(templateDeploymentProfileUploader)
             .getDiscoveredDeploymentProfilesByTarget();
         when(probeStore.getProbes()).thenReturn(probeMap);
@@ -531,7 +527,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertEquals(3, groupResult.size());
             assertTrue(groupResult.stream().allMatch(GroupDTO::hasMemberList));
 
-            verify(groupUploader).setTargetDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
+            verify(groupUploader).restoreDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
             List<DiscoveredSettingPolicyInfo> settingResult = captor.getValue();
             assertEquals(2, settingResult.size());
             assertTrue(settingResult.stream().allMatch(setting -> setting.getEntityType() == 14));
@@ -591,8 +587,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
             when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
 
-            discoveredGroupMap.put(targetId, Collections.singletonList(discoveredGroupInfo));
-            discoveredSettingPolicyMap.put(targetId, settingPolicyInfo);
+            final TargetDiscoveredData targetDiscoveredData = mock(TargetDiscoveredData.class);
+            when(targetDiscoveredData.getDiscoveredSettingPolicies()).thenReturn(Stream.of(settingPolicyInfo));
+            final InterpretedGroup group = mock(InterpretedGroup.class);
+            when(group.createDiscoveredGroupInfo()).thenReturn(discoveredGroupInfo);
+            when(targetDiscoveredData.getDiscoveredGroups()).thenReturn(Stream.of(group));
+            discoveredGroupMap.put(targetId, targetDiscoveredData);
             discoveredProfileMap.put(targetId, ImmutableMap.of(profile, Collections.singleton(template)));
 
             return this;
@@ -608,6 +608,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
             when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
+            discoveredGroupMap.put(targetId, TargetDiscoveredData.empty());
             return this;
         }
 

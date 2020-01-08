@@ -6,7 +6,9 @@ import static com.vmturbo.platform.common.builders.CommodityBuilders.space;
 import static com.vmturbo.platform.common.builders.EntityBuilders.datacenter;
 import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -17,6 +19,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +35,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Matchers;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -49,6 +53,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -127,7 +132,7 @@ public class DiscoveredSettingPolicyScannerTest {
         givenHosts(VC_TARGET_ID, host(HOST_1_ID));
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader, never()).addDiscoveredGroupsAndPolicies(anyLong(),
+        verify(groupUploader, never()).setScannedGroupsAndPolicies(anyLong(),
             anyListOf(InterpretedGroup.class),
             anyListOf(DiscoveredSettingPolicyInfo.class));
     }
@@ -140,7 +145,7 @@ public class DiscoveredSettingPolicyScannerTest {
             .withMemThreshold(DiscoveredSettingPolicyScanner.DEFAULT_UTILIZATION_THRESHOLD));
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader, never()).addDiscoveredGroupsAndPolicies(anyLong(),
+        verify(groupUploader, never()).setScannedGroupsAndPolicies(anyLong(),
             anyListOf(InterpretedGroup.class),
             anyListOf(DiscoveredSettingPolicyInfo.class));
     }
@@ -154,9 +159,9 @@ public class DiscoveredSettingPolicyScannerTest {
                         memSettingPolicy(VC_TARGET_ID, MEM_THRESHOLD_2, COMPUTE_CLUSTER_NAME);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VC_TARGET_ID),
-            eq(Collections.emptyList()),
-            eq(Collections.singletonList(settingPolicy)));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VC_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(empty()),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy)));
     }
 
     @Test
@@ -168,9 +173,9 @@ public class DiscoveredSettingPolicyScannerTest {
                         cpuSettingPolicy(VC_TARGET_ID, CPU_THRESHOLD, COMPUTE_CLUSTER_NAME);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VC_TARGET_ID),
-            eq(Collections.emptyList()),
-            eq(Collections.singletonList(settingPolicy)));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VC_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(empty()),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy)));
     }
 
     @Test
@@ -184,9 +189,9 @@ public class DiscoveredSettingPolicyScannerTest {
             VC_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD, COMPUTE_CLUSTER_NAME);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VC_TARGET_ID),
-            eq(Collections.emptyList()),
-            eq(Collections.singletonList(settingPolicy)));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VC_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(empty()),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy)));
     }
 
     @Test
@@ -202,9 +207,9 @@ public class DiscoveredSettingPolicyScannerTest {
         // Even though we have added two hosts with mem and cpu thresholds, we should only create one setting
         // policy because the hosts have the same value.
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VC_TARGET_ID),
-            eq(Collections.emptyList()),
-            eq(Collections.singletonList(settingPolicy)));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VC_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(empty()),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy)));
     }
 
     @Test
@@ -217,14 +222,17 @@ public class DiscoveredSettingPolicyScannerTest {
         final DiscoveredSettingPolicyInfo firstSettingPolicy = memAndCpuSettingPolicy(
             VC_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD, COMPUTE_CLUSTER_NAME);
         final DiscoveredSettingPolicyInfo secondSettingPolicy = memAndCpuSettingPolicy(
-            VC_TARGET_ID, MEM_THRESHOLD_2, CPU_THRESHOLD_2, COMPUTE_CLUSTER_NAME);
+            VC_TARGET_ID, MEM_THRESHOLD_2, CPU_THRESHOLD_2, COMPUTE_CLUSTER_NAME).toBuilder()
+                // Because it's a duplicate policy, we expect a suffix to be added to the name.
+                .setName(firstSettingPolicy.getName() + "-1")
+                .build();
 
         // This should create two conflicting settings policies on the same cluster. We'll pick
         //  the more conservative values per conflict resolution when actually applying settings.
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VC_TARGET_ID),
-            eq(Collections.emptyList()),
-            eq(Arrays.asList(firstSettingPolicy, secondSettingPolicy)));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VC_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(empty()),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(containsInAnyOrder(firstSettingPolicy, secondSettingPolicy)));
     }
 
     @Test
@@ -239,9 +247,9 @@ public class DiscoveredSettingPolicyScannerTest {
         final InterpretedGroup group = setupHostGroup(settingPolicy, hosts);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VMM_TARGET_ID),
-            eq(Collections.singletonList(group)),
-            eq(Collections.singletonList(settingPolicy.build())));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(containsInAnyOrder(group)),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(containsInAnyOrder(settingPolicy.build())));
     }
 
     @Test
@@ -257,9 +265,9 @@ public class DiscoveredSettingPolicyScannerTest {
         final InterpretedGroup group = setupHostGroup(settingPolicy, hosts);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VMM_TARGET_ID),
-            eq(Collections.singletonList(group)),
-            eq(Collections.singletonList(settingPolicy.build())));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(contains(group)),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy.build())));
     }
 
     @Test
@@ -286,7 +294,7 @@ public class DiscoveredSettingPolicyScannerTest {
         final InterpretedGroup group2 = setupHostGroup(settingPolicy2, twoHosts);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VMM_TARGET_ID),
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
             groupsCaptor.capture(),
             settingPolicyCaptor.capture());
 
@@ -319,12 +327,12 @@ public class DiscoveredSettingPolicyScannerTest {
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
         // Since discovered setting policies are associated on a per-target basis, there
         // should be one call per-target.
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VMM_TARGET_ID),
-            eq(Collections.singletonList(group1)),
-            eq(Collections.singletonList(settingPolicy1.build())));
-        verify(groupUploader).addDiscoveredGroupsAndPolicies(eq(VC_TARGET_ID),
-            eq(Collections.emptyList()),
-            eq(Collections.singletonList(settingPolicy2)));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(contains(group1)),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy1.build())));
+        verify(groupUploader).setScannedGroupsAndPolicies(eq(VC_TARGET_ID),
+            (Collection<InterpretedGroup>)Matchers.argThat(empty()),
+            (Collection<DiscoveredSettingPolicyInfo>)Matchers.argThat(contains(settingPolicy2)));
     }
 
     private long givenTarget(@Nonnull final SDKProbeType probeType, final long targetId) {
@@ -348,8 +356,12 @@ public class DiscoveredSettingPolicyScannerTest {
                     CLUSTER_DISPLAY_NAME, GroupType.COMPUTE_HOST_CLUSTER,
                     Arrays.asList(clusterMembers)))
             .build();
-        when(groupUploader.getDiscoveredGroupInfoByTarget()).thenReturn(
-            ImmutableMap.of(targetId, Collections.singletonList(computeCluster)));
+        InterpretedGroup mockCluster = mock(InterpretedGroup.class);
+        when(mockCluster.createDiscoveredGroupInfo()).thenReturn(computeCluster);
+        TargetDiscoveredData targetData = mock(TargetDiscoveredData.class);
+        when(targetData.getGroups()).thenReturn(Stream.of(mockCluster));
+        when(groupUploader.getDataByTarget()).thenReturn(
+            ImmutableMap.of(targetId, targetData));
     }
 
     private void givenHosts(final long targetId, HostBuilder... hostBuilders) {

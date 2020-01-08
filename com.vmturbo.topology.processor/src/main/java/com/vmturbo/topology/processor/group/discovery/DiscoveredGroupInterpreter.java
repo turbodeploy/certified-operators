@@ -21,6 +21,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -760,8 +762,27 @@ class DiscoveredGroupInterpreter {
                                    @Nonnull final List<GroupDTO> dtoList) {
             this.targetId = targetId;
             this.groupsByUuid = Collections.unmodifiableMap(dtoList.stream()
-                .collect(Collectors.toMap(GroupProtoUtil::extractId, Function.identity())));
+                .collect(Collectors.toMap(GroupProtoUtil::extractId, Function.identity(),
+                    (g1, g2) -> {
+                        if (!g1.equals(g2)) {
+                            logger.error("Target {} discovered two groups with the same name - {} - " +
+                                " and different definitions. Keeping the first.\n" +
+                                "First definition: {}\n" +
+                                "Second definition: {}\n",
+                                targetId,
+                                GroupProtoUtil.extractId(g1), printForLog(g1), printForLog(g2));
+                        }
+                        return g1;
+                    })));
             this.interpretedGroupByUuid = new HashMap<>(this.groupsByUuid.size());
+        }
+
+        private String printForLog(@Nonnull final GroupDTO group) {
+            try {
+                return JsonFormat.printer().print(group);
+            } catch (InvalidProtocolBufferException e) {
+                return "Cannot print due to error: " + e.getMessage();
+            }
         }
 
         void pushVisitedGroup(@Nonnull final String groupName) {

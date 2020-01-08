@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -50,6 +51,7 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
@@ -111,7 +113,7 @@ public class DiscoveredGroupUploaderTest {
 
     @Test
     public void testUploadDiscoveredGroups() {
-        assertTrue(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
+        assertTrue(recorderSpy.getDataByTarget().isEmpty());
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
                 .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
 
@@ -133,11 +135,11 @@ public class DiscoveredGroupUploaderTest {
                 .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
 
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
+        assertFalse(recorderSpy.getDataByTarget().isEmpty());
 
         // Uploading discovered groups should not empty the discovered groups known by the uploader.
         recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
-        assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
+        assertFalse(recorderSpy.getDataByTarget().isEmpty());
     }
 
     @Test
@@ -146,10 +148,12 @@ public class DiscoveredGroupUploaderTest {
                 eq(TARGET_ID))).thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
 
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).isEmpty());
+        assertFalse(recorderSpy.getDataByTarget().get(TARGET_ID).getGroups()
+            .collect(Collectors.toList()).isEmpty());
 
         recorderSpy.targetRemoved(TARGET_ID);
-        assertTrue(recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).isEmpty());
+        assertTrue(recorderSpy.getDataByTarget().get(TARGET_ID).getGroups()
+            .collect(Collectors.toList()).isEmpty());
     }
 
     /**
@@ -324,31 +328,36 @@ public class DiscoveredGroupUploaderTest {
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
             .thenReturn(groups);
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        assertEquals(0, recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().size());
-        assertEquals(1, recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).size());
+        assertEquals(0, getSettingPoliciesOfTarget(TARGET_ID).size());
+        assertEquals(1, getGroupsOfTarget(TARGET_ID).size());
 
-        recorderSpy.addDiscoveredGroupsAndPolicies(TARGET_ID, Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP),
+        recorderSpy.setScannedGroupsAndPolicies(TARGET_ID, Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP),
             Collections.singletonList(DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO));
-        assertEquals(1, recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().size());
-        assertEquals(2, recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).size());
+        assertEquals(1, getSettingPoliciesOfTarget(TARGET_ID).size());
+        assertEquals(2, getGroupsOfTarget(TARGET_ID).size());
     }
 
     @Test
     public void testAddDiscoveredGroupsAndSettingsWhenEmpty() {
-        recorderSpy.addDiscoveredGroupsAndPolicies(TARGET_ID, Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP),
+        recorderSpy.setScannedGroupsAndPolicies(TARGET_ID, Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP),
             Collections.singletonList(DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO));
-        assertEquals(1, recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().size());
-        assertEquals(1, recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).size());
+        assertEquals(1, getSettingPoliciesOfTarget(TARGET_ID).size());
+        assertEquals(1, getGroupsOfTarget(TARGET_ID).size());
     }
 
-    @Test
-    public void testSettingPoliciesClearedBySet() {
-        recorderSpy.addDiscoveredGroupsAndPolicies(TARGET_ID, Collections.emptyList(),
-            Collections.singletonList(DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO));
-        assertFalse(recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().isEmpty());
+    private List<InterpretedGroup> getGroupsOfTarget(final long targetId) {
+        return recorderSpy.getDataByTarget().get(targetId).getGroups()
+            .collect(Collectors.toList());
+    }
 
-        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        assertTrue(recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().isEmpty());
+    private List<DiscoveredSettingPolicyInfo> getSettingPoliciesOfTarget(final long targetId) {
+        return recorderSpy.getDataByTarget().get(targetId).getSettingPolicies()
+            .collect(Collectors.toList());
+    }
+
+    private List<DiscoveredPolicyInfo> getPoliciesOfTarget(final long targetId) {
+        return recorderSpy.getDataByTarget().get(targetId).getPolicies()
+            .collect(Collectors.toList());
     }
 
     /**
@@ -361,16 +370,14 @@ public class DiscoveredGroupUploaderTest {
         // Test the group with no excluded template policies
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID,
                 Collections.singletonList(DiscoveredGroupConstants.RESOURCE_GROUP_DTO));
-        List<DiscoveredSettingPolicyInfo> noPolicies = recorderSpy
-                .getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get();
+        List<DiscoveredSettingPolicyInfo> noPolicies = getSettingPoliciesOfTarget(TARGET_ID);
         Assert.assertTrue(noPolicies.isEmpty());
 
         // Test against the Accelerated Networking group
         GroupDTO group = loadGroupDto("AcceleratedNetworkingGroupDTO.json");
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(group));
 
-        List<DiscoveredSettingPolicyInfo> policies = recorderSpy
-                .getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get();
+        List<DiscoveredSettingPolicyInfo> policies = getSettingPoliciesOfTarget(TARGET_ID);
         Assert.assertTrue(!policies.isEmpty());
         DiscoveredSettingPolicyInfo policy = policies.iterator().next();
         String name = "VMs_Accelerated Networking Enabled_EA - Development";

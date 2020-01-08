@@ -1,13 +1,18 @@
 package com.vmturbo.group.stitching;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -20,6 +25,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
  * to this group, which may be merged with other {@link StitchingGroup}s or removed after stitching.
  */
 public class StitchingGroup {
+    private static final Logger logger = LogManager.getLogger();
 
     private final long oid;
     private final GroupDefinition.Builder groupDefinition;
@@ -44,8 +50,8 @@ public class StitchingGroup {
         this.groupDefinition = GroupDefinition.newBuilder(Objects.requireNonNull(groupDefinition));
         this.sourceId = Objects.requireNonNull(sourceId);
         this.targets = new HashSet<>();
-        this.targets.add(targetId);
         this.newGroup = newGroup;
+        mergedGroup(groupDefinition, targetId);
     }
 
     /**
@@ -115,9 +121,36 @@ public class StitchingGroup {
      */
     public void mergedGroup(@Nonnull GroupDefinition groupDefinition, long targetId) {
         if (!targets.add(targetId)) {
-            throw new IllegalArgumentException(
-                    "Target " + targetId + " is already registered in the stitching group " +
-                            sourceId);
+            // This is not a normal case. It most likely means the Topology Processor uploaded the
+            // same group multiple times from the same target - which could be due to an internal
+            // error, or due to bad probe results.
+
+            // We will treat this as an error or warning depending on whether the new group
+            // definition contains additional members.
+            final Map<MemberType, Set<Long>> newMembersByType = new HashMap<>();
+            for (StaticMembersByType members : groupDefinition.getStaticGroupMembers()
+                    .getMembersByTypeList()) {
+                final Set<Long> existingMembers = membersByType.getOrDefault(members.getType(), Collections.emptySet());
+                final Set<Long> newMembers = members.getMembersList().stream()
+                    .filter(member -> !existingMembers.contains(member))
+                    .collect(Collectors.toSet());
+                if (!newMembers.isEmpty()) {
+                    newMembersByType.put(members.getType(), newMembers);
+                }
+            }
+            if (newMembersByType.isEmpty()) {
+                // If the new group is the same, it's a more benign warning.
+                logger.warn("Target {} is already registered in " +
+                    "the stitching group {}.", targetId, sourceId);
+            } else {
+                // If the new group is different, it's a bigger issue - the target uploaded two
+                // groups with different members! To play it safe we just keep the first.
+                logger.error("Target {} is already registered in " +
+                    "the stitching group {} with different members. Ignoring the new target. " +
+                    "Ignored members: {}", targetId, sourceId, newMembersByType);
+                // Return so that we don't modify the membersByType.
+                return;
+            }
         }
         for (StaticMembersByType members : groupDefinition.getStaticGroupMembers()
                 .getMembersByTypeList()) {

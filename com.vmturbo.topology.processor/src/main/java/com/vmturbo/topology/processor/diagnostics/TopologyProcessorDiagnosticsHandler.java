@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,7 +23,6 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Streams;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -54,6 +54,8 @@ import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
+import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
@@ -212,12 +214,20 @@ public class TopologyProcessorDiagnosticsHandler {
             logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
         }
 
-        final Map<Long, List<DiscoveredGroupInfo>> discoveredGroups = discoveredGroupUploader
-            .getDiscoveredGroupInfoByTarget();
+        final Map<Long, TargetDiscoveredData> discoveredGroupData = discoveredGroupUploader.getDataByTarget();
+        final Map<Long, List<DiscoveredGroupInfo>> discoveredGroups = new HashMap<>(discoveredGroupData.size());
+        final Map<Long, List<DiscoveredSettingPolicyInfo>> settingPolicies = new HashMap<>(discoveredGroupData.size());
+        discoveredGroupData.forEach((targetId, targetData) -> {
+            // We only take the discovered groups, not the scanned groups.
+            discoveredGroups.put(targetId, targetData.getDiscoveredGroups()
+                .map(InterpretedGroup::createDiscoveredGroupInfo)
+                .collect(Collectors.toList()));
+            // We only take the discovered setting policies, not the scanned ones.
+            settingPolicies.put(targetId, targetData.getDiscoveredSettingPolicies().collect(Collectors.toList()));
+        });
+
         final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> deploymentProfiles =
             templateDeploymentProfileUploader.getDiscoveredDeploymentProfilesByTarget();
-        final Multimap<Long, DiscoveredSettingPolicyInfo> settingPolicies =
-            discoveredGroupUploader.getDiscoveredSettingPolicyInfoByTarget();
 
         // Files separated by target
         for (Target target : targets) {
@@ -693,7 +703,7 @@ public class TopologyProcessorDiagnosticsHandler {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
-        discoveredGroupUploader.setTargetDiscoveredSettingPolicies(targetId, discovered);
+        discoveredGroupUploader.restoreDiscoveredSettingPolicies(targetId, discovered);
 
         logger.info("Done restoring {} discovered setting policies for target {}",
             discovered.size(), targetId);

@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -103,15 +104,15 @@ public class DiscoveredSettingPolicyScanner {
         scanner.scanVmmHosts(hostsForProbe(SDKProbeType.VMM, stitchingContext));
 
         scanner.getTargetIdToSettingPoliciesMap().forEach((targetId, targetUtilizationThresholds) -> {
-            final List<InterpretedGroup> groups = new ArrayList<>();
-            final List<DiscoveredSettingPolicyInfo> settingPolicies = new ArrayList<>();
+            final Map<String, InterpretedGroup> groupsByName = new HashMap<>();
+            final Map<String, DiscoveredSettingPolicyInfo> settingPoliciesByName = new HashMap<>();
 
             final Optional<String> targetDisplayName = targetStore.getTargetDisplayName(targetId);
             if (targetDisplayName.isPresent()) {
                 targetUtilizationThresholds.getSettingPolicyBuilders()
                     .forEach(builder -> builder.addGroupsAndSettingPolicies(
-                        groups, settingPolicies, targetDisplayName.get()));
-                groupUploader.addDiscoveredGroupsAndPolicies(targetId, groups, settingPolicies);
+                        groupsByName, settingPoliciesByName, targetDisplayName.get()));
+                groupUploader.setScannedGroupsAndPolicies(targetId, groupsByName.values(), settingPoliciesByName.values());
             } else {
                 logger.error("Unable to find targetName for target {}. Skipping " +
                     "setting policy creation for {} setting policies.", targetId,
@@ -151,8 +152,10 @@ public class DiscoveredSettingPolicyScanner {
         private final Map<Long, String> dcNamesMap;
 
         Scanner(StitchingContext stitchingContext, @Nonnull final DiscoveredGroupUploader groupUploader) {
-            this.clusterMemberCache =
-                new ComputeClusterMemberCache(groupUploader.getDiscoveredGroupInfoByTarget());
+            this.clusterMemberCache = new ComputeClusterMemberCache(groupUploader.getDataByTarget().entrySet().stream()
+                .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().getGroups()
+                    .map(InterpretedGroup::createDiscoveredGroupInfo)
+                    .collect(Collectors.toList()))));
             targetIdToSettingPoliciesMap = new HashMap<>();
             dcNamesMap = pmToDcNameMap(stitchingContext);
         }
@@ -480,7 +483,7 @@ public class DiscoveredSettingPolicyScanner {
          * this {@link DiscoveredSettingPolicyCreator} with the cluster with that name. If no such cluster
          * is provided, a new group will be created consisting of all the hosts added to this
          * {@link DiscoveredSettingPolicyCreator} when asked to
-         * {@link #addGroupsAndSettingPolicies(List, List, String, long)}.
+         * {@link #addGroupsAndSettingPolicies(Map, Map, String)}.
          *
          * @param hostOid The oid of the host.
          * @param clusterInfo The optional cluster containing this host.
@@ -495,16 +498,16 @@ public class DiscoveredSettingPolicyScanner {
          * Add the setting policy and (if necessary) associated group for this
          * {@link DiscoveredSettingPolicyCreator} to the input lists of groups and setting policies.
          *
-         * @param groups If this {@link DiscoveredSettingPolicyCreator} has hosts unassociated with clusters
+         * @param groupsByName If this {@link DiscoveredSettingPolicyCreator} has hosts unassociated with clusters
          *               to it, create a group for those hosts and associate that group with the setting policy.
          *               Finally, add this group to the list of groups.
-         * @param settingPolicies The list of setting policies that this {@link DiscoveredSettingPolicyCreator}
+         * @param settingPoliciesByName The list of setting policies that this {@link DiscoveredSettingPolicyCreator}
          *                        will add a setting policy to. This setting policy is always added,
          *                        not conditionally added.
          * @param targetName the name of the target
          */
-        public void addGroupsAndSettingPolicies(@Nonnull final List<InterpretedGroup> groups,
-                                                @Nonnull final List<DiscoveredSettingPolicyInfo> settingPolicies,
+        public void addGroupsAndSettingPolicies(@Nonnull final Map<String, InterpretedGroup> groupsByName,
+                                                @Nonnull final Map<String, DiscoveredSettingPolicyInfo> settingPoliciesByName,
                                                 @Nonnull final String targetName) {
             DiscoveredSettingPolicyInfo.Builder settingBuilder = DiscoveredSettingPolicyInfo.newBuilder()
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
@@ -513,39 +516,54 @@ public class DiscoveredSettingPolicyScanner {
                 // Handle cases when no clusters are defined, just a group of host oids (e.g. VMM)
                 String baseName = composeName(targetName);
                 final String groupName = GROUP_NAME_PREFIX + baseName;
-                final String groupDisplayName = composeDisplayName(targetName);
+                final InterpretedGroup group = groupsByName.computeIfAbsent(groupName, k -> {
+                    final String groupDisplayName = composeDisplayName(targetName);
 
-                final CommonDTO.GroupDTO groupDTO = CommonDTO.GroupDTO.newBuilder()
-                    .setGroupType(GroupType.REGULAR)
-                    .setDisplayName(groupDisplayName)
-                    .setGroupName(groupName)
-                    .setEntityType(EntityType.PHYSICAL_MACHINE)
-                    .setMemberList(MembersList.newBuilder()
+                    final CommonDTO.GroupDTO groupDTO = CommonDTO.GroupDTO.newBuilder()
+                        .setGroupType(GroupType.REGULAR)
+                        .setDisplayName(groupDisplayName)
+                        .setGroupName(groupName)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE)
+                        .setMemberList(MembersList.newBuilder()
                             .addAllMember(hostOids.stream()
                                 .map(Object::toString)
                                 .collect(Collectors.toList()))
-                    ).build();
+                        ).build();
 
-                final GroupDefinition.Builder groupDefinition = GroupDefinition.newBuilder()
+                    final GroupDefinition.Builder groupDefinition = GroupDefinition.newBuilder()
                         .setType(GroupType.REGULAR)
                         .setDisplayName(groupDisplayName)
                         .setStaticGroupMembers(StaticMembers.newBuilder()
-                                .addMembersByType(StaticMembersByType.newBuilder()
-                                        .setType(MemberType.newBuilder()
-                                                .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
-                                        .addAllMembers(hostOids)));
-                groups.add(new InterpretedGroup(groupDTO, Optional.of(groupDefinition)));
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                    .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                .addAllMembers(hostOids)));
+                    return new InterpretedGroup(groupDTO, Optional.of(groupDefinition));
+                });
 
                 // Associate the policy with the group.
-                settingBuilder.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(groupDTO));
+                settingBuilder.addDiscoveredGroupNames(
+                    GroupProtoUtil.createIdentifyingKey(group.getOriginalSdkGroup()));
                 // used as a unique id of the policy
                 settingBuilder
-                    .setDisplayName("HA Settings for " + groupDisplayName)
+                    .setDisplayName("HA Settings for " + group.getOriginalSdkGroup().getDisplayName())
                     .setName(HA_POLICY_NAME_PREFIX + baseName);
             } else {
                 // Clusters are defined on the target (e.g. VC probe)
                 utilizationThresholdValues.getClusterInfo()
                     .ifPresent(ci -> {
+                        String name = HA_POLICY_NAME_PREFIX + ci.getSourceIdentifier();
+                        if (settingPoliciesByName.containsKey(name)) {
+                            // If there is a conflicting policy with the same name, append the first
+                            // available numeric suffix.
+                            for (int i = 1; i < Integer.MAX_VALUE; ++i) {
+                                final String candidateName = name + "-" + i;
+                                if (!settingPoliciesByName.containsKey(candidateName)) {
+                                    name = candidateName;
+                                    break;
+                                }
+                            }
+                        }
                         String dcName = ci.getDefinition().getStaticGroupMembers().getMembersByTypeList().stream()
                                 .map(StaticMembersByType::getMembersList)
                                 .flatMap(List::stream)
@@ -557,13 +575,13 @@ public class DiscoveredSettingPolicyScanner {
                             .addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(ci))
                             .setDisplayName(String.format(IMPORTED_HA_SETTINGS_DISPLAY_NAME,
                                     dcName + ci.getDefinition().getDisplayName(), targetName))
-                            .setName(HA_POLICY_NAME_PREFIX + ci.getSourceIdentifier());
+                            .setName(name);
                     });
             }
             utilizationThresholdValues.getMemUtilizationSetting().ifPresent(settingBuilder::addSettings);
             utilizationThresholdValues.getCpuUtilizationSetting().ifPresent(settingBuilder::addSettings);
 
-            settingPolicies.add(settingBuilder.build());
+            settingPoliciesByName.putIfAbsent(settingBuilder.getName(), settingBuilder.build());
         }
 
         /**
