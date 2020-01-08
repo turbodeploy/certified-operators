@@ -104,6 +104,7 @@ public class ActionCategoryExtractor {
             case DELETE:
                 return ActionCategory.EFFICIENCY_IMPROVEMENT;
             case BUYRI:
+            case ALLOCATE:
                 return ActionCategory.EFFICIENCY_IMPROVEMENT;
             default:
                 return ActionCategory.UNKNOWN;

@@ -10,6 +10,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
@@ -204,6 +205,18 @@ public class ActionCategoryExtractorTest {
 
         assertThat(ActionCategoryExtractor.assignActionCategory(delete),
             is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+    }
+
+    /**
+     * Tests if the category of the accounting actions are efficiency.
+     */
+    @Test
+    public void testAllocateCategory() {
+        Explanation allocate = Explanation.newBuilder().setAllocate(
+                AllocateExplanation.getDefaultInstance()).build();
+
+        assertThat(ActionCategoryExtractor.assignActionCategory(allocate),
+                is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
