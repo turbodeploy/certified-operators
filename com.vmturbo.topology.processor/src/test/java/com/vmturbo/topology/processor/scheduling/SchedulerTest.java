@@ -32,6 +32,7 @@ import com.google.gson.Gson;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -98,6 +99,7 @@ public class SchedulerTest {
     }
 
     @Test
+    @Ignore("Investigate this test later and verify why this is flaky. See OM-53822 for details.")
     public void testSetDiscoverySchedule() throws Exception {
         final CountDownLatch discoveryExecutedLatch = new CountDownLatch(1);
 
