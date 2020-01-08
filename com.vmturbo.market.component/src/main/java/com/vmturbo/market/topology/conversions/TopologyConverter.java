@@ -660,14 +660,17 @@ public class TopologyConverter {
                     projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
                 }
                 // Calculate projected RI Coverage
-                TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
-                Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
+                final TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
                 // original trader can be null in case of provisioned entity
                 if (originalTraderTO != null) {
-                    originalRiCoverage = cloudCostData
-                        .getRiCoverageForEntity(originalTraderTO.getOid());
+                    final Optional<EntityReservedInstanceCoverage> originalRiCoverage =
+                            cloudCostData.getRiCoverageForEntity(originalTraderTO.getOid());
+
+                    // projected RI coverage does not support provisioned traders, due to requiring
+                    // the original trader state for correct RI coverage capacity calculation. Currently,
+                    // cloud entities cannot be provisioned.
+                    calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
                 }
-                calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
             }
             return projectedTopologyEntities;
         } finally {
@@ -687,98 +690,95 @@ public class TopologyConverter {
      * used by trader of RI1 were already relinquished in the relinquishCoupons method.
      * 4. If the trader stayed on same RI, but coverage changed.
      *
-     * @param originalTraderTO the original trader (before going into market). Can be null in case
-     *                         of initial placement.
+     * @param originalTraderTO the original trader (before going into market). The original trader is
+     *                         used to determine the projected trader's state (IDLE VMs will be converted
+     *                         to ACTIVE in the market) and to determine whether the RI coverage has
+     *                         changed.
      * @param projectedTraderTO the projected trader for which RI Coverage is to be created
      * @param originalRiCoverage the original trader's original RI Coverage (before going into market)
      */
-    private void calculateProjectedRiCoverage(TraderTO originalTraderTO, @Nonnull TraderTO projectedTraderTO,
+    private void calculateProjectedRiCoverage(@Nonnull TraderTO originalTraderTO,
+                                              @Nonnull TraderTO projectedTraderTO,
                                               @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
-        // Are any of the shopping lists of the projected trader placed on discounted tier?
-        Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTraderTO);
-        final long entityId = projectedTraderTO.getOid();
-        if (projectedRiTierSl.isPresent()) {
-            // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
-            RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
-                    cloudTc.getMarketTier(projectedRiTierSl.get().getCouponId());
-            // Find the destination compute tier to which this VM is going to move.
-            final int destinationCouponCap = cloudTc.getMarketTier(projectedRiTierSl.get().getSupplier())
-                    .getTier().getTypeSpecificInfo()
-                    .getComputeTier().getNumCoupons();
 
-            Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(
-                    projectedRiTierSl.get());
-            if (!projectedCouponCommBought.isPresent()) {
-                logger.error("Projected trader {} is placed on RI {}, but it's RI shopping list does not have " +
-                                "projectedCouponCommBought",
-                        projectedTraderTO.getDebugInfoNeverUseInCode(),
-                        projectedRiTierDestination != null ? projectedRiTierDestination.getDisplayName() : "");
-                return;
-            }
-            // TODO: When we start relinquishing coupons in XL if a VM is resizing, we need to
-            // relook at this line below. If we relinquish coupons, the VM's original trader will
-            // no longer be supplied by an RIDiscountedMarketTier.
-            Optional<MarketTier> originalRiTierDestination = Optional.empty();
-            if (originalTraderTO != null) {
-                originalRiTierDestination = originalTraderTO.getShoppingListsList().stream()
-                        .map(sl -> sl.getSupplier()).map(traderId -> cloudTc.getMarketTier(traderId))
-                        .filter(Objects::nonNull).filter(mt -> mt.hasRIDiscount()).findFirst();
-            }
+        final Optional<Integer> projectedCoverageCapacity =
+                cloudTc.getReservedInstanceCoverageCapacity(
+                        projectedTraderTO, originalTraderTO.getState());
 
-            if (!originalRiTierDestination.isPresent() ||
-                    !originalRiTierDestination.get().equals(projectedRiTierDestination)) {
-                // Entity is initially placed on an riTier
-                // OR has moved from a regular tier to an riTier
-                // OR from one riTer to another.
-                // So, in all these cases, create a new RICoverage object.
-                // The information of the number of coupons to use is present in the coupon
-                // commodity bought of the trader
-                final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
-                        .useCoupons(entityId, projectedCouponCommBought.get().getQuantity());
-                if (!riIdtoCouponsOfRIUsed.isEmpty()) {
-                    EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
-                            .putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed)
-                            .setEntityCouponCapacity(destinationCouponCap)
-                            .setEntityId(entityId).build();
-                    projectedReservedInstanceCoverage.put(entityId, riCoverage);
-                }
-            } else {
-                // Entity stayed on the same RI Tier. Check if the coverage changed.
-                // If we are in this block, originalTraderTO cannot be null.
-                if (!originalRiCoverage.isPresent()) {
-                    logger.error("{} does not have original RI coverage", originalTraderTO.getDebugInfoNeverUseInCode());
+        if (projectedCoverageCapacity.map(c -> c > 0).orElse(false)) {
+
+            final long entityId = projectedTraderTO.getOid();
+            final EntityReservedInstanceCoverage.Builder riCoverageBuilder =
+                    EntityReservedInstanceCoverage.newBuilder()
+                            .setEntityCouponCapacity(projectedCoverageCapacity.get())
+                            .setEntityId(entityId);
+
+            // Are any of the shopping lists of the projected trader placed on discounted tier?
+            final Optional<ShoppingListTO> projectedRiTierSl =
+                    getShoppingListSuppliedByRiTier(projectedTraderTO);
+            if (projectedRiTierSl.isPresent()) {
+
+                // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
+                RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
+                        cloudTc.getMarketTier(projectedRiTierSl.get().getCouponId());
+
+                Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(
+                        projectedRiTierSl.get());
+                if (!projectedCouponCommBought.isPresent()) {
+                    logger.error("Projected trader {} is placed on RI {}, but it's RI shopping list does not have " +
+                                    "projectedCouponCommBought",
+                            projectedTraderTO.getDebugInfoNeverUseInCode(),
+                            projectedRiTierDestination != null ? projectedRiTierDestination.getDisplayName() : "");
                     return;
                 }
-                float projectedNumberOfCouponsBought = projectedCouponCommBought.get().getQuantity();
-                float originalNumberOfCouponsBought = getTotalNumberOfCouponsCovered(originalRiCoverage.get());
-                if (!TopologyConversionUtils.areFloatsEqual(
-                        projectedCouponCommBought.get().getQuantity(),
-                        originalNumberOfCouponsBought)) {
-                    // Coverage changed. Create a new RICoverage object
+
+                final Optional<MarketTier> originalRiTierDestination =
+                        originalTraderTO.getShoppingListsList()
+                                .stream()
+                                .map(sl -> sl.getSupplier()).map(traderId -> cloudTc.getMarketTier(traderId))
+                                .filter(Objects::nonNull).filter(mt -> mt.hasRIDiscount())
+                                .findFirst();
+
+                if (!originalRiTierDestination.isPresent() ||
+                        !originalRiTierDestination.get().equals(projectedRiTierDestination)) {
+                    // Entity is initially placed on an riTier
+                    // OR has moved from a regular tier to an riTier
+                    // OR from one riTer to another.
+                    // So, in all these cases, create a new RICoverage object.
+                    // The information of the number of coupons to use is present in the coupon
+                    // commodity bought of the trader
                     final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
-                            .useCoupons(entityId, projectedNumberOfCouponsBought);
-                    if (!riIdtoCouponsOfRIUsed.isEmpty()) {
-                        EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
-                                .putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed)
-                                .setEntityCouponCapacity(destinationCouponCap)
-                                .setEntityId(entityId).build();
-                        projectedReservedInstanceCoverage.put(entityId, riCoverage);
-                    }
+                            .useCoupons(entityId, projectedCouponCommBought.get().getQuantity());
+                    riCoverageBuilder.putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed);
                 } else {
-                    // Coverage did not change. Use the original ri coverage.
-                    projectedReservedInstanceCoverage.put(entityId, originalRiCoverage.get());
+                    // Entity stayed on the same RI Tier. Check if the coverage changed.
+                    // If we are in this block, originalTraderTO cannot be null.
+                    if (!originalRiCoverage.isPresent()) {
+                        logger.error("{} does not have original RI coverage", originalTraderTO.getDebugInfoNeverUseInCode());
+                        return;
+                    }
+
+                    float projectedNumberOfCouponsBought = projectedCouponCommBought.get().getQuantity();
+                    float originalNumberOfCouponsBought = getTotalNumberOfCouponsCovered(originalRiCoverage.get());
+                    // If original == projected, the original claimed RIs were not relinquished
+                    // in relinquishCoupons(). Therefore, the projectedRiTierDestination does
+                    // not need to be updated here
+                    if (!TopologyConversionUtils.areFloatsEqual(
+                            projectedCouponCommBought.get().getQuantity(),
+                            originalNumberOfCouponsBought)) {
+                        // Coverage changed. Create a new RICoverage object
+                        final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
+                                .useCoupons(entityId, projectedNumberOfCouponsBought);
+                        riCoverageBuilder.putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed);
+                    } else {
+                        // Coverage did not change. Use the original ri coverage.
+                        riCoverageBuilder.putAllCouponsCoveredByRi(
+                                originalRiCoverage.get().getCouponsCoveredByRiMap());
+                    }
                 }
             }
-        } else {
-            Optional<MarketTier> primaryMarketTier = cloudTc.getComputeTier(projectedTraderTO);
-            if (primaryMarketTier.isPresent()) {
-                Integer destinationCouponCap = primaryMarketTier.get().getTier().getTypeSpecificInfo()
-                                                .getComputeTier().getNumCoupons();
-                EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityCouponCapacity(destinationCouponCap)
-                        .setEntityId(entityId).build();
-                projectedReservedInstanceCoverage.put(entityId, riCoverage);
-            }
+
+            projectedReservedInstanceCoverage.put(entityId, riCoverageBuilder.build());
         }
     }
 

@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +40,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -344,6 +347,28 @@ public class CloudTopologyConverter {
             return Optional.empty();
         }
         return Optional.of(primaryMarketTiers.get(0));
+    }
+
+    /**
+     * Determines a trader's reserved instance coverage capacity. If the trader is connected to a
+     * compute tier, its capacity with either mirror the capacity of the compute tier or it will be
+     * 0, based on {@code traderState}.
+     * @param trader The target {@link TraderTO}, expected to be a workload (VM, DB, DBS).
+     * @param traderState The trader's state. This is accepted as a separate argument from the trader
+     *                    due to projected {@link TraderTO} instances always having a state of ACTIVE,
+     *                    which is not indicative of their power state
+     * @return If the trader is connected to a compute tier, its coverage capacity based on the
+     * {@code traderState}. If the trader is not connected to a compute tier, returns {@link Optional#empty()}.
+     */
+    @Nonnull
+    public Optional<Integer> getReservedInstanceCoverageCapacity(@Nonnull TraderTO trader,
+                                                                 @Nonnull TraderStateTO traderState) {
+        return getComputeTier(trader)
+                .map(MarketTier::getTier)
+                .map(TopologyEntityDTO::getTypeSpecificInfo)
+                .map(TypeSpecificInfo::getComputeTier)
+                .map(computeTierInfo -> traderState == TraderStateTO.ACTIVE ?
+                        computeTierInfo.getNumCoupons() : 0);
     }
 
     /**
