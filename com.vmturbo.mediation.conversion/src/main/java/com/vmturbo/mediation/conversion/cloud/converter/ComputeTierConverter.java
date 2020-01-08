@@ -5,7 +5,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -138,6 +137,7 @@ public class ComputeTierConverter implements IEntityConverter {
      *     IO_THROUGHPUT,
      *     NET_THROUGHPUT,
      *     NUM_DISK (AWS doesn't have it, so capacity will be 0)
+     *     NETWORK_INTERFACE_COUNT
      *     LICENSE_ACCESS
      *
      * @param profileDTO the EntityProfileDTO based on which to create sold commodities
@@ -150,6 +150,7 @@ public class ComputeTierConverter implements IEntityConverter {
         float ioThroughputSize = 0.0f;
         float netThroughputSize = 0.0f;
         float numDiskSize = 0.0f;
+        float nicCount = 0.0f;
 
         for (CommodityProfileDTO commodityProfileDTO : profileDTO.getCommodityProfileList()) {
             CommodityType commodityType = commodityProfileDTO.getCommodityType();
@@ -162,6 +163,8 @@ public class ComputeTierConverter implements IEntityConverter {
                 netThroughputSize = capacity;
             } else if (commodityType == CommodityType.NUM_DISK) {
                 numDiskSize = capacity;
+            } else if (commodityType == CommodityType.NETWORK_INTERFACE_COUNT) {
+                nicCount = capacity;
             }
         }
 
@@ -188,6 +191,9 @@ public class ComputeTierConverter implements IEntityConverter {
 
         // NUM_DISK
         soldCommodities.add(createCommodityDTO(CommodityType.NUM_DISK, numDiskSize));
+
+        // NETWORK_INTERFACE_COUNT
+        soldCommodities.add(createCommodityDTO(CommodityType.NETWORK_INTERFACE_COUNT, nicCount));
 
         // LICENSE_ACCESS
         // todo: currently we collect all licenses for all regions and add commodity for each
