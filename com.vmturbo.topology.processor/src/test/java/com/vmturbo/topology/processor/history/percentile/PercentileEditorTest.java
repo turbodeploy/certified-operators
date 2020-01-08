@@ -129,11 +129,11 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         entitySettings = new HashMap<>();
         addEntityWithSetting(VIRTUAL_MACHINE_OID,
                              EntityType.VIRTUAL_MACHINE_VALUE,
-                             EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
+                             EntitySettingSpecs.PercentileObservationPeriodVirtualMachine,
                              PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD);
         addEntityWithSetting(BUSINESS_USER_OID,
                              EntityType.BUSINESS_USER_VALUE,
-                             EntitySettingSpecs.MaxObservationPeriodBusinessUser,
+                             EntitySettingSpecs.PercentileObservationPeriodBusinessUser,
                              PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD);
         graphWithSettings = new GraphWithSettings(TopologyEntityTopologyGraphCreator
                                                                   .newGraph(topologyBuilderMap),
@@ -290,11 +290,11 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         entitySettings.put(VIRTUAL_MACHINE_OID,
                 createPercentileObservationWindowSetting(VIRTUAL_MACHINE_OID,
                         NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD,
-                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine));
+                        EntitySettingSpecs.PercentileObservationPeriodVirtualMachine));
         entitySettings.put(BUSINESS_USER_OID,
                 createPercentileObservationWindowSetting(BUSINESS_USER_OID,
                         NEW_BUSINESS_USER_OBSERVATION_PERIOD,
-                        EntitySettingSpecs.MaxObservationPeriodBusinessUser));
+                        EntitySettingSpecs.PercentileObservationPeriodBusinessUser));
 
         // Check observation periods changed.
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);

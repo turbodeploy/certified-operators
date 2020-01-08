@@ -327,7 +327,7 @@ public enum EntitySettingSpecs {
     /**
      * Max observation period for business user.
      */
-    MaxObservationPeriodBusinessUser("maxObservationPeriodBusinessUser",
+    PercentileObservationPeriodBusinessUser("percentileObservationPeriodBusinessUser",
             SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.BUSINESS_USER),
@@ -336,7 +336,7 @@ public enum EntitySettingSpecs {
     /**
      * Max observation period for virtual machine.
      */
-    MaxObservationPeriodVirtualMachine("maxObservationPeriodVirtualMachine",
+    PercentileObservationPeriodVirtualMachine("percentileObservationPeriodVirtualMachine",
             SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),

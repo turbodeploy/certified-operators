@@ -42,9 +42,9 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntitySettingSpecs.PercentileAggressivenessVirtualMachine);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
-                        EntitySettingSpecs.MaxObservationPeriodBusinessUser,
+                        EntitySettingSpecs.PercentileObservationPeriodBusinessUser,
                         EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine);
+                        EntitySettingSpecs.PercentileObservationPeriodVirtualMachine);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
             ImmutableMap.of(EntityType.VIRTUAL_MACHINE,
                     EntitySettingSpecs.MinObservationPeriodVirtualMachine);
@@ -76,7 +76,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         this.unavailableDataPeriodInMins = allowableDataGapInMins;
         this.clock = clock;
         // maintenance window cannot exceed minimum observation window
-        final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
+        final int minMaxObservationPeriod = (int)EntitySettingSpecs.PercentileObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
         this.maintenanceWindowHours = Math
                         .min(maintenanceWindowHours <= 0 ? defaultMaintenanceWindowHours
@@ -198,7 +198,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     }
 
     private static int getDefaultObservationPeriod() {
-        return (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingSpec()
+        return (int)EntitySettingSpecs.PercentileObservationPeriodVirtualMachine.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
     }
 
