@@ -863,6 +863,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     public @NonNull Economy simulationClone() {
         Economy clone = new Economy();
+        Topology topo = new Topology();
+        clone.setTopology(topo);
         for (Trader trader : getTraders()) {
             clone.addTrader(trader.getType(), trader.getState(), new Basket(trader.getBasketSold()));
         }
@@ -884,12 +886,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         cloneTrader.setDebugInfoNeverUseInCode(
                 trader.getDebugInfoNeverUseInCode() + SIM_CLONE_SUFFIX);
         cloneTrader.getSettings().setQuoteFunction(trader.getSettings().getQuoteFunction());
-        //TODO Have Cloud Context extend a Context class so that the setting is generic for
-        // on prem and cloud
-        Context context = trader.getSettings().getContext();
-        if (context != null) {
-            cloneTrader.getSettings().setContext(context);
-        }
+
+        cloneContext(trader, cloneTrader);
         cloneTrader.getSettings().setCostFunction(trader.getSettings().getCostFunction());
         cloneCommoditiesSold(trader, cloneTrader);
         cloneShoppingLists(trader, cloneTrader);
@@ -914,6 +912,21 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             cloneCommSoldSettings.setPriceFunction(commSoldSettings.getPriceFunction())
                 .setUpdatingFunction(commSoldSettings.getUpdatingFunction())
                 .setUtilizationUpperBound(commSoldSettings.getUtilizationUpperBound());
+        }
+    }
+
+    /**
+     * Clones the context from one trader (the original) to its clone.
+     * @param trader the original trader
+     * @param cloneTrader the clone of the original trader
+     */
+    private void cloneContext(Trader trader, Trader cloneTrader) {
+        //TODO Have Cloud Context extend a Context class so that the setting is generic for
+        // on prem and cloud
+        Context context = trader.getSettings().getContext();
+        if (context != null) {
+            Context cloneContext = new Context(context);
+            cloneTrader.getSettings().setContext(cloneContext);
         }
     }
 

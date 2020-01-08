@@ -50,6 +50,20 @@ public class Context {
     }
 
     /**
+     * Constructor for the Context.
+     *
+     * @param other is the Context to clone
+     */
+    public Context(Context other) {
+        this(other.getRegionId(), other.getZoneId(), other.getBalanceAccount());
+        for (Map.Entry<Long, CoverageEntry> ce : other.getCoverageEntryMap().entrySet()) {
+            CoverageEntry coverageEntry = new CoverageEntry(ce.getValue().getTotalAllocatedCoupons(),
+                    ce.getValue().getTotalRequestedCoupons());
+            coverageEntryMap_.put(ce.getKey(), coverageEntry);
+        }
+    }
+
+    /**
      * Constructor for the Context. The coverageMap is constructed for this consumer.
      *
      * @param providerId The provider that the consumer is placed on
