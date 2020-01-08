@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -16,24 +17,33 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import io.grpc.Status;
 
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+
+import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -55,6 +65,8 @@ public class WidgetsetMapperTest {
 
     private GroupServiceBlockingStub groupServiceClient;
 
+    private RepositoryApi repositoryApi;
+
     private WidgetsetMapper widgetsetMapper;
 
     private GroupMapper groupMapper = mock(GroupMapper.class);
@@ -62,7 +74,8 @@ public class WidgetsetMapperTest {
     @Before
     public void setup() {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        widgetsetMapper = new WidgetsetMapper(groupMapper, groupServiceClient);
+        repositoryApi = mock(RepositoryApi.class);
+        widgetsetMapper = new WidgetsetMapper(groupMapper, groupServiceClient, repositoryApi);
     }
 
     @Test
@@ -279,6 +292,57 @@ public class WidgetsetMapperTest {
         assertThat(widgets.size(), is(1));
         assertThat(widgets.get(0), is(widget1));
         assertThat(widgets.get(0).getScope(), is(mappedGroup));
+    }
+
+    /**
+     * Test the case that widgetsets contains both group-scoped widget and entity-scoped widget.
+     */
+    @Test
+    public void testEntityAndGroupPostProcessing() {
+        // group scope
+        final GroupApiDTO groupScope = new GroupApiDTO();
+        groupScope.setUuid("7");
+        groupScope.setClassName(StringConstants.GROUP);
+        final Grouping group = Grouping.newBuilder().setId(7).build();
+        when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
+
+        final GroupApiDTO mappedGroup = new GroupApiDTO();
+        when(groupMapper.toGroupApiDto(group)).thenReturn(mappedGroup);
+
+        // entity scope
+        final BaseApiDTO entityScope = new BaseApiDTO();
+        entityScope.setUuid("77");
+        entityScope.setClassName(StringConstants.VIRTUAL_MACHINE);
+
+        final MinimalEntity vm1 = MinimalEntity.newBuilder()
+                .setOid(77)
+                .setDisplayName("vm1")
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(vm1));
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(77L)))).thenReturn(req);
+
+        // Two widgets, one scoped to group and the other one scoped to entity
+        final WidgetApiDTO widget1 = new WidgetApiDTO();
+        widget1.setScope(groupScope);
+
+        final WidgetApiDTO widget2 = new WidgetApiDTO();
+        widget2.setScope(entityScope);
+
+        // Act
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1, widget2);
+
+        // Assert
+        assertThat(widgets.size(), is(2));
+        assertThat(widgets.get(0), is(widget1));
+        assertThat(widgets.get(0).getScope(), is(mappedGroup));
+
+        assertThat(widgets.get(1), is(widget2));
+        ServiceEntityApiDTO entityApiDTO = (ServiceEntityApiDTO)widgets.get(1).getScope();
+        assertThat(entityApiDTO.getUuid(), is("77"));
+        assertThat(entityApiDTO.getClassName(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(entityApiDTO.getEnvironmentType(), is(EnvironmentType.CLOUD));
     }
 
     /**
