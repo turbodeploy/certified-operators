@@ -358,8 +358,7 @@ public class MapperConfig {
 
     @Bean
     public WidgetsetMapper widgetsetMapper() {
-        return new WidgetsetMapper(groupMapper(), communicationConfig.groupRpcService(),
-                communicationConfig.repositoryApi());
+        return new WidgetsetMapper(groupMapper(), communicationConfig.groupRpcService());
     }
 
     @Bean
