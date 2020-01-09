@@ -38,6 +38,7 @@ public class BuyRiScopeHandler {
      * Extract action types from user input and selected scope. Selected scope affects whether
      * Buy RI actions should be included in the result. If Buy RIs are not applicable to the
      * selected scope they are filtered out even though they have been added to the user input.
+     * Buy RI actions are included when the selected entity is a plan.
      *
      * @param inputDto User input with a list of requested actions type.
      * @param inputScope Selected entity.
@@ -56,7 +57,7 @@ public class BuyRiScopeHandler {
             // If Buy RI actions must be included then use action types from input
             actionTypes = actionTypesFromInput;
         } else {
-            // Exclude Buy RI actions from input if input is provided or enumerate all action
+            // Real-time: Exclude Buy RI actions from input if input is provided or enumerate all action
             // types except of Buy RI if input is not provided
             final Stream<ActionType> actionTypesToFilter = actionTypesFromInput.isEmpty()
                     ? Stream.of(ActionDTO.ActionType.values())
@@ -83,7 +84,7 @@ public class BuyRiScopeHandler {
      */
     public Set<Long> extractBuyRiEntities(@Nullable final ApiId scopeId) {
         // Global scope
-        if (scopeId == null || scopeId.isRealtimeMarket()) {
+        if (scopeId == null || scopeId.isRealtimeMarket() || scopeId.isPlan()) {
             return Collections.emptySet();
         }
 
@@ -122,8 +123,8 @@ public class BuyRiScopeHandler {
      * @return true if the RI buy should be included, false otherwise.
      */
     public boolean shouldIncludeBuyRiDiscount(@Nonnull final ApiId inputScope) {
-        // The buy RI discount should be shown in the realtime market scope
-        if (inputScope.isRealtimeMarket()) {
+        // The buy RI discount should be shown in the realtime market (global) scope and plans.
+        if (inputScope.isRealtimeMarket() || inputScope.isPlan()) {
             return true;
         } else if (inputScope.isEntity() && inputScope.getScopeTypes().isPresent()) {
             // The buy RI discount should be shown in scope of a region
@@ -135,7 +136,6 @@ public class BuyRiScopeHandler {
             if (groupInfo.getEntityTypes().equals(Collections.singleton(UIEntityType.REGION))) {
                 return true;
             }
-
             // Otherwise only return true if this is a billing family or group of billing family
             return groupInfo.getGroupType() == GroupType.BILLING_FAMILY
                     || groupInfo.getNestedGroupTypes().equals(
