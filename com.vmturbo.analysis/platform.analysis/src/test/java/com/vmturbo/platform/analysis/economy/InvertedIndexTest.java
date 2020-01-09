@@ -1,7 +1,10 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
+import com.vmturbo.commons.analysis.InvertedIndex;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -10,7 +13,7 @@ import static org.junit.Assert.assertTrue;
 
 public class InvertedIndexTest {
     final Economy economy = new Economy();
-    final InvertedIndex invertedIndex = new InvertedIndex(economy, 1);
+    final InvertedIndex<Trader, Basket> invertedIndex = new InvertedIndex(1, new InvertedIndexTranslator());
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
 
@@ -27,7 +30,7 @@ public class InvertedIndexTest {
     @Test
     public void testAddCpuGetsCpu() {
         invertedIndex.add(cpuTrader);
-        assertTrue(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(CPU_BASKET)
             .collect(Collectors.toList())
             .contains(cpuTrader));
     }
@@ -35,7 +38,7 @@ public class InvertedIndexTest {
     @Test
     public void testAddCpuDoesNotGetMem() {
         invertedIndex.add(cpuTrader);
-        assertFalse(invertedIndex.getSatisfyingTraders(MEM_BASKET)
+        assertFalse(invertedIndex.getSatisfyingSellers(MEM_BASKET)
             .collect(Collectors.toList())
             .contains(cpuTrader));
     }
@@ -43,10 +46,10 @@ public class InvertedIndexTest {
     @Test
     public void testAddCpuMemGetsCpuAndMem() {
         invertedIndex.add(cpuMemTrader);
-        assertTrue(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(CPU_BASKET)
             .collect(Collectors.toList())
             .contains(cpuMemTrader));
-        assertTrue(invertedIndex.getSatisfyingTraders(MEM_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(MEM_BASKET)
             .collect(Collectors.toList())
             .contains(cpuMemTrader));
     }
@@ -56,10 +59,10 @@ public class InvertedIndexTest {
         invertedIndex.add(cpuTrader);
         invertedIndex.add(cpuMemTrader);
 
-        assertTrue(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(CPU_BASKET)
             .collect(Collectors.toList())
             .contains(cpuTrader));
-        assertTrue(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(CPU_BASKET)
             .collect(Collectors.toList())
             .contains(cpuMemTrader));
     }
@@ -71,9 +74,9 @@ public class InvertedIndexTest {
         invertedIndex.add(memTrader1);
         invertedIndex.add(memTrader2);
 
-        assertEquals(1, invertedIndex.getSatisfyingTraders(CPU_MEM_BASKET).count());
+        assertEquals(1, invertedIndex.getSatisfyingSellers(CPU_MEM_BASKET).count());
         assertEquals(cpuMemTrader,
-            invertedIndex.getSatisfyingTraders(CPU_MEM_BASKET).findFirst().get()
+            invertedIndex.getSatisfyingSellers(CPU_MEM_BASKET).findFirst().get()
         );
     }
 
@@ -120,7 +123,7 @@ public class InvertedIndexTest {
 
     @Test
     public void testGetMinimalScanStopThreshold() {
-        final InvertedIndex invertedIndex = new InvertedIndex(economy, 12);
+        final InvertedIndex<Trader, Basket> invertedIndex = new InvertedIndex(12, new InvertedIndexTranslator());
         assertEquals(12, invertedIndex.getMinimalScanStopThreshold());
     }
 
@@ -130,7 +133,7 @@ public class InvertedIndexTest {
         invertedIndex.clear();
 
         assertTrue(invertedIndex.indexSize() == 0);
-        assertFalse(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertFalse(invertedIndex.getSatisfyingSellers(CPU_BASKET)
                 .collect(Collectors.toList())
                 .contains(cpuTrader));
     }
@@ -140,7 +143,7 @@ public class InvertedIndexTest {
         invertedIndex.add(cpuTrader);
         assertEquals(1, invertedIndex.remove(cpuTrader));
 
-        assertFalse(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertFalse(invertedIndex.getSatisfyingSellers(CPU_BASKET)
                 .collect(Collectors.toList())
                 .contains(cpuTrader));
     }
@@ -150,10 +153,10 @@ public class InvertedIndexTest {
         invertedIndex.add(cpuMemTrader);
         assertEquals(2, invertedIndex.remove(cpuMemTrader));
 
-        assertFalse(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertFalse(invertedIndex.getSatisfyingSellers(CPU_BASKET)
             .collect(Collectors.toList())
             .contains(cpuMemTrader));
-        assertFalse(invertedIndex.getSatisfyingTraders(MEM_BASKET)
+        assertFalse(invertedIndex.getSatisfyingSellers(MEM_BASKET)
             .collect(Collectors.toList())
             .contains(cpuMemTrader));
     }
@@ -165,10 +168,10 @@ public class InvertedIndexTest {
         invertedIndex.add(memTrader1);
         assertEquals(2, invertedIndex.remove(cpuMemTrader));
 
-        assertTrue(invertedIndex.getSatisfyingTraders(CPU_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(CPU_BASKET)
             .collect(Collectors.toList())
             .contains(cpuTrader));
-        assertTrue(invertedIndex.getSatisfyingTraders(MEM_BASKET)
+        assertTrue(invertedIndex.getSatisfyingSellers(MEM_BASKET)
             .collect(Collectors.toList())
             .contains(memTrader1));
     }
@@ -194,55 +197,8 @@ public class InvertedIndexTest {
         economy.addTrader(0, TraderState.ACTIVE, CPU_MEM_BASKET);
 
         assertEquals(
-            economy.getTraders(),
-            invertedIndex.getSatisfyingTraders(EMPTY_BASKET).collect(Collectors.toList())
+            Collections.EMPTY_LIST,
+            invertedIndex.getSatisfyingSellers(EMPTY_BASKET).collect(Collectors.toList())
         );
-    }
-
-    @Test
-    public void testActiveSellerLookupWithInactive() {
-        economy.addTrader(0, TraderState.INACTIVE, CPU_MEM_BASKET);
-        economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-
-        // Inactive sellers should not be included in the active sellers lookup
-        assertFalse(economy.getSellersInvertedIndex()
-            .getActiveSellerLookup()
-            .hasActiveSellers(CPU));
-    }
-
-    @Test
-    public void testActiveSellerLookupInNoMarkets() {
-        // Test that a seller not selling into any markets is not included in the active seller lookup
-        economy.addTrader(0, TraderState.ACTIVE, CPU_MEM_BASKET);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-
-        assertFalse(economy.getSellersInvertedIndex()
-            .getActiveSellerLookup()
-            .hasActiveSellers(CPU));
-    }
-
-    @Test
-    public void testActiveSellerLookupNoneSelling() {
-        // Test that no active sellers are found if no traders are selling the commodity searched for
-        economy.addTrader(0, TraderState.ACTIVE, MEM_BASKET);
-        economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-
-        assertFalse(economy.getSellersInvertedIndex()
-            .getActiveSellerLookup()
-            .hasActiveSellers(CPU));
-    }
-
-    @Test
-    public void testActiveSellerLookupSuccess() {
-        // Test that when there is an active seller, we say there is one.
-        economy.addTrader(0, TraderState.ACTIVE, CPU_BASKET);
-        economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-
-        assertTrue(economy.getSellersInvertedIndex()
-            .getActiveSellerLookup()
-            .hasActiveSellers(CPU));
     }
 }

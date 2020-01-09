@@ -20,8 +20,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
-import com.vmturbo.platform.analysis.utilities.UnmodifiableNumericIDAllocator;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.commons.analysis.UnmodifiableNumericIDAllocator;
 
 /**
  * A class representing a loaded legacy topology together with its auxiliary maps capturing

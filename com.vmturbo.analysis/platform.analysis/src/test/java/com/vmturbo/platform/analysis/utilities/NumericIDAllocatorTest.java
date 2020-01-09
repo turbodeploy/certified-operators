@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;

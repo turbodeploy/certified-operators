@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,9 +13,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.InvertedIndex.ActiveSellerLookup;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -164,15 +161,12 @@ public class PlacementResults {
      * @param shoppingLists The {@link ShoppingList}s that were unplaced due to being in a market
      *                      with no sellers.
      * @param economy The {@link Economy} being analyzed.
-     * @param activeSellerLookup A {@link ActiveSellerLookup} that can be used to find active sellers
-     *                           for a given commodity.
      */
     public void addResultsForMarketsWithNoSuppliers(@Nonnull final Trader trader,
                                                     @Nonnull final Collection<ShoppingList> shoppingLists,
-                                                    @Nonnull final Economy economy,
-                                                    @Nonnull final ActiveSellerLookup activeSellerLookup) {
+                                                    @Nonnull final Economy economy) {
         final List<QuoteTracker> trackers = shoppingLists.stream()
-            .map(sl -> quoteTrackerForMarketWithNoSupplier(sl, economy.getMarket(sl), activeSellerLookup))
+            .map(sl -> quoteTrackerForMarketWithNoSupplier(sl, economy.getMarket(sl)))
             .collect(Collectors.toList());
 
         addUnplacedTraders(trader, trackers);
@@ -184,14 +178,11 @@ public class PlacementResults {
      *
      * @param shoppingList The {@link ShoppingList} that could not be placed.
      * @param market The {@link Market} the {@link ShoppingList} is shopping in.
-     * @param activeSellerLookup A {@link ActiveSellerLookup} that can be used to find active sellers
-     *                           for a given commodity.
      * @return A {@link QuoteTracker} that can be used to explain why the {@link ShoppingList}
      *         could not be placed.
      */
     private QuoteTracker quoteTrackerForMarketWithNoSupplier(@Nonnull final ShoppingList shoppingList,
-                                                             @Nonnull final Market market,
-                                                             @Nonnull final ActiveSellerLookup activeSellerLookup) {
+                                                             @Nonnull final Market market) {
 
         // We currently can't tell what commodity or combination of commodities caused the market
         // to have no sellers. Therefore, the quote tracker will track all the commodities in this

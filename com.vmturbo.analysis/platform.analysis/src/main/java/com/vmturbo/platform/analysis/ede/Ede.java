@@ -24,12 +24,10 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
-import com.vmturbo.platform.analysis.economy.InvertedIndex.ActiveSellerLookup;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
@@ -552,11 +550,8 @@ public final class Ede {
             .map(reconfigure -> reconfigure.getTarget())
             .collect(Collectors.groupingBy(ShoppingList::getBuyer));
 
-        // The active seller lookup is used to identify traders in markets with no active sellers.
-        final ActiveSellerLookup activeSellerLookup = economy.getSellersInvertedIndex()
-            .getActiveSellerLookup();
         shoppingListsForMarketsWithNoSellers.forEach((trader, shoppingLists) ->
             placementResults.addResultsForMarketsWithNoSuppliers(
-                trader, shoppingLists, economy, activeSellerLookup));
+                trader, shoppingLists, economy));
     }
 }

@@ -18,10 +18,10 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public class BasketTest {
     // Fields
-    private static final CommoditySpecification A = new CommoditySpecification(0);
-    private static final CommoditySpecification B = new CommoditySpecification(0,1000);
-    private static final CommoditySpecification C = new CommoditySpecification(1,1001);
-    private static final CommoditySpecification D = new CommoditySpecification(2,1002);
+    private static final CommoditySpecification A1 = new CommoditySpecification(0);
+    private static final CommoditySpecification A2 = new CommoditySpecification(0,1000);
+    private static final CommoditySpecification B = new CommoditySpecification(1,1001);
+    private static final CommoditySpecification C = new CommoditySpecification(2,1002);
 
     // Methods
 
@@ -40,21 +40,21 @@ public class BasketTest {
     }
 
     // CommSpecs will be sorted when creating a new basket.
-    // CommSpecs are sorted by type, then by qualityLowerBound, then by qualityUpperBound.
-    // So this test passes (even if output is shown as different order for test case {{B,A}, {A,B}}).
+    // CommSpecs are sorted by type, then by qualityLowerBounB, then by qualityUpperBound.
+    // So this test passes (even if output is shown as different order for test case {{A2,A1}, {A1,A2}}).
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestIterator() {
         return new CommoditySpecification[][][]{
             {{}, {}},
-            {{A}, {A}},
-            {{B}, {B}},
-            {{A,A}, {A}},
+            {{A1}, {A1}},
+            {{A2}, {A2}},
+            {{A1,A1}, {A1}},
             // since it is only type that we care about, A, B is just treated as A
-            {{A,B}, {A}},
-            {{B,A}, {B}},
-            {{B,B}, {B}},
-            {{A,B,B}, {A}},
-            {{A,B,C}, {A, C}}
+            {{A1,A2}, {A1}},
+            {{A2,A1}, {A2}},
+            {{A2,A2}, {A2}},
+            {{A1,A2,A2}, {A1}},
+            {{A1,A2,B}, {A1, B}}
         };
     }
 
@@ -86,16 +86,16 @@ public class BasketTest {
     private static Object[] parametersForTestReverseIterator() {
         return new CommoditySpecification[][][]{
             {{}, {}},
-            {{A}, {A}},
-            {{B}, {B}},
-            {{A,A}, {A}},
-            {{A,B}, {A}},
-            {{B,A}, {B}},
-            {{B,B}, {B}},
-            {{A,B,B}, {B}},
+            {{A1}, {A1}},
+            {{A2}, {A2}},
+            {{A1,A1}, {A1}},
+            {{A1,A2}, {A1}},
+            {{A2,A1}, {A2}},
+            {{A2,A2}, {A2}},
+            {{A1,A2,A2}, {A2}},
             // doesnt matter if we replace B by A
-            {{A,B,B,C}, {C,A}},
-            {{A,B,B,C,D}, {D,C,A}},
+            {{A1,A2,A2,B}, {B,A1}},
+            {{A1,A2,A2,B,C}, {C,B,A1}},
         };
     }
 
@@ -110,15 +110,15 @@ public class BasketTest {
     private static Object[] parametersForTestSize() {
         return new Object[][]{
             {new CommoditySpecification[]{}, 0},
-            {new CommoditySpecification[]{A}, 1},
-            {new CommoditySpecification[]{B}, 1},
-            {new CommoditySpecification[]{A,A}, 1},
-            {new CommoditySpecification[]{A,B}, 1},
-            {new CommoditySpecification[]{B,A}, 1},
-            {new CommoditySpecification[]{B,B}, 1},
-            {new CommoditySpecification[]{A,B,B}, 1},
-            {new CommoditySpecification[]{A,B,B,B}, 1},
-            {new CommoditySpecification[]{A,B,B,C}, 2}
+            {new CommoditySpecification[]{A1}, 1},
+            {new CommoditySpecification[]{A2}, 1},
+            {new CommoditySpecification[]{A1,A1}, 1},
+            {new CommoditySpecification[]{A1,A2}, 1},
+            {new CommoditySpecification[]{A2,A1}, 1},
+            {new CommoditySpecification[]{A2,A2}, 1},
+            {new CommoditySpecification[]{A1,A2,A2}, 1},
+            {new CommoditySpecification[]{A1,A2,A2,A2}, 1},
+            {new CommoditySpecification[]{A1,A2,A2,B}, 2}
         };
     }
 
@@ -133,14 +133,14 @@ public class BasketTest {
     private static Object[] parametersForTestIsEmpty() {
         return new Object[][]{
             {new CommoditySpecification[]{}, true},
-            {new CommoditySpecification[]{A}, false},
-            {new CommoditySpecification[]{B}, false},
-            {new CommoditySpecification[]{A,A}, false},
-            {new CommoditySpecification[]{A,B}, false},
-            {new CommoditySpecification[]{B,A}, false},
-            {new CommoditySpecification[]{B,B}, false},
-            {new CommoditySpecification[]{A,B,B}, false},
-            {new CommoditySpecification[]{A,B,B,B}, false}
+            {new CommoditySpecification[]{A1}, false},
+            {new CommoditySpecification[]{A2}, false},
+            {new CommoditySpecification[]{A1,A1}, false},
+            {new CommoditySpecification[]{A1,A2}, false},
+            {new CommoditySpecification[]{A2,A1}, false},
+            {new CommoditySpecification[]{A2,A2}, false},
+            {new CommoditySpecification[]{A1,A2,A2}, false},
+            {new CommoditySpecification[]{A1,A2,A2,A2}, false}
         };
     }
 
@@ -154,11 +154,11 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGet_NormalInput() {
         return new Object[][]{
-            {new Basket(A), 0, A},
-            {new Basket(B), 0, B},
-            {new Basket(A,B), 0, A},
-            {new Basket(A,B,C), 0, A},
-            {new Basket(A,B,C), 1, C}
+            {new Basket(A1), 0, A1},
+            {new Basket(A2), 0, A2},
+            {new Basket(A1,A2), 0, A1},
+            {new Basket(A1,A2,C), 0, A1},
+            {new Basket(A1,A2,C), 1, C}
         };
     }
 
@@ -175,16 +175,16 @@ public class BasketTest {
             {new Basket(), -1},
             {new Basket(), 0},
             {new Basket(), 1},
-            {new Basket(A), -1},
-            {new Basket(B), 1},
-            {new Basket(A,B), -1},
-            {new Basket(A,B), 1},
-            {new Basket(A,B), 2},
-            {new Basket(A,B,B), -1},
-            {new Basket(A,B,B), -100},
-            {new Basket(A,B,B), 1},
-            {new Basket(A,B,B), 3},
-            {new Basket(A,B,B), 100}
+            {new Basket(A1), -1},
+            {new Basket(A2), 1},
+            {new Basket(A1,A2), -1},
+            {new Basket(A1,A2), 1},
+            {new Basket(A1,A2), 2},
+            {new Basket(A1,A2,A2), -1},
+            {new Basket(A1,A2,A2), -100},
+            {new Basket(A1,A2,A2), 1},
+            {new Basket(A1,A2,A2), 3},
+            {new Basket(A1,A2,A2), 100}
         };
     }
 
@@ -198,18 +198,18 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestIndexOf() {
         return new Object[][]{
-            {new Basket(), A, -1},
-            {new Basket(), B, -1},
-            {new Basket(A), A, 0},
-            {new Basket(A), B, 0},
-            {new Basket(B), A, 0},
-            {new Basket(B), B, 0},
-            {new Basket(A,B), B, 0},
-            {new Basket(A,B), A, 0},
-            {new Basket(A,B,B), D, -1},
-            {new Basket(A,B,B), A, 0},
-            {new Basket(A,B,B), B, 0},
-            {new Basket(A,B,C), C, 1},
+            {new Basket(), A1, -1},
+            {new Basket(), A2, -1},
+            {new Basket(A1), A1, 0},
+            {new Basket(A1), A2, 0},
+            {new Basket(A2), A1, 0},
+            {new Basket(A2), A2, 0},
+            {new Basket(A1,A2), A2, 0},
+            {new Basket(A1,A2), A1, 0},
+            {new Basket(A1,A2,A2), B, -1},
+            {new Basket(A1,A2,A2), A1, 0},
+            {new Basket(A1,A2,A2), A2, 0},
+            {new Basket(A1,A2,C), C, 1},
         };
     }
 
@@ -230,18 +230,18 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestContains() {
         return new Object[][]{
-            {new Basket(), A, false},
-            {new Basket(), B, false},
-            {new Basket(A), A, true},
+            {new Basket(), A1, false},
+            {new Basket(), A2, false},
+            {new Basket(A1), A1, true},
             // the next 2 conditions are true. Even though B has a different baseType, A and B match because of same type
-            {new Basket(A), B, true},
-            {new Basket(B), A, true},
-            {new Basket(B), B, true},
-            {new Basket(A,B), B, true},
-            {new Basket(A,B), A, true},
-            {new Basket(A,B,B), D, false},
-            {new Basket(A,B,B), A, true},
-            {new Basket(A,B,B), B, true}
+            {new Basket(A1), A2, true},
+            {new Basket(A2), A1, true},
+            {new Basket(A2), A2, true},
+            {new Basket(A1,A2), A2, true},
+            {new Basket(A1,A2), A1, true},
+            {new Basket(A1,A2,A2), B, false},
+            {new Basket(A1,A2,A2), A1, true},
+            {new Basket(A1,A2,A2), A2, true}
         };
     }
 
@@ -255,13 +255,13 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestAdd() {
         return new Object[][]{
-            {new Basket(), A, new Basket(A)},
-            {new Basket(), B, new Basket(B)},
-            {new Basket(A), A, new Basket(A)},
-            {new Basket(A), B, new Basket(A,B)},
-            {new Basket(A,B), B, new Basket(A,B,B)},
-            {new Basket(A,B), A, new Basket(A,B)},
-            {new Basket(A,B), B, new Basket(A,B)},
+            {new Basket(), A1, new Basket(A1)},
+            {new Basket(), A2, new Basket(A2)},
+            {new Basket(A1), A1, new Basket(A1)},
+            {new Basket(A1), A2, new Basket(A1,A2)},
+            {new Basket(A1,A2), A2, new Basket(A1,A2,A2)},
+            {new Basket(A1,A2), A1, new Basket(A1,A2)},
+            {new Basket(A1,A2), A2, new Basket(A1,A2)},
         };
     }
 
@@ -275,14 +275,14 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestRemove() {
         return new Object[][]{
-            {new Basket(), A, new Basket()},
-            {new Basket(), B, new Basket()},
-            {new Basket(A), A, new Basket()},
-            {new Basket(A), B, new Basket()},
-            {new Basket(A,B), B, new Basket()},
-            {new Basket(A,B), A, new Basket()},
-            {new Basket(A,B), C, new Basket(A)},
-            {new Basket(A,B,C), C, new Basket(A)}
+            {new Basket(), A1, new Basket()},
+            {new Basket(), A2, new Basket()},
+            {new Basket(A1), A1, new Basket()},
+            {new Basket(A1), A2, new Basket()},
+            {new Basket(A1,A2), A2, new Basket()},
+            {new Basket(A1,A2), A1, new Basket()},
+            {new Basket(A1,A2), C, new Basket(A1)},
+            {new Basket(A1,A2,C), C, new Basket(A1)}
         };
     }
 
@@ -296,19 +296,19 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestIsSatisfiedBy() {
         return new Object[][]{
-            {new Basket(A), new Basket(A), true},
-            {new Basket(B), new Basket(B), true},
-            {new Basket(A), new Basket(B), true},
-            {new Basket(B), new Basket(A), true},
-            {new Basket(A,B,C), new Basket(A,B,C), true},
-            {new Basket(A,B,C), new Basket(A,B,C,C), true},
-            {new Basket(A,C), new Basket(A,B,C,C), true},
-            {new Basket(B,C), new Basket(A,B,C,C), true},
-            {new Basket(C,C), new Basket(A,B,C,C), true},
-            {new Basket(A,C), new Basket(B,C,C), true},
-            {new Basket(C,A), new Basket(B,C,C), true},
-            {new Basket(A,C), new Basket(C,C), false},
-            {new Basket(C,A), new Basket(C,C), false},
+            {new Basket(A1), new Basket(A1), true},
+            {new Basket(A2), new Basket(A2), true},
+            {new Basket(A1), new Basket(A2), true},
+            {new Basket(A2), new Basket(A1), true},
+            {new Basket(A1,A2,C), new Basket(A1,A2,C), true},
+            {new Basket(A1,A2,C), new Basket(A1,A2,C,C), true},
+            {new Basket(A1,C), new Basket(A1,A2,C,C), true},
+            {new Basket(A2,C), new Basket(A1,A2,C,C), true},
+            {new Basket(C,C), new Basket(A1,A2,C,C), true},
+            {new Basket(A1,C), new Basket(A2,C,C), true},
+            {new Basket(C,A1), new Basket(A2,C,C), true},
+            {new Basket(A1,C), new Basket(C,C), false},
+            {new Basket(C,A1), new Basket(C,C), false},
         };
     }
 
@@ -324,34 +324,34 @@ public class BasketTest {
         return new Object[][]{
             // length 0 common prefix
             {new Basket(), new Basket(), 0},
-            {new Basket(), new Basket(C), -1},
-            {new Basket(C), new Basket(), 1},
-            {new Basket(C), new Basket(C), 0},
-            {new Basket(C), new Basket(C,D), -1},
-            {new Basket(C,D), new Basket(C), 1},
-            {new Basket(C,D), new Basket(C,D), 0},
-            // length 1 common prefix
-            {new Basket(B), new Basket(B), 0},
+            {new Basket(), new Basket(B), -1},
+            {new Basket(B), new Basket(), 1},
+            {new Basket(B), new Basket(C), -1},
             {new Basket(B), new Basket(B,C), -1},
             {new Basket(B,C), new Basket(B), 1},
             {new Basket(B,C), new Basket(B,C), 0},
-            {new Basket(B,C), new Basket(B,C,D), -1},
-            {new Basket(B,C,D), new Basket(B,C), 1},
-            {new Basket(B,C,D), new Basket(B,C,D), 0},
+            // length 1 common prefix
+            {new Basket(A2), new Basket(A2), 0},
+            {new Basket(A2), new Basket(A2,B), -1},
+            {new Basket(A2,B), new Basket(A2), 1},
+            {new Basket(A2,B), new Basket(A2,B), 0},
+            {new Basket(A2,B), new Basket(A2,B,C), -1},
+            {new Basket(A2,B,C), new Basket(A2,C), -1},
+            {new Basket(A2,B,C), new Basket(A2,B,C), 0},
 
             // length 2 common prefix
-            {new Basket(B,B), new Basket(B,B), 0},
-            {new Basket(B,B), new Basket(B,B,C), -1},
-            {new Basket(B,B,C), new Basket(B,B), 1},
+            {new Basket(A2,A2), new Basket(A2,A2), 0},
+            {new Basket(A2,A2), new Basket(A2,A2,B), -1},
+            {new Basket(A2,A2,B), new Basket(A2,A2), 1},
 
-            {new Basket(B,B,C), new Basket(B,B,C,D), -1},
-            {new Basket(B,B,C,D), new Basket(B,B,C), 1},
-            {new Basket(B,B,C,D), new Basket(B,B,C,D), 0},
+            {new Basket(A2,A2,B), new Basket(A2,A2,B,C), -1},
+            {new Basket(A2,A2,B,C), new Basket(A2,A2,B), 1},
+            {new Basket(A2,A2,B,C), new Basket(A2,A2,B,C), 0},
 
-            {new Basket(B,B,C), new Basket(B,B,C), 0},
-            {new Basket(B,B,C), new Basket(B,B,C,D), -1},
-            {new Basket(B,B,C,D), new Basket(B,B,C), 1},
-            {new Basket(B,B,C,D), new Basket(B,B,C,D), 0}
+            {new Basket(A2,A2,C), new Basket(A2,A2,C), 0},
+            {new Basket(A2,A2,C), new Basket(A2,A2,B,C), 1},
+            {new Basket(A2,A2,B,C), new Basket(A2,A2,C), -1},
+            {new Basket(A2,A2,B,C), new Basket(A2,A2,B,C), 0}
         };
     }
 
@@ -364,7 +364,7 @@ public class BasketTest {
     @Test
     public void testEqualsDifferentSizeBaskets() {
         Basket b1 = new Basket();
-        Basket b2 = new Basket(A);
+        Basket b2 = new Basket(A1);
 
         assertNotEquals(b1, b2);
         assertNotEquals(b2, b1);
@@ -372,8 +372,8 @@ public class BasketTest {
 
     @Test
     public void testEqualBasketsAreEqual() {
-        Basket b1 = new Basket(A);
-        Basket b2 = new Basket(A);
+        Basket b1 = new Basket(A1);
+        Basket b2 = new Basket(A1);
 
         assertEquals(b1, b2);
         assertEquals(b2, b1);
@@ -381,8 +381,8 @@ public class BasketTest {
 
     @Test
     public void testEqualTypeAndUnequalBaseTypeAreEqual() {
-        Basket b1 = new Basket(A);
-        Basket b2 = new Basket(B);
+        Basket b1 = new Basket(A1);
+        Basket b2 = new Basket(A2);
 
         assertEquals(b1, b2);
         assertEquals(b2, b1);
@@ -390,7 +390,7 @@ public class BasketTest {
 
     @Test
     public void testUnequalBasketCommoditiesAreUnequal() {
-        Basket b1 = new Basket(A);
+        Basket b1 = new Basket(A1);
         Basket b2 = new Basket(C);
 
         assertNotEquals(b1, b2);
@@ -399,9 +399,7 @@ public class BasketTest {
 
     @Test
     public void testUnequalTypeAreUnequal() {
-        Basket b = new Basket(A);
-
-        assertNotEquals(b, A);
+        assertNotEquals(A1, B);
     }
 
     @Test
@@ -416,10 +414,10 @@ public class BasketTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestHashCode() {
         return new Object[][] {
-            {new Basket(A), new Basket(A), true},
-            {new Basket(A), new Basket(B), true},
-            {new Basket(A, B), new Basket(B), true},
-            {new Basket(A), new Basket(D), false}
+            {new Basket(A1), new Basket(A1), true},
+            {new Basket(A1), new Basket(A2), true},
+            {new Basket(A1, A2), new Basket(A2), true},
+            {new Basket(A1), new Basket(B), false}
         };
     }
 

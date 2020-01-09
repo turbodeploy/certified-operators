@@ -27,6 +27,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 
+import com.vmturbo.commons.analysis.InvertedIndex;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -112,7 +113,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // 32 is chosen as a stop threshold because when that scanning a list of 32 traders
     // for satisfiability may be faster than scanning all commodities in a basket for very large baskets.
     // The number is not scientifically chosen but works well in practice.
-    private final @NonNull InvertedIndex sellersInvertedIndex_ = new InvertedIndex(this, 32);
+    private final @NonNull InvertedIndex<Trader, Basket> sellersInvertedIndex_ =
+            new InvertedIndex(32, new InvertedIndexTranslator());
 
     private final @NonNull Set<@NonNull CommoditySpecification> commsToAdjustOverhead_ = new HashSet<>();
 
@@ -288,7 +290,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @param market for which sellers are to be populated
      */
     public void populateMarketWithSellers(Market market) {
-        sellersInvertedIndex_.getSatisfyingTraders(market.getBasket()).forEach(
+        sellersInvertedIndex_.getSatisfyingSellers(market.getBasket()).forEach(
                 seller -> market.addSeller((TraderWithSettings) seller)
         );
     }
@@ -1003,15 +1005,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
     public Set<CommoditySpecification> getCommsToAdjustOverhead() {
         return commsToAdjustOverhead_;
-    }
-
-    /**
-     * Get the inverted index that maps sellers to markets.
-     *
-     * @return the inverted index that maps sellers to markets.
-     */
-    public InvertedIndex getSellersInvertedIndex() {
-        return sellersInvertedIndex_;
     }
 
     /**
