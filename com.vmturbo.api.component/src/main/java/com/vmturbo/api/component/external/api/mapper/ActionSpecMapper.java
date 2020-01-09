@@ -1200,6 +1200,14 @@ public class ActionSpecMapper {
             // The UI sometimes checks the validity of the "currentEntity.uuid" field,
             // which throws an error if current entity is unset.
             actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
+            //We need to add a newEntity field for RI buy to complete pending_action csv file.
+            ServiceEntityApiDTO newEntity = new ServiceEntityApiDTO();
+            newEntity.setUuid(riApiDTO.getTemplate().getUuid());
+            newEntity.setDisplayName(riApiDTO.getTemplate().getDisplayName());
+            actionApiDTO.setNewEntity(newEntity);
+            actionApiDTO.setResizeToValue(
+                    String.format("Buy %d %s", riApiDTO.getInstanceCount(), riApiDTO.getTemplate().getDisplayName())
+            );
         } catch (NotFoundMatchPaymentOptionException e) {
             logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
         } catch (NotFoundMatchTenancyException e) {
