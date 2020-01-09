@@ -208,6 +208,7 @@ public class CloudDiscoveryConverter {
             EntityProfileDTO profileDTO = this.profileDTOsById.get(entityDTO.getProfileId());
             if (profileDTO != null && profileDTO.hasVmProfileDTO()) {
                 final String diskType = profileDTO.getVmProfileDTO().getInstanceDiskType().toString();
+                final int diskSize = profileDTO.getVmProfileDTO().getInstanceDiskSize();
                 final Optional<String> zone = entityDTO.getCommoditiesBoughtList().stream()
                         .filter(c -> c.getProviderType() == EntityType.PHYSICAL_MACHINE)
                         .map(c -> c.getProviderId())
@@ -221,6 +222,7 @@ public class CloudDiscoveryConverter {
                         volume.setDisplayName(id);
                         volume.setMonitored(false);
                         volume.getVirtualVolumeDataBuilder().setIsEphemeral(true);
+                        volume.getVirtualVolumeDataBuilder().setStorageAmountCapacity(diskSize);
                     });
                 }
             }
@@ -324,7 +326,8 @@ public class CloudDiscoveryConverter {
      * @param entityProfileDTO the EntityProfileDTO which needs to be converted to ComputeTier
      * @return ComputeTier EntityDTO created from the given profile dto
      */
-    private void createEntityDTOFromProfile(EntityProfileDTO entityProfileDTO) {
+    @VisibleForTesting
+    void createEntityDTOFromProfile(EntityProfileDTO entityProfileDTO) {
         String profileId = entityProfileDTO.getId();
         EntityDTO.Builder builder = EntityDTO.newBuilder();
         builder.setId(profileId);
