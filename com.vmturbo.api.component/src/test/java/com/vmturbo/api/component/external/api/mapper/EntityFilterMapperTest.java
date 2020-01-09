@@ -23,6 +23,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -36,8 +37,10 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * This class tests the functionality of {@link EntityFilterMapper} class.
@@ -683,5 +686,55 @@ public class EntityFilterMapperTest {
         final SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(0, byName.getSearchFilterCount());
+    }
+
+    /**
+     * Test that the group filter processor creates the correct group membership filter
+     * (positive match case).
+     */
+    @Test
+    public void testGroupFilterProcessorPositive() {
+        final List<FilterApiDTO> criteriaList = Collections.singletonList(
+            filterDTO(EntityFilterMapper.EQUAL, "asdf", "volumeByResourceGroup"));
+        final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
+            criteriaList, UIEntityType.VIRTUAL_VOLUME.apiStr(), null);
+        assertEquals(1, result.size());
+        final SearchParameters params = result.get(0);
+
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME),
+            params.getStartingFilter());
+        assertEquals(1, params.getSearchFilterCount());
+        final GroupMembershipFilter memFilter = params.getSearchFilter(0).getGroupMembershipFilter();
+        assertEquals(GroupType.RESOURCE, memFilter.getGroupType());
+        assertEquals(SearchableProperties.OID, memFilter.getGroupSpecifier().getPropertyName());
+        final StringFilter specifierStringFilter = memFilter.getGroupSpecifier().getStringFilter();
+        assertEquals(1, specifierStringFilter.getOptionsCount());
+        assertEquals("asdf", specifierStringFilter.getOptions(0));
+        assertTrue(specifierStringFilter.getPositiveMatch());
+    }
+
+    /**
+     * Test that the group filter processor creates the correct group membership filter
+     * (negative match case).
+     */
+    @Test
+    public void testGroupFilterProcessorNegative() {
+        final List<FilterApiDTO> criteriaList = Collections.singletonList(
+            filterDTO(EntityFilterMapper.NOT_EQUAL, "asdf", "databaseServerByResourceGroupUuid"));
+        final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
+            criteriaList, UIEntityType.DATABASE_SERVER.apiStr(), null);
+        assertEquals(1, result.size());
+        final SearchParameters params = result.get(0);
+
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.DATABASE_SERVER),
+            params.getStartingFilter());
+        assertEquals(1, params.getSearchFilterCount());
+        final GroupMembershipFilter memFilter = params.getSearchFilter(0).getGroupMembershipFilter();
+        assertEquals(GroupType.RESOURCE, memFilter.getGroupType());
+        assertEquals(SearchableProperties.OID, memFilter.getGroupSpecifier().getPropertyName());
+        final StringFilter specifierStringFilter = memFilter.getGroupSpecifier().getStringFilter();
+        assertEquals(1, specifierStringFilter.getOptionsCount());
+        assertEquals("asdf", specifierStringFilter.getOptions(0));
+        assertFalse(specifierStringFilter.getPositiveMatch());
     }
 }

@@ -1132,7 +1132,7 @@ public class SearchServiceTest {
                 groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList()))
                 .thenReturn(Arrays.asList(resourceGroup1, resourceGroup2));
         final List<CriteriaOptionApiDTO> result1 =
-                searchService.getCriteriaOptions(EntityFilterMapper.RESROUCE_GROUP_OID, null, null,
+                searchService.getCriteriaOptions(EntityFilterMapper.RESOURCE_GROUP_OID, null, null,
                         null);
         Assert.assertEquals(2, result1.size());
         Assert.assertEquals("Ravenclaw", result1.get(0).getDisplayName());

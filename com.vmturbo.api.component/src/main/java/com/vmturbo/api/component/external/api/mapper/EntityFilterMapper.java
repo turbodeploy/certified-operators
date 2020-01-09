@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -70,7 +69,7 @@ public class EntityFilterMapper {
     // matches that inside "groupBuilderUseCases.json".
     public static final String ACCOUNT_OID = "BusinessAccount:oid:OWNS:1";
     /** Key of the criteria to query resource groups by ids. */
-    public static final String RESROUCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
+    public static final String RESOURCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
     public static final String STATE = "state";
     public static final String NETWORKS = "networks";
     public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
@@ -78,6 +77,7 @@ public class EntityFilterMapper {
     public static final String VOLUME_ATTACHMENT_STATE_FILTER_PATH = SearchableProperties.VOLUME_REPO_DTO +
         "." + SearchableProperties.VOLUME_ATTACHMENT_STATE;
     public static final String REGION_FILTER_PATH = "Region:oid:AGGREGATES:VirtualVolume";
+    private static final String UUID_TOKEN = "uuid";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
@@ -216,28 +216,24 @@ public class EntityFilterMapper {
 
     @Nonnull
     private static List<SearchFilter> getGroupFilterProcessor(@Nonnull SearchFilterContext context) {
-        final GroupType groupType =
-                GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(context.currentToken);
+        final String groupTypeToken = context.getCurrentToken().equals(MEMBER_OF) ?
+            context.getIterator().next() : context.getCurrentToken();
+        final GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(groupTypeToken);
         if (groupType == null) {
-            throw new IllegalArgumentException(
-                    "Unknown group type for search filter " + context.getFilter().getExpType());
+            throw new IllegalArgumentException("Unknown group type " + groupTypeToken);
         }
-        final PropertyFilter.Builder propertyFilter;
-        if (context.exactMatching) {
-            final Collection<String> oids =
-                    Arrays.asList(context.getFilter().getExpVal().split("\\|"));
-            propertyFilter = PropertyFilter.newBuilder()
-                    .setStringFilter(SearchProtoUtil.stringFilterExact(oids, true, true));
-        } else {
-            propertyFilter = PropertyFilter.newBuilder()
-                    .setStringFilter(
-                            SearchProtoUtil.stringFilterRegex(context.getFilter().getExpVal(), true,
-                                    true));
-        }
-        final String propertyName = context.getIterator().next();
-        propertyFilter.setPropertyName(propertyName);
+        final FilterApiDTO filter = context.getFilter();
+        final boolean isPositiveMatch = isPositiveMatchingOperator(filter.getExpType());
+        final String propertyName = translateToken(context.getIterator().next());
+        final PropertyFilter groupSpecifier = context.isExactMatching() ?
+                SearchProtoUtil.stringPropertyFilterExact(propertyName,
+                    Arrays.asList(filter.getExpVal().split("\\|")), isPositiveMatch,
+                    filter.getCaseSensitive()) :
+                SearchProtoUtil.stringPropertyFilterRegex(propertyName, filter.getExpVal(),
+                    isPositiveMatch, filter.getCaseSensitive());
+
         final GroupMembershipFilter clusterFilter = GroupMembershipFilter.newBuilder()
-                .setGroupSpecifier(propertyFilter)
+                .setGroupSpecifier(groupSpecifier)
                 .setGroupType(groupType).build();
         return Collections.singletonList(searchFilterCluster(clusterFilter));
     }
@@ -740,6 +736,10 @@ public class EntityFilterMapper {
 
     public static boolean isPositiveMatchingOperator(@Nonnull String operator) {
         return operator.equals(REGEX_MATCH) || operator.equals(EQUAL);
+    }
+
+    private static String translateToken(@Nonnull final String token) {
+        return token.equals(UUID_TOKEN) ? SearchableProperties.OID : token;
     }
 
     /**
