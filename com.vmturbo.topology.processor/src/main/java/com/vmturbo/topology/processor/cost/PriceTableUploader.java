@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -593,53 +594,46 @@ public class PriceTableUploader implements Diagnosable {
     @Override
     public Stream<String> collectDiagsStream() throws DiagnosticsException {
         synchronized (sourcePriceTableByTargetId) {
-            final JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
-            Map<Collection<PricingIdentifier>, PricingDTO.PriceTable> priceTableToKeyMap = new HashMap<>();
+            final JsonFormat.Printer printer =
+                    JsonFormat.printer().omittingInsignificantWhitespace();
+            Map<Collection<PricingIdentifier>, PricingDTO.PriceTable> priceTableToKeyMap =
+                    new HashMap<>();
             sourcePriceTableByTargetId.values()
-            .forEach(priceTable -> priceTableToKeyMap .putIfAbsent(priceTable.getPriceTableKeysList(), priceTable));
+                    .forEach(priceTable -> priceTableToKeyMap.putIfAbsent(
+                            priceTable.getPriceTableKeysList(), priceTable));
 
-            ObjectMapper mapper = new ObjectMapper();
-            try {
-                Stream<String> streamOfPriceTableKeyToData = priceTableToKeyMap.entrySet().stream().map(pricingData -> {
-                    final Collection<PricingIdentifier> pricingIdentifiers = pricingData.getKey();
-                    final PricingDTO.PriceTable priceTable = pricingData.getValue();
-                    try {
-                        return Stream.of(mapper.writeValueAsString(pricingIdentifiers), printer.print(priceTable));
-                    } catch (InvalidProtocolBufferException ex) {
-                        throw new ProtoDtoPrintError("Error mapping targetId " + pricingIdentifiers +
-                                " priceTable " + priceTable, ex);
-                    } catch (JsonProcessingException e) {
-                        throw new ProtoDtoPrintError("Error while creating Json priceTableKeys.", e);
-                    }
-                }).flatMap(Function.identity());
-                final Stream<String> streamOfTargetIdToPriceKey = sourcePriceTableByTargetId.entrySet().stream()
-                        .map(probeTypePriceTableEntry -> {
-                            final long targetId = probeTypePriceTableEntry.getKey();
-                            final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
-                            try {
-                                return Stream.of(String.valueOf(targetId),
-                                        mapper.writeValueAsString(priceTable.getPriceTableKeysList()));
-
-                            } catch (JsonProcessingException ex) {
-                                throw new ProtoDtoPrintError("Error while creating Json priceTableKeys." +
-                                        " priceTable " + priceTable, ex);
-                            }
-                        })
-                        .flatMap(Function.identity());
-                return Stream.concat(Stream.concat(streamOfTargetIdToPriceKey,
-                        Stream.of(END_OF_TARGET_ID_MAPPINGS)), streamOfPriceTableKeyToData);
-            } catch (ProtoDtoPrintError e) {
-                throw new DiagnosticsException(e);
+            final ObjectMapper mapper = new ObjectMapper();
+            final List<String> diagnostics = new ArrayList<>();
+            for (Entry<Long, PricingDTO.PriceTable> probeTypePriceTableEntry : sourcePriceTableByTargetId
+                    .entrySet()) {
+                final long targetId = probeTypePriceTableEntry.getKey();
+                final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
+                try {
+                    diagnostics.add(String.valueOf(targetId));
+                    diagnostics.add(mapper.writeValueAsString(priceTable.getPriceTableKeysList()));
+                } catch (JsonProcessingException ex) {
+                    throw new DiagnosticsException(
+                            "Error while creating Json priceTableKeys." + " priceTable " +
+                                    priceTable, ex);
+                }
             }
-        }
-    }
-
-    /**
-     * Private unchecked exception used to break out of the 'collectDiagsStream()' lambda above.
-     */
-    private static class ProtoDtoPrintError extends RuntimeException {
-        private ProtoDtoPrintError(String reason, Throwable t) {
-            super(reason, t);
+            diagnostics.add(END_OF_TARGET_ID_MAPPINGS);
+            for (Entry<Collection<PricingIdentifier>, PricingDTO.PriceTable> pricingData : priceTableToKeyMap
+                    .entrySet()) {
+                final Collection<PricingIdentifier> pricingIdentifiers = pricingData.getKey();
+                final PricingDTO.PriceTable priceTable = pricingData.getValue();
+                try {
+                    diagnostics.add(mapper.writeValueAsString(pricingIdentifiers));
+                    diagnostics.add(printer.print(priceTable));
+                } catch (InvalidProtocolBufferException ex) {
+                    throw new DiagnosticsException(
+                            "Error mapping targetId " + pricingIdentifiers + " priceTable " +
+                                    priceTable, ex);
+                } catch (JsonProcessingException e) {
+                    throw new DiagnosticsException("Error while creating Json priceTableKeys.", e);
+                }
+            }
+            return diagnostics.stream();
         }
     }
 
