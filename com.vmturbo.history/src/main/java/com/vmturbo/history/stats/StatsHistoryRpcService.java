@@ -857,7 +857,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onNext(beforePlanStatSnapshotResponseBuilder.build());
 
             afterPlanStatSnapshotResponseBuilder.setSnapshotDate(planEndTime);
-            beforePlanStatSnapshotResponseBuilder.setStatEpoch(StatEpoch.PLAN_PROJECTED);
+            afterPlanStatSnapshotResponseBuilder.setStatEpoch(StatEpoch.PLAN_PROJECTED);
             responseObserver.onNext(afterPlanStatSnapshotResponseBuilder.build());
 
             responseObserver.onCompleted();
