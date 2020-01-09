@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,7 +14,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -183,11 +183,11 @@ public class EnvironmentTypeInjector {
      * discovered by a probe that can be considered as 'application or container' (CLOUD_NATIVE,
      * GUEST_OS_PROCESSES, etc.). Some providers (other entities) of this target entity may have
      * different env. types, and it influences on the target entity env. type.
-     * - If all env. types of all providers are the same (providersEnvTypes.size()==1), this env.
+     * - If all env. types of all leaf providers are the same (leafProvidersTypes.size()==1), this env.
      *   type goes to the target entity;
-     * - If the set 'providersEnvTypes' contains HYBRID env. type, it means that target entity
+     * - If the set 'leafProvidersTypes' contains HYBRID env. type, it means that target entity
      *   has HYBRID type as well;
-     * - If the set 'providersEnvTypes' contains both ON_PREM and CLOUD types, it means that target
+     * - If the set 'leafProvidersTypes' contains both ON_PREM and CLOUD types, it means that target
      *   entity has HYBRID env. type.
      * @param entity - target entity
      * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
@@ -196,37 +196,36 @@ public class EnvironmentTypeInjector {
     @Nonnull
     private EnvironmentType computeEnvironmentTypeByProviders(@Nonnull TopologyEntity entity,
                                                               @Nonnull Set<Long> cloudTargetIds) {
-        final Set<EnvironmentType> providersEnvTypes = getProvidersTypes(entity, cloudTargetIds);
-        switch (providersEnvTypes.size()) {
-            case 1:
-                return providersEnvTypes.iterator().next();
-            default:
-                if (providersEnvTypes.contains(EnvironmentType.HYBRID) ||
-                        (providersEnvTypes.contains(EnvironmentType.ON_PREM) &&
-                                providersEnvTypes.contains(EnvironmentType.CLOUD))) {
-                    return EnvironmentType.HYBRID;
-                }
+        Set<EnvironmentType> leafProvidersTypes = new HashSet<>();
+        getLeafProvidersTypes(entity, cloudTargetIds, leafProvidersTypes);
+        if (leafProvidersTypes.size() == 1) {
+            return leafProvidersTypes.iterator().next();
+        }
+        if (leafProvidersTypes.contains(EnvironmentType.HYBRID) ||
+                (leafProvidersTypes.contains(EnvironmentType.ON_PREM) &&
+                        leafProvidersTypes.contains(EnvironmentType.CLOUD))) {
+            return EnvironmentType.HYBRID;
         }
         return EnvironmentType.UNKNOWN_ENV;
     }
 
     /**
-     * The method populates all environment types from all entity providers to a set.
+     * The method populates environment types from all leaf providers of an entity to a set.
      *
      * @param entity         - target entity.
      * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
-     * @return a set of entity types.
+     * @param types          - a set of environment types for leaf providers
      */
-    @Nonnull
-    private Set<EnvironmentType> getProvidersTypes(@Nonnull TopologyEntity entity,
-                                                   @Nonnull Set<Long> cloudTargetIds) {
-        Set<EnvironmentType> types = Sets.newHashSet(
-                entity.getProviders().stream()
-                        .flatMap(p -> getProvidersTypes(p, cloudTargetIds).stream())
-                        .collect(Collectors.toSet())
-        );
-        types.add(getEnvironmentType(entity, cloudTargetIds));
-        return types;
+    private void getLeafProvidersTypes(@Nonnull TopologyEntity entity,
+                                       @Nonnull Set<Long> cloudTargetIds,
+                                       @Nonnull Set<EnvironmentType> types) {
+        if (entity.getProviders().size() == 0) {
+            types.add(getEnvironmentType(entity, cloudTargetIds));
+            return;
+        }
+        for (TopologyEntity p : entity.getProviders()) {
+            getLeafProvidersTypes(p, cloudTargetIds, types);
+        }
     }
 
     /**
