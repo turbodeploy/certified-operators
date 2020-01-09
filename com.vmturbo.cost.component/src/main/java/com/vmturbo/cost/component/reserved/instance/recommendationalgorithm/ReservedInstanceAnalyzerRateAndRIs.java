@@ -512,14 +512,16 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     void populateReservedInstanceSpecKeyMap(ReservedInstanceSpecStore store) {
         Map<ReservedInstanceSpecKey, ReservedInstanceSpec> map = new HashMap<>();
         for (ReservedInstanceSpec spec: store.getAllReservedInstanceSpec()) {
-            OSType osType = spec.getReservedInstanceSpecInfo().getOs();
-            Tenancy tenancy = spec.getReservedInstanceSpecInfo().getTenancy();
-            long regionId = spec.getReservedInstanceSpecInfo().getRegionId();
-            long tierId = spec.getReservedInstanceSpecInfo().getTierId();
+            final ReservedInstanceSpecInfo specInfo = spec.getReservedInstanceSpecInfo();
             ReservedInstancePurchaseConstraints constraints =
                 new  ReservedInstancePurchaseConstraints(spec.getReservedInstanceSpecInfo().getType());
-            ReservedInstanceSpecKey key = new ReservedInstanceSpecKey(regionId, tierId, osType,
-                tenancy, constraints);
+            ReservedInstanceSpecKey key = new ReservedInstanceSpecKey(
+                    specInfo.getRegionId(),
+                    specInfo.getTierId(),
+                    specInfo.getOs(),
+                    specInfo.getTenancy(),
+                    specInfo.getSizeFlexible(),
+                    constraints);
             if (map.get(key) == null) {
                 map.put(key, spec);
             } else {
@@ -593,6 +595,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         private final long computeTierId;
         private final OSType osType;
         private final Tenancy tenancy;
+        private final boolean isSizeFlexible;
         private final ReservedInstancePurchaseConstraints constraints;
 
         /**
@@ -602,17 +605,20 @@ public class ReservedInstanceAnalyzerRateAndRIs {
          * @param computeTierId compute tier
          * @param osType platform
          * @param tenancy tenancy
+         * @param isSizeFlexible  indicates whether the RI is size flexible within a family
          * @param constraints purchase constraints
          */
         public ReservedInstanceSpecKey(long regionId,
                                        long computeTierId,
                                        OSType osType,
                                        Tenancy tenancy,
+                                       boolean isSizeFlexible,
                                        ReservedInstancePurchaseConstraints constraints) {
             this.regionId = regionId;
             this.computeTierId = computeTierId;
             this.osType = osType;
             this.tenancy = tenancy;
+            this.isSizeFlexible = isSizeFlexible;
             this.constraints = constraints;
         }
 
@@ -628,6 +634,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             this.computeTierId = context.getComputeTier().getOid();
             this.osType = context.getPlatform();
             this.tenancy = context.getTenancy();
+            this.isSizeFlexible = context.isInstanceSizeFlexible();
             this.constraints = constraints;
         }
 
@@ -658,9 +665,10 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             }
             ReservedInstanceSpecKey key = (ReservedInstanceSpecKey)object;
             if (this.regionId == key.getRegionId() &&
-                this.computeTierId == key.getComputeTierId() &&
-                this.osType == key.getOsType() &&
-                this.tenancy == key.getTenancy() &&
+                    this.computeTierId == key.getComputeTierId() &&
+                    this.osType == key.getOsType() &&
+                    this.tenancy == key.getTenancy() &&
+                    this.isSizeFlexible == key.isSizeFlexible &&
                 this.constraints.equals(key.getConstraints())) {
                 return true;
             } else {
@@ -670,8 +678,12 @@ public class ReservedInstanceAnalyzerRateAndRIs {
 
         @Override
         public int hashCode() {
-            return Objects.hash(regionId, computeTierId, osType.ordinal(), tenancy.ordinal(),
-                constraints.hashCode());
+            return Objects.hash(regionId,
+                    computeTierId,
+                    osType.ordinal(),
+                    tenancy.ordinal(),
+                    isSizeFlexible,
+                    constraints.hashCode());
         }
 
         @Override

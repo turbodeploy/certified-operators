@@ -72,8 +72,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
 
     @Override
     public boolean isInstanceSizeFlexible() {
-        return platform == OSType.LINUX &&
-            (tenancy == Tenancy.DEFAULT || tenancy == Tenancy.DEDICATED);
+        return platform == OSType.LINUX && tenancy == Tenancy.DEFAULT;
     }
 
     @Override

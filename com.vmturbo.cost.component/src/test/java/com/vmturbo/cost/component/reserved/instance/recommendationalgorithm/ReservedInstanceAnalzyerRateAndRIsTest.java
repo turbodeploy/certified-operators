@@ -115,6 +115,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
+            true,
             ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
         int hashCode = key.hashCode();
         int hashCode1 = ReservedInstanceAnalyzerConstantsTest.RI_SPEC_KEY_1.hashCode();

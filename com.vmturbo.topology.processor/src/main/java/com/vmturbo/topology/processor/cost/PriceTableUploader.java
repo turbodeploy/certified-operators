@@ -557,6 +557,7 @@ public class PriceTableUploader implements Diagnosable {
                         .setOs(sourceRiSpec.getOs())
                         .setTenancy(sourceRiSpec.getTenancy())
                         .setType(sourceRiSpec.getType())
+                        .setSizeFlexible(sourceRiSpec.getSizeFlexible())
                         .build();
                 // does this already exist? If so, log a warning
                 if (riPricesBySpec.containsKey(riSpecInfo)) {
