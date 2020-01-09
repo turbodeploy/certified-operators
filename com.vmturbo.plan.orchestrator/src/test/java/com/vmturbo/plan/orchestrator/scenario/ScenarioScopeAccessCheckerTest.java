@@ -1,12 +1,15 @@
 package com.vmturbo.plan.orchestrator.scenario;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -16,6 +19,8 @@ import org.junit.Test;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -29,6 +34,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  *
@@ -119,6 +125,44 @@ public class ScenarioScopeAccessCheckerTest {
                 .build();
         // this should trigger an grpc exception
         scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
+    }
+
+    /**
+     * Tests that Billing Family scope is correctly resolved by
+     *  scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo).
+     */
+    @Test
+    public void testScenarioInfoBillingFamilyScopeResolution() {
+        PlanScope planScope = PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                .setClassName(StringConstants.BILLING_FAMILY)
+                                .setScopeObjectOid(1))
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                         .setClassName(StringConstants.BILLING_FAMILY)
+                         .setScopeObjectOid(2))
+                        .build();
+        final ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
+                .setScope(planScope)
+                .build();
+
+        //groups is a group of 2 Billing Families that are part of the scenario scopes.
+        final List<Long> scopeGroupIds = new ArrayList<>();
+        scopeGroupIds.add(1L);
+        scopeGroupIds.add(2L);
+        final List<Grouping> groups = new ArrayList<>();
+        groups.add(Grouping.newBuilder().setId(1L).build());
+        groups.add(Grouping.newBuilder().setId(2L).build());
+
+        // This test mimics code called by scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo)
+        // to compare the number of Billing Families in the plan scenario to the number of resolved groups .
+        when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
+                                        .setGroupFilter(GroupFilter.newBuilder()
+                                                        .addAllId(scopeGroupIds))
+                                        .build())).thenReturn(groups);
+        assertEquals(scenarioInfo.getScope().getScopeEntriesCount(), groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
+                                                        .setGroupFilter(GroupFilter.newBuilder()
+                                                                        .addAllId(scopeGroupIds))
+                                                        .build()).size());
     }
 
     /**

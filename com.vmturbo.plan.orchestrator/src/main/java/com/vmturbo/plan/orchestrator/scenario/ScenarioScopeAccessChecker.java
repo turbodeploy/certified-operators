@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.scenario;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -33,7 +34,8 @@ public class ScenarioScopeAccessChecker {
     // the set of group class types that may appear in a scenario scope.
     static private final Set<String> GROUP_SCOPE_ENTRY_TYPES = ImmutableSet.of(StringConstants.GROUP,
             StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
-            StringConstants.VIRTUAL_MACHINE_CLUSTER, StringConstants.RESOURCE_GROUP);
+            StringConstants.VIRTUAL_MACHINE_CLUSTER, StringConstants.RESOURCE_GROUP,
+            StringConstants.BILLING_FAMILY);
 
     private final UserSessionContext userSessionContext;
     private final GroupServiceBlockingStub groupServiceClient;
@@ -68,9 +70,12 @@ public class ScenarioScopeAccessChecker {
         final EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         final Set<Long> scopeGroupIds = new HashSet<>();
         final Set<Long> scopeEntityIds = new HashSet<>();
+        List<Long> groupMembers =  Collections.EMPTY_LIST;
         for (PlanScopeEntry scopeEntry : scenarioInfo.getScope().getScopeEntriesList()) {
             if (GROUP_SCOPE_ENTRY_TYPES.contains(scopeEntry.getClassName())) {
                 // if it's a group type, add it to the list of groups to expand and check.
+                // If Cloud Billing Family scope, add to scopeGroupIds as well, as internally this is
+                // a group of business accounts and will be treated as such.
                 scopeGroupIds.add(scopeEntry.getScopeObjectOid());
             } else {
                 // this is an entity -- check directly
