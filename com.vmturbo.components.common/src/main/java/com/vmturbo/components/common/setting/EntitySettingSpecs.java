@@ -39,8 +39,21 @@ public enum EntitySettingSpecs {
      */
     Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
+                    EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Move action automation mode for business user.
+     */
+    BusinessUserMove("businessUserMove", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToRecommend(), true),
+
+    /**
+     * Storage Move action automation mode.
+     */
+    StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize action automation mode.
@@ -170,13 +183,6 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Storage Move action automation mode.
-     */
-    StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-
     /**
      * CPU utilization threshold.
      */
@@ -862,10 +868,11 @@ public enum EntitySettingSpecs {
         ImmutableSet.of(
             EntitySettingSpecs.Activate.name,
             EntitySettingSpecs.Move.name,
+            EntitySettingSpecs.BusinessUserMove.name,
+            EntitySettingSpecs.StorageMove.name,
             EntitySettingSpecs.Provision.name,
             EntitySettingSpecs.Reconfigure.name,
             EntitySettingSpecs.Resize.name,
-            EntitySettingSpecs.StorageMove.name,
             EntitySettingSpecs.Suspend.name,
             EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
             EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,

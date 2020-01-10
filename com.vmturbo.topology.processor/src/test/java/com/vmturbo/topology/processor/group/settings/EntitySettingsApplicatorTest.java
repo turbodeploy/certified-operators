@@ -116,6 +116,12 @@ public class EntitySettingsApplicatorTest {
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
                     .build();
 
+    private static final Setting BUSINESS_USER_MOVE_RECOMMEND_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.BusinessUserMove.getSettingName())
+            .setEnumSettingValue(
+                    EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+            .build();
+
     private static final Setting MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
@@ -503,6 +509,22 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+    }
+
+    /**
+     * Test application of {@link EntitySettingSpecs#BusinessUserMove}.
+     */
+    @Test
+    public void testMoveBusinessUserSettingApplication() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.BUSINESS_USER_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE)
+                        .setMovable(false));
+        applySettings(TOPOLOGY_INFO, entity, BUSINESS_USER_MOVE_RECOMMEND_SETTING);
+        Assert.assertEquals(1, entity.getCommoditiesBoughtFromProvidersCount());
+        Assert.assertTrue(entity.getCommoditiesBoughtFromProviders(0).getMovable());
     }
 
     @Test

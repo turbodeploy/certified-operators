@@ -55,8 +55,11 @@ public final class TopologyDTOUtil {
             EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
             EntityType.DATABASE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE);
 
-    public static final Set<Integer> STORAGE_VALUES = ImmutableSet.of(EntityType.STORAGE_VALUE,
-            EntityType.STORAGE_TIER_VALUE);
+    /**
+     * Storage types.
+     */
+    public static final Set<EntityType> STORAGE_TYPES =
+            ImmutableSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER);
 
     private TopologyDTOUtil() {
     }
@@ -234,7 +237,7 @@ public final class TopologyDTOUtil {
      * entity type. false otherwise.
      */
     public static boolean isStorageEntityType(int entityType) {
-        return STORAGE_VALUES.contains(entityType);
+        return STORAGE_TYPES.contains(EntityType.forNumber(entityType));
     }
 
     /**

@@ -3,10 +3,14 @@ package com.vmturbo.topology.processor.group.settings;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -14,21 +18,19 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -45,7 +47,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 
 /**
  * The {@link EntitySettingsApplicator} is responsible for applying resolved settings
- * to a {@link TopologyGraph <TopologyEntity>}.
+ * to a {@link TopologyGraph<TopologyEntity>}.
  *
  * It's separated from {@link EntitySettingsResolver} (which resolves settings) for clarity, and ease
  * of tracking, debugging, and measuring. It's separated from {@link GraphWithSettings} (even
@@ -63,6 +65,7 @@ public class EntitySettingsApplicator {
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
      * contained in it.
      *
+     * @param topologyInfo the {@link TopologyInfo}
      * @param graphWithSettings A {@link TopologyGraph<TopologyEntity>} and the settings that apply to it.
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
@@ -104,7 +107,10 @@ public class EntitySettingsApplicator {
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
-                new StorageMoveApplicator(),
+                new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.StorageMove,
+                        TopologyDTOUtil.STORAGE_TYPES),
+                new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.BusinessUserMove,
+                        Collections.singleton(EntityType.DESKTOP_POOL)),
                 new DeleteApplicator(),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.IoThroughput,
                         CommodityType.IO_THROUGHPUT),
@@ -185,11 +191,11 @@ public class EntitySettingsApplicator {
             return setting;
         }
 
-        protected abstract void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Setting setting);
+        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                @Nonnull Setting setting);
 
         @Override
-        public void apply(@Nonnull Builder entity,
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                 @Nonnull Map<EntitySettingSpecs, Setting> settings) {
             final Setting settingObject = settings.get(setting);
             if (settingObject != null) {
@@ -209,94 +215,138 @@ public class EntitySettingsApplicator {
          * @param entity entity to apply settings to
          * @param settings settings to apply
          */
-        void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Map<EntitySettingSpecs, Setting> settings);
+        void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                @Nonnull Map<EntitySettingSpecs, Setting> settings);
     }
 
     /**
-     * Applies the "move" setting to a {@link TopologyEntityDTO.Builder}. In particular,
-     * if it is VM and the "move" is disabled, set the commodities purchased from a host to non-movable.
-     * If it is storage and the "move" is disabled, set the all commodities bought to non-movable.
+     * Abstract applicator for {@link CommoditiesBoughtFromProvider#hasMovable()}.
      */
-    private static class MoveApplicator extends SingleSettingApplicator {
+    private abstract static class AbstractMoveApplicator extends SingleSettingApplicator {
+
+        protected AbstractMoveApplicator(@Nonnull EntitySettingSpecs setting) {
+            super(setting);
+        }
+
+        @Override
+        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+            final boolean isMoveEnabled =
+                    getEntitySettingSpecs().getValue(setting, ActionMode.class) !=
+                            ActionMode.DISABLED;
+            apply(entity, isMoveEnabled);
+        }
+
+        /**
+         * Applies setting to the specified entity.
+         *
+         * @param entity the {@link TopologyEntityDTO.Builder}
+         * @param isMoveEnabled {@code true} if the {@link ActionMode} setting
+         * is not {@link ActionMode#DISABLED}, otherwise {@code false}
+         */
+        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                boolean isMoveEnabled);
+
+        /**
+         * Apply the movable flag to the commodities of the entity which satisfies the provided
+         * override condition.
+         *
+         * @param entity to apply the setting
+         * @param movable is movable or not
+         * @param predicate condition function which the commodity should apply the movable or not.
+         */
+        protected static void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
+                boolean movable,
+                @Nonnull Predicate<CommoditiesBoughtFromProvider.Builder> predicate) {
+            entity.getCommoditiesBoughtFromProvidersBuilderList()
+                    .stream()
+                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
+                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
+                    .filter(predicate)
+                    .forEach(c -> c.setMovable(movable));
+        }
+    }
+
+    /**
+     * Applicator for {@link CommoditiesBoughtFromProvider#hasMovable()}
+     * for {@link CommoditiesBoughtFromProvider#getProviderEntityType()}
+     * with a specific {@link EntityType}.
+     */
+    private static class MoveCommoditiesFromProviderTypesApplicator extends AbstractMoveApplicator {
+
+        private Set<EntityType> providerTypes;
+
+        private MoveCommoditiesFromProviderTypesApplicator(@Nonnull EntitySettingSpecs setting,
+                @Nonnull Set<EntityType> providerTypes) {
+            super(setting);
+            this.providerTypes = providerTypes;
+        }
+
+        @Override
+        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, boolean isMoveEnabled) {
+            applyMovableToCommodities(entity, isMoveEnabled,
+                    c -> providerTypes.contains(EntityType.forNumber(c.getProviderEntityType())));
+        }
+    }
+
+    /**
+     * Applies the "move" setting to a {@link TopologyEntityDTO.Builder}. In particular, if it is
+     * virtual machine and the "move" is disabled, set the commodities purchased from a host to
+     * non-movable. If it is storage and the "move" is disabled, set the all commodities bought to
+     * non-movable.
+     */
+    private static class MoveApplicator extends AbstractMoveApplicator {
 
         private final GraphWithSettings graphWithSettings;
+        private final Map<EntityType, BiConsumer<TopologyEntityDTO.Builder, Boolean>> specialCases;
 
         private MoveApplicator(@Nonnull final GraphWithSettings graphWithSettings) {
             super(EntitySettingSpecs.Move);
             this.graphWithSettings = Objects.requireNonNull(graphWithSettings);
+            this.specialCases = new HashMap<>();
+            this.specialCases.put(EntityType.VIRTUAL_VOLUME, this::applyVirtualVolumeMove);
+            this.specialCases.put(EntityType.VIRTUAL_MACHINE, (virtualMachine, isMoveEnabled) -> {
+                applyMovableToCommodities(virtualMachine, isMoveEnabled,
+                        c -> c.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE);
+            });
         }
 
         @Override
-        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
-            final boolean movable = !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
-
-            // for VV, move action should apply to its associated VM's ST commodity
-            if (EntityType.VIRTUAL_VOLUME_VALUE == entity.getEntityType()) {
-                logger.debug("Entity Type is VirtualVolume.  Setting will be applied to its VM");
-                List<TopologyEntityDTO.Builder> vmEntityList = getConnectedVMForVV(entity, graphWithSettings);
-                if (!vmEntityList.isEmpty()) {
-                    vmEntityList.stream().forEach(vmEntity ->
-                        // VM may have more than one VV with the same ST.  Only apply to the one with the associated VV
-                        applyMovableToCommodities(vmEntity, movable,
-                            commBought -> commBought.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE &&
-                                          commBought.getVolumeId() == entity.getOid())
-                    );
-                } else {
-                    logger.debug("Unattached Virtual Volume {}. No move settings applied", entity.getOid());
-                }
-            } else {
-                applyMovableToCommodities(entity, movable, commBought -> shouldOverrideMovable(commBought, entity.getEntityType()));
-            }
+        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, boolean isMoveEnabled) {
+            this.specialCases.getOrDefault(EntityType.forNumber(entity.getEntityType()),
+                    (e, s) -> applyMovableToCommodities(e, s, c -> true))
+                    .accept(entity, isMoveEnabled);
         }
 
-        /**
-         * Apply the movable flag to the commodity(s) of the entity
-         *    which satisfies the provided override condition.
-         *
-         * @param entity to apply the setting
-         * @param movable is movable or not
-         * @param commodityOverrideMovable condition function which the commodity should apply the movable or not.
-         */
-        private static void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
-                                                      boolean movable,
-                                                      @Nonnull Predicate<CommoditiesBoughtFromProvider.Builder> commodityOverrideMovable) {
-            entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
-                // Only disable moves for placed entities (i.e. those that have providers).
-                // Doesn't make sense to disable them for unplaced ones.
-                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
-                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                // The "move" setting controls vm moves between hosts and storage moves between its
-                // providers(disk array, logical pool). We want to set the VM group of commodities
-                // bought from hosts (physical machines) to non-movable and Storage group of
-                // commodities bought from its providers to non-movable.
-                .filter(commBought -> commodityOverrideMovable.apply(commBought))
-                .forEach(commBought -> commBought.setMovable(movable));
-        }
-
-
-        /**
-         * Find the VM(s) which contains the VV provided.
-         *
-         * @param vvEntityDto Virtual Volume which requires to lookup for VM which connected to it
-         * @param graphWithSettings {@link GraphWithSettings} topology graph with settings; Used to lookup the VM in the graph
-         * @return VM(s) which contains VV.  Empty list for unattached volume.
-         */
-        @Nonnull
-        private static List<TopologyEntityDTO.Builder> getConnectedVMForVV(@Nonnull final TopologyEntityDTO.Builder vvEntityDto,
-                                                                           @Nonnull final GraphWithSettings graphWithSettings) {
-            final TopologyGraph<TopologyEntity> topologyGraph = graphWithSettings.getTopologyGraph();
-            final Optional<TopologyEntity> vvEntityOpt = topologyGraph.getEntity(vvEntityDto.getOid());
-
-            if (vvEntityOpt.isPresent()) {
-                return vvEntityOpt.get().getInboundAssociatedEntities().stream()
-                    .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .collect(Collectors.toList());
+        private void applyVirtualVolumeMove(TopologyEntityDTO.Builder virtualVolume,
+                Boolean isMoveEnabled) {
+            logger.debug(
+                    "Setting will be applied to virtual machines connected to virtual volume {}",
+                    virtualVolume::getOid);
+            final Collection<TopologyEntityDTO.Builder> connectedVirtualMachines =
+                    this.graphWithSettings.getTopologyGraph()
+                            .getEntity(virtualVolume.getOid())
+                            .map(vv -> vv.getInboundAssociatedEntities()
+                                    .stream()
+                                    .filter(connectedEntity -> connectedEntity.getEntityType() ==
+                                            EntityType.VIRTUAL_MACHINE_VALUE)
+                                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                                    .collect(Collectors.toList()))
+                            .orElseGet(() -> {
+                                logger.error(
+                                        "Topology graph does not contain virtual volume with id {}",
+                                        virtualVolume.getOid());
+                                return Collections.emptyList();
+                            });
+            if (connectedVirtualMachines.isEmpty()) {
+                logger.debug("Unattached virtual volume {}. No move settings applied",
+                        virtualVolume::getOid);
             } else {
-                logger.error("Cannot find virtual volume {} from topologyGraph", vvEntityDto.getOid());
-                return Collections.emptyList();
+                connectedVirtualMachines.forEach(vm ->
+                        // Virtual machine may have more than one virtual volume with the same storage tier.
+                        // Only apply to the one with the associated virtual volume.
+                        applyMovableToCommodities(vm, isMoveEnabled,
+                                c -> c.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE &&
+                                        c.getVolumeId() == virtualVolume.getOid()));
             }
         }
     }
@@ -312,7 +362,7 @@ public class EntitySettingsApplicator {
         // a flag to indicate if the shop together should be set to false based on action settings
         private final boolean disableShopTogether;
 
-        public VMShopTogetherApplicator(TopologyInfo topologyInfo) {
+        private VMShopTogetherApplicator(TopologyInfo topologyInfo) {
             super();
             // In case of initial placement, the template VM shop together should always be true
              // regardless of action settings.
@@ -321,7 +371,8 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(Builder entity, Map<EntitySettingSpecs, Setting> settings) {
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                @Nonnull Map<EntitySettingSpecs, Setting> settings) {
             if (!disableShopTogether && entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
                     && settings.containsKey(EntitySettingSpecs.Move)
                     && settings.containsKey(EntitySettingSpecs.StorageMove)) {
@@ -359,54 +410,6 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * For move setting, it supports both VM and Storage entities. For VM entity, it only controls
-     * moves between hosts, because moves between storage is controlled by storage setting.
-     *
-     * @param commoditiesBought {@link CommoditiesBoughtFromProvider} of the entity.
-     * @param entityType entity type.
-     * @return a boolean, true means should override movable for this commodity bought, false
-     *         should not override movable for this commodity bought.
-     */
-    private static boolean shouldOverrideMovable(
-            @Nonnull final CommoditiesBoughtFromProvider.Builder commoditiesBought,
-            final int entityType) {
-        if (EntitySettingSpecs.Move.getEntityTypeScope().contains(EntityType.forNumber(entityType))) {
-            if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
-                // if it is a VM entity, only override movable for hosts providers. Because Storage move
-                // is controlled by StorageMoveApplicator.
-                return commoditiesBought.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
-            }
-            return true;
-        } else {
-            logger.debug("Not overriding entity type {} for Move setting.", entityType);
-            return false;
-        }
-    }
-
-    /**
-     * Applies the "storage move" setting to a {@link TopologyEntityDTO.Builder}. In particular,
-     * if the "move" is disabled, set the commodities purchased from a storage to non-movable.
-     */
-    static class StorageMoveApplicator extends SingleSettingApplicator {
-
-        private StorageMoveApplicator() {
-            super(EntitySettingSpecs.StorageMove);
-        }
-
-        @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
-            final boolean movable = !setting.getEnumSettingValue().getValue().equals("DISABLED");
-            entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                    .filter(commBought -> TopologyDTOUtil.isStorageEntityType(
-                            commBought.getProviderEntityType()))
-                    .forEach(commBought -> commBought.setMovable(movable));
-        }
-    }
-
-    /**
      * Applies the "suspend" setting to a {@link TopologyEntityDTO.Builder}.
      */
     private static class SuspendApplicator extends SingleSettingApplicator {
@@ -420,7 +423,8 @@ public class EntitySettingsApplicator {
                           @Nonnull final Setting setting) {
             // when setting value is DISABLED, set suspendable to false,
             // otherwise keep the original value which could be set during converting SDK entityDTO.
-            if (setting.getEnumSettingValue().getValue().equals("DISABLED")) {
+            if (getEntitySettingSpecs().getValue(setting, ActionMode.class) ==
+                    ActionMode.DISABLED) {
                 entity.getAnalysisSettingsBuilder().setSuspendable(false);
             }
         }
@@ -435,9 +439,10 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull final Builder entity,
-                             @Nonnull final Setting setting) {
-            if (ActionMode.DISABLED.name().equals(setting.getEnumSettingValue().getValue())) {
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                @Nonnull final Setting setting) {
+            if (getEntitySettingSpecs().getValue(setting, ActionMode.class) ==
+                    ActionMode.DISABLED) {
                 entity.getAnalysisSettingsBuilder().setDeletable(false);
             }
         }
@@ -454,9 +459,10 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
-            entity.getAnalysisSettingsBuilder().setCloneable(
-                    !setting.getEnumSettingValue().getValue().equals("DISABLED"));
+                @Nonnull final Setting setting) {
+            entity.getAnalysisSettingsBuilder()
+                    .setCloneable(getEntitySettingSpecs().getValue(setting, ActionMode.class) !=
+                            ActionMode.DISABLED);
         }
     }
 
@@ -473,7 +479,8 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
             final boolean resizeable =
-                    !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
+                    getEntitySettingSpecs().getValue(setting, ActionMode.class) !=
+                            ActionMode.DISABLED;
             entity.getCommoditySoldListBuilderList()
                     .forEach(commSoldBuilder -> {
                         /* We shouldn't change isResizable if it comes as false from a probe side.
@@ -505,7 +512,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
             for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
@@ -658,7 +665,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE ||
                     entity.getEntityType() == EntityType.STORAGE_VALUE) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
@@ -723,7 +730,7 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
             final EntityType entityType = EntityType.forNumber(entity.getEntityType());
             if (entityType != null &&
                     getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
@@ -733,7 +740,8 @@ public class EntitySettingsApplicator {
             }
         }
 
-        protected abstract void apply(@Nonnull Builder entity, double resizeTargetUtilization);
+        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                double resizeTargetUtilization);
 
         @Nonnull
         CommodityType getCommodityType() {
@@ -755,7 +763,8 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull Builder entity, double resizeTargetUtilization) {
+        protected void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                double resizeTargetUtilization) {
             entity.getCommoditySoldListBuilderList()
                     .stream()
                     .filter(commodity -> commodity.getCommodityType().getType() ==
@@ -783,7 +792,8 @@ public class EntitySettingsApplicator {
         }
 
         @Override
-        protected void apply(@Nonnull Builder entity, double resizeTargetUtilization) {
+        protected void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                double resizeTargetUtilization) {
             entity.getCommoditiesBoughtFromProvidersBuilderList()
                     .stream()
                     .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
