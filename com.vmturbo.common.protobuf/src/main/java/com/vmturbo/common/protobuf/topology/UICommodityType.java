@@ -2,11 +2,9 @@ package com.vmturbo.common.protobuf.topology;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.CaseFormat;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
-import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -261,16 +259,20 @@ public enum UICommodityType {
      */
     private static final BiMap<Integer, UICommodityType> COMM_TYPE_MAPPINGS;
     private static final BiMap<String, UICommodityType> COMM_STR_MAPPINGS;
+    private static final BiMap<String, UICommodityType> COMM_STR_ALL_LOWER_CASE_MAPPINGS;
 
     static {
         ImmutableBiMap.Builder<Integer, UICommodityType> commTypeMappingBldr = new ImmutableBiMap.Builder<>();
         ImmutableBiMap.Builder<String, UICommodityType> commStrMappingBldr = new ImmutableBiMap.Builder<>();
+        ImmutableBiMap.Builder<String, UICommodityType> commStrAllLowerCaseMappingBldr = new ImmutableBiMap.Builder<>();
         for (UICommodityType type : UICommodityType.values()) {
             commTypeMappingBldr.put(type.typeNumber(), type);
             commStrMappingBldr.put(type.apiStr(), type);
+            commStrAllLowerCaseMappingBldr.put(type.apiStr.toLowerCase(), type);
         }
         COMM_TYPE_MAPPINGS = commTypeMappingBldr.build();
         COMM_STR_MAPPINGS = commStrMappingBldr.build();
+        COMM_STR_ALL_LOWER_CASE_MAPPINGS = commStrAllLowerCaseMappingBldr.build();
     }
 
     /**
@@ -300,5 +302,15 @@ public enum UICommodityType {
     @Nonnull
     public static UICommodityType fromString(@Nonnull final String type) {
         return COMM_STR_MAPPINGS.getOrDefault(type, UICommodityType.UNKNOWN);
+    }
+
+    /**
+     * Ignoring case, converts type from a string to the enum type.
+     * @param type string representation of service entity type
+     * @return UI entity type enum
+     */
+    @Nonnull
+    public static UICommodityType fromStringIgnoreCase(@Nonnull final String type) {
+        return COMM_STR_ALL_LOWER_CASE_MAPPINGS.getOrDefault(type.toLowerCase(), UICommodityType.UNKNOWN);
     }
 }

@@ -15,16 +15,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -327,7 +327,8 @@ public class StatsMapper {
      * @return a new instance of {@link StatApiDTO} initialized from given protobuf.
      */
     @Nonnull
-    private StatApiDTO toStatApiDto(StatRecord statRecord) {
+    @VisibleForTesting
+    protected StatApiDTO toStatApiDto(StatRecord statRecord) {
         // for some records, we want to convert the units before returning them
         // in particular, data transfer records may be coming in Byte/sec (or multiples)
         // but we want to send them in bit/sec (or multiples)
@@ -336,9 +337,23 @@ public class StatsMapper {
         final StatApiDTO statApiDTO = new StatApiDTO();
         if (convertedStatRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             // The UI requires the name for both before and after plan values to be the same.
-            // Remove the prefix "current".  e.g. currentNumVMs => numVMs
-            statApiDTO.setName(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL,
-                    convertedStatRecord.getName().substring(StringConstants.STAT_PREFIX_CURRENT.length())));
+            // Remove the prefix "current" (This is added to plan source aggregated stats)
+            // Check if a UICommodityType can be matched, otherwise just return camelCaseFormat
+
+            final String removedCurrentPrefix =
+                    convertedStatRecord
+                            .getName()
+                            .substring(StringConstants.STAT_PREFIX_CURRENT.length());
+
+            UICommodityType commodityType = UICommodityType.fromStringIgnoreCase(removedCurrentPrefix);
+            if (commodityType.equals(UICommodityType.UNKNOWN)) {
+                 //Things that can be unknown include {@link StatsMapper.METRIC_NAMES}.
+                 //i.e. numCPU, numHosts
+                statApiDTO.setName(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL, removedCurrentPrefix));
+            } else {
+                statApiDTO.setName(commodityType.apiStr()); //Match to commodityType was found
+            }
+
         } else {
             statApiDTO.setName(convertedStatRecord.getName());
         }

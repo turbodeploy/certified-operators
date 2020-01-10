@@ -25,14 +25,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
@@ -800,6 +801,44 @@ public class StatsMapperTest {
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(1, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> CollectionUtils.isEmpty(statApiDTO.getFilters())));
+    }
+
+    /**
+     * Tests {@link StatRecord} name matched to UICommodityType.
+     *
+     * <p>Name has STAT_PREFIX_CURRENT in the front, these are plan_source aggregated stats</p>
+     */
+    @Test
+    public void testToStatApiDtoMappingStatsWithCurrentPrefixToCorrectUICommodityType() {
+        //GIVEN
+        StatRecord record = makeStatRecordBuilder(0, "", RelationType.COMMODITIES.getLiteral())
+                .setName(StringConstants.STAT_PREFIX_CURRENT.concat(UICommodityType.STORAGE_AMOUNT.apiStr()))
+                .build();
+
+        //WHEN
+        StatApiDTO dto = this.statsMapper.toStatApiDto(record);
+
+        //THEN
+        assertEquals(dto.getName(), UICommodityType.STORAGE_AMOUNT.apiStr());
+    }
+
+    /**
+     * Tests {@link StatRecord} name not matched to CommodityType.
+     *
+     * <p>Name has STAT_PREFIX_CURRENT in the front, these are plan_source aggregated stats</p>
+     */
+    @Test
+    public void testToStatApiDtoMappingStatsWithCurrentPrefixButNotUICommodityType() {
+        //GIVEN
+        StatRecord record = makeStatRecordBuilder(0, "", RelationType.COMMODITIES.getLiteral())
+                .setName(StringConstants.STAT_PREFIX_CURRENT.concat(StringConstants.NUM_CPUS))
+                .build();
+
+        //WHEN
+        StatApiDTO dto = this.statsMapper.toStatApiDto(record);
+
+        //THEN
+        assertEquals(dto.getName(), StringConstants.NUM_CPUS);
     }
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(@Nullable CostCategory costCategory, float value, Optional<Long> associatedEntityId) {

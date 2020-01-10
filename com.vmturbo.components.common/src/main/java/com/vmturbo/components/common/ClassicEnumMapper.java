@@ -5,15 +5,13 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 
 /**
@@ -260,15 +258,30 @@ public class ClassicEnumMapper {
             return COMMODITY_TYPE_UNITS_MAP.get(mixedCaseName);
         }
 
+        /**
+         * Match commodityType string to Enum ignoring case.
+         *
+         * @param commodityType Used to match against Enums available
+         * @return Matched {@link CommodityTypeUnits} if matched or else null
+         */
+        public static CommodityTypeUnits fromStringIgnoreCase(String commodityType) {
+            return COMMODITY_TYPE_UNITS_MAP_LOWER_CASE.get(commodityType.toLowerCase());
+        }
+
         private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP;
+        private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
 
         static {
             ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilder =
                     new ImmutableMap.Builder<>();
+            ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilderLowerCase =
+                    new ImmutableMap.Builder<>();
             for (CommodityTypeUnits t : CommodityTypeUnits.values()) {
                 commodityTypeMapBuilder.put(t.getMixedCase(), t);
+                commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t);
             }
             COMMODITY_TYPE_UNITS_MAP = commodityTypeMapBuilder.build();
+            COMMODITY_TYPE_UNITS_MAP_LOWER_CASE = commodityTypeMapBuilderLowerCase.build();
         }
     }
 

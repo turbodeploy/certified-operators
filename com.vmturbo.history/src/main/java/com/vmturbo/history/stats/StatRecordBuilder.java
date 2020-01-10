@@ -156,6 +156,19 @@ public interface StatRecordBuilder {
             CommodityTypeUnits commodityType = CommodityTypeUnits.fromString(propertyType);
             if (commodityType != null) {
                 statRecordBuilder.setUnits(commodityType.getUnits());
+            } else if (propertyType.startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
+
+                //Plan aggregated source stats have "current" prefix attached
+                //We need to remove this prefix and do case insensitive match for CommodityTypeUnits
+                //No matches occurs for metrics, {@link StatsMapper.METRIC_NAMES}, i.e numVMs
+
+                final String removedCurrentPrefix =
+                        propertyType.substring(StringConstants.STAT_PREFIX_CURRENT.length());
+                commodityType = CommodityTypeUnits.fromStringIgnoreCase(removedCurrentPrefix);
+                if (commodityType != null) {
+                    statRecordBuilder.setUnits(commodityType.getUnits());
+                }
+
             }
 
             // values, used, peak
