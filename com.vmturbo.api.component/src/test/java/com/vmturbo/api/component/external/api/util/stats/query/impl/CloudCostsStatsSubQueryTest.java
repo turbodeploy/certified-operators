@@ -537,7 +537,6 @@ public class CloudCostsStatsSubQueryTest {
                         .setRequestProjected(false)
                         .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE))
-                        .setEntityTypeFilter(EntityTypeFilter.getDefaultInstance())
                         .build())
             .build()
         ));

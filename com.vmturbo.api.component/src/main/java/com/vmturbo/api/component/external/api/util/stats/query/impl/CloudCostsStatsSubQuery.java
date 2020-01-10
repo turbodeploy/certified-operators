@@ -659,12 +659,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         List<String> costCategoryValues = Arrays.stream(CostCategory.values()).map(Enum::name).collect(toList());
         stats.forEach(statApiInputDTO -> {
             Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
-            EntityTypeFilter.Builder entityTypeFilter = EntityTypeFilter.newBuilder();
             if (UIEntityType.fromString(statApiInputDTO.getRelatedEntityType()) != UIEntityType.UNKNOWN) {
+                EntityTypeFilter.Builder entityTypeFilter = EntityTypeFilter.newBuilder();
                 entityTypeFilter.addEntityTypeId(UIEntityType
                         .fromStringToSdkType(statApiInputDTO.getRelatedEntityType()));
+                cloudCostStatsQuery.setEntityTypeFilter(entityTypeFilter);
             }
-            cloudCostStatsQuery.setEntityTypeFilter(entityTypeFilter);
             addCloudCostStatsQueryFilter(cloudCostStatsQuery, entityStatOids, context);
             if (statApiInputDTO.getFilters() != null) {
                 cloudCostStatsQuery.setCostCategoryFilter(CostCategoryFilter.newBuilder()
