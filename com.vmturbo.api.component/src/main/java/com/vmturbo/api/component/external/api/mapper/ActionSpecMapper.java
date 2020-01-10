@@ -32,16 +32,16 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
@@ -107,6 +107,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -1558,20 +1559,26 @@ public class ActionSpecMapper {
      */
     private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
 
-        // Get the on Demand compute costs
-        GetTierPriceForEntitiesRequest requestOnDemandComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
+        // Get the On Demand compute costs
+        GetTierPriceForEntitiesRequest onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest
+                .newBuilder().setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
-        Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(requestOnDemandComputeCosts)
+        GetTierPriceForEntitiesResponse onDemandComputeCostsResponse = costServiceBlockingStub
+                .getTierPriceForEntities(onDemandComputeCostsRequest);
+        Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
-        Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(requestOnDemandComputeCosts)
+        Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
-        // Get the onDemand License costs
-        GetTierPriceForEntitiesRequest requestLicenseComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
+        // Get the On Demand License costs
+        GetTierPriceForEntitiesRequest onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest
+                .newBuilder().setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_LICENSE).build();
-        Map<Long, CurrencyAmount> beforeLicenseComputeCosts = costServiceBlockingStub.getTierPriceForEntities(requestLicenseComputeCosts)
+        GetTierPriceForEntitiesResponse onDemandLicenseCostsResponse = costServiceBlockingStub
+                .getTierPriceForEntities(onDemandLicenseCostsRequest);
+        Map<Long, CurrencyAmount> beforeLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
-        Map<Long, CurrencyAmount> afterLicenseComputeCosts = costServiceBlockingStub.getTierPriceForEntities(requestLicenseComputeCosts)
+        Map<Long, CurrencyAmount> afterLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
         double totalCurrentOnDemandRate = 0;
