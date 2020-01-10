@@ -55,6 +55,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
+import com.vmturbo.common.protobuf.cost.Cost.DeletePlanEntityCostsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.DeletePlanEntityCostsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountQueryFilter;
@@ -82,6 +84,7 @@ import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.EntityCostToStatRecordConverter;
+import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
@@ -107,6 +110,7 @@ public class CostRpcServiceTest {
     private static final long TIME = 1000_000_000L;
     private static final long MID_TIME = TIME + TimeUnit.MINUTES.toMillis(30);
     private static final double DELTA = 0.00001d; // the allowed delta between 'expected' and 'actual'
+    private static final long PLAN_ID = 1234567L;
 
     private RepositoryClient repositoryClient;
     private SupplyChainServiceBlockingStub serviceBlockingStub;
@@ -244,6 +248,7 @@ public class CostRpcServiceTest {
 
     private EntityCostStore entityCostStore = mock(EntityCostStore.class);
     private ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
+    private PlanProjectedEntityCostStore planProjectedEntityCostStore = mock(PlanProjectedEntityCostStore.class);
     private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
@@ -254,7 +259,8 @@ public class CostRpcServiceTest {
     public void setUp() {
         businessAccountHelper.storeTargetMapping(2, ImmutableList.of(2L));
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
-                projectedEntityCostStore, timeFrameCalculator, businessAccountHelper, clock);
+                        projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator, businessAccountHelper,
+                        clock, realTimeContextId);
 
             repositoryClient = mock(RepositoryClient.class);
             serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
@@ -1312,5 +1318,19 @@ public class CostRpcServiceTest {
                     assertEquals(statRecord.getValues().getTotal(),
                             ACCOUNT_EXPENSE1 * multiplier, DELTA);
                 });
+    }
+
+    /**
+     * Tests plan entity costs deletion.
+     */
+    @Test
+    public void testDeletePlanEntityCosts() {
+        final StreamObserver<DeletePlanEntityCostsResponse> mockObserver =
+                        mock(StreamObserver.class);
+        final DeletePlanEntityCostsRequest request = DeletePlanEntityCostsRequest.newBuilder().setPlanId(PLAN_ID).build();
+        costRpcService.deletePlanEntityCosts(request, mockObserver);
+        final DeletePlanEntityCostsResponse response = DeletePlanEntityCostsResponse.newBuilder().setDeleted(false).build();
+        verify(mockObserver).onNext(response);
+        verify(mockObserver).onCompleted();
     }
 }

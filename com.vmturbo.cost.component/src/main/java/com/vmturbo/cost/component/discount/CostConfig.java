@@ -48,6 +48,9 @@ public class CostConfig {
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
 
+    @Value("${realtimeTopologyContextId}")
+    private Long realtimeTopologyContextId;
+
     @Bean
     public AccountExpensesStore accountExpensesStore() {
         return new SqlAccountExpensesStore(databaseConfig.dsl(),
@@ -61,9 +64,11 @@ public class CostConfig {
                 accountExpensesStore(),
                 entityCostConfig.entityCostStore(),
                 entityCostConfig.projectedEntityCostStore(),
+                entityCostConfig.planProjectedEntityCostStore(),
                 reservedInstanceConfig.timeFrameCalculator(),
                 businessAccountHelper(),
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                realtimeTopologyContextId);
     }
 
     /**

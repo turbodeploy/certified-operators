@@ -27,6 +27,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
@@ -101,6 +103,11 @@ public class PlanTestConfig {
     @Bean
     protected PlanReservedInstanceServiceBlockingStub planRIService() throws IOException {
         return PlanReservedInstanceServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
+    }
+
+    @Bean
+    protected CostServiceBlockingStub costService() throws IOException {
+        return CostServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
     }
 
     @Bean
@@ -227,13 +234,15 @@ public class PlanTestConfig {
      * we need to change the value here too.
      *
      * @return plan DAO
+     * @throws IOException if there was a problem during plan DAO creation.
      */
     @Bean
-    public PlanDao planDao() throws IOException{
+    public PlanDao planDao() throws IOException {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
                         actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
-                        userSessionContext(), searchClient(), riBuyContextService(), planRIService(), 6));
+                        userSessionContext(), searchClient(), riBuyContextService(), planRIService(),
+                        costService(), 6));
     }
 
     @Bean

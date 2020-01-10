@@ -360,6 +360,16 @@ message UpdateDiscountResponse {
     optional Discount updated_discount = 1;
 }
 
+// delete plan costs request
+message DeletePlanEntityCostsRequest {
+    optional int64 plan_id = 1;
+}
+
+// delete plan entity costs response
+message DeletePlanEntityCostsResponse {
+    optional bool deleted = 1;
+}
+
 // Discount associated with a specific business account.
 // Customers negotiate discounts with Cloud Vendors:
 // * Enterprise Program Discount [AWS]
@@ -919,6 +929,9 @@ message CloudCostStatsQuery {
     // get entity cost filtered by account ids.
     optional AccountFilter account_filter = 12;
 
+    // get entity cost filter by topology context id
+    optional uint64 topology_context_id = 13;
+
     enum GroupBy {
         COST_CATEGORY = 1;
         ENTITY = 2;
@@ -1184,6 +1197,9 @@ service CostService {
     rpc GetAccountExpenseStats(GetCloudExpenseStatsRequest) returns (GetCloudCostStatsResponse);
 
     rpc GetCurrentAccountExpenses(GetCurrentAccountExpensesRequest) returns (GetCurrentAccountExpensesResponse);
+
+    // Delete plan entity costs
+    rpc DeletePlanEntityCosts(DeletePlanEntityCostsRequest) returns (DeletePlanEntityCostsResponse);
 }
 
 // Stats Request Time Window with options for start_date and end_date.

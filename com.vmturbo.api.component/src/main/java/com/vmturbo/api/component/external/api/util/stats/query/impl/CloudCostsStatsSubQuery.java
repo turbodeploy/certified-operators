@@ -23,6 +23,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -58,6 +59,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
@@ -107,6 +109,15 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     private static final Set<UIEntityType> ENTITY_TYPES_TO_GET_COST_BY_FILTER = ImmutableSet.of(
         UIEntityType.BUSINESS_ACCOUNT, UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE
     );
+
+    /**
+     * We need virtual volumes with workloads for the plan to get storage costs.
+     */
+    private static final List<String> PLAN_CLOUD_COST_ENTITIES_TYPES = Stream
+                    .concat(GroupProtoUtil.WORKLOAD_ENTITY_TYPES.stream(),
+                                    Stream.of(UIEntityType.VIRTUAL_VOLUME))
+                    .map(UIEntityType::apiStr).collect(Collectors.toList());
+
     /**
      * Cloud target constant to match UI request, also used in test case.
      * This is used for the "Cost Breakdown by Cloud Account" widget.
@@ -169,11 +180,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         this.cloudTypeMapper = new CloudTypeMapper();
     }
 
+    @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        if (context.getInputScope().isPlan()) {
-            return false;
-        }
-
         // If the query scope is going to be a non-CLOUD global group, we don't need to run
         // this sub-query.
         final Optional<EnvironmentType> globalScopeEnvType = context.getQueryScope().getGlobalScope()
@@ -259,9 +267,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 context.getInputScope().isCloud()) {
             final Set<Long> cloudEntityOids;
             if (context.getInputScope().isPlan()) {
-                cloudEntityOids =
-                    supplyChainFetcherFactory.expandScope(context.getQueryScope().getExpandedOids(),
-                    new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR));
+                cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getExpandedOids(),
+                                                PLAN_CLOUD_COST_ENTITIES_TYPES);
             } else {
                 if (shouldQueryUsingFilter(context.getInputScope())) {
                     cloudEntityOids = context.getQueryScope().getScopeOids();
@@ -685,6 +692,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         .setExclusionFilter(true)
                         .build());
             }
+            context.getPlanInstance().ifPresent(plan -> cloudCostStatsQuery.setTopologyContextId(plan.getPlanId()));
             cloudCostStatsQueries.add(cloudCostStatsQuery.build());
         });
         GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
@@ -696,8 +704,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                               @Nonnull final Set<Long> entityStatOids,
                                               @Nonnull final StatsQueryContext context) {
         //TODO consider create default Cloud group (probably in Group component). Currently the only group
-        if (!entityStatOids.isEmpty() && context.getInputScope().getScopeTypes().isPresent()) {
-            if (shouldQueryUsingFilter(context.getInputScope())) {
+        if (!entityStatOids.isEmpty()) {
+            if (context.getInputScope().getScopeTypes().isPresent() && shouldQueryUsingFilter(context.getInputScope())) {
                 UIEntityType scopeType =
                         context.getInputScope().getScopeTypes().get().iterator().next();
                 switch (scopeType) {

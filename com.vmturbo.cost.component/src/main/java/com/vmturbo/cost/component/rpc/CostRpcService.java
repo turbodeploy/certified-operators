@@ -33,6 +33,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -45,6 +46,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
+import com.vmturbo.common.protobuf.cost.Cost.DeletePlanEntityCostsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.DeletePlanEntityCostsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
@@ -74,6 +77,7 @@ import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
@@ -118,6 +122,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final ProjectedEntityCostStore projectedEntityCostStore;
 
+    private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
+
     private final BusinessAccountHelper businessAccountHelper;
 
     private final TimeFrameCalculator timeFrameCalculator;
@@ -126,28 +132,40 @@ public class CostRpcService extends CostServiceImplBase {
 
     private ForecastingContext forecastingContext;
 
+    private final long realtimeTopologyContextId;
 
     /**
      * Create a new RIAndExpenseUploadRpcService.
      *
-     * @param discountStore        The store containing account discounts
+     * @param discountStore The store containing account discounts
      * @param accountExpensesStore The store containing account expenses
+     * @param costStoreHouse Entity cost store
+     * @param projectedEntityCostStore Projected entity cost store
+     * @param planProjectedEntityCostStore Plan projected entity cost store
+     * @param timeFrameCalculator Time frame calculator
+     * @param businessAccountHelper Business account helper
+     * @param clock A clock providing access to the current instant, date and time using a time-zone
+     * @param realtimeTopologyContextId real-time topology context ID
      */
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
                           @Nonnull final EntityCostStore costStoreHouse,
                           @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+                          @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                           @Nonnull final BusinessAccountHelper businessAccountHelper,
-                          @Nonnull final Clock clock) {
+                          @Nonnull final Clock clock,
+                          final long realtimeTopologyContextId) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
+        this.planProjectedEntityCostStore = Objects.requireNonNull(planProjectedEntityCostStore);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
         this.forecastingContext = new ForecastingContext(new RegressionForecastingStrategy());
         this.clock = Objects.requireNonNull(clock);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -606,13 +624,22 @@ public class CostRpcService extends CostServiceImplBase {
                 if (request.getRequestProjected()) {
                     final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
                             + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
-                    final Collection<StatRecord> projectedStatRecords = request.getGroupByList().isEmpty() ?
+                    final Collection<StatRecord> projectedStatRecords;
+                    final boolean isPlanRequest = request.hasTopologyContextId()
+                        && request.getTopologyContextId() != realtimeTopologyContextId;
+                    if (isPlanRequest) {
+                        projectedStatRecords = planProjectedEntityCostStore.getPlanProjectedStatRecordsByGroup(
+                                        request.getGroupByList(), entityCostFilter,
+                                        request.getTopologyContextId());
+                    } else {
+                        projectedStatRecords = request.getGroupByList().isEmpty() ?
                             projectedEntityCostStore.getProjectedStatRecords(entityCostFilter) :
                             projectedEntityCostStore.getProjectedStatRecordsByGroup(request.getGroupByList(),
                                     entityCostFilter);
-                    if (projectedStatRecords.isEmpty()) {
-// Change the request to only get the the latest timestamp info
-// we will use that as projected cost
+                    }
+                    if (projectedStatRecords.isEmpty() && !isPlanRequest) {
+                        // Change the request to only get the the latest timestamp info
+                        // we will use that as projected cost
                         EntityCostFilter latestFilter = filterBuilder
                                 .removeDuration()
                                 .timeFrame(TimeFrame.LATEST)
@@ -734,6 +761,22 @@ public class CostRpcService extends CostServiceImplBase {
         }
 
         return filterBuilder;
+    }
+
+    @Override
+    public void deletePlanEntityCosts(DeletePlanEntityCostsRequest request, StreamObserver<DeletePlanEntityCostsResponse> responseObserver) {
+        final long planId = request.getPlanId();
+        try {
+            final int rowsDeleted = planProjectedEntityCostStore.deletePlanProjectedEntityCost(planId);
+            final DeletePlanEntityCostsResponse response =
+                            DeletePlanEntityCostsResponse.newBuilder().setDeleted(rowsDeleted > 0).build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL
+                            .withDescription("Failed to delete plan entity costs for plan ID: " + planId)
+                            .asException());
+        }
     }
 
     private long getId(final UpdateDiscountRequest request) {

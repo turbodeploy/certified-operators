@@ -31,7 +31,8 @@ import com.vmturbo.components.common.utils.StringConstants;
 public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
     private static final Set<String> SUPPORTED_STATS =
                     ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION,
-                                    StringConstants.RI_COUPON_COVERAGE, StringConstants.NUM_RI);
+                                    StringConstants.RI_COUPON_COVERAGE, StringConstants.NUM_RI,
+                                    StringConstants.RI_COST);
 
     private final RepositoryApi repositoryApi;
 

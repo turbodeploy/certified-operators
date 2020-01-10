@@ -165,14 +165,19 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     @Test
-    public void testNotApplicableInPlan() {
+    public void testApplicableInPlan() {
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(true);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);
+        final StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        when(globalScope.environmentType()).thenReturn(Optional.of(EnvironmentType.CLOUD));
+        when(statsQueryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
 
-        assertThat(query.applicableInContext(context), is(false));
+        assertThat(query.applicableInContext(context), is(true));
     }
 
     @Test
@@ -450,6 +455,7 @@ public class CloudCostsStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
         when(context.requestProjected()).thenReturn(true);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
 
         // Behaviors associated to inputScope
         when(inputScope.isRealtimeMarket()).thenReturn(false);
@@ -511,6 +517,7 @@ public class CloudCostsStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
         when(context.requestProjected()).thenReturn(false);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
 
         // Behaviors associated to inputScope
         when(inputScope.isRealtimeMarket()).thenReturn(true);
@@ -564,6 +571,7 @@ public class CloudCostsStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
         when(context.requestProjected()).thenReturn(true);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
 
         // Behaviors associated to inputScope
         when(inputScope.isRealtimeMarket()).thenReturn(false);
@@ -622,6 +630,7 @@ public class CloudCostsStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
         when(context.requestProjected()).thenReturn(true);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
 
         // Behaviors associated to inputScope
         when(inputScope.isRealtimeMarket()).thenReturn(false);
@@ -685,6 +694,7 @@ public class CloudCostsStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
         when(context.requestProjected()).thenReturn(true);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
 
         // Behaviors associated to inputScope
         when(inputScope.isRealtimeMarket()).thenReturn(false);
@@ -755,6 +765,7 @@ public class CloudCostsStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
         when(context.requestProjected()).thenReturn(true);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
 
         // Behaviors associated to inputScope
         when(inputScope.isRealtimeMarket()).thenReturn(false);

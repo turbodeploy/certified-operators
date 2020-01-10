@@ -41,8 +41,10 @@ import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost.DeletePlanEntityCostsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeletePlanReservedInstanceStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteRIBuyContextDataRequest;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -123,6 +125,9 @@ public class PlanDaoImpl implements PlanDao {
     private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
 
     private final PlanReservedInstanceServiceBlockingStub planRIService;
+
+    private final CostServiceBlockingStub costService;
+
     /**
      * Constructs plan DAO.
      *
@@ -135,6 +140,7 @@ public class PlanDaoImpl implements PlanDao {
      * @param searchServiceBlockingStub gRPC client for search service
      * @param riStub RI buy context fetching service
      * @param planRIService plan RI service
+     * @param costService cost service
      * @param planTimeOutHours plan time out hours
      */
     public PlanDaoImpl(@Nonnull final DSLContext dsl,
@@ -146,6 +152,7 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                        @Nonnull final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                        @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
+                       @Nonnull final CostServiceBlockingStub costService,
                        final int planTimeOutHours) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
@@ -155,6 +162,7 @@ public class PlanDaoImpl implements PlanDao {
         this.userSessionContext = userSessionContext;
         this.riStub = riStub;
         this.planRIService = planRIService;
+        this.costService = costService;
         this.planTimeOutHours = planTimeOutHours;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
                 GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
@@ -389,12 +397,24 @@ public class PlanDaoImpl implements PlanDao {
                     .setTopologyContextId(topologyContextId).build());
         }
 
+        final DeletePlanEntityCostsRequest deleteCostsRequest =
+                        DeletePlanEntityCostsRequest.newBuilder().setPlanId(topologyContextId).build();
+        try {
+            costService.deletePlanEntityCosts(deleteCostsRequest);
+        } catch (StatusRuntimeException e) {
+            errors.add("Failed to delete entity costs assosiated with plan " + topologyContextId
+                +
+                "due to error: "
+                + e.getLocalizedMessage());
+        }
+
         if (!errors.isEmpty()) {
             logger.error("Encountered errors trying to delete plan {}. Errors:\n", plan.getPlanId(),
                     StringUtils.join(errors, "\n"));
         } else {
             logger.info("Successfully deleted all known related objects for plan {}", topologyContextId);
         }
+
     }
 
     /**
