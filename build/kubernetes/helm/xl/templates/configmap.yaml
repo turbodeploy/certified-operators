@@ -97,7 +97,7 @@ data:
             targetDiscoveryTimeoutSeconds: 120
             targetDiscoveryPollIntervalSeconds: 2
             liveStatsRetrievalWindowSeconds: 60
-            publicVersionString: 7.21.0
+            publicVersionString: {{ .Values.global.tag }}
             groupBuildUseCaseFile: groupBuilderUsecases.json
             settingManagersFile: settingManagers.json
             settingStyleFile: settingSpecStyle.json

@@ -30,16 +30,7 @@ spec:
         image: {{ template "istio_image" . }}
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
-        - name: JAVA_OPTS
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-          value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
-  {{- else }}
-          value: {{ .Values.java.options }}
-  {{- end }}
-{{- else }}
-          value: {{ .Values.java.options }}
-{{- end }}
+{{ template "java.setJVMEnvironmentOptions" . }}
 {{ toYaml .Values.env | indent 8 -}}
         ports:
           - containerPort: 8080
