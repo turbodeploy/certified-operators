@@ -1,9 +1,12 @@
 package com.vmturbo.cost.component.util;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -13,6 +16,7 @@ import org.jooq.Table;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
@@ -23,10 +27,21 @@ public class CostGroupBy {
     /**
      * {@link Tables#ENTITY_COST #CREATED_TIME} constant used in DB.
      */
-    public static final String CREATED_TIME = Tables.ENTITY_COST.CREATED_TIME.getName();
+    public static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
 
     private final Collection<String> groupByFields;
     private final TimeFrame timeFrame;
+
+    private static final TreeMap<String, String> GROUP_FIELD_CONVERTER = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+
+    static {
+        GROUP_FIELD_CONVERTER.put(GroupBy.COST_CATEGORY.getValueDescriptor().getName(),
+                ENTITY_COST.COST_TYPE.getName());
+        GROUP_FIELD_CONVERTER.put(GroupBy.ENTITY_TYPE.getValueDescriptor().getName(),
+                ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
+        GROUP_FIELD_CONVERTER.put(GroupBy.ENTITY.getValueDescriptor().getName(),
+                ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
+    }
 
     /**
      * Constructor.
@@ -37,7 +52,7 @@ public class CostGroupBy {
     public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame) {
         Set<String> listOfFields = Sets.newHashSet(items);
         listOfFields.add(CREATED_TIME);
-        groupByFields = listOfFields.stream().map(field -> field.toLowerCase(Locale.getDefault()))
+        groupByFields = listOfFields.stream().map(field -> GROUP_FIELD_CONVERTER.getOrDefault(field, field))
                 .collect(Collectors.toSet());
         this.timeFrame = timeFrame;
     }
@@ -58,7 +73,7 @@ public class CostGroupBy {
      * @return Field name of amount in the table.
      */
     public Field<? extends Number> getAmountFieldInTable() {
-        return (Field<? extends Number>)getTable().field(Tables.ENTITY_COST.AMOUNT.getName());
+        return (Field<? extends Number>)getTable().field(ENTITY_COST.AMOUNT.getName());
     }
 
     /**
@@ -68,7 +83,7 @@ public class CostGroupBy {
      */
     public Table<?> getTable() {
         if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
-            return Tables.ENTITY_COST;
+            return ENTITY_COST;
         } else if (this.timeFrame.equals(TimeFrame.HOUR)) {
             return Tables.ENTITY_COST_BY_HOUR;
         } else if (this.timeFrame.equals(TimeFrame.DAY)) {

@@ -13,12 +13,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -100,11 +100,15 @@ public class StorageStatsSubQuery implements StatsSubQuery {
         Predicate<StatApiInputDTO> supportedGroupBy = dto -> dto.getGroupBy() != null && dto.getGroupBy().size() == 1 &&
             (dto.getGroupBy().contains(StringConstants.ATTACHMENT) || dto.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()));
 
+        Predicate<StatApiInputDTO> onPremOnly = dto -> dto.getFilters() != null && dto.getFilters().stream()
+                .anyMatch(statFilterApiDto -> statFilterApiDto.getType().equals(StringConstants.ENVIRONMENT_TYPE) &&
+                        statFilterApiDto.getValue().equals(EnvironmentType.ON_PREM.name()));
+
         Predicate<StatApiInputDTO> noGroupBy = dto ->
             dto.getGroupBy() == null || dto.getGroupBy().isEmpty();
 
         Set<StatApiInputDTO> supportedStats = supportedStatsType.stream()
-            .filter(supportedGroupBy.or(noGroupBy))
+            .filter(supportedGroupBy.or(noGroupBy).and(onPremOnly))
             .collect(Collectors.toSet());
 
         logger.debug("Number of supportedStats from request={}", supportedStats.size());

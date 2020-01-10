@@ -102,8 +102,12 @@ public class StorageStatsSubQueryTest {
 
         ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
-            UIEntityType.VIRTUAL_VOLUME,
-            Collections.singletonList(StringConstants.ATTACHMENT));
+                UIEntityType.VIRTUAL_VOLUME,
+                Collections.singletonList(StringConstants.ATTACHMENT));
+        StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
+        statFilterApiDTO .setType(StringConstants.ENVIRONMENT_TYPE);
+        statFilterApiDTO .setValue(EnvironmentType.ON_PREM.name());
+        statApiInputDTO.setFilters(Collections.singletonList(statFilterApiDTO));
         when(context.findStats(getStats.capture())).thenReturn(Sets.newHashSet(statApiInputDTO));
 
         SubQuerySupportedStats results = query.getHandledStats(context);
@@ -115,6 +119,28 @@ public class StorageStatsSubQueryTest {
     }
 
     @Test
+    public void testGetHandledStatsCloudStatRequest() {
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+
+        final ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
+        StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
+                UIEntityType.VIRTUAL_VOLUME,
+                Collections.singletonList(StringConstants.ATTACHMENT));
+        StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
+        statFilterApiDTO .setType(StringConstants.ENVIRONMENT_TYPE);
+        statFilterApiDTO .setValue(EnvironmentType.CLOUD.name());
+        statApiInputDTO.setFilters(Collections.singletonList(statFilterApiDTO));
+        when(context.findStats(getStats.capture())).thenReturn(Sets.newHashSet(statApiInputDTO));
+
+        SubQuerySupportedStats results = query.getHandledStats(context);
+
+        Set<String> handledStats = getStats.getValue();
+        assertThat(handledStats, containsInAnyOrder(NUM_VOLUMES));
+
+        assertThat(results.containsExplicitStat(statApiInputDTO), is(false));
+    }
+
+    @Test
     public void testGetHandledStatsWithVirtualVolumeStorageTier() {
         final StatsQueryContext context = mock(StatsQueryContext.class);
 
@@ -122,6 +148,10 @@ public class StorageStatsSubQueryTest {
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
             UIEntityType.VIRTUAL_VOLUME,
             Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr()));
+        StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
+        statFilterApiDTO.setType(StringConstants.ENVIRONMENT_TYPE);
+        statFilterApiDTO.setValue(EnvironmentType.ON_PREM.name());
+        statApiInputDTO.setFilters(Collections.singletonList(statFilterApiDTO));
         when(context.findStats(getStats.capture())).thenReturn(Sets.newHashSet(statApiInputDTO));
 
         SubQuerySupportedStats results = query.getHandledStats(context);

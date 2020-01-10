@@ -91,6 +91,9 @@ public class CloudCostsStatsSubQueryTest {
     @Mock
     private ThinTargetCache thinTargetCache;
 
+    @Mock
+    private StorageStatsSubQuery storageStatsSubQuery;
+
     private static final long TARGET_ID_1 = 11L;
     private static final long TARGET_ID_2 = 12L;
     private static final String CSP_AZURE = CloudType.AZURE.name();
@@ -158,7 +161,7 @@ public class CloudCostsStatsSubQueryTest {
         when(thinTargetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo1));
         when(thinTargetCache.getTargetInfo(TARGET_ID_2)).thenReturn(Optional.of(targetInfo2));
         query = spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
-                supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler()));
+                supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler(), storageStatsSubQuery));
     }
 
     @Test

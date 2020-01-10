@@ -1,10 +1,8 @@
 package com.vmturbo.components.common.utils;
 
-import com.google.common.collect.ImmutableSet;
-
 import java.util.Set;
 
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.google.common.collect.ImmutableSet;
 
 public class StringConstants {
     public static final String ALL_GROUP_MEMBERS = "AllGroupMembers";
@@ -235,6 +233,7 @@ public class StringConstants {
     public static final String NUM_CONTAINERPODS = "numContainerPods";
     public static final String NUM_VDCS = "numVDCs";
     public static final String NUM_VIRTUAL_DISKS = "numVirtualDisks";
+    public static final String NUM_VIRTUAL_VOLUMES = "numVolumes";
     public static final String NUM_VMS_PER_HOST = "numVMsPerHost";
     public static final String NUM_VMS_PER_STORAGE = "numVMsPerStorage";
     public static final String NUM_CNT_PER_VM = "numContainersPerVM";

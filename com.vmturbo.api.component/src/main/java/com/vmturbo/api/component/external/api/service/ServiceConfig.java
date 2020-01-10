@@ -626,7 +626,8 @@ public class ServiceConfig {
                 communicationConfig.costServiceBlockingStub(),
                 communicationConfig.supplyChainFetcher(),
                 communicationConfig.thinTargetCache(),
-                mapperConfig.buyRiScopeHandler());
+                mapperConfig.buyRiScopeHandler(),
+                storageStatsSubQuery());
         statsQueryExecutor().addSubquery(cloudCostsStatsQuery);
         return cloudCostsStatsQuery;
     }
