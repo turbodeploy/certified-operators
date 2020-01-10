@@ -5,6 +5,7 @@ import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CL
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_BUILD_STAGE;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_UPLOAD_STAGE;
 
+import java.lang.reflect.Type;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,21 +29,21 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
@@ -59,6 +60,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbeRISp
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
@@ -594,6 +596,7 @@ public class PriceTableUploader implements Diagnosable {
     @Nonnull
     @Override
     public Stream<String> collectDiagsStream() throws DiagnosticsException {
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Printer printer =
                     JsonFormat.printer().omittingInsignificantWhitespace();
@@ -603,20 +606,13 @@ public class PriceTableUploader implements Diagnosable {
                     .forEach(priceTable -> priceTableToKeyMap.putIfAbsent(
                             priceTable.getPriceTableKeysList(), priceTable));
 
-            final ObjectMapper mapper = new ObjectMapper();
             final List<String> diagnostics = new ArrayList<>();
             for (Entry<Long, PricingDTO.PriceTable> probeTypePriceTableEntry : sourcePriceTableByTargetId
                     .entrySet()) {
                 final long targetId = probeTypePriceTableEntry.getKey();
                 final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
-                try {
-                    diagnostics.add(String.valueOf(targetId));
-                    diagnostics.add(mapper.writeValueAsString(priceTable.getPriceTableKeysList()));
-                } catch (JsonProcessingException ex) {
-                    throw new DiagnosticsException(
-                            "Error while creating Json priceTableKeys." + " priceTable " +
-                                    priceTable, ex);
-                }
+                diagnostics.add(String.valueOf(targetId));
+                diagnostics.add(gson.toJson(priceTable.getPriceTableKeysList()));
             }
             diagnostics.add(END_OF_TARGET_ID_MAPPINGS);
             for (Entry<Collection<PricingIdentifier>, PricingDTO.PriceTable> pricingData : priceTableToKeyMap
@@ -624,14 +620,12 @@ public class PriceTableUploader implements Diagnosable {
                 final Collection<PricingIdentifier> pricingIdentifiers = pricingData.getKey();
                 final PricingDTO.PriceTable priceTable = pricingData.getValue();
                 try {
-                    diagnostics.add(mapper.writeValueAsString(pricingIdentifiers));
+                    diagnostics.add(gson.toJson(pricingIdentifiers));
                     diagnostics.add(printer.print(priceTable));
                 } catch (InvalidProtocolBufferException ex) {
                     throw new DiagnosticsException(
                             "Error mapping targetId " + pricingIdentifiers + " priceTable " +
                                     priceTable, ex);
-                } catch (JsonProcessingException e) {
-                    throw new DiagnosticsException("Error while creating Json priceTableKeys.", e);
                 }
             }
             return diagnostics.stream();
@@ -648,15 +642,14 @@ public class PriceTableUploader implements Diagnosable {
             throw new DiagnosticsException("Unexpected diags - should be odd length.");
         }
 
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
             Map<Long, Collection<String>> targetIdToPriceTableKey = Maps.newHashMap();
             Map<Collection<String>, PricingDTO.PriceTable.Builder> priceTableKeyToData = Maps.newHashMap();
 
-            final TypeReference<Collection<String>> typeRef
-                    = new TypeReference<Collection<String>>() {};
+            final Type typeRef = new TypeToken<Collection<String>>() {}.getType();
             boolean endOfTargetMappingSeen = false;
-            ObjectMapper mapper = new ObjectMapper();
             for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
                 if (collectedDiags.get(i).equals(END_OF_TARGET_ID_MAPPINGS)) {
                     i--; // to align the offset of the counter which reads the list.
@@ -666,7 +659,7 @@ public class PriceTableUploader implements Diagnosable {
                 try {
                     if (endOfTargetMappingSeen) {
                         String priceTableKeys = collectedDiags.get(i);
-                        Collection<String> pricingIdentifier = mapper.readValue(priceTableKeys, typeRef);
+                        Collection<String> pricingIdentifier = gson.fromJson(priceTableKeys, typeRef);
                         String priceTable = collectedDiags.get(i + 1);
                         PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
                         parser.merge(priceTable, priceTableBldr);
@@ -674,16 +667,15 @@ public class PriceTableUploader implements Diagnosable {
                     } else {
                         Long targetId = Long.valueOf(collectedDiags.get(i));
                         String priceTableKeys = collectedDiags.get(i + 1);
-                        Collection<String> pricingIdentifier = mapper.readValue(priceTableKeys, typeRef);
+                        Collection<String> pricingIdentifier = gson.fromJson(priceTableKeys, typeRef);
                         targetIdToPriceTableKey.put(targetId, pricingIdentifier);
                     }
                 } catch (NumberFormatException e) {
                     logger.error("Failed to find targetId for : {}", collectedDiags.get(i));
-                } catch (JsonProcessingException e) {
-                    logger.error("Error while creating list of string from priceTableKeyList. {}",
-                            collectedDiags.get(i));
                 } catch (InvalidProtocolBufferException e) {
                     logger.error("Failed to deserialize price table. Error: {}", e.getMessage());
+                } catch (JsonSyntaxException e) {
+                    throw new DiagnosticsException("Failed to deserialize JSON: " + priceTableKeyToData);
                 }
             }
             targetIdToPriceTableKey.forEach((key, priceTableKey) -> sourcePriceTableByTargetId.put(key,

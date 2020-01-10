@@ -211,7 +211,7 @@ public class TopologyProcessorDiagnosticsHandler {
                 priceTableUploader.collectDiagsStream(),
                 diagnosticZip);
         } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
+            logger.error("Failed to dump discovered price tables. Will continue with others.", e);
         }
 
         final Map<Long, TargetDiscoveredData> discoveredGroupData = discoveredGroupUploader.getDataByTarget();
@@ -265,10 +265,12 @@ public class TopologyProcessorDiagnosticsHandler {
 
             //Discovered Settings Policies
             try {
-                diagnosticsWriter.writeZipEntry("DiscoveredSettingPolicies" + targetSuffix,
-                    settingPolicies.get(id).stream(),
-                    DiscoveredSettingPolicyInfo.class,
-                    diagnosticZip);
+                final List<DiscoveredSettingPolicyInfo> targetSettingPolicies = settingPolicies.get(id);
+                if (targetSettingPolicies != null) {
+                    diagnosticsWriter.writeZipEntry("DiscoveredSettingPolicies" + targetSuffix,
+                            targetSettingPolicies.stream(), DiscoveredSettingPolicyInfo.class,
+                            diagnosticZip);
+                }
             } catch (DiagnosticsException e) {
                 logger.error("Error dumping Discovered Setting Policies;" +
                     SKIPPING_FOLLOWING_TASKS, e);
