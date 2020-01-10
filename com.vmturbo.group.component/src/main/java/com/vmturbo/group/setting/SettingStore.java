@@ -1094,11 +1094,18 @@ public class SettingStore implements Diagnosable {
         } else {
             SettingPolicyScheduleRecord existingRecord = settingPolicySchedules.get(0);
             if (scheduleId != existingRecord.getScheduleId()) {
-                existingRecord.setScheduleId(scheduleId);
-                return existingRecord.update();
+                int numUpdated = context.update(SETTING_POLICY_SCHEDULE)
+                    .set(SETTING_POLICY_SCHEDULE.SCHEDULE_ID, scheduleId)
+                    .where(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID.eq(settingPolicyId))
+                    .execute();
+                if (numUpdated == 0) {
+                    throw new IllegalStateException("Failed to update setting_policy_schedule record" +
+                        " for setting policy ID " + settingPolicyId);
+                }
+                return numUpdated;
             }
+            return 0;
         }
-        return 0;
     }
 
     /**

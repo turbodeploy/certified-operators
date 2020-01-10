@@ -249,6 +249,10 @@ public class SettingStoreTest {
             updatedInfoWithSchedule);
         assertEquals(updatedPolicy, updatedSavedPolicy);
         assertEquals(scheduleId2, updatedSavedPolicy.getInfo().getScheduleId());
+        Optional<SettingPolicy> refetchedUpdatedSavedPolicy = settingStore
+            .getSettingPolicy(updatedSavedPolicy.getId());
+        assertTrue(refetchedUpdatedSavedPolicy.isPresent());
+        assertEquals(scheduleId2, refetchedUpdatedSavedPolicy.get().getInfo().getScheduleId());
     }
 
     @Test(expected = SettingPolicyNotFoundException.class)
