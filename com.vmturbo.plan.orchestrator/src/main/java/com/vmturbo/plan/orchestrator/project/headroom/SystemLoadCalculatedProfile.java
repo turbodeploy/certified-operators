@@ -11,6 +11,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
@@ -26,26 +27,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * and calculate average/max of commodity values across cluster's VMs records.
  */
 public class SystemLoadCalculatedProfile {
-
-    // compute fields which relate to template's "ResourceCategoryName.Compute".
-    public static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
-    public static final String CPU_SPEED = "cpuSpeed";
-    public static final String IO_THROUGHPUT = "ioThroughput";
-    public static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
-    public static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
-    public static final String MEMORY_SIZE = "memorySize";
-    public static final String NUM_OF_CPU = "numOfCpu";
-    public static final String NUM_OF_CORES = "numOfCores";
-    public static final String NETWORK_THROUGHPUT = "networkThroughput";
-    public static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
-    // storage fields which relate to template's "ResourceCategoryName.Storage".
-    public static final String DISK_IOPS = "diskIops";
-    public static final String DISK_SIZE = "diskSize";
-    public static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
-    // default consumption factor
-    public static final float MEM_CONSUMED_FACTOR_DEFAULT = 0.75F;
-    public static final float STORAGE_CONSUMED_FACTOR_DEFAULT = 1.0F;
-    public static final float CPU_CONSUMED_FACTOR_DEFAULT = 0.5F;
 
     // Compute stats have field name as key which relates to template's "ResourceCategoryName.Compute"
     // and value as read/calculated from system load.
@@ -198,10 +179,10 @@ public class SystemLoadCalculatedProfile {
                     storageConsumed = Math.max(storageConsumed, currStorageConsumed);
                     accessSpeedConsumed = Math.max(accessSpeedConsumed, currAccessSpeedConsumed);
                     memConsumedFactor = Math.max(memConsumedFactor, Float.isFinite(currMemConsumed / currVMemCapacity) ?
-                                    currMemConsumed / currVMemCapacity : MEM_CONSUMED_FACTOR_DEFAULT);
+                        currMemConsumed / currVMemCapacity : TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR_DEFAULT_VALUE);
                     cpuConsumedFactor = Math.max(cpuConsumedFactor, Float.isFinite(currCPUConsumed / currVCPUCapacity) ?
-                                    currCPUConsumed / currVCPUCapacity : CPU_CONSUMED_FACTOR_DEFAULT);
-                    storageConsumedFactor = STORAGE_CONSUMED_FACTOR_DEFAULT;
+                        currCPUConsumed / currVCPUCapacity : TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR_DEFAULT_VALUE);
+                    storageConsumedFactor = TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE;
                     break;
             }
         }
@@ -209,10 +190,10 @@ public class SystemLoadCalculatedProfile {
         if (operation == Operation.AVG && numVMs > 0) {
             // find average instead of sum for variables for average profile
             memConsumedFactor = Float.isFinite(memConsumed / vMemSize) ?
-                                memConsumed / vMemSize : MEM_CONSUMED_FACTOR_DEFAULT;
+                memConsumed / vMemSize : TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR_DEFAULT_VALUE;
             cpuConsumedFactor = Float.isFinite(cpuConsumed / vCPUSpeed) ?
-                            cpuConsumed / vCPUSpeed : CPU_CONSUMED_FACTOR_DEFAULT;
-            storageConsumedFactor = STORAGE_CONSUMED_FACTOR_DEFAULT;
+                cpuConsumed / vCPUSpeed : TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR_DEFAULT_VALUE;
+            storageConsumedFactor = TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE;
             memConsumed = memConsumed / numVMs;
             vMemSize = vMemSize / numVMs;
             cpuConsumed = cpuConsumed / numVMs;
@@ -224,18 +205,18 @@ public class SystemLoadCalculatedProfile {
         }
 
         // compute
-        templateComputeStats.put(CPU_CONSUMED_FACTOR, Math.min(1, cpuConsumedFactor));
-        templateComputeStats.put(CPU_SPEED, vCPUSpeed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, Math.min(1, cpuConsumedFactor));
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, vCPUSpeed);
         // TODO : Update NUM_OF_CPU once we are able to extract this information.
-        templateComputeStats.put(NUM_OF_CPU, 1F);
-        templateComputeStats.put(IO_THROUGHPUT, ioThroughputConsumed);
-        templateComputeStats.put(MEMORY_CONSUMED_FACTOR, Math.min(1, memConsumedFactor));
-        templateComputeStats.put(MEMORY_SIZE, vMemSize);
-        templateComputeStats.put(NETWORK_THROUGHPUT, networkThroughputConsumed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, 1F);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, ioThroughputConsumed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, Math.min(1, memConsumedFactor));
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, vMemSize);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, networkThroughputConsumed);
         // storage
-        templateStorageStats.put(DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));
-        templateStorageStats.put(DISK_SIZE, storageConsumed);
-        templateStorageStats.put(DISK_IOPS, accessSpeedConsumed);
+        templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));
+        templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, storageConsumed);
+        templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, accessSpeedConsumed);
         setHeadroomTemplateInfo(generateTemplateInfoFromProfile());
     }
 

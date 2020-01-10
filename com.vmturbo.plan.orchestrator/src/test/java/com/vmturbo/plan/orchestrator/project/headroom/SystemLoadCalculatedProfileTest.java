@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -66,48 +67,48 @@ public class SystemLoadCalculatedProfileTest {
         assertEquals(templateInfo.getEntityType(),  EntityType.VIRTUAL_MACHINE_VALUE);
 
         // MEM avg = (50 + 40)/2
-        Optional<TemplateField> mem = getField(SystemLoadCalculatedProfile.MEMORY_SIZE, templateInfo);
+        Optional<TemplateField> mem = getField(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, templateInfo);
         assertTrue(mem.isPresent());
         assertEquals(45d, Double.valueOf(mem.get().getValue()), delta);
 
         // MEM consumption factor = (20 + 10)/(50 + 40)
-        Optional<TemplateField> memConsumption = getField(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> memConsumption = getField(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, templateInfo);
         assertTrue(memConsumption.isPresent());
         assertEquals(0.3333d, Double.valueOf(memConsumption.get().getValue()), delta);
 
         // CPU avg = (100 + 50)/2
-        Optional<TemplateField> cpu = getField(SystemLoadCalculatedProfile.CPU_SPEED, templateInfo);
+        Optional<TemplateField> cpu = getField(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, templateInfo);
         assertTrue(cpu.isPresent());
         assertEquals(75d, Double.valueOf(cpu.get().getValue()), delta);
 
         // MEM consumption factor = (9 + 6)/(100 + 50)
-        Optional<TemplateField> cpuConsumption = getField(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> cpuConsumption = getField(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, templateInfo);
         assertTrue(cpuConsumption.isPresent());
         assertEquals(0.1d, Double.valueOf(cpuConsumption.get().getValue()), delta);
 
         // Storage avg = (9 + 5)/2
-        Optional<TemplateField> storage = getField(SystemLoadCalculatedProfile.DISK_SIZE, templateInfo);
+        Optional<TemplateField> storage = getField(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, templateInfo);
         assertTrue(storage.isPresent());
         assertEquals(7d, Double.valueOf(storage.get().getValue()), delta);
 
         // Storage consumption value is set to default value.
-        Optional<TemplateField> diskConsumption = getField(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> diskConsumption = getField(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, templateInfo);
         assertTrue(diskConsumption.isPresent());
-        assertEquals(SystemLoadCalculatedProfile.STORAGE_CONSUMED_FACTOR_DEFAULT,
+        assertEquals(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE,
                         Double.valueOf(diskConsumption.get().getValue()), delta);
 
         // NET_THROUGHPUT avg = (21 + 7)/2
-        Optional<TemplateField> netThroughput = getField(SystemLoadCalculatedProfile.NETWORK_THROUGHPUT, templateInfo);
+        Optional<TemplateField> netThroughput = getField(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, templateInfo);
         assertTrue(netThroughput.isPresent());
         assertEquals(14d, Double.valueOf(netThroughput.get().getValue()), delta);
 
         // IO_THROUGHPUT avg = (8 + 24)/2
-        Optional<TemplateField> io = getField(SystemLoadCalculatedProfile.IO_THROUGHPUT, templateInfo);
+        Optional<TemplateField> io = getField(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, templateInfo);
         assertTrue(io.isPresent());
         assertEquals(16d, Double.valueOf(io.get().getValue()), delta);
 
         // STORAGE_ACCESS avg = (15 + 25)/2
-        Optional<TemplateField> accessSpeed = getField(SystemLoadCalculatedProfile.DISK_IOPS, templateInfo);
+        Optional<TemplateField> accessSpeed = getField(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, templateInfo);
         assertTrue(accessSpeed.isPresent());
         assertEquals(20d, Double.valueOf(accessSpeed.get().getValue()), delta);
     }
@@ -142,12 +143,12 @@ public class SystemLoadCalculatedProfileTest {
         assertEquals(templateInfo.getEntityType(),  EntityType.VIRTUAL_MACHINE_VALUE);
 
         // MEM consumption factor = (100 + 60) > (50 + 40) : Max consumption factor
-        Optional<TemplateField> memConsumption = getField(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> memConsumption = getField(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, templateInfo);
         assertTrue(memConsumption.isPresent());
         assertEquals(1d, Double.valueOf(memConsumption.get().getValue()), delta);
 
         // MEM consumption factor = (200 + 60) > (100 + 50) : Max consumption factor
-        Optional<TemplateField> cpuConsumption = getField(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> cpuConsumption = getField(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, templateInfo);
         assertTrue(cpuConsumption.isPresent());
         assertEquals(1d, Double.valueOf(cpuConsumption.get().getValue()), delta);
     }
@@ -189,48 +190,48 @@ public class SystemLoadCalculatedProfileTest {
         assertEquals(templateInfo.getEntityType(),  EntityType.VIRTUAL_MACHINE_VALUE);
 
         // MEM : max(40,50)
-        Optional<TemplateField> mem = getField(SystemLoadCalculatedProfile.MEMORY_SIZE, templateInfo);
+        Optional<TemplateField> mem = getField(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, templateInfo);
         assertTrue(mem.isPresent());
         assertEquals(50d, Double.valueOf(mem.get().getValue()), delta);
 
         // MEM consumption factor = max(20,10)/max(50,40)
-        Optional<TemplateField> memConsumption = getField(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> memConsumption = getField(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, templateInfo);
         assertTrue(memConsumption.isPresent());
         assertEquals(0.4d, Double.valueOf(memConsumption.get().getValue()), delta);
 
         // CPU : max(100,50)
-        Optional<TemplateField> cpu = getField(SystemLoadCalculatedProfile.CPU_SPEED, templateInfo);
+        Optional<TemplateField> cpu = getField(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, templateInfo);
         assertTrue(cpu.isPresent());
         assertEquals(100d, Double.valueOf(cpu.get().getValue()), delta);
 
         // MEM consumption factor = max(9,6)/max(100,50)
-        Optional<TemplateField> cpuConsumption = getField(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> cpuConsumption = getField(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, templateInfo);
         assertTrue(cpuConsumption.isPresent());
         assertEquals(0.09d, Double.valueOf(cpuConsumption.get().getValue()), delta);
 
         // Storage : max(9,5)
-        Optional<TemplateField> storage = getField(SystemLoadCalculatedProfile.DISK_SIZE, templateInfo);
+        Optional<TemplateField> storage = getField(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, templateInfo);
         assertTrue(storage.isPresent());
         assertEquals(9d, Double.valueOf(storage.get().getValue()), delta);
 
         // Storage consumption value is set to default value.
-        Optional<TemplateField> diskConsumption = getField(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> diskConsumption = getField(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, templateInfo);
         assertTrue(diskConsumption.isPresent());
-        assertEquals(SystemLoadCalculatedProfile.STORAGE_CONSUMED_FACTOR_DEFAULT,
+        assertEquals(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE,
                         Double.valueOf(diskConsumption.get().getValue()), delta);
 
         // NET_THROUGHPUT : max(21,7)
-        Optional<TemplateField> netThroughput = getField(SystemLoadCalculatedProfile.NETWORK_THROUGHPUT, templateInfo);
+        Optional<TemplateField> netThroughput = getField(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, templateInfo);
         assertTrue(netThroughput.isPresent());
         assertEquals(21, Double.valueOf(netThroughput.get().getValue()), delta);
 
         // IO_THROUGHPUT : max(8,24)
-        Optional<TemplateField> io = getField(SystemLoadCalculatedProfile.IO_THROUGHPUT, templateInfo);
+        Optional<TemplateField> io = getField(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, templateInfo);
         assertTrue(io.isPresent());
         assertEquals(24d, Double.valueOf(io.get().getValue()), delta);
 
         // STORAGE_ACCESS : max(15, 25)
-        Optional<TemplateField> accessSpeed = getField(SystemLoadCalculatedProfile.DISK_IOPS, templateInfo);
+        Optional<TemplateField> accessSpeed = getField(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, templateInfo);
         assertTrue(accessSpeed.isPresent());
         assertEquals(25d, Double.valueOf(accessSpeed.get().getValue()), delta);
     }
@@ -264,12 +265,12 @@ public class SystemLoadCalculatedProfileTest {
         assertEquals(templateInfo.getEntityType(),  EntityType.VIRTUAL_MACHINE_VALUE);
 
         // MEM consumption factor = (100 + 60) > (50 + 40) : Max consumption factor
-        Optional<TemplateField> memConsumption = getField(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> memConsumption = getField(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, templateInfo);
         assertTrue(memConsumption.isPresent());
         assertEquals(1d, Double.valueOf(memConsumption.get().getValue()), delta);
 
         // MEM consumption factor = (200 + 60) > (100 + 50) : Max consumption factor
-        Optional<TemplateField> cpuConsumption = getField(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR, templateInfo);
+        Optional<TemplateField> cpuConsumption = getField(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, templateInfo);
         assertTrue(cpuConsumption.isPresent());
         assertEquals(1d, Double.valueOf(cpuConsumption.get().getValue()), delta);
     }

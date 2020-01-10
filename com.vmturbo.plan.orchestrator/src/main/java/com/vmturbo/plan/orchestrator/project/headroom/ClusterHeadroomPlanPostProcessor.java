@@ -38,6 +38,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -489,31 +490,31 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // Set CPU_HEADROOM_COMMODITIES
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_VALUE,
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_SPEED)) *
-                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.NUM_OF_CPU)) *
-                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED)) *
+                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU)) *
+                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR)));
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_PROVISIONED_VALUE,
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.NUM_OF_CPU)) *
-                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.CPU_SPEED)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU)) *
+                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED)));
 
         // Set MEM_HEADROOM_COMMODITIES
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)
             .put(CommodityType.MEM_VALUE,
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_SIZE)) *
-                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE)) *
+                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR)));
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)
             .put(CommodityType.MEM_PROVISIONED_VALUE,
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.MEMORY_SIZE)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE)));
 
         // Set STORAGE_HEADROOM_COMMODITIES
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
             .put(CommodityType.STORAGE_AMOUNT_VALUE,
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_SIZE)) *
-                    Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_SIZE)) *
+                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR)));
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
             .put(CommodityType.STORAGE_PROVISIONED_VALUE,
-                Double.valueOf(templateFields.get(SystemLoadCalculatedProfile.DISK_SIZE)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_SIZE)));
         if (logger.isTraceEnabled()) {
             logger.trace("Template name: {}, id: {}",
                 headroomTemplate.getTemplateInfo().getName(), headroomTemplate.getId());

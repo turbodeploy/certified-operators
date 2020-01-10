@@ -43,27 +43,6 @@ public class TemplatesConverterUtils {
 
     private TemplatesConverterUtils() {}
 
-    // compute
-    public static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
-    public static final String CPU_SPEED = "cpuSpeed";
-    public static final String IO_THROUGHPUT = "ioThroughput";
-    public static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
-    public static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
-    public static final String MEMORY_SIZE = "memorySize";
-    public static final String NUM_OF_CPU = "numOfCpu";
-    public static final String NUM_OF_CORES = "numOfCores";
-    public static final String NETWORK_THROUGHPUT = "networkThroughput";
-    public static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
-    // storage
-    public static final String DISK_IOPS = "diskIops";
-    public static final String DISK_SIZE = "diskSize";
-    public static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
-
-    //Infrastructure
-    public static final String POWER_SIZE = "powerSize";
-    public static final String SPACE_SIZE = "spaceSize";
-    public static final String COOLING_SIZE = "coolingSize";
-
     /**
      * Generate a {@link TopologyEntityDTO} builder contains common fields between different templates.
      *

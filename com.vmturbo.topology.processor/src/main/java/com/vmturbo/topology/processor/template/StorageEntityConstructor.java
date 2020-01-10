@@ -15,6 +15,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -114,9 +115,9 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
     private static void addStorageCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
         final double diskSize =
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_SIZE, ZERO));
+            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_SIZE, ZERO));
         final double diskIops =
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_IOPS, ZERO));
+            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_IOPS, ZERO));
 
         CommoditySoldDTO storageAmoutCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize);

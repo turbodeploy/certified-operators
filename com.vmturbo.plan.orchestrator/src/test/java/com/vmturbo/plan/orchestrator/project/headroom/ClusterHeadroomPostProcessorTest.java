@@ -26,6 +26,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -441,16 +442,16 @@ public class ClusterHeadroomPostProcessorTest {
                         .addAllResources(ImmutableList.of(
                             TemplateResource.newBuilder()
                                 .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.CPU_SPEED).setValue("10"))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR).setValue("0.5"))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.NUM_OF_CPU).setValue("1"))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.MEMORY_SIZE).setValue("100"))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR).setValue("0.4"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED).setValue("10"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR).setValue("0.5"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU).setValue("1"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE).setValue("100"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR).setValue("0.4"))
                                 .build(),
                            TemplateResource.newBuilder()
                                 .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.DISK_SIZE).setValue(setValidValues ? "200" : "0"))
-                                .addFields(TemplateField.newBuilder().setName(SystemLoadCalculatedProfile.DISK_CONSUMED_FACTOR).setValue("1"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_SIZE).setValue(setValidValues ? "200" : "0"))
+                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR).setValue("1"))
                                 .build())))
                         .setId(1234)
                         .build();

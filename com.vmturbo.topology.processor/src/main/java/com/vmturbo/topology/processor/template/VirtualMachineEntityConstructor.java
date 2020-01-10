@@ -21,6 +21,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
@@ -179,11 +180,11 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtCPU(
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double numOfCpu = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NUM_OF_CPU, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, ZERO));
         final double cpuSpeed = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, ZERO));
         final double cpuConsumedFactor = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_CONSUMED_FACTOR, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, ZERO));
 
         // if created entity is reservation entity, cpu used value should be 0.
         final double used = this.isReservationEntity ? 0.0 : numOfCpu * cpuSpeed * cpuConsumedFactor;
@@ -203,9 +204,9 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtMem(
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double memorySize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
         final double memoryConsumedFactor = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_CONSUMED_FACTOR, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, ZERO));
         // if created entity is reservation entity, memory used value should be 0.
         final double used = this.isReservationEntity ? 0.0 : memorySize * memoryConsumedFactor;
         CommodityBoughtDTO memCommodity =
@@ -225,10 +226,10 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull Map<String, String> fieldNameValueMap) {
         // if created entity is reservation entity, io throughput used value should be 0.
         final double ioThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.IO_THROUGHPUT_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, ZERO));
         // if created entity is reservation entity, network throughput used value should be 0.
         final double netThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NETWORK_THROUGHPUT_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, ZERO));
 
         CommodityBoughtDTO ioThroughputCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughput);
@@ -246,11 +247,11 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private void addComputeCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
         final double numOfCpu = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NUM_OF_CPU, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, ZERO));
         final double cpuSpeed = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, ZERO));
         final double memorySize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
 
         final double totalCpuSold = numOfCpu * cpuSpeed;
         CommoditySoldDTO cpuSoldCommodity =
@@ -272,7 +273,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
         final double totalDiskSize = storageTemplateResources.stream()
             .map(TemplateResource::getFieldsList)
             .flatMap(List::stream)
-            .filter(templateField -> templateField.getName().equals(TemplatesConverterUtils.DISK_SIZE))
+            .filter(templateField -> templateField.getName().equals(TemplateProtoUtil.VM_STORAGE_DISK_SIZE))
             .map(TemplateField::getValue)
             .mapToDouble(Double::valueOf)
             .sum();
@@ -378,12 +379,12 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull Map<String, String> fieldNameValueMap,
             @Nonnull String type) {
         final double disSize = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_SIZE, ZERO));
+            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, ZERO));
         // if created entity is reservation entity, storage amount used value should be 0.
         final double disConsumedFactor = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_CONSUMED_FACTOR, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, ZERO));
         final double disIops = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_IOPS, ZERO));
+            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, ZERO));
         CommodityBoughtDTO stAmountCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
                 disSize * disConsumedFactor);

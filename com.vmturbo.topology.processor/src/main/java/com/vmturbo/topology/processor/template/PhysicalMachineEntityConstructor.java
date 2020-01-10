@@ -20,6 +20,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -97,22 +98,22 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         // Set type specific info
         PhysicalMachineInfo.Builder pmInfoBuilder = PhysicalMachineInfo.newBuilder();
         int numCores = Double.valueOf(
-                computeTemplateResources.getOrDefault(TemplatesConverterUtils.NUM_OF_CORES, ZERO)).intValue();
+                computeTemplateResources.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE, ZERO)).intValue();
         if (numCores > 0) {
             pmInfoBuilder.setNumCpus(numCores);
         } else {
            logger.error("Incorrect/empty value for number of cores {} for template {}.",
-               computeTemplateResources.get(TemplatesConverterUtils.NUM_OF_CORES),
+               computeTemplateResources.get(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE),
                templateName);
         }
 
         int cpuSpeed = Double.valueOf(
-                computeTemplateResources.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO)).intValue();
+                computeTemplateResources.getOrDefault(TemplateProtoUtil.PM_COMPUTE_CPU_SPEED, ZERO)).intValue();
         if (cpuSpeed > 0) {
             pmInfoBuilder.setCpuCoreMhz(cpuSpeed);
         } else {
            logger.error("Incorrect/empty value of cpu speed {} for template {}. ",
-               computeTemplateResources.get(TemplatesConverterUtils.CPU_SPEED),
+               computeTemplateResources.get(TemplateProtoUtil.PM_COMPUTE_CPU_SPEED),
                templateName);
         }
 
@@ -159,11 +160,11 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
     private static void addComputeCommoditiesCpuMemSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
                                                         @Nonnull Map<String, String> fieldNameValueMap) {
         final double numOfCpu = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NUM_OF_CORES, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NUM_OF_CORE, ZERO));
         final double cpuSpeed = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_CPU_SPEED, ZERO));
         final double memSize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_MEM_SIZE, ZERO));
 
         final CommoditySoldDTO cpuCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.CPU_VALUE, numOfCpu * cpuSpeed);
@@ -212,9 +213,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
     private static void addComputeCommoditiesIONetSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
                                                        @Nonnull Map<String, String> fieldNameValueMap) {
         final double ioThroughputSize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.IO_THROUGHPUT_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_IO_THROUGHPUT_SIZE, ZERO));
         final double networkThroughputSize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NETWORK_THROUGHPUT_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NETWORK_THROUGHPUT_SIZE, ZERO));
 
         CommoditySoldDTO ioThroughputCommodity =
             createCommoditySoldDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughputSize);
@@ -273,11 +274,11 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double powerSize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.POWER_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_INFRA_POWER_SIZE, ZERO));
         final double spaceSize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.SPACE_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_INFRA_SPACE_SIZE, ZERO));
         final double coolingSize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.COOLING_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_INFRA_COOLING_SIZE, ZERO));
 
         CommodityBoughtDTO powerSizeCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.POWER_VALUE, powerSize);
