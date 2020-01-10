@@ -161,7 +161,8 @@ public class CostJournal<ENTITY_CLASS> {
                     final CostJournal<ENTITY_CLASS> journal =
                         dependentCostLookup.getCostJournal(childCostEntity);
                     if (journal == null) {
-                        logger.error("Could not find costs for child entity {} (id: {})",
+                        logger.trace("Could not find costs for child entity {} (id: {}). It maybe" +
+                                        "possible that the journal for the entity hasn't been created yet.",
                             infoExtractor.getName(childCostEntity),
                             infoExtractor.getId(childCostEntity));
                     } else {
