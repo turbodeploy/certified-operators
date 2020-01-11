@@ -55,6 +55,7 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
@@ -68,6 +69,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -380,14 +382,24 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         SingleEntityRequest singleRequest = repositoryApi.entityRequest(uuidMapper.fromUuid(uuid).oid());
         TopologyEntityDTO topologyEntityDTO = singleRequest
                         .getFullEntity()
-                        .orElseThrow(() -> new UnknownObjectException(uuid));;
+                        .orElseThrow(() -> new UnknownObjectException(uuid));
 
-        List<String> relatedEntityTypes = topologyEntityDTO.getConnectedEntityListList()
-                        .stream()
-                        .map(connEnt -> connEnt.getConnectedEntityType())
-                        .distinct()
-                        .map(type ->  UIEntityType.fromType(type).apiStr())
-                        .collect(Collectors.toList());
+        List<String> relatedEntityTypes = inputDto.getRelatedEntityTypes();
+
+        if (relatedEntityTypes == null) {
+            relatedEntityTypes = topologyEntityDTO.getConnectedEntityListList()
+                    .stream()
+                    .map(connEnt -> connEnt.getConnectedEntityType())
+                    .distinct()
+                    .map(type ->  UIEntityType.fromType(type).apiStr())
+                    .collect(Collectors.toList());
+        }
+
+        int workloadIndex = relatedEntityTypes.indexOf(StringConstants.WORKLOAD);
+        if (workloadIndex >= 0) {
+            relatedEntityTypes.remove(workloadIndex);
+            relatedEntityTypes.addAll(GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR);
+        }
 
         inputDto.setRelatedEntityTypes(relatedEntityTypes);
         return entitiesService.getActionCountStatsByUuid(uuid, inputDto);

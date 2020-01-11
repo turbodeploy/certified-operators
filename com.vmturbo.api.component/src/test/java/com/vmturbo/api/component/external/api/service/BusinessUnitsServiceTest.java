@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -74,6 +75,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -480,6 +482,58 @@ public class BusinessUnitsServiceTest {
 
         verify(entitiesService).getActionCountStatsByUuid(UUID_STRING, actionDTO);
 
+        assertThat(statsByUuid, is(listStatDTO));
+    }
+
+    /**
+     * Testing get count of actions stats by account uuid, for workload related entity type.
+     * @throws Exception If any mandatory RPC call fails.
+     */
+    @Test
+    public void testGetActionCountStatsByUuidForWorkloadType() throws Exception {
+        final ApiId apiId = ApiTestUtils.mockGroupId(UUID_STRING, uuidMapper);
+        when(uuidMapper.fromUuid(UUID_STRING)).thenReturn(apiId);
+
+        final SingleEntityRequest mockReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
+                        .setOid(OID_LONG)
+                        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+                        .build());
+        when(repositoryApi.entityRequest(OID_LONG)).thenReturn(mockReq);
+
+        ConnectedEntity connectedEntity1 = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(1)
+                .setConnectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .build();
+        ConnectedEntity connectedEntity2 = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(2)
+                .setConnectedEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                .build();
+        TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                        .setOid(OID_LONG)
+                        .setDisplayName("account")
+                        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+                        .addConnectedEntityList(connectedEntity1)
+                        .addConnectedEntityList(connectedEntity2)
+                        .build();
+        when(mockReq.getFullEntity()).thenReturn(Optional.of(entityDTO));
+
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        actionDTO.setEndTime(DateTimeUtil.getNow());
+        actionDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        actionDTO.setRelatedEntityTypes(Lists.newArrayList(StringConstants.WORKLOAD));
+        actionDTO.setGroupBy(ImmutableList.of("riskSubCategory", "actionStates"));
+
+        final List<StatSnapshotApiDTO> listStatDTO = new ArrayList<>();
+        StatSnapshotApiDTO stat = new StatSnapshotApiDTO();
+        stat.setDisplayName("vm-action-1");
+        stat.setDate("2020-01-01");
+        listStatDTO.add(stat);
+
+        when(entitiesService.getActionCountStatsByUuid(UUID_STRING, actionDTO)).thenReturn(listStatDTO);
+
+        List<StatSnapshotApiDTO> statsByUuid = businessUnitsService.getActionCountStatsByUuid(UUID_STRING, actionDTO);
+
+        verify(entitiesService).getActionCountStatsByUuid(UUID_STRING, actionDTO);
         assertThat(statsByUuid, is(listStatDTO));
     }
 
