@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -175,10 +176,12 @@ public class ActionTranslator {
             @Nonnull final List<? extends ActionView> actionViews) {
         final Set<Long> reasonSettings = new HashSet<>();
         for (ActionView actionView : actionViews) {
-            final Explanation explanation = actionView.getRecommendation().getExplanation();
+            final Explanation explanation = actionView.getTranslationResultOrOriginal()
+                    .getExplanation();
             switch (explanation.getActionExplanationTypeCase()) {
                 case MOVE:
-                    explanation.getMove().getChangeProviderExplanationList().stream()
+                case SCALE:
+                    ActionDTOUtil.getChangeProviderExplanationList(explanation).stream()
                         .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
                         .filter(ChangeProviderExplanation::hasCompliance)
                         .map(ChangeProviderExplanation::getCompliance)
