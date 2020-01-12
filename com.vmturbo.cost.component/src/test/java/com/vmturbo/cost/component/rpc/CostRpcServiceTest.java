@@ -1206,22 +1206,6 @@ public class CostRpcServiceTest {
                 .build();
         builder.addCloudStatRecord(cloudStatRecord);
 
-        // add projected values.
-        if (request.hasStartDate() && request.hasEndDate()) {
-            statValueBuilder.setAvg(5.0f)
-                    .setTotal(5.0f)
-                    .setMax(5.0f)
-                    .setMin(5.0f);
-            statRecordBuilder.clearValues();
-            statRecordBuilder.setValues(statValueBuilder.build());
-            final CloudCostStatRecord projectedCloudStatRecord = CloudCostStatRecord.newBuilder()
-                    // the Projected stats will be 1 hour ahead
-                    .setSnapshotDate(TIME + TimeUnit.HOURS.toMillis(1))
-                    .addStatRecords(statRecordBuilder.build())
-                    .build();
-            builder.addCloudStatRecord(projectedCloudStatRecord);
-        }
-
         when(timeFrameCalculator.millis2TimeFrame(request.getStartDate())).thenReturn(TimeFrame.HOUR);
         costRpcService.getAccountExpenseStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
