@@ -54,6 +54,24 @@ public class NativeMemoryTrackingMetrics implements ScheduledMetricsObserver {
     private static final String RESERVED = "reserved";
     private static final String COMMITTED = "committed";
 
+    /**
+     * Check if this feature is even supported in the current environment. This check will make a
+     * request for NMT data in the current environment, and return true if the check test request
+     * was successful.
+     *
+     * @return true, if the NMT request can be succesfully made.
+     */
+    public static boolean isSupported() {
+        try {
+            vmtNativeMemorySummary();
+        } catch (JMException jme) {
+            logger.warn("Exception trying to invoke and parse NMT command: `{}`. We will assume Native Memory " +
+                    "Tracking is not supported in this environment.", jme.getMessage());
+            return false;
+        }
+        return true;
+    }
+
     private static String vmtNativeMemorySummary() throws JMException {
         return (String)jmxMBeanServer.invoke(OBJECT_NAME, OPERATION, SUMMARY, ARGS_TYPE);
     }

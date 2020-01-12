@@ -46,7 +46,10 @@ public class ScheduledMetrics {
         // add the default observers
         observers.add(new JVMRuntimeMetrics());
         observers.add(ComponentLifespanMetrics.getInstance());
-        observers.add(new NativeMemoryTrackingMetrics());
+        if (NativeMemoryTrackingMetrics.isSupported()) {
+            logger.info("Adding Native Memory tracking metrics.");
+            observers.add(new NativeMemoryTrackingMetrics());
+        }
 
         scheduler.scheduleWithFixedDelay(this::collectMetrics, initialDelayMs, periodMs, TimeUnit.MILLISECONDS);
         logger.info("ScheduledMetrics scheduled to collect every {} ms.", periodMs);

@@ -62,36 +62,26 @@ if [[ -z ${JAVA_OPTS} ]]; then
      # The Djava.security.egd=file:/dev/./urandom configuration significantly speeds up start-up time
      # for the components using the SecureRandom class (see
      # http://stackoverflow.com/questions/25660899/spring-boot-actuator-application-wont-start-on-ubuntu-vps)
-     JAVA_BASE_OPTS="-XX:+UseG1GC -Xms16m -XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError -verbose:gc
-              -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintConcurrentLocks -XX:+PrintClassHistogram -XX:NativeMemoryTracking=summary
-              -XX:+PrintCommandLineFlags -XX:+UseStringDeduplication -XX:StringDeduplicationAgeThreshold=1
-              -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
+     JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+UseContainerSupport -Xms16m -XX:CompileThreshold=1500
+              -XX:+ExitOnOutOfMemoryError -Xjit:count=1500 -XX:+ExitOnOutOfMemoryError -Xdump:java:file=/STDOUT/
+              -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
               -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
               -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
-              -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow
+              -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true
               -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
   fi
   JAVA_OPTS=$JAVA_BASE_OPTS
 
-  # determine max ram percentage, if needed
-  shopt -s extglob
-  if [[ -z ${JAVA_MAX_RAM_PCT} ]]; then
-    # determine the max ram % setting based on available memory
-    find_memory_limit
-    if [[ $MEM_LIMIT -lt 1073741824 ]]; then
-      # use 45% if memory limit < 1gb
-      JAVA_OPTS="-XX:MaxRAMPercentage=45.0 $JAVA_OPTS"
+  # set max ram percentage, if needed
+  if [[ -n ${JAVA_MAX_RAM_PCT} ]]; then
+    shopt -s extglob
+    if [[ $JAVA_MAX_RAM_PCT == +([0-9])?(.+([0-9])) ]]; then
+      # this is a numeric value -- use it to set the max ram pct directly
+      JAVA_OPTS="-XX:MaxRAMPercentage=$JAVA_MAX_RAM_PCT $JAVA_OPTS"
     else
-      # use 75% otherwise
-      JAVA_OPTS="-XX:MaxRAMPercentage=75.0 $JAVA_OPTS"
+      # there was a non-numeric value specified, we'll assume this means we should exclude the setting.
+      echo "Excluding MaxRAMPercentage option since JAVA_MAX_RAM_PCT is set to $JAVA_MAX_RAM_PCT" 2>&1 | ${LOGGER_COMMAND}
     fi
-  # there's an environment-specific max ram PCT we should use
-  elif [[ $JAVA_MAX_RAM_PCT == +([0-9])?(.+([0-9])) ]]; then
-    # this is a numeric value -- use it to set the max ram pct directly
-    JAVA_OPTS="-XX:MaxRAMPercentage=$JAVA_MAX_RAM_PCT $JAVA_OPTS"
-  else
-    # there was a non-numeric value specified, we'll assume this means we should exclude the setting.
-    echo "Excluding MaxRAMPercentage option since JAVA_MAX_RAM_PCT is set to $JAVA_MAX_RAM_PCT" 2>&1 | ${LOGGER_COMMAND}
   fi
 
   # optional component-specific options
@@ -102,8 +92,8 @@ if [[ -z ${JAVA_OPTS} ]]; then
   # java dev options
   if [[ -n ${JAVA_DEBUG} ]]; then
     if [[ -z ${JAVA_DEBUG_OPTS} ]]; then
-      JAVA_DEBUG_OPTS="-XX:+PrintFlagsFinal -agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n
-                -Djdk.attach.allowAttachSelf -XshowSettings"
+      JAVA_DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n
+               -Djdk.attach.allowAttachSelf"
     fi
     JAVA_OPTS="$JAVA_DEBUG_OPTS $JAVA_OPTS"
   fi
