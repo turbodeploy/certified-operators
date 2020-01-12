@@ -110,7 +110,7 @@ spec:
   - name: http-repository
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-repository-debug
     port: 8000
   {{- end -}}

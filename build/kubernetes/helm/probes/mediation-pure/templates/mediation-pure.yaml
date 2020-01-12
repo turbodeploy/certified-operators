@@ -109,7 +109,7 @@ spec:
   - name: http-mediation-pure
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-mediation-pure-debug
     port: 8000
   {{- end -}}

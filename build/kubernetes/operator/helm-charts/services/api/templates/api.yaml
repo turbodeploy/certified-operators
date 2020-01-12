@@ -178,7 +178,7 @@ spec:
   - name: https-api
     port: 9443
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-api-debug
     port: 8000
   {{- end -}}

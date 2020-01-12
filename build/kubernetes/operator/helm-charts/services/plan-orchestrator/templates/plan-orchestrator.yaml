@@ -110,7 +110,7 @@ spec:
   - name: http-plan-orchestrator
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-plan-orchestrator-debug
     port: 8000
   {{- end -}}

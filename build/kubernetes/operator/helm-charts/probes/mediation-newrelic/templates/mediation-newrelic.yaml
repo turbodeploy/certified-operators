@@ -118,7 +118,7 @@ spec:
   - name: http-mediation-newrelic
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-mediation-newrelic-debug
     port: 8000
   {{- end -}}

@@ -291,6 +291,10 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     istio: t8c-ingressgateway-{{ .Release.Name }}
+  {{- with .Values.global.ingress.annotations }}
+  annotations:
+{{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: LoadBalancer
   selector:

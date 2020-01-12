@@ -109,7 +109,7 @@ spec:
   - name: http-ml-datastore
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-ml-datastore-debug
     port: 8000
   {{- end -}}

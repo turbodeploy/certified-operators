@@ -110,7 +110,7 @@ spec:
   - name: http-clustermgr
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
+  {{- if or .Values.debug .Values.global.debug }}
   - name: tcp-clustermgr-debug
     port: 8000
   {{- end -}}
