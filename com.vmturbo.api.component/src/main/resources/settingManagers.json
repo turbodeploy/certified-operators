@@ -45,7 +45,9 @@
       "planSettingInfo": {
         "supportedSettingDefaults" : {
           "VirtualMachine" : {
-            "resize": "AUTOMATIC"
+            "resize": "AUTOMATIC",
+            "provision": "AUTOMATIC",
+            "suspend": "AUTOMATIC"
           },
           "PhysicalMachine" : {
             "provision" : "AUTOMATIC",
@@ -54,6 +56,13 @@
           "Storage" : {
             "provision" : "AUTOMATIC",
             "suspend" : "DISABLED"
+          },
+          "ContainerPod" : {
+            "provision" : "AUTOMATIC",
+            "suspend" : "DISABLED"
+          },
+          "Container" : {
+            "resize": "AUTOMATIC"
           }
         }
       }
