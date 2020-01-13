@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +36,8 @@ public class CloudTypeMapper {
      * @param targetType Target type (probe type).
      * @return Cloud type or null if not found.
      */
-    public CloudType fromTargetType(@Nonnull final String targetType) {
-        return probeTypeToCloudType.get(targetType);
+    @Nonnull
+    public Optional<CloudType> fromTargetType(@Nonnull final String targetType) {
+        return Optional.ofNullable(probeTypeToCloudType.get(targetType));
     }
 }

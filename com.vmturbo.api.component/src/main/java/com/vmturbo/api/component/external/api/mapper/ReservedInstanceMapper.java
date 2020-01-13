@@ -343,12 +343,9 @@ public class ReservedInstanceMapper {
         if (targetType == null) {
             throw new NotFoundCloudTypeException("Missing target type for target: " + targetApiDTO);
         }
-        final CloudType cloudType = cloudTypeMapper.fromTargetType(targetType);
-        if (cloudType == null) {
-            throw new NotFoundCloudTypeException("Cannot identify Cloud for target type: "
-                + targetType);
-        }
-        return cloudType;
+        return cloudTypeMapper.fromTargetType(targetType)
+            .orElseThrow(() -> new NotFoundCloudTypeException(
+                "Cannot identify Cloud for target type: " + targetType));
     }
 
     /**
