@@ -73,6 +73,13 @@ spec:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
           readOnlyRootFilesystem: true
+          capabilities:
+            add:
+            - KILL
+            - SETGID
+            - SETUID
+            drop:
+            - ALL
         volumeMounts:
         - mountPath: /var/lib/mysql
           name: mysql-data
