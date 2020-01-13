@@ -123,12 +123,10 @@ metadata:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- if .Values.global }}
-  {{- with .Values.global.nginxingress.annotations }}
+  {{- with .Values.global.ingress.annotations }}
   annotations:
 {{- toYaml . | nindent 4 }}
   {{- end }}
-{{- end }}
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
