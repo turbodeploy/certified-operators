@@ -1462,7 +1462,7 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
         when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
-        when(cloudTypeMapper.fromTargetType(any())).thenReturn(CloudType.AWS);
+        when(cloudTypeMapper.fromTargetType(any())).thenReturn(Optional.of(CloudType.AWS));
         // test with only one type, cloudType should be AWS
         EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
         assertEquals(envCloudType.getCloudType(), CloudType.AWS);
@@ -1478,8 +1478,8 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req2);
         when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
         when(targetCache.getTargetInfo(targetId2)).thenReturn(Optional.of(thinTargetInfo2));
-        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(CloudType.AWS);
-        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(CloudType.AZURE);
+        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(Optional.of(CloudType.AWS));
+        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(Optional.of(CloudType.AZURE));
         // test with both AWS and Azure, cloudType should be Hybrid
         envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
         assertEquals(envCloudType.getCloudType(), CloudType.HYBRID);
@@ -1539,6 +1539,68 @@ public class GroupMapperTest {
         EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
         assertEquals(envCloudType.getEnvironmentType(), EnvironmentType.CLOUD);
     }
+
+
+
+    /**
+     * A cloud entity in a group that belongs to a Cloud target and a Non-cloud target should not
+     * cause an exception. We should still be able to determine that the AWS entity has cloud type
+     * AWS and CLOUD environment type.
+     */
+    @Test
+    public void testCloudEntityStitchedByNonCloudTarget() {
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.entities()).thenReturn(Arrays.asList(1L));
+
+        long awsTargetId = 2L;
+        long appDTargetId = 3L;
+        final MinimalEntity entVM1 =  MinimalEntity.newBuilder()
+            .setDisplayName("VM in cloud stitched to AppD")
+            .addDiscoveringTargetIds(appDTargetId)
+            .addDiscoveringTargetIds(awsTargetId)
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
+            .buildPartial();
+        List<MinimalEntity> listVMs = new ArrayList<>();
+        listVMs.add(entVM1);
+
+        long awsProbeId = 4L;
+        final ThinTargetCache.ThinTargetInfo awsTargetInfo = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                .type(SDKProbeType.AWS.getProbeType())
+                .oid(awsProbeId)
+                .build())
+            .displayName("AWS Target")
+            .oid(awsTargetId)
+            .isHidden(false)
+            .build();
+        long appDProbeId = 5L;
+        final ThinTargetCache.ThinTargetInfo appDProbeInfo = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                .category(ProbeCategory.GUEST_OS_PROCESSES.getCategoryInUpperCase())
+                .type(SDKProbeType.APPDYNAMICS.getProbeType())
+                .oid(appDProbeId)
+                .build())
+            .displayName("AppD Target")
+            .oid(appDTargetId)
+            .isHidden(false)
+            .build();
+        when(targetCache.getTargetInfo(awsTargetId)).thenReturn(Optional.of(awsTargetInfo));
+        when(targetCache.getTargetInfo(appDTargetId)).thenReturn(Optional.of(appDProbeInfo));
+
+        when(cloudTypeMapper.fromTargetType(SDKProbeType.AWS.getProbeType())).thenReturn(Optional.of(CloudType.AWS));
+        // This is the scenario that caused the NPE in OM-54171.
+        when(cloudTypeMapper.fromTargetType(SDKProbeType.APPDYNAMICS.getProbeType())).thenReturn(Optional.empty());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
+        EntityEnvironment entityEnvironment = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+        assertEquals(EnvironmentType.CLOUD, entityEnvironment.getEnvironmentType());
+        assertEquals(CloudType.AWS, entityEnvironment.getCloudType());
+    }
+
 
     /**
      * Test that the severity field on GroupApiDTO is populated as expected.

@@ -3,6 +3,8 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
+import java.util.Optional;
+
 import org.junit.Test;
 
 import com.vmturbo.api.enums.CloudType;
@@ -20,9 +22,9 @@ public class CloudTypeMapperTest {
     public void testFromTargetTypeNotNull() {
         final CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
 
-        assertEquals(CloudType.AWS, cloudTypeMapper.fromTargetType(
+        assertEquals(Optional.of(CloudType.AWS), cloudTypeMapper.fromTargetType(
             SDKProbeType.AWS.getProbeType()));
-        assertEquals(CloudType.AZURE, cloudTypeMapper.fromTargetType(
+        assertEquals(Optional.of(CloudType.AZURE), cloudTypeMapper.fromTargetType(
             SDKProbeType.AZURE_EA.getProbeType()));
     }
 
@@ -34,6 +36,6 @@ public class CloudTypeMapperTest {
     public void testFromTargetTypeNull() {
         final CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
 
-        assertNull(cloudTypeMapper.fromTargetType("Unknown target type"));
+        assertEquals(Optional.empty(), cloudTypeMapper.fromTargetType("Unknown target type"));
     }
 }
