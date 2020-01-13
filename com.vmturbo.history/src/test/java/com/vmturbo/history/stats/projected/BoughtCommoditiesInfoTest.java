@@ -112,9 +112,9 @@ public class BoughtCommoditiesInfoTest {
                 .setCurrentValue(2)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
                 .build();
 
         final StatRecord record =
@@ -162,9 +162,9 @@ public class BoughtCommoditiesInfoTest {
                 .setCurrentValue(1)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build())
-                .setValues(StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build())
-                .setPeak(StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build())
+                .setUsed(StatValue.newBuilder().setAvg(1).setMax(1).setMin(1).setTotal(1).build())
+                .setValues(StatValue.newBuilder().setAvg(1).setMax(1).setMin(1).setTotal(1).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
                 .build();
 
         final StatRecord record =
@@ -226,9 +226,9 @@ public class BoughtCommoditiesInfoTest {
                 .setCurrentValue(3)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build())
-                .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build())
+                .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -258,9 +258,9 @@ public class BoughtCommoditiesInfoTest {
                     // Current value is the avg of used.
                 .setCurrentValue(2)
                     // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .build();
 
         final StatRecord record =
@@ -296,9 +296,9 @@ public class BoughtCommoditiesInfoTest {
                 // Current value is the avg of used.
             .setCurrentValue(2)
                 // Used and values are the same thing
-            .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
-            .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
-            .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+            .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
             .build();
 
         assertEquals(expectedStatRecord, record);
@@ -334,9 +334,9 @@ public class BoughtCommoditiesInfoTest {
             .setUnits(COMMODITY_UNITS)
             .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
             .setCurrentValue(2)
-            .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
-            .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
-            .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+            .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
             .build();
 
         assertEquals(expectedStatRecord, record);
@@ -375,9 +375,9 @@ public class BoughtCommoditiesInfoTest {
             .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
             .setCurrentValue(4)
             // Used and values are the same thing
-            .setUsed(StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build())
-            .setValues(StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build())
-            .setPeak(StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build())
+            .setUsed(StatValue.newBuilder().setAvg(4).setMax(6).setMin(2).setTotal(8).build())
+            .setValues(StatValue.newBuilder().setAvg(4).setMax(6).setMin(2).setTotal(8).build())
+            .setPeak(StatValue.newBuilder().setAvg(6).setMax(9).setMin(3).setTotal(12).build())
             .build();
 
         final StatRecord record =

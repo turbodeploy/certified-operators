@@ -465,8 +465,6 @@ public class StatsMapper {
         converted.setMax(statValue.getMax());
         converted.setMin(statValue.getMin());
         converted.setTotal(statValue.getTotal());
-        converted.setTotalMax(statValue.getTotalMax());
-        converted.setTotalMin(statValue.getTotalMin());
         return converted;
     }
 

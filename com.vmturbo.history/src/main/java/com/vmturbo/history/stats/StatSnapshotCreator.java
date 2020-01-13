@@ -40,7 +40,6 @@ import com.google.common.collect.Multimap;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.utils.StringConstants;
 
@@ -129,25 +128,29 @@ public interface StatSnapshotCreator {
                             ? dbFirstStatRecord.getValue(ENTITY_TYPE, String.class)
                             : null;
                         final StatsAccumulator capacityValue = new StatsAccumulator();
-                        final StatsAccumulator usageValue = new StatsAccumulator();
-                        final StatsAccumulator effectiveCapacityValue = new StatsAccumulator();
                         Long producerId = null;
                         if (StringUtils.isNotEmpty(producerIdString)) {
                             producerId = Long.valueOf(producerIdString);
                         }
+                        float avgTotal = 0.0f;
+                        float globalMin = Float.MAX_VALUE;
+                        float globalMax = 0.0f;
+                        final StatsAccumulator effectiveCapacityValue = new StatsAccumulator();
 
                         // calculate totals
                         for (Record dbStatRecord : dbStatRecordList) {
                             Float oneAvgValue = dbStatRecord.getValue(AVG_VALUE, Float.class);
+                            if (oneAvgValue != null) {
+                                avgTotal += oneAvgValue;
+                            }
                             Float oneMinValue = dbStatRecord.getValue(MIN_VALUE, Float.class);
+                            if (oneMinValue != null) {
+                                globalMin = Math.min(oneMinValue, globalMin);
+                            }
                             Float oneMaxValue = dbStatRecord.getValue(MAX_VALUE, Float.class);
-
-                            float avgValue = oneAvgValue == null ? 0 : oneAvgValue;
-                            float minValue = oneMinValue == null ? avgValue : oneMinValue;
-                            float maxValue = oneMaxValue == null ? avgValue : oneMaxValue;
-
-                            usageValue.record(minValue, avgValue, maxValue);
-
+                            if (oneMaxValue != null) {
+                                globalMax = Math.max(oneMaxValue, globalMax);
+                            }
                             Float oneCapacityValue = dbStatRecord.getValue(CAPACITY, Float.class);
                             if (oneCapacityValue != null) {
                                 capacityValue.record(oneCapacityValue.doubleValue());
@@ -166,9 +169,6 @@ public interface StatSnapshotCreator {
                         }
 
                         final StatRecord statRecord;
-                        float reserved = (float)(capacityValue.getTotal()
-                            - effectiveCapacityValue.getTotal());
-                        StatValue usageStat = usageValue.toStatValue();
                         if (fullMarket) {
                             // For the full market, we don't divide the values by the number of
                             // records. This is because we know all records for this commodity at
@@ -186,17 +186,32 @@ public interface StatSnapshotCreator {
                             // Note (roman, Feb 6 2019): It's not clear what the different expected
                             // records are here. It's possible that there are stats for which we
                             // DO want the amount to be averaged across records.
-                            usageStat = usageStat.toBuilder()
-                                    .setAvg(usageStat.getTotal())
-                                    .setMax(usageStat.getTotalMax())
-                                    .setMin(usageStat.getTotalMin())
-                                    .build();
-                        }
-                        statRecord = statRecordBuilder.buildStatRecord(propertyType,
-                            propertySubtype, capacityValue.toStatValue(), reserved,
-                            relatedEntityType, producerId, usageStat,
-                            commodityKey, relation, percentileUtilization.getCount() > 0 ?
+
+                            // calculate the "reserved" amount. This is the gap between capacity and
+                            // "effective capacity".
+                            float reserved = (float) (capacityValue.getTotal()
+                                - effectiveCapacityValue.getTotal());
+                            statRecord = statRecordBuilder.buildStatRecord(propertyType,
+                                propertySubtype, capacityValue.toStatValue(), reserved,
+                                relatedEntityType, producerId, avgTotal, globalMin, globalMax,
+                                commodityKey, avgTotal, relation, null);
+                        } else {
+                            // calculate the averages
+                            final int numStatRecords = dbStatRecordList.size();
+                            float avgValueAvg = avgTotal / numStatRecords;
+                            // calculate the "reserved" amount. This is the gap between capacity and
+                            // "effective capacity".
+                            float reserved = (float) (capacityValue.getAvg()
+                                - effectiveCapacityValue.getAvg());
+
+                            // build the record for this stat (commodity type)
+                            statRecord = statRecordBuilder.buildStatRecord(propertyType,
+                                propertySubtype, capacityValue.toStatValue(), reserved,
+                                relatedEntityType, producerId, avgValueAvg, globalMin,
+                                globalMax, commodityKey, avgTotal, relation,
+                                percentileUtilization.getCount() > 0 ?
                                         percentileUtilization.toStatValue() : null);
+                        }
 
                         // return add this record to the snapshot for this timestamp
                         snapshotBuilder.addStatRecords(statRecord);

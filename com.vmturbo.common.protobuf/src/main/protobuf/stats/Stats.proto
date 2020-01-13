@@ -244,29 +244,11 @@ message StatSnapshot {
 
         // statistics for a given value over time
         message StatValue {
-            // The highest observed value within a period. If the StatValue object represents the
-            // value of a group of commodities, max is the highest max value within the group.
             optional float max = 1;
-
-            // The smallest observed value within a period. If the StatValue object represents the
-            // value of a group of commodities, min is the smallest min value within the group.
             optional float min = 2;
-
-            // The average observed value within a period. If the StatValue object represents the
-            // value of a group of commodities, avg is the average of avg values within the group.
             optional float avg = 3;
-
-            // Sum of all avg values within a group.
-            // If the StatValue represents the stats of one commodity, total = avg.
             optional float total = 4;
 
-            // Sum of all max values within a group.
-            // If the StatValue represents the stats of one commodity, total_max = max.
-            optional float total_max = 5;
-
-            // Sum of all min values within a group.
-            // If the StatValue represents the stats of one commodity, total_min = min.
-            optional float total_min = 6;
         }
     }
 }
