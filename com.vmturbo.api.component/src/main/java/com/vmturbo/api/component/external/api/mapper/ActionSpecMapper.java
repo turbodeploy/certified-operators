@@ -1205,10 +1205,9 @@ public class ActionSpecMapper {
             ServiceEntityApiDTO newEntity = new ServiceEntityApiDTO();
             newEntity.setUuid(riApiDTO.getTemplate().getUuid());
             newEntity.setDisplayName(riApiDTO.getTemplate().getDisplayName());
+            newEntity.setClassName(riApiDTO.getClassName());
             actionApiDTO.setNewEntity(newEntity);
-            actionApiDTO.setResizeToValue(
-                    String.format("Buy %d %s", riApiDTO.getInstanceCount(), riApiDTO.getTemplate().getDisplayName())
-            );
+            actionApiDTO.setResizeToValue(formatBuyRIResizeToValue(riApiDTO));
         } catch (NotFoundMatchPaymentOptionException e) {
             logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
         } catch (NotFoundMatchTenancyException e) {
@@ -1218,6 +1217,22 @@ public class ActionSpecMapper {
         } catch (NotFoundCloudTypeException e) {
             logger.error("Cannot identify Cloud Type for RI : {}", buyRI.getBuyRiId(), e);
         }
+    }
+
+    /**
+     * Format the RIBuy information into a String to show in pending action table.
+     * @param ri ReservedInstanceApiDTO to format
+     * @return a String contains all the necessary information to buy an RI
+     */
+    private final String formatBuyRIResizeToValue(ReservedInstanceApiDTO ri) {
+        String platform = ri.getPlatform().name();
+        String payment = ri.getPayment().name();
+        String type = ri.getType().name();
+        String termUnit = ri.getTerm().getUnits();
+        int term = (int)Math.floor(ri.getTerm().getValue());
+        int instanceCount = ri.getInstanceCount();
+        String templateName = ri.getTemplate().getDisplayName();
+        return String.format("%d %s(%s, %d%s, %s, %s)", instanceCount, templateName, platform, term, termUnit, payment, type);
     }
 
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
