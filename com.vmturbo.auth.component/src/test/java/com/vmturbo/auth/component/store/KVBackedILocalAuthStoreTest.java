@@ -4,10 +4,18 @@ import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED
 import static com.vmturbo.auth.component.store.AuthProviderRoleTest.getAuthentication;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -28,10 +36,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.auth.api.authentication.AuthenticationException;
@@ -39,6 +44,8 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
+import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -109,6 +116,8 @@ public class KVBackedILocalAuthStoreTest {
 
     private GroupServiceBlockingStub groupServiceClient;
 
+    private WidgetsetDbStore widgetsetDbStore = mock(WidgetsetDbStore.class);
+
     private Supplier<String> kvSupplier = () -> System.getProperty("com.vmturbo.kvdir");
 
     @Before
@@ -160,7 +169,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAdd() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -184,7 +193,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAddSharedUserValidGroups() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
 
         // group 1 will be valid, but group 2 will not
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -237,7 +246,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = IllegalArgumentException.class)
     public void testAddSharedUserInvalidGroups() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
 
         // group of PM's should not be allowed for shared user scope
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -361,6 +370,19 @@ public class KVBackedILocalAuthStoreTest {
                 "administrator", ImmutableList.of(1L));
         store.createSecurityGroup(securityGroupDTO);
         Assert.assertNotNull(store.authorize("user1", "group", "10.10.10.1"));
+
+        // check that external group user is persisted
+        Optional<String> jsonData = keyValueStore.get("groupusers/GROUP/USER1");
+        Assert.assertTrue(jsonData.isPresent());
+
+        UserInfo userInfo1 = GSON.fromJson(jsonData.get(), UserInfo.class);
+        Assert.assertEquals("user1", userInfo1.userName);
+
+        // check that authorize second time will not change the oid
+        store.authorize("user1", "group", "10.10.10.1");
+        UserInfo userInfo2 = GSON.fromJson(keyValueStore.get("groupusers/GROUP/USER1").get(),
+                UserInfo.class);
+        Assert.assertEquals(userInfo1.uuid, userInfo2.uuid);
     }
 
     @Test(expected = AuthorizationException.class)
@@ -383,13 +405,10 @@ public class KVBackedILocalAuthStoreTest {
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
-        Set<GrantedAuthority> grantedAuths = new HashSet<>();
-        grantedAuths.add(new SimpleGrantedAuthority("ROLE_NONADMINISTRATOR"));
         // The password is hidden.
-        Authentication authentication = new UsernamePasswordAuthenticationToken("user0",
-                                                                                "***",
-                                                                                grantedAuths);
+        Authentication authentication = getAuthentication("ROLE_NONADMINISTRATOR", "user0");
         SecurityContextHolder.getContext().setAuthentication(authentication);
+
         boolean result2 = store.setPassword("user0", "password0", "password1");
         Assert.assertTrue(result2);
         try {
@@ -414,7 +433,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -439,7 +458,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRolesInvalidScopeGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
 
         // group 1 will be valid, but group 2 will not
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -643,5 +662,47 @@ public class KVBackedILocalAuthStoreTest {
             "observer",
             Lists.newArrayList(11L));
         store.updateSecurityGroup(newSecurityGroupDTO);
+    }
+
+    /**
+     * Test that external group can be deleted successfully and widgetsets owned by users in that
+     * group are transferred to current user.
+     *
+     * @throws AuthorizationException if permission error happens
+     */
+    @Test
+    public void testDeleteSecurityGroupAndTransferWidgetsets() throws AuthorizationException {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+                "DedicatedCustomer",
+                "administrator");
+        store.createSecurityGroup(securityGroupDTO);
+        // two users in group1 login
+        store.authorize("user1", "group1", "10.10.10.1");
+        store.authorize("user2", "group1", "10.10.10.1");
+        // before delete
+        Assert.assertEquals(1, store.getSecurityGroups().size());
+        Assert.assertTrue(keyValueStore.get("groups/GROUP1").isPresent());
+        Assert.assertTrue(keyValueStore.get("groupusers/GROUP1/USER1").isPresent());
+        Assert.assertTrue(keyValueStore.get("groupusers/GROUP1/USER2").isPresent());
+
+        final UserInfo userInfo1 = GSON.fromJson(keyValueStore.get("groupusers/GROUP1/USER1").get(),
+                UserInfo.class);
+        final UserInfo userInfo2 = GSON.fromJson(keyValueStore.get("groupusers/GROUP1/USER2").get(),
+                UserInfo.class);
+
+        // delete group
+        Assert.assertTrue(store.deleteSecurityGroupAndTransferWidgetsets("group1"));
+
+        // verify that group and users in group are deleted
+        Assert.assertEquals(0, store.getSecurityGroups().size());
+        Assert.assertFalse(keyValueStore.get("groups/GROUP1").isPresent());
+        Assert.assertFalse(keyValueStore.get("groupusers/GROUP1/USER1").isPresent());
+        Assert.assertFalse(keyValueStore.get("groupusers/GROUP1/USER2").isPresent());
+
+        // verify that widgets owned by users in AD group are transferred
+        verify(widgetsetDbStore).transferOwnership((Collection<Long>)argThat(containsInAnyOrder(
+                Long.valueOf(userInfo1.uuid), Long.valueOf(userInfo2.uuid))), eq(9527L));
     }
 }

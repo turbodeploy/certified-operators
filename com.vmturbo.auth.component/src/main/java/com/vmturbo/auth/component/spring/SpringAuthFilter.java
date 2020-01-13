@@ -89,7 +89,9 @@ public class SpringAuthFilter extends GenericFilterBean {
         }
 
         // The password is hidden.
-        Authentication authentication = new UsernamePasswordAuthenticationToken(dto.getUser(),
+        // put the whole AuthUserDTO (rather than only username) into authentication as we may need
+        // to get current user's uuid or other attributes
+        Authentication authentication = new UsernamePasswordAuthenticationToken(dto,
                 CREDENTIALS,
                 grantedAuths);
         SecurityContextHolder.getContext().setAuthentication(authentication);

@@ -242,8 +242,10 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
         String subject = claimsBody.getSubject();
         String uuid = claimsBody.get(UUID_CLAIM, String.class);
         List<Long> scopeGroups = (List<Long>) claimsBody.get(SCOPE_CLAIM);
+        String provider = claimsBody.get(PROVIDER_CLAIM, String.class);
         entry = new EntryStruct(expirationTime_ms + CLOCK_SKEW_SEC * 1000L,
-                rolesPayload, scopeGroups, subject, uuid);
+                rolesPayload, scopeGroups, subject, uuid,
+                provider != null ? AuthUserDTO.PROVIDER.valueOf(provider) : null);
         return entry;
     }
 
@@ -292,20 +294,27 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
         final String uuid_;
 
         /**
+         * The subject UUID.
+         */
+        final AuthUserDTO.PROVIDER provider_;
+
+        /**
          * Constructs the struct.
          *
          * @param timestamp_ms The expiration time.
          * @param roles        The roles.
          * @param principal    The principal.
          * @param uuid         The UUID.
+         * @param provider     The login provider.
          */
         EntryStruct(final long timestamp_ms, final List<String> roles, final List<Long> scope_groups,
-                    final String principal, final String uuid) {
+                    final String principal, final String uuid, final AuthUserDTO.PROVIDER provider) {
             timestamp_ms_ = timestamp_ms;
             roles_ = roles;
             scope_groups_ = scope_groups;
             principal_ = principal;
             uuid_ = uuid;
+            provider_ = provider;
         }
 
         /**
@@ -314,7 +323,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
          * @return A {@link AuthUserDTO} object from this entry.
          */
         AuthUserDTO asAuthUserDTO() {
-            return new AuthUserDTO(null, principal_, null, null, uuid_, null,
+            return new AuthUserDTO(provider_, principal_, null, null, uuid_, null,
                     roles_ == null ? roles_ : ImmutableList.copyOf(roles_),
                     scope_groups_);
         }

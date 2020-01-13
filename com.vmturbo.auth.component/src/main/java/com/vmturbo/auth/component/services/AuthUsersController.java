@@ -6,6 +6,10 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,10 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
 
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -429,6 +429,6 @@ public class AuthUsersController {
     public Boolean deleteSSOGroup(
             @ApiParam(value = "The name of Active Directory group", required = true)
             @PathVariable("groupName") String groupName) throws Exception {
-        return targetStore_.deleteSecurityGroup(groupName);
+        return targetStore_.deleteSecurityGroupAndTransferWidgetsets(groupName);
     }
 }

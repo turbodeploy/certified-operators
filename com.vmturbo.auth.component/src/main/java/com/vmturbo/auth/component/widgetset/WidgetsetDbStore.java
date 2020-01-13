@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.widgetset;
 
 import static com.vmturbo.auth.component.store.db.Tables.WIDGETSET;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -225,12 +226,12 @@ public class WidgetsetDbStore implements IWidgetsetStore {
     }
 
     @Override
-    public Iterator<WidgetsetRecord> transferOwnership(long fromUserOid, long toUserOid) {
+    public Iterator<WidgetsetRecord> transferOwnership(Collection<Long> fromUserOids, long toUserOid) {
         final List<WidgetsetRecord> records = Lists.newArrayList();
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
             Result<WidgetsetRecord> dbRecordToTransfer = transactionDsl.selectFrom(WIDGETSET)
-                .where(WIDGETSET.OWNER_OID.eq(fromUserOid))
+                .where(WIDGETSET.OWNER_OID.in(fromUserOids))
                 .fetch();
             dbRecordToTransfer.forEach(widgetsetRecord -> {
                 widgetsetRecord.setOwnerOid(toUserOid);

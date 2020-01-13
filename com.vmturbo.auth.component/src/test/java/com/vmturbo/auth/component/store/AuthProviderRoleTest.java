@@ -12,6 +12,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -37,6 +38,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -148,7 +150,8 @@ public class AuthProviderRoleTest {
         // Setup caller authentication
         Set<GrantedAuthority> grantedAuths = new HashSet<>();
         grantedAuths.add(new SimpleGrantedAuthority(role));
-        return new UsernamePasswordAuthenticationToken(user, "***", grantedAuths);
+        AuthUserDTO authUserDTO = new AuthUserDTO(user, "9527", Collections.singletonList(role));
+        return new UsernamePasswordAuthenticationToken(authUserDTO, "***", grantedAuths);
     }
 
     /**

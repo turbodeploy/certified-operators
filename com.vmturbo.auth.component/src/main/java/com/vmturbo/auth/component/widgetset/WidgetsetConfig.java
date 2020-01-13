@@ -6,14 +6,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.component.AuthDBConfig;
-import com.vmturbo.auth.component.AuthRESTSecurityConfig;
 import com.vmturbo.auth.component.store.AuthProvider;
 
 /**
  * Spring Configuration for the WidgetsetDBStore functionality. Uses the MariaDB configuration.
  **/
 @Configuration
-@Import({AuthDBConfig.class, AuthRESTSecurityConfig.class})
+@Import({AuthDBConfig.class})
 public class WidgetsetConfig {
 
     @Autowired

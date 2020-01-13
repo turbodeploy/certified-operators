@@ -44,8 +44,8 @@ public class MapKeyValueStore implements KeyValueStore {
     }
 
     @Override
-    public void removeKeysWithPrefix(String prefix) {
-        map.remove(prefix);
+    public void removeKeysWithPrefix(@Nonnull String prefix) {
+        map.entrySet().removeIf(entry -> entry.getKey().startsWith(prefix));
     }
 
     @Override

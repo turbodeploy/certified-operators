@@ -205,7 +205,9 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             roles.add(role);
             grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + role.toUpperCase()));
         }
-        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, remoteIpAddress, dto.getUuid(),
+        // also set the correct provider, use LOCAL if it's not initialized
+        final PROVIDER provider = dto.getProvider() != null ? dto.getProvider() : PROVIDER.LOCAL;
+        AuthUserDTO user = new AuthUserDTO(provider, username, null, remoteIpAddress, dto.getUuid(),
                                            token.getCompactRepresentation(), roles, dto.getScopeGroups());
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
     }

@@ -9,10 +9,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.google.gson.Gson;
 
 import org.junit.After;
 import org.junit.Before;
@@ -40,8 +43,7 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
-import com.google.gson.Gson;
-
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.component.store.ISecureStore;
 
 /**
@@ -190,8 +192,9 @@ public class SecureStorageControllerTest {
     }
 
     private void setupUser(@Nonnull final String username) {
+        final AuthUserDTO authUserDTO = new AuthUserDTO(username, null, Collections.emptyList());
         final UsernamePasswordAuthenticationToken token =
-            new UsernamePasswordAuthenticationToken(username, "password");
+            new UsernamePasswordAuthenticationToken(authUserDTO, "password");
 
         // TODO: It is odd that setting the authentication on the contextHolder works.
         // See https://stackoverflow.com/questions/15203485/spring-test-security-how-to-mock-authentication

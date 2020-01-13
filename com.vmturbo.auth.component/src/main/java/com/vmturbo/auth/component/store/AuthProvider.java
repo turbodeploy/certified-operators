@@ -1,9 +1,11 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.PROVIDER_CLAIM;
 import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.SCOPE_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.*;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,7 +16,6 @@ import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +57,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.vmturbo.api.enums.UserRole;
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
@@ -65,6 +68,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
+import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -93,6 +97,11 @@ public class AuthProvider {
     private static final String PREFIX_AD = "ad/info";
 
     private static final String PREFIX_GROUP = "groups/";
+
+    /**
+     * KV prefix for external group users.
+     */
+    private static final String PREFIX_GROUP_USERS = "groupusers/";
 
     /**
      * The keystore data file name.
@@ -150,12 +159,6 @@ public class AuthProvider {
     private final @Nonnull SsoUtil ssoUtil;
 
     /**
-     * The transient SSO group-based users.
-     */
-    private final Map<String, String> ssoUsersToUuid_ =
-            Collections.synchronizedMap(new HashMap<>());
-
-    /**
      * The identity generator prefix
      */
     @Value("${identityGeneratorPrefix}")
@@ -169,6 +172,11 @@ public class AuthProvider {
     private final Optional<GroupServiceBlockingStub> groupServiceClient;
 
     /**
+     * Store for managing widgetsets belonging to a user.
+     */
+    private final WidgetsetDbStore widgetsetDbStore;
+
+    /**
      * Constructs the KV store -- without support for validating shared groups.
      *
      * @param keyValueStore The underlying store backend.
@@ -177,7 +185,7 @@ public class AuthProvider {
     @VisibleForTesting
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
                         @Nonnull final Supplier<String> keyValueDir) {
-        this(keyValueStore, null, keyValueDir);
+        this(keyValueStore, null, keyValueDir, null);
     }
 
     /**
@@ -186,15 +194,18 @@ public class AuthProvider {
      * @param keyValueStore The underlying store backend.
      * @param groupServiceClient gRPC client to access the group service.
      * @param keyValueDir Function to provide the directory to store private key value data.
+     * @param widgetsetDbStore The store for managing widgetsets.
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
-                        @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                        @Nonnull final Supplier<String> keyValueDir) {
+                        @Nullable final GroupServiceBlockingStub groupServiceClient,
+                        @Nonnull final Supplier<String> keyValueDir,
+                        @Nullable final WidgetsetDbStore widgetsetDbStore) {
         keyValueStore_ = Objects.requireNonNull(keyValueStore);
         ssoUtil = new SsoUtil();
         this.keyValueDir = keyValueDir;
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);
+        this.widgetsetDbStore = widgetsetDbStore;
     }
 
     /**
@@ -204,17 +215,20 @@ public class AuthProvider {
      * @param uuid     The UUID.
      * @param roles    The role names.
      * @param scopeGroups the groups in the scope to which the user has access
+     * @param provider The login provider.
      * @return The generated JWT token.
      */
     private @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
                                                          final @Nonnull String uuid,
                                                          final @Nonnull List<String> roles,
-                                                         final @Nullable List<Long> scopeGroups) {
+                                                         final @Nullable List<Long> scopeGroups,
+                                                         final @Nonnull AuthUserDTO.PROVIDER provider) {
         final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
         JwtBuilder jwtBuilder = Jwts.builder()
                              .setSubject(userName)
                              .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
                              .claim(UUID_CLAIM, uuid)
+                             .claim(PROVIDER_CLAIM, provider)
                              .compressWith(CompressionCodecs.GZIP)
                              .signWith(SignatureAlgorithm.ES256, privateKey);
         // any scopes, does the user have?
@@ -232,20 +246,24 @@ public class AuthProvider {
      * @param userName  The user name.
      * @param uuid      The UUID.
      * @param roles     The role names.
+     * @param scopeGroups The groups in the scope to which the user has access
      * @param ipAddress The remote IP address.
+     * @param provider The login provider.
      * @return The generated JWT token.
      */
     private @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
                                                          final @Nonnull String uuid,
                                                          final @Nonnull List<String> roles,
                                                          final @Nullable List<Long> scopeGroups,
-                                                         final @Nonnull String ipAddress) {
+                                                         final @Nonnull String ipAddress,
+                                                         final @Nonnull AuthUserDTO.PROVIDER provider) {
         final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
         JwtBuilder jwtBuilder = Jwts.builder()
                 .setSubject(userName)
                 .claim(IP_ADDRESS_CLAIM, ipAddress)
                 .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
                 .claim(UUID_CLAIM, uuid)
+                .claim(PROVIDER_CLAIM, provider)
                 .compressWith(CompressionCodecs.GZIP)
                 .signWith(SignatureAlgorithm.ES256, privateKey);
         // any scopes, does the user have?
@@ -322,6 +340,30 @@ public class AuthProvider {
     }
 
     /**
+     * Compose the key path for the given user in external group, which will look like:
+     * "groupusers/{groupName}/{userName}".
+     *
+     * @param externalGroup name of the external group
+     * @param userName name of user in the given external group
+     * @return key for the user in external group
+     */
+    private String composeExternalGroupUserInfoKey(final @Nonnull String externalGroup,
+                                                   final @Nonnull String userName) {
+        return PREFIX_GROUP_USERS + externalGroup.toUpperCase() + "/" + userName.toUpperCase();
+    }
+
+    /**
+     * Compose the key path for the external group which keeps users belonging to the group, which
+     * will look like: "groupusers/{groupName}/".
+     *
+     * @param externalGroup name of the external group
+     * @return key for the external group where all belonging users are kept
+     */
+    private String composeExternalGroupUsersInfoKey(final @Nonnull String externalGroup) {
+        return PREFIX_GROUP_USERS + externalGroup.toUpperCase() + "/";
+    }
+
+    /**
      * Retrieves the value for the key from the KV store.
      *
      * @param key The key.
@@ -354,6 +396,18 @@ public class AuthProvider {
     private void removeKVKey(final @Nonnull String key) {
         synchronized (storeLock_) {
             keyValueStore_.removeKey(key);
+        }
+    }
+
+    /**
+     * Delete keys start with prefix from the key value store. No effect if the key is absent.
+     * It's similar to: consul kv delete -recurse prefix.
+     *
+     * @param prefix The prefix in kv store.
+     */
+    private void removeKVKeysWithPrefix(final @Nonnull String prefix) {
+        synchronized (storeLock_) {
+            keyValueStore_.removeKeysWithPrefix(prefix);
         }
     }
 
@@ -475,7 +529,7 @@ public class AuthProvider {
             throw new AuthenticationException(e);
         }
         logger_.info("AUDIT::SUCCESS: Success authenticating user: " + info.userName);
-        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups);
+        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, info.provider);
     }
 
 
@@ -489,7 +543,8 @@ public class AuthProvider {
     private @Nonnull JWTAuthorizationToken authorizeSAMLUser(final @Nonnull UserInfo info,
                                                              final @Nonnull String ipaddress) {
         logger_.info("AUDIT::SUCCESS: Success authorizing user: " + info.userName);
-        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipaddress);
+        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipaddress,
+                info.provider);
     }
 
     /**
@@ -512,13 +567,10 @@ public class AuthProvider {
                 SecurityGroupDTO userGroup = ssoUtil.authenticateUserInGroup(userName, password, ldapServers);
                 if (userGroup != null) {
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    String uuid = ssoUsersToUuid_.get(userName);
-                    if (uuid == null) {
-                        uuid = String.valueOf(IdentityGenerator.next());
-                        ssoUsersToUuid_.put(userName, uuid);
-                    }
+                    // persist user in external group if it's not added before
+                    final String uuid = addExternalGroupUser(userGroup.getDisplayName(), userName);
                     return generateToken(userName, uuid, ImmutableList.of(userGroup.getRoleName()),
-                            userGroup.getScopeGroups());
+                            userGroup.getScopeGroups(), AuthUserDTO.PROVIDER.LDAP);
                 }
             }
             throw new AuthenticationException("Unable to authenticate the user " + userName);
@@ -527,7 +579,6 @@ public class AuthProvider {
             throw new AuthenticationException("Unable to authenticate the user " + userName);
         }
     }
-
 
     /**
      * Authorize the SAML user by external group membership.
@@ -546,13 +597,10 @@ public class AuthProvider {
         reloadSSOConfiguration();
         return ssoUtil.authorizeSAMLUserInGroup(userName, externalGroupName).map(externalGroup -> {
                 logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
-                String uuid = ssoUsersToUuid_.get(userName);
-                if (uuid == null) {
-                    uuid = String.valueOf(IdentityGenerator.next());
-                    ssoUsersToUuid_.put(userName, uuid);
-                }
+                // persist user in external group if it's not added before
+                final String uuid = addExternalGroupUser(externalGroupName, userName);
                 return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
-                    externalGroup.getScopeGroups(), ipAddress);
+                    externalGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
             }
         ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
             + userName + WITH_GROUP + externalGroupName));
@@ -592,7 +640,7 @@ public class AuthProvider {
                         throw new AuthenticationException("AUDIT::NEGATIVE: The User Name or Password is Incorrect");
                     }
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups);
+                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, info.provider);
                 } else {
                     return authenticateADUser(info, password);
                 }
@@ -648,7 +696,8 @@ public class AuthProvider {
                     }
 
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipAddress);
+                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups,
+                            ipAddress, info.provider);
                 } else {
                     return authenticateADUser(info, password);
                 }
@@ -804,6 +853,42 @@ public class AuthProvider {
     }
 
     /**
+     * Adds the user in the given external group. The scope or role for this user is not saved
+     * since it should always come from the external group and it may change.
+     *
+     * @param externalGroup The external group name.
+     * @param userName The user name.
+     * @return The uuid of the user that was added, or empty string if it fails.
+     * @throws SecurityException In case of an error parsing or decrypting the data.
+     */
+    private String addExternalGroupUser(@Nonnull String externalGroup,
+                                        @Nonnull String userName) throws SecurityException {
+        final String externalGroupUserInfoKey = composeExternalGroupUserInfoKey(externalGroup, userName);
+        Optional<String> json = getKVValue(externalGroupUserInfoKey);
+        if (json.isPresent()) {
+            // user has already been added, return the uuid directly
+            UserInfo info = GSON.fromJson(json.get(), UserInfo.class);
+            return info.uuid;
+        }
+
+        try {
+            UserInfo info = new UserInfo();
+            // this is needed to show correct login provider for api "/me", otherwise it shows LOCAL
+            info.provider = AuthUserDTO.PROVIDER.LDAP;
+            info.userName = userName;
+            info.uuid = String.valueOf(IdentityGenerator.next());
+            info.unlocked = true;
+            putKVValue(externalGroupUserInfoKey, GSON.toJson(info));
+            logger_.info("AUDIT::SUCCESS: Success adding user {} in external group {} ", userName, externalGroup);
+            return info.uuid;
+        } catch (Exception e) {
+            logger_.error("Error adding user {} in external group {} ", userName, externalGroup);
+            logger_.error("AUDIT::FAILURE:AUTH: Error adding user {} in external group {} ", userName, externalGroup);
+            return "";
+        }
+    }
+
+    /**
      * Lists all defined users.
      *
      * @return The list of all users.
@@ -823,6 +908,61 @@ public class AuthProvider {
             })
             .filter(authUserDTO -> mayAlterUserWithRoles(authUserDTO.getRoles()))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Find the username for the given user oid.
+     *
+     * @param userOid oid of the user to look for
+     * @return optional username if it exists, or empty
+     */
+    public Optional<String> findUsername(long userOid) {
+        final String userUuid = Long.toString(userOid);
+        // try to find from local/ldap/saml users
+        Optional<String> username = findUsername(userUuid, PREFIX);
+        if (username.isPresent()) {
+            return username;
+        }
+        // if not found, also try to find from the external group users
+        return findUsername(userUuid, PREFIX_GROUP_USERS);
+    }
+
+    /**
+     * Find the username for the given user oid, from the given folder.
+     *
+     * @param userUuid string id of the user to look for
+     * @param kvPrefix kv prefix of the folder to look for users in
+     * @return optional username if it exists, or empty
+     */
+    private Optional<String> findUsername(@Nonnull String userUuid,
+                                          @Nonnull String kvPrefix) {
+        Map<String, String> users;
+        synchronized (storeLock_) {
+            users = keyValueStore_.getByPrefix(kvPrefix);
+        }
+        return users.values().stream()
+                .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                .filter(userInfo -> StringUtils.equals(userInfo.uuid, userUuid))
+                .map(userInfo -> userInfo.userName)
+                .findFirst();
+    }
+
+    /**
+     * Get oids of all the persisted users which belong to the given external group.
+     *
+     * @param externalGroupName name of the external group to get users
+     * @return list of user oids
+     */
+    @Nonnull
+    private List<Long> getUserIdsInExternalGroup(@Nonnull String externalGroupName) {
+        final Map<String, String> users;
+        synchronized (storeLock_) {
+            users = keyValueStore_.getByPrefix(composeExternalGroupUsersInfoKey(externalGroupName));
+        }
+        return users.values().stream()
+                .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                .map(userInfo -> Long.valueOf(userInfo.uuid))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -1337,6 +1477,39 @@ public class AuthProvider {
     }
 
     /**
+     * Deletes the group, and also handle the widgetsets owned by users in this group by
+     * transferring them to current user.
+     *
+     * @param groupName The group name.
+     * @return {@code true} iff deleting group and transferring widgetsets successfully
+     */
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
+    public Boolean deleteSecurityGroupAndTransferWidgetsets(final @Nonnull String groupName) {
+        final Boolean result = deleteSecurityGroup(groupName);
+        try {
+            // transfer all the widgetsets owned by users belonging to the external group to current user
+            Optional<Long> currentUserOid = SAMLUserUtils.getAuthUserDTO()
+                    .map(AuthUserDTO::getUuid)
+                    .map(Long::valueOf);
+            if (!currentUserOid.isPresent()) {
+                // this should not happen, as it should not arrive here if no user logged in
+                logger_.error("No user found in context, unable to transfer widgetsets owned by" +
+                        " users in group: {}", groupName);
+                return false;
+            }
+            widgetsetDbStore.transferOwnership(getUserIdsInExternalGroup(groupName), currentUserOid.get());
+
+            // we should also delete the node starts with "/groupusers/groupName/", which contains
+            // all the users belonging to this external group
+            removeKVKeysWithPrefix(composeExternalGroupUsersInfoKey(groupName));
+            return result;
+        } catch (Exception e) {
+            throw new SecurityException("Error transferring widgetsets from users in external " +
+                    "group: " + groupName + ", " + e.getMessage());
+        }
+    }
+
+    /**
      * To change a user's password, the request must either come from the user or from
      * a user with ADMINISTRATOR role.
      *
@@ -1350,10 +1523,8 @@ public class AuthProvider {
         if (authentication == null) {
             return false;
         }
-        return hasRoleAdministrator(authentication) || Optional.ofNullable(authentication)
-                .map(auth -> auth.getPrincipal())
-                .map(p -> p instanceof String ? p.toString() : "")
-                .map(name -> userName.equals(name))
+        return hasRoleAdministrator(authentication) || SAMLUserUtils.getAuthUserDTO()
+                .map(authUserDTO -> userName.equals(authUserDTO.getUser()))
                 .orElse(false);
    }
 

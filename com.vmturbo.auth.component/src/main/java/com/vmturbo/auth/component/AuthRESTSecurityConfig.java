@@ -1,15 +1,5 @@
 package com.vmturbo.auth.component;
 
-
-import com.vmturbo.auth.api.SpringSecurityConfig;
-import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
-import com.vmturbo.auth.component.services.AuthUsersController;
-import com.vmturbo.auth.component.spring.SpringAuthFilter;
-import com.vmturbo.auth.component.store.AuthProvider;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.group.api.GroupClientConfig;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -18,18 +8,27 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration
-        .WebSecurityConfigurerAdapter;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
+import com.vmturbo.auth.component.services.AuthUsersController;
+import com.vmturbo.auth.component.spring.SpringAuthFilter;
+import com.vmturbo.auth.component.store.AuthProvider;
+import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.group.api.GroupClientConfig;
 
 /**
  * Configure security for the REST API Dispatcher here.
- * <p>
- * The users API - /users/** - requires no permissions.
+ *
+ * <p>The users API - /users/** - requires no permissions.
  */
 @Configuration
 @EnableWebSecurity
-@Import({SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class})
+@Import({SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class, WidgetsetConfig.class})
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
@@ -46,6 +45,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private WidgetsetConfig widgetsetConfig;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -133,7 +135,8 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public AuthProvider targetStore() {
-        return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir);
+        return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir,
+                widgetsetConfig.widgetsetDbStore());
     }
 
     @Bean

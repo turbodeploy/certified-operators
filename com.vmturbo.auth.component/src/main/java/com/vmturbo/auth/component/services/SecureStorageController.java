@@ -7,14 +7,16 @@ package com.vmturbo.auth.component.services;
 import java.net.URLDecoder;
 import java.util.Objects;
 import java.util.Optional;
+
 import javax.annotation.Nonnull;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,13 +24,10 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-
-import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.db.DBPasswordDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.component.store.ISecureStore;
 
 /**
@@ -69,15 +68,12 @@ public class SecureStorageController {
      *         {@code HttpStatus.FORBIDDEN} if there is a user but that user does not have permission.
      */
     private HttpStatus checkAuthorizationStatus(final @Nonnull String subject) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
+        Optional<AuthUserDTO> currentUser = SAMLUserUtils.getAuthUserDTO();
+        if (!currentUser.isPresent()) {
             return HttpStatus.UNAUTHORIZED; // There is no user.
         }
 
-        // TODO: We might want to consider a more sophisticated principal than a raw String.
-        // For example, a Spring Security User object. {@see SpringAuthFilter} for how the principal
-        // is set.
-        return subject.equals(auth.getPrincipal()) ?
+        return subject.equals(currentUser.get().getUser()) ?
             HttpStatus.OK :         // The user is authorized
             HttpStatus.FORBIDDEN;   // The user is unauthorized
     }

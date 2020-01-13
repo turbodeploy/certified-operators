@@ -11,9 +11,12 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+
+import com.google.common.collect.ImmutableList;
 
 import org.assertj.core.util.Lists;
 import org.flywaydb.core.Flyway;
@@ -30,8 +33,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
@@ -296,7 +297,8 @@ public class WidgetsetDbStoreTest {
         List<Long> widgetOids = ImmutableList.of(widgetsetRecord1.getOid(),
             widgetsetRecord2.getOid());
         // Act
-        Iterator<WidgetsetRecord> iter = testDbStore.transferOwnership(USER_OID_1, USER_OID_2);
+        Iterator<WidgetsetRecord> iter = testDbStore.transferOwnership(
+                Collections.singleton(USER_OID_1), USER_OID_2);
         assertNotNull(iter);
         int counter = 0;
         while (iter.hasNext()) {
@@ -313,7 +315,8 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Iterator<WidgetsetRecord> iter = testDbStore.transferOwnership(OID_DOESNT_EXIST, USER_OID_1);
+        Iterator<WidgetsetRecord> iter = testDbStore.transferOwnership(
+                Collections.singleton(OID_DOESNT_EXIST), USER_OID_1);
         assertNotNull(iter);
         assertFalse(iter.hasNext());
     }
