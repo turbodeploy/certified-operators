@@ -1,9 +1,21 @@
 #!/bin/bash
 LOG_FILE=/home/vmtsyslog/rsyslog/log.txt
 AUDIT_FILE=/var/log/turbonomic/audit.log
-# The max size is 100MB
-MAXSIZE=104857600
-MAXFILES=100
+# The max size is 100MB by default
+if [ -z "$LOG_MAXSIZE" ]
+then
+      MAXSIZE=10104857600
+else
+      MAXSIZE="$LOG_MAXSIZE"
+fi
+
+if [ -z "$LOG_MAXFILES" ]
+then
+      MAXFILES=100
+else
+      MAXFILES="$LOG_MAXFILES"
+fi
+
 function rotate() {
     # Obtain the log size
     SIZE=$(stat -c %s "$1")
