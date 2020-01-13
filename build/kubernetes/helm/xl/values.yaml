@@ -48,10 +48,8 @@ global:
 
 nginxingress:
   enabled: true
-  annotations: {}
 istioingress:
   enabled: false
-  annotations: {}
 platform:
   enabled: true
 control:
