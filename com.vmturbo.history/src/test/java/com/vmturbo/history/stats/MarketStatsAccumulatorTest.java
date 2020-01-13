@@ -3,6 +3,8 @@ package com.vmturbo.history.stats;
 import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
@@ -11,8 +13,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -37,8 +42,12 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
@@ -60,6 +69,7 @@ public class MarketStatsAccumulatorTest {
     private static final long TOPOLOGY_ID = 222;
     private static final String PM_ENTITY_TYPE = "PhysicalMachine";
     private static final String APP_ENTITY_TYPE = "Application";
+    private static final String VM_ENTITY_TYPE = "VirtualMachine";
     private static final long ENTITY_ID = 999L;
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
@@ -371,6 +381,136 @@ public class MarketStatsAccumulatorTest {
 
         // assert - 3 attribute rows (other attributes filtered) -> 1 write
         verify(historydbIO, times(1)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
+    }
+
+    /**
+     * Test that a volume-specific commodity key is not extracted if inapplicable to the situation.
+     */
+    @Test
+    public void testBoughtCommodityKeyNotExtracted() {
+        final MarketStatsAccumulator accumulator =
+            new MarketStatsAccumulator(TOPOLOGY_INFO, VM_ENTITY_TYPE, EnvironmentType.CLOUD,
+                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+
+        // case when buyer entity is not in cloud
+
+        final Optional<String> extractedKey1 = accumulator.extractVolumeKey(
+            TopologyEntityDTO.getDefaultInstance(),
+            CommoditiesBoughtFromProvider.getDefaultInstance(), Collections.emptyMap());
+        assertFalse(extractedKey1.isPresent());
+
+
+        final TopologyEntityDTO buyerEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(ENTITY_ID)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+
+        //case when bought commodity has no volume id
+
+        final Optional<String> extractedKey2 = accumulator.extractVolumeKey(buyerEntity,
+            CommoditiesBoughtFromProvider.getDefaultInstance(), Collections.emptyMap());
+        assertFalse(extractedKey2.isPresent());
+
+        final long volumeId = 1234567;
+        final CommoditiesBoughtFromProvider commoditiesBought =
+            CommoditiesBoughtFromProvider.newBuilder().setVolumeId(volumeId).build();
+
+        // case when bought commodity's volume does not appear in map
+
+        final Optional<String> extractedKey3 = accumulator.extractVolumeKey(buyerEntity,
+            commoditiesBought, Collections.emptyMap());
+        assertFalse(extractedKey3.isPresent());
+    }
+
+    /**
+     * Test that a volume-specific commodity key is extracted if applicable to the situation.
+     */
+    @Test
+    public void testBoughtCommodityKeyVolumeDisplayName() {
+        final long volumeId = 1234567;
+        final TopologyEntityDTO buyerEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(ENTITY_ID)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+        final CommoditiesBoughtFromProvider commoditiesBought =
+            CommoditiesBoughtFromProvider.newBuilder().setVolumeId(volumeId).build();
+        final Builder volumeEntityBuilder = TopologyEntityDTO.newBuilder()
+            .setOid(volumeId)
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setDisplayName("volume-name");
+        final Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
+        final  MarketStatsAccumulator marketStatsAccumulator =
+            new MarketStatsAccumulator(TOPOLOGY_INFO, VM_ENTITY_TYPE, EnvironmentType.CLOUD,
+                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+
+        //case when volume entity has no origin
+
+
+        entityMap.put(volumeId, volumeEntityBuilder.build());
+        final Optional<String> extractedKey1 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey1.isPresent());
+        assertThat(extractedKey1.get(), is("volume-name"));
+
+        // case when volume's origin is not discovery
+
+        final TopologyEntityDTO volumeEntity2 = volumeEntityBuilder
+            .setOrigin(Origin.getDefaultInstance())
+            .build();
+        entityMap.put(volumeId, volumeEntity2);
+        final Optional<String> extractedKey2 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey2.isPresent());
+        assertThat(extractedKey2.get(), is("volume-name"));
+
+        // case when volume has no vendor IDs
+
+        final TopologyEntityDTO volumeEntity3 = volumeEntityBuilder
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.getDefaultInstance()))
+            .build();
+        entityMap.put(volumeId, volumeEntity3);
+        final Optional<String> extractedKey3 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey3.isPresent());
+        assertThat(extractedKey3.get(), is("volume-name"));
+
+        // case when volume has a vendor ID
+
+        final TopologyEntityDTO volumeEntity4 = volumeEntityBuilder
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putAllDiscoveredTargetData(ImmutableMap.of(
+                        1L, PerTargetEntityInformation.newBuilder()
+                            .setVendorId("vendor-id").build()
+                    ))))
+            .build();
+        entityMap.put(volumeId, volumeEntity4);
+        final Optional<String> extractedKey4 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey4.isPresent());
+        assertThat(extractedKey4.get(), is("volume-name - vendor-id"));
+
+        // case when volume has multiple vendor IDs
+
+        final TopologyEntityDTO volumeEntity5 = volumeEntityBuilder
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putAllDiscoveredTargetData(ImmutableMap.of(
+                        1L, PerTargetEntityInformation.newBuilder()
+                            .setVendorId("vendor-id-1").build(),
+                        2L, PerTargetEntityInformation.newBuilder()
+                            .setVendorId("vendor-id-2").build())
+                    )))
+            .build();
+        entityMap.put(volumeId, volumeEntity5);
+        final Optional<String> extractedKey5 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey5.isPresent());
+        assertTrue(extractedKey5.get().equals("volume-name - vendor-id-1, vendor-id-2") ||
+            extractedKey5.get().equals("volume-name - vendor-id-2, vendor-id-1"));
     }
 
     private InsertSetMoreStep createMockInsertQuery(Table table) {

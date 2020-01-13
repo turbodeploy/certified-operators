@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -628,14 +629,8 @@ public class MarketStatsAccumulator {
             // as key, since we want to show the volume name in the "Entity" column of chart
             // "Capacity And Usage" in UI for cloud vm. Note: this only applies to cloud vm, since
             // for on-prem vm we only show related entity which is the storage name
-            final String key;
-            if (HistoryStatsUtils.isCloudEntity(entityDTO)
-                    && commoditiesBought.hasVolumeId()
-                    && entityByOid.containsKey(commoditiesBought.getVolumeId())) {
-                key = entityByOid.get(commoditiesBought.getVolumeId()).getDisplayName();
-            } else {
-                key = commodityBoughtDTO.getCommodityType().getKey();
-            }
+            final String key = extractVolumeKey(entityDTO, commoditiesBought, entityByOid)
+                .orElse(commodityBoughtDTO.getCommodityType().getKey());
 
             historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime,
                 entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
@@ -656,6 +651,38 @@ public class MarketStatsAccumulator {
                         commodityBoughtDTO.getHistoricalUsed());
             }
         }
+    }
+
+    /**
+     * If the commodity bought is associated with a cloud volume, use the volume display name and
+     * vendor ID(s) if any as the commodity key. This information is required in order to associate
+     * specific commodities with specific volumes in cases when multiple volumes with the same name
+     * are associated with the same commodity type.
+     *
+     * @param entityDTO the entity buying commodities
+     * @param commoditiesBought commodities bought, potentially associated with volume(s)
+     * @param entityByOid entities by oid, potentially including volume(s)
+     * @return key generated from volume information, if any is present/relevant
+     */
+    @VisibleForTesting
+    Optional<String> extractVolumeKey(@Nonnull final TopologyEntityDTO entityDTO,
+            @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
+            @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
+        if (HistoryStatsUtils.isCloudEntity(entityDTO) && commoditiesBought.hasVolumeId()
+                && entityByOid.containsKey(commoditiesBought.getVolumeId())) {
+            final TopologyEntityDTO volumeEntity = entityByOid.get(commoditiesBought.getVolumeId());
+            if (volumeEntity.hasOrigin() && volumeEntity.getOrigin().hasDiscoveryOrigin()) {
+                final String vendorIds = volumeEntity.getOrigin().getDiscoveryOrigin()
+                    .getDiscoveredTargetDataMap().values().stream()
+                    .map(PerTargetEntityInformation::getVendorId)
+                    .collect(Collectors.joining(", "));
+                return Optional.of(volumeEntity.getDisplayName() +
+                    (vendorIds.isEmpty() ? "" : " - " + vendorIds));
+            } else {
+                return Optional.of(volumeEntity.getDisplayName());
+            }
+        }
+        return Optional.empty();
     }
 
     /**
