@@ -9,8 +9,12 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensaml.saml2.core.Attribute;
 import org.opensaml.xml.XMLObject;
+import org.opensaml.xml.schema.XSAny;
 import org.opensaml.xml.schema.XSString;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
@@ -31,8 +35,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
  * Implementation of SAMLUserDetailsService that creates users with mapping roles.
  */
 public class SAMLUserDetailsServiceImpl implements SAMLUserDetailsService {
-
-
+    private static Logger logger = LogManager.getLogger();
     public static final String SYSTEM = "SYSTEM";
     private static final String DUMMY_PASSWORD = "DUMMY_PASSWORD";
     private static final String GROUP = "group";
@@ -115,10 +118,24 @@ public class SAMLUserDetailsServiceImpl implements SAMLUserDetailsService {
      * @param attr SAML attribute
      * @return attribute value
      */
-    private String getXmlObject(@Nonnull final Attribute attr) {
+    @VisibleForTesting
+    static String getXmlObject(@Nonnull final Attribute attr) {
         Objects.requireNonNull(attr);
-        List<XMLObject> value = attr.getAttributeValues();
-        XMLObject val = value.get(0);
-        return ((XSString) val).getValue();
+        final List<XMLObject> value = attr.getAttributeValues();
+        return value.stream()
+                .findFirst()
+                .flatMap(obj -> getAttributeValue(obj))
+                .orElse("");
+     }
+
+    private static Optional<String>  getAttributeValue(final @Nonnull XMLObject object) {
+        if (object instanceof XSString) {
+            return Optional.ofNullable(((XSString) object).getValue());
+        } else if (object instanceof XSAny) {
+            return Optional.ofNullable(((XSAny) object).getTextContent());
+        } else {
+            logger.error("Failed to get the SAML group value: {}", object.toString());
+            return Optional.empty();
+        }
     }
 }
