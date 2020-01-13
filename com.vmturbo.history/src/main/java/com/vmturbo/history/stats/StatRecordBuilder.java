@@ -25,27 +25,21 @@ public interface StatRecordBuilder {
      * @param reserved the amount of capacity that is "reserved" and unavailable for allocation.
      * @param relatedEntityType the type of the entity related to (buying or selling) this commodity
      * @param producerId unique id of the producer for commodity bought
-     * @param avgValue average value reported from discovery
-     * @param minValue min value reported from discovery
-     * @param maxValue max value reported from discovery
+     * @param statValue value statistics
      * @param commodityKey unique key to associate commodities between seller and buyer
-     * @param totalValue total of value (avgValue) over all elements of a group
      * @param relation stat relation to entity, e.g., "CommoditiesBought"
      * @param percentileUtilization commodity percentile utilization
      * @return a {@link StatRecord} protobuf populated with the given values
      */
     @Nonnull
-    StatRecord buildStatRecord(@Nonnull final String propertyType,
-                               @Nullable final String propertySubtype,
-                               @Nullable final StatValue capacityStat,
-                               @Nullable final Float reserved,
-                               @Nullable final String relatedEntityType,
-                               @Nullable final Long producerId,
-                               @Nullable final Float avgValue,
-                               @Nullable final Float minValue,
-                               @Nullable final Float maxValue,
-                               @Nullable final String commodityKey,
-                               @Nullable final Float totalValue,
+    StatRecord buildStatRecord(@Nonnull String propertyType,
+                               @Nullable String propertySubtype,
+                               @Nullable StatValue capacityStat,
+                               @Nullable Float reserved,
+                               @Nullable String relatedEntityType,
+                               @Nullable Long producerId,
+                               @Nullable StatValue statValue,
+                               @Nullable String commodityKey,
                                @Nullable String relation,
                                @Nullable StatValue percentileUtilization);
 
@@ -58,11 +52,8 @@ public interface StatRecordBuilder {
      * @param reserved the (optional) amount of capacity that is unavailable for allocation
      * @param relatedEntityType the (optional) entity type this commodity is associated with
      * @param producerId unique id of the producer for commodity bought
-     * @param avgValue average value reported from discovery
-     * @param minValue min value reported from discovery
-     * @param maxValue max value reported from discovery
+     * @param statValue value statistics
      * @param commodityKey unique key to associate commodities between seller and buyer
-     * @param totalValue total of value (avgValue) over all elements of a group
      * @param relation stat relation to entity, e.g., "CommoditiesBought"
      * @return a {@link StatRecord} protobuf populated with the given values
      */
@@ -73,24 +64,18 @@ public interface StatRecordBuilder {
                                        @Nullable Float reserved,
                                        @Nullable String relatedEntityType,
                                        @Nullable Long producerId,
-                                       @Nullable Float avgValue,
-                                       @Nullable Float minValue,
-                                       @Nullable Float maxValue,
+                                       @Nullable StatValue statValue,
                                        @Nullable String commodityKey,
-                                       @Nullable Float totalValue,
                                        @Nullable String relation) {
         return buildStatRecord(propertyType,
-            propertySubtype,
-            capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
-            reserved,
-            relatedEntityType,
-            producerId,
-            avgValue,
-            minValue,
-            maxValue,
-            commodityKey,
-            totalValue,
-            relation,
+                propertySubtype,
+                capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
+                reserved,
+                relatedEntityType,
+                producerId,
+                statValue,
+                commodityKey,
+                relation,
                 null);
     }
 
@@ -118,11 +103,8 @@ public interface StatRecordBuilder {
                                           @Nullable final Float reserved,
                                           @Nullable final String relatedEntityType,
                                           @Nullable final Long producerId,
-                                          @Nullable Float avgValue,
-                                          @Nullable Float minValue,
-                                          @Nullable Float maxValue,
+                                          @Nullable final StatValue statValue,
                                           @Nullable final String commodityKey,
-                                          @Nullable Float totalValue,
                                           @Nullable final String relation,
                                           @Nullable final StatValue percentileUtilization) {
             final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder();
@@ -180,32 +162,13 @@ public interface StatRecordBuilder {
 
             }
 
-            // values, used, peak
-            StatValue.Builder statValueBuilder = StatValue.newBuilder();
-            if (avgValue != null) {
-                statValueBuilder.setAvg(avgValue);
-            }
-            if (minValue != null) {
-                statValueBuilder.setMin(minValue);
-            }
-            if (maxValue != null) {
-                statValueBuilder.setMax(maxValue);
-            }
-            if (totalValue != null) {
-                statValueBuilder.setTotal(totalValue);
-            }
-
             // currentValue
-            if (avgValue != null && (propertySubtype == null ||
+            if (statValue != null && statValue.hasAvg() && (propertySubtype == null ||
                     StringConstants.PROPERTY_SUBTYPE_USED.equals(propertySubtype))) {
-                statRecordBuilder.setCurrentValue(avgValue);
-            } else {
-                if (maxValue != null) {
-                    statRecordBuilder.setCurrentValue(maxValue);
-                }
+                statRecordBuilder.setCurrentValue(statValue.getAvg());
+            } else if (statValue != null && statValue.hasMax()) {
+                statRecordBuilder.setCurrentValue(statValue.getMax());
             }
-
-            StatValue statValue = statValueBuilder.build();
 
             statRecordBuilder.setValues(statValue);
             statRecordBuilder.setUsed(statValue);

@@ -90,9 +90,9 @@ public class SoldCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -120,9 +120,9 @@ public class SoldCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .build();
         assertEquals(expectedStatRecord, record);
     }
@@ -140,9 +140,9 @@ public class SoldCommoditiesInfoTest {
                 // the average
                 .setCurrentValue(3.5F)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(3.5F).setMax(5).setMin(2).setTotal(7).build())
-                .setValues(StatValue.newBuilder().setAvg(3.5F).setMax(5).setMin(2).setTotal(7).build())
-                .setPeak(StatValue.newBuilder().setAvg(4.5F).setMax(6).setMin(3).setTotal(9).build())
+                .setUsed(StatValue.newBuilder().setAvg(3.5F).setMax(6).setMin(2).setTotal(7).setTotalMax(9).setTotalMin(7).build())
+                .setValues(StatValue.newBuilder().setAvg(3.5F).setMax(6).setMin(2).setTotal(7).setTotalMax(9).setTotalMin(7).build())
+                .setPeak(StatValue.newBuilder().setAvg(3.5F).setMax(6).setMin(2).setTotal(7).setTotalMax(9).setTotalMin(7).build())
                 .build();
         testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE, COMMODITY_TYPE_WITH_KEY);
     }
@@ -162,9 +162,9 @@ public class SoldCommoditiesInfoTest {
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .build();
         testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE, COMMODITY_TYPE);
     }
@@ -184,9 +184,9 @@ public class SoldCommoditiesInfoTest {
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .build();
         testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE_WITH_KEY, COMMODITY_TYPE_WITH_KEY);
     }
