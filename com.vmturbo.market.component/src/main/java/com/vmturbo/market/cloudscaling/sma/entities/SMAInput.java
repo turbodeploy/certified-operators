@@ -371,10 +371,6 @@ public class SMAInput {
                     numberOfCoupons = currentTemplate.getCoupons();
                 }
             }
-            // TODO: where to find number of this VM's coupons that are covered by RIs.  Is it a commodity?
-            float numberOfCouponsUsed = SMAUtils.NO_RI_COVERAGE;
-            vm.setCurrentRICoverage(numberOfCouponsUsed);
-
             Set<Long> providerOids = providersList.get(oid);
             List<SMATemplate> providers = new ArrayList<>();
             if (providerOids == null) {
@@ -394,8 +390,8 @@ public class SMAInput {
                 vm.setProviders(providers);
                 vm.updateNaturalTemplateAndMinCostProviderPerFamily();
             }
-            logger.info("updateVirtualMachines: ID={} name={} currentTemplate={} currentRICoverage={} # providers={}",
-                oid, name, currentTemplate, numberOfCouponsUsed, providers.size());
+            logger.info("updateVirtualMachines: ID={} name={} currentTemplate={} # providers={}",
+                oid, name, currentTemplate, providers.size());
         }
     }
 
