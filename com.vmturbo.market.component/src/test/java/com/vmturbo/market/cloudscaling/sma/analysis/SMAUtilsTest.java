@@ -17,17 +17,17 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAPlatform;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
-import com.vmturbo.market.cloudscaling.sma.entities.SMATenancy;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * This class has supporting methods for SMATest classes.
  */
-public class SMATestUtils {
+public class SMAUtilsTest {
     /**
      * creates random input and runs SMA with it.
      *
@@ -44,7 +44,7 @@ public class SMATestUtils {
      */
     static SMAOutputContext testRandomInput(int nTemplates, int nVirtualMachines, int nReservedInstances,
                                             int nfamily, int nzones, int nbusinessAccounts,
-                                            TypeOfRIs typeOfRIs, SMAPlatform os, int familyRange) {
+                                            TypeOfRIs typeOfRIs, OSType os, int familyRange) {
 
         SMAInputContext inputContext = generateInput(nTemplates, nVirtualMachines, nReservedInstances,
                 nfamily, nzones, nbusinessAccounts,
@@ -69,7 +69,7 @@ public class SMATestUtils {
      */
     public static SMAOutputContext testASG(int nTemplates,
                                            int nfamily, int nzones, int nbusinessAccount,
-                                           TypeOfRIs typeOfRIs, SMAPlatform os, int familyRange, int asgCount, int asgSize) {
+                                           TypeOfRIs typeOfRIs, OSType os, int familyRange, int asgCount, int asgSize) {
 
         SMAInputContext inputContext = generateASGInput(nTemplates,
                 nfamily, nzones, nbusinessAccount,
@@ -95,7 +95,7 @@ public class SMATestUtils {
      */
     public static void testASGStability(int nTemplates,
                                         int nfamily, int nzones, int nbusinessAccount, TypeOfRIs zonalRIs,
-                                        SMAPlatform os, int familyRange, int asgCount, int asgSize, int[] loops) {
+                                        OSType os, int familyRange, int asgCount, int asgSize, int[] loops) {
 
         SMAInputContext inputContext = generateASGInput(nTemplates,
                 nfamily, nzones, nbusinessAccount,
@@ -120,6 +120,7 @@ public class SMATestUtils {
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZone());
+                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -153,8 +154,8 @@ public class SMATestUtils {
                     //      vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
+                            match.getTemplate().getNetCost(vm.getBusinessAccount(), match.getDiscountedCoupons()));
                 }
                 if (currentTemplate != matchTemplate) {
                     templatemismatch++;
@@ -197,10 +198,11 @@ public class SMATestUtils {
      * @param familyToNumberOfTemplates map from family to number of templates
      *                                  return map from family to template
      * @param rand Random object with a seed based on current time.
+     * @param nBusinessAccounts number of business accounts.  Needed to associate cost with each business account.
      * @return a map of family to templates sorted by coupons.
      */
     private static Map<String, List<SMATemplate>> computeFamilyToTemplateMap(Map<Integer, Integer> familyToNumberOfTemplates,
-                                                                             Random rand) {
+                                                                             Random rand, int nBusinessAccounts) {
 
         // map from family to its templates
         Map<String, List<SMATemplate>> map = new HashMap<>();
@@ -217,11 +219,16 @@ public class SMATestUtils {
                 // on-demand cost is a function of number of coupons.
                 SMACost onDemandCost = new SMACost((numberOfCoupons * familyCouponCost), 0);
                 // only dealing with AWS, discounted cost is 0.
+                // ??? discounted cost is RI cost.  This should refer to license component
                 SMACost discountedCost = new SMACost(0, 0);
                 String name = family + ".t" + i;
                 SMATemplate smaTemplate = new SMATemplate(SMATestConstants.TEMPLATE_BASE +
                         (nFamily * 1000L) + i, name, family,
-                        onDemandCost, discountedCost, numberOfCoupons);
+                        numberOfCoupons, SMAUtils.BOGUS_CONTEXT, null);
+                for (int j = 0; j < nBusinessAccounts; j++) {
+                    smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, onDemandCost);
+                    smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, discountedCost);
+                }
                 list.add(smaTemplate);
             }
             map.put(family, list);
@@ -267,25 +274,29 @@ public class SMATestUtils {
      */
     public static void testWorstCase(int nVirtualMachines, int nReservedInstances) {
         SMAContext context = new SMAContext(SMACSP.AWS,
-                SMAPlatform.LINUX,
+            OSType.LINUX,
                 SMATestConstants.REGION_BASE,
                 SMATestConstants.BILLING_FAMILY_BASE + 1,
-                SMATenancy.DEFAULT);
+                Tenancy.DEFAULT);
         SMATemplate smaTemplate = new SMATemplate(SMATestConstants.TEMPLATE_BASE + 1,
                 SMATestConstants.TEMPLATE_NAME_ONE,
-                "family1",
-                new SMACost(1, 0), new SMACost(0, 0), 1);
+                "family1", 1, SMAUtils.BOGUS_CONTEXT, null);
+        for (int i = 0; i <  10; i++) {
+            smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, new SMACost(1, 0));
+            smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, new SMACost(0, 0));
+        }
         List<SMATemplate> templates = Arrays.asList(smaTemplate);
         List<SMAVirtualMachine> virtualMachines = new ArrayList<>();
         for (int i = 0; i < nVirtualMachines; i++) {
             long vmOid = SMATestConstants.VIRTUAL_MACHINE_BASE + i;
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(vmOid, "vm_" + i,
-                    SMAUtils.NO_GROUP_OID,
+                    SMAUtils.NO_GROUP_ID,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE,
                     smaTemplate,
                     Arrays.asList(smaTemplate),
                     0,
                     SMATestConstants.ZONE_BASE);
+            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             virtualMachines.add(smaVirtualMachine);
         }
         List<SMAReservedInstance> reservedInstances = new ArrayList<>();
@@ -325,7 +336,7 @@ public class SMATestUtils {
      */
     public static void testStability(int nTemplates, int nVirtualMachines, int nReservedInstances,
                                      int nfamily, int nzones, int nbusinessAccount, TypeOfRIs zonalRIs,
-                                     SMAPlatform os, int familyRange, int[] loops) {
+                                     OSType os, int familyRange, int[] loops) {
 
         SMAInputContext inputContext = generateInput(nTemplates, nVirtualMachines, nReservedInstances,
                 nfamily, nzones, nbusinessAccount,
@@ -348,6 +359,7 @@ public class SMATestUtils {
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZone());
+                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -381,8 +393,8 @@ public class SMATestUtils {
                             vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
+                            match.getTemplate().getNetCost(vm.getBusinessAccount(), match.getDiscountedCoupons()));
                 }
                 if (currentTemplate != matchTemplate) {
                     templatemismatch++;
@@ -433,12 +445,12 @@ public class SMATestUtils {
      */
     private static SMAInputContext generateInput(int nTemplates, int nVirtualMachines, int nReservedInstances,
                                                  int nfamily, int nzones, int nbusinessAccount,
-                                                 TypeOfRIs typeOfRIs, SMAPlatform os, int familyRange) {
+                                                 TypeOfRIs typeOfRIs, OSType os, int familyRange) {
         SMAContext context = new SMAContext(SMACSP.AWS,
                 os,
                 SMATestConstants.REGION_BASE + 1,
                 SMATestConstants.BILLING_FAMILY_BASE + 1,
-                SMATenancy.DEFAULT);
+                Tenancy.DEFAULT);
         List<SMATemplate> smaTemplates = new ArrayList<>();
         List<SMAVirtualMachine> smaVirtualMachines = new ArrayList<>();
         List<SMAReservedInstance> smaReservedInstances = new ArrayList<>();
@@ -459,7 +471,8 @@ public class SMATestUtils {
 
 
         // map from family to sorted list of templates.
-        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(familyToNumberOfTemplates, rand);
+        Map<String, List<SMATemplate>> familyToTemplateMap =
+            computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
 
         for (int i = 0; i < nVirtualMachines; i++) {
@@ -473,13 +486,14 @@ public class SMATestUtils {
             float currentRICoverage = 0;
             long vmOid = SMATestConstants.VIRTUAL_MACHINE_BASE + i;
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(vmOid, "vm_" + vmOid,
-                    SMAUtils.NO_GROUP_OID,
+                    SMAUtils.NO_GROUP_ID,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount),
                     //smaTemplates.get(rand.nextInt(nTemplates - 1)),
                     providers.get(rand.nextInt(providers.size())),
                     providers,
                     currentRICoverage,
                     SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
+            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(smaVirtualMachine);
         }
 
@@ -585,7 +599,7 @@ public class SMATestUtils {
      */
     public static void testJitter(int nTemplates, int nVirtualMachines, int nReservedInstances,
                                   int nfamily, int nzones, int nbusinessAccount, TypeOfRIs zonalRIs,
-                                  SMAPlatform os, int familyRange) {
+                                  OSType os, int familyRange) {
 
         SMAInputContext inputContext = generateInput(nTemplates, nVirtualMachines, nReservedInstances,
                 nfamily, nzones, nbusinessAccount, zonalRIs, os, familyRange);
@@ -611,6 +625,7 @@ public class SMATestUtils {
                         oldVM.getProviders(),
                         outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZone());
+                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -662,12 +677,12 @@ public class SMATestUtils {
 
     private static SMAInputContext generateASGInput(int nTemplates,
                                                     int nfamily, int nzones, int nbusinessAccount,
-                                                    TypeOfRIs typeOfRIs, SMAPlatform os, int familyRange, int asgCount, int asgsize) {
+                                                    TypeOfRIs typeOfRIs, OSType os, int familyRange, int asgCount, int asgsize) {
         SMAContext context = new SMAContext(SMACSP.AWS,
                 os,
                 SMATestConstants.REGION_BASE,
-                SMATestConstants.BUSINESS_ACCOUNT_BASE + 1,
-                SMATenancy.DEFAULT);
+                SMATestConstants.BILLING_FAMILY_BASE + 1,
+                Tenancy.DEFAULT);
         List<SMATemplate> smaTemplates = new ArrayList<>();
         List<SMAVirtualMachine> smaVirtualMachines = new ArrayList<>();
         List<SMAReservedInstance> smaReservedInstances = new ArrayList<>();
@@ -687,13 +702,13 @@ public class SMATestUtils {
         }
 
         // map from family to sorted list of templates.
-        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(familyToNumberOfTemplates, rand);
+        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
         for (int i = 0; i < asgCount; i++) {
             int size = rand.nextInt(asgsize) + 1;
             int rsize = rand.nextInt(asgsize) + 1;
             SMATemplate riTemplate = smaTemplates.get(rand.nextInt(nTemplates - 1));
-            Long businessAccount = 1L + rand.nextInt(nbusinessAccount);
+            Long businessAccount = SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount);
             Long vmZone = 10L + rand.nextInt(nzones);
             Long zone = (typeOfRIs == TypeOfRIs.REGIONAL ? SMAUtils.NO_ZONE : vmZone);
             List<SMATemplate> providers = computeProviders(riTemplate,
@@ -715,6 +730,7 @@ public class SMATestUtils {
                         memberProviders,
                         currentRICoverage,
                         vmZone);
+                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(smaVirtualMachine);
             }
             for (int j = 0; j < rsize; j++) {

@@ -15,6 +15,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import com.vmturbo.auth.api.Pair;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMATestConstants;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
@@ -24,11 +25,11 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAPlatform;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
-import com.vmturbo.market.cloudscaling.sma.entities.SMATenancy;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Read in Json and generate SMA data structures.
@@ -124,7 +125,10 @@ public class JsonToSMAInputTranslator {
         SMACost onDemandCost = new SMACost(onDemandCostObj.get("compute").getAsFloat(), onDemandCostObj.get("license").getAsFloat());
         SMACost discountedCost = new SMACost(discountedCostObj.get("compute").getAsFloat(), discountedCostObj.get("license").getAsFloat());
         int coupons = templateObj.get("coupons").getAsInt();
-        SMATemplate template = new SMATemplate(oid, name, family, onDemandCost, discountedCost, coupons);
+        SMATemplate template = new SMATemplate(oid, name, family, coupons, SMAUtils.BOGUS_CONTEXT, null);
+        // update costs
+        template.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, onDemandCost);
+        template.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, discountedCost);
         return template;
     }
 
@@ -141,7 +145,7 @@ public class JsonToSMAInputTranslator {
         }
         Long zoneOid = virtualMachineObj.get("zone").getAsLong();
         JsonElement groupNameObj = virtualMachineObj.get("groupName");
-        Long groupOid = SMAUtils.NO_GROUP_OID;
+        Long groupOid = SMAUtils.NO_GROUP_ID;
         if (groupNameObj != null) {
             groupOid = groupNameObj.getAsLong();
         }
@@ -154,11 +158,13 @@ public class JsonToSMAInputTranslator {
                 long newOid = oid + i;
                 SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupOid, businessAccountOid,
                     oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
+                virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
             SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupOid, businessAccountOid,
                 oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
+            virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
         }
         return smaVirtualMachines;
@@ -166,10 +172,10 @@ public class JsonToSMAInputTranslator {
 
     private SMAContext parseContext(JsonObject contextObj) {
         SMACSP csp = SMACSP.valueOf(contextObj.get("csp").getAsString());
-        SMAPlatform os = SMAPlatform.valueOf(contextObj.get("os").getAsString());
+        OSType os = OSType.valueOf(contextObj.get("os").getAsString());
         long region = contextObj.get("region").getAsLong();
         long billingAccount = contextObj.get("billingAccount").getAsLong();
-        SMATenancy tenancy = SMATenancy.valueOf(contextObj.get("tenancy").getAsString());
+        Tenancy tenancy = Tenancy.valueOf(contextObj.get("tenancy").getAsString());
         SMAContext context = new SMAContext(csp, os, region, billingAccount, tenancy);
         return context;
     }

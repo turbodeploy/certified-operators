@@ -56,7 +56,7 @@
         {
 	  "oid": 2000001,
           "name": "VM1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100001,
             100002
@@ -70,7 +70,7 @@
         {
 	  "oid": 1000002,
           "name": "RI2",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "zone": 21,
           "utilization": 0,
           "template": 100002,
@@ -79,7 +79,7 @@
         {
 	  "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "zone": 21,
           "utilization": 0,
           "template": 100001,

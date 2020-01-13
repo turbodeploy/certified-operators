@@ -3,8 +3,8 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.vmturbo.market.cloudscaling.sma.entities.SMAPlatform;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Testing jitter. Small changes in environment results in small changes in output
@@ -18,9 +18,9 @@ public class Jitter {
     @Test
     public void testJitter() {
         // templates, VMs, RIs, families, zones, accounts, isZonalRIs, OS
-        SMATestUtils.testJitter(175, 10000, 10000, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.LINUX, 20);
-        SMATestUtils.testJitter(175, 10000, 10000, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.WINDOWS, 20);
-        SMATestUtils.testJitter(175, 10000, 10000, 25, 4, 1, TypeOfRIs.ZONAL, SMAPlatform.WINDOWS, 20);
+        SMAUtilsTest.testJitter(175, 10000, 10000, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.LINUX, 20);
+        SMAUtilsTest.testJitter(175, 10000, 10000, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.WINDOWS, 20);
+        SMAUtilsTest.testJitter(175, 10000, 10000, 25, 4, 1, TypeOfRIs.ZONAL, OSType.WINDOWS, 20);
     }
 
 }

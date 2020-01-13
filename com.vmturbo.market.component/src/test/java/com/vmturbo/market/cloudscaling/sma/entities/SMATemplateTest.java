@@ -3,6 +3,7 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 import org.junit.Test;
 
 import com.vmturbo.market.cloudscaling.sma.analysis.SMATestConstants;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
 /**
  * test the SMATemplate constructor.
@@ -25,6 +26,6 @@ public class SMATemplateTest {
      */
     @Test(expected = NullPointerException.class)
     public void testNullNameInTemplate() {
-        new SMATemplate(templateOid, null, family, onDemandCost, discountedCost, coupons);
+        new SMATemplate(templateOid, null, family, coupons, SMAUtils.BOGUS_CONTEXT, null);
     }
 }

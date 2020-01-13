@@ -39,12 +39,11 @@ public class SMAInputContext {
      * @param reservedInstances the reserved instance in this context
      * @param templates the templates in this context
      */
-    public SMAInputContext(final SMAContext context,
+    public SMAInputContext(@Nonnull final SMAContext context,
                            @Nonnull final List<SMAVirtualMachine> virtualMachines,
                            final List<SMAReservedInstance> reservedInstances,
                            @Nonnull final List<SMATemplate> templates) {
-        this.context = context;
-
+        this.context = Objects.requireNonNull(context, "context is null!");
         this.virtualMachines = Objects.requireNonNull(virtualMachines, "virutalMachines is null!");
         this.reservedInstances = reservedInstances;
         this.templates = Objects.requireNonNull(templates, "templates is null!");

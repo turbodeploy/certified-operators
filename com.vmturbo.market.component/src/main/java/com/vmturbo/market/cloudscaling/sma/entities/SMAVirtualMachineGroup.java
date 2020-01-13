@@ -42,10 +42,10 @@ public class SMAVirtualMachineGroup {
      * @param groupName the group name
      * @param virtualMachines the virtual machines that belong to this group.
      */
-    public SMAVirtualMachineGroup(@Nonnull final long oid,
+    public SMAVirtualMachineGroup(final long oid,
                                   @Nonnull final String groupName,
                                   List<SMAVirtualMachine> virtualMachines) {
-        this.oid = Objects.requireNonNull(oid, "OID is null!");
+        this.oid = oid;
         this.name = Objects.requireNonNull(groupName, "groupName is null!");
         this.virtualMachines = virtualMachines;
         Collections.sort(getVirtualMachines(), new SortByVMOID());

@@ -5,7 +5,7 @@
         "csp": "AWS",
         "os": "LINUX",
         "region": 31,
-        "billingAccount": 11,
+        "billingAccount": 1,
         "tenancy": "DEFAULT"
       },
       "Templates": [
@@ -99,7 +99,7 @@
 	  "oid": 2000001,
           "name": "VM1",
           "groupOid" : 101,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100001,
             100004,
@@ -115,7 +115,7 @@
           "name": "VM2",
           "count": 2,
           "groupOid" : 101,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100004,
             100005,
@@ -131,7 +131,7 @@
         {
 	  "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "template": 100006,
           "count": 1

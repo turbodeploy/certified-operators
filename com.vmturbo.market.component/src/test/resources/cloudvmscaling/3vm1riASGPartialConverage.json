@@ -99,7 +99,7 @@
           "oid": 2000001,
           "name": "VM1",
           "groupName" : 101,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100003,
             100006
@@ -113,7 +113,7 @@
           "name": "VM2",
           "count": 2,
           "groupName" : 101,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100003,
             100006
@@ -127,7 +127,7 @@
         {
           "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "template": 100005,
           "count": 5

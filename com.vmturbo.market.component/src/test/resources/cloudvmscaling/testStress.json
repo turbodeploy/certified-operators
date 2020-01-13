@@ -5,7 +5,7 @@
         "csp": "AWS",
         "os": "LINUX",
         "region": 31,
-        "billingAccount": 11,
+        "billingAccount": 1,
         "tenancy": "DEFAULT"
       },
       "Templates": [
@@ -28,7 +28,7 @@
         {
           "oid": 2000001,
           "name": "VM1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 800,
           "providers": [
             100001
@@ -42,7 +42,7 @@
         {
           "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -51,7 +51,7 @@
         {
 	  "oid": 1000002,
           "name": "RI2",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -60,7 +60,7 @@
         {
           "oid": 1000003,
           "name": "RI3",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -69,7 +69,7 @@
         {
 	  "oid": 1000004,
           "name": "RI4",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -78,7 +78,7 @@
         {
           "oid": 1000005,
           "name": "RI5",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -87,7 +87,7 @@
         {
 	  "oid": 1000006,
           "name": "RI6",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -96,7 +96,7 @@
         {
           "oid": 1000007,
           "name": "RI7",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -105,7 +105,7 @@
         {
 	  "oid": 1000008,
           "name": "RI8",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -114,7 +114,7 @@
         {
           "oid": 1000009,
           "name": "RI9",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -123,7 +123,7 @@
         {
 	  "oid": 1000010,
           "name": "RI10",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -132,7 +132,7 @@
         {
           "oid": 1000011,
           "name": "RI11",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -141,7 +141,7 @@
         {
 	  "oid": 1000012,
           "name": "RI12",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -150,7 +150,7 @@
         {
           "oid": 1000013,
           "name": "RI13",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -159,7 +159,7 @@
         {
 	  "oid": 1000014,
           "name": "RI14",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -168,7 +168,7 @@
         {
           "oid": 1000015,
           "name": "RI15",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -177,7 +177,7 @@
         {
 	  "oid": 1000016,
           "name": "RI16",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -186,7 +186,7 @@
         {
           "oid": 1000017,
           "name": "RI17",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -195,7 +195,7 @@
         {
 	  "oid": 1000018,
           "name": "RI18",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -204,7 +204,7 @@
         {
           "oid": 1000019,
           "name": "RI19",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -213,7 +213,7 @@
         {
 	  "oid": 1000020,
           "name": "RI20",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -222,7 +222,7 @@
         {
           "oid": 1000021,
           "name": "RI21",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -231,7 +231,7 @@
         {
 	  "oid": 1000022,
           "name": "RI22",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -240,7 +240,7 @@
         {
           "oid": 1000023,
           "name": "RI23",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -249,7 +249,7 @@
         {
 	  "oid": 1000024,
           "name": "RI24",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -258,7 +258,7 @@
         {
           "oid": 1000025,
           "name": "RI25",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -267,7 +267,7 @@
         {
 	  "oid": 1000026,
           "name": "RI26",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -276,7 +276,7 @@
         {
           "oid": 1000027,
           "name": "RI27",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -285,7 +285,7 @@
         {
 	  "oid": 1000028,
           "name": "RI28",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -294,7 +294,7 @@
         {
           "oid": 1000029,
           "name": "RI29",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -303,7 +303,7 @@
         {
           "oid": 1000030,
           "name": "RI30",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,

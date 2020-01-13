@@ -3,8 +3,8 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.vmturbo.market.cloudscaling.sma.entities.SMAPlatform;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Testing for Auto scaling group.
@@ -17,9 +17,9 @@ public class ASGScaleTest {
     public void testAsgScale() {
         int familyRange = 20;
         // templates, VMs, RIs, families, zones, accounts, isZonalRIs, OS, familyRange
-        SMATestUtils.testASG(175, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.LINUX, familyRange, 20, 20);
-        SMATestUtils.testASG(175, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.WINDOWS, familyRange, 20, 20);
-        SMATestUtils.testASG(175, 25, 4, 1, TypeOfRIs.ZONAL, SMAPlatform.WINDOWS, familyRange, 20, 20);
+        SMAUtilsTest.testASG(175, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.LINUX, familyRange, 20, 20);
+        SMAUtilsTest.testASG(175, 25, 4, 1, TypeOfRIs.REGIONAL, OSType .WINDOWS, familyRange, 20, 20);
+        SMAUtilsTest.testASG(175, 25, 4, 1, TypeOfRIs.ZONAL, OSType .WINDOWS, familyRange, 20, 20);
     }
 
     /**
@@ -36,9 +36,9 @@ public class ASGScaleTest {
 
         for (int i = 0; i < 100; i++) {
             // templates, VMs, RIs, families, zones, accounts, isZonalRIs, OS, familyRange
-            SMATestUtils.testASGStability(175, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.LINUX, familyRange, 100, 100, loops);
-            SMATestUtils.testASGStability(175, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.WINDOWS, familyRange, 1000, 100, loops);
-            SMATestUtils.testASGStability(175, 25, 4, 1, TypeOfRIs.ZONAL, SMAPlatform.WINDOWS, familyRange, 1000, 100, loops);
+            SMAUtilsTest.testASGStability(175, 25, 4, 1, TypeOfRIs.REGIONAL, OSType .LINUX, familyRange, 100, 100, loops);
+            SMAUtilsTest.testASGStability(175, 25, 4, 1, TypeOfRIs.REGIONAL, OSType .WINDOWS, familyRange, 1000, 100, loops);
+            SMAUtilsTest.testASGStability(175, 25, 4, 1, TypeOfRIs.ZONAL, OSType .WINDOWS, familyRange, 1000, 100, loops);
         }
     }
 

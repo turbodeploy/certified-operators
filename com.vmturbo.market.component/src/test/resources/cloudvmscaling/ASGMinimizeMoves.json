@@ -41,7 +41,7 @@
           "name": VMA1,
           "count": 3,
           "groupName" : GRPA,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "providers": [
             t3a.nano,
             t3.nano
@@ -54,7 +54,7 @@
           "name": VMA2,
           "count": 2,
           "groupName" : GRPA,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "providers": [
             t3a.nano,
             t3.nano
@@ -67,7 +67,7 @@
           "name": VMB1,
           "count": 2,
           "groupName" : GRPB,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "providers": [
             t3a.nano,
             t3.nano
@@ -80,7 +80,7 @@
           "name": VMB2,
           "count": 3,
           "groupName" : GRPB,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "providers": [
             t3a.nano,
             t3.nano
@@ -93,7 +93,7 @@
       "ReservedInstances": [
         {
           "name": RI1,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "utilization": 0,
           "template": t3a.nano,
           "count": 5

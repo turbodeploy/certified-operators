@@ -16,6 +16,7 @@ import org.apache.commons.lang3.tuple.MutablePair;
 
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Stable marriage algorithm representation of an RI.
@@ -152,7 +153,7 @@ public class SMAReservedInstance {
     public boolean computeInstanceSizeFlexible(SMAContext context) {
         if (context.getCsp() == SMACSP.AZURE ||
                 (context.getCsp() == SMACSP.AWS &&
-                        context.getTenancy() == SMATenancy.DEFAULT &&
+                        context.getTenancy() == Tenancy.DEFAULT &&
                         SMAUtils.LINUX_OS.contains(context.getOs()) &&
                         zone == SMAUtils.NO_ZONE)) {
             return true;
@@ -233,37 +234,6 @@ public class SMAReservedInstance {
 
     public List<MutablePair<SMAReservedInstance, Integer>> getMembers() {
         return members;
-    }
-
-    /*
-     * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
-     * If the RIs are regional, then zone == NO_ZONE.
-     */
-    @Override
-    public int hashCode() {
-        return Objects.hash(normalizedTemplate.getOid(), zone, businessAccount);
-    }
-
-    /**
-     * RI's that have same businessAccount,normalizedTemplate and zone should be combined. This allows
-     * multiple RI's to discount a single VM in case of ISF. Multiple RI to discount multiple VMs in case
-     * of ASG.
-     */
-    @Override
-    public boolean equals(Object obj) {
-        SMAReservedInstance ri = (SMAReservedInstance)obj;
-
-        // If the object is compared with itself then return true
-        if (ri == this) {
-            return true;
-        }
-
-        if (businessAccount == ri.businessAccount &&
-                normalizedTemplate.getOid() == ri.normalizedTemplate.getOid() &&
-                zone == ri.zone) {
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -435,5 +405,36 @@ public class SMAReservedInstance {
                 ", zone='" + zone + "'" +
                 ", totalCount=" + totalCount +
                 '}';
+    }
+
+    /*
+     * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
+     * If the RIs are regional, then zone == NO_ZONE.
+     */
+    @Override
+    public int hashCode() {
+       return Objects.hash(oid, name, businessAccount, template.getOid(), zone, count);
+    }
+
+    /**
+     * RI's that have same businessAccount,normalizedTemplate and zone should be combined. This allows
+     * multiple RI's to discount a single VM in case of ISF. Multiple RI to discount multiple VMs in case
+     * of ASG.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+         if (obj == null || getClass() != obj.getClass()) {
+             return false;
+         }
+         final SMAReservedInstance that = (SMAReservedInstance)obj;
+         return oid == that.oid &&
+             name.equals(that.name) &&
+             businessAccount == that.businessAccount &&
+             template.getOid() == that.template.getOid() &&
+             zone == that.zone &&
+             count == that.count;
     }
 }

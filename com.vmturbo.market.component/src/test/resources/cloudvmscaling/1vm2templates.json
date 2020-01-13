@@ -4,13 +4,13 @@
       "context": {
         "csp": "AWS",
         "os": "LINUX",
-        "region": 31,
+        "region": 30,
         "billingAccount": 1,
-        "tenancy": DEFAULT
+        "tenancy": "DEFAULT"
       },
       "Templates": [
         {
-	  "oid": 100001,
+          "oid" : 100001,
           "name": "template1",
           "family": "family1",
           "onDemandCost": {
@@ -22,45 +22,40 @@
             "license": 2.0
           },
           "coupons": 3
+        },
+        {
+          "oid" : 100002,
+          "name": "template2",
+          "family": "family1",
+          "onDemandCost": {
+            "compute": 200.0,
+            "license": 20.0
+          },
+          "discountedCost": {
+            "compute": 20.0,
+            "license": 2.0
+          },
+          "coupons": 3
         }
       ],
       "VirtualMachines": [
         {
-	  "oid": 2000010,
+          "oid": 2000001,
           "name": "VM1",
           "businessAccount": 10,
-          "count": 2,
           "providers": [
-            100001
+            100001,
+            100002
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100001
-        }
-      ],
-      "ReservedInstances": [
-        {
-	  "oid": 1000001,
-          "name": "RI1",
-          "businessAccount": 10,
-          "utilization": 0,
-          "zone": 21,
-          "template": 100001,
-          "count": 2
+          "currentTemplate": 100002
         }
       ],
       "Matching": [
         {
-          "VirtualMachine":   2000010,
-          "ReservedInstance": 1000001,
-          "Template": 100001,
-          "DiscountedCoupons": 3
-        },
-        {
-          "VirtualMachine":   2000011,
-          "ReservedInstance": 1000001,
-          "Template": 100001,
-          "DiscountedCoupons": 3
+          "VirtualMachine": 2000001,
+          "Template": 100001
         }
       ]
     }

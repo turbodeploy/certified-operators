@@ -24,25 +24,18 @@ public class SMAOutput {
         this.outputContexts = Objects.requireNonNull(contexts, "contexts is null!");
     }
 
-    /**
-     * getter method for  outputContexts.
-     *
-     * @return outputContexts
-     */
     @Nonnull
     public List<SMAOutputContext> getContexts() {
         return outputContexts;
     }
 
-    /**
-     * converts the SMAOutput to string.
-     *
-     * @return SMAOutput converted to string.
-     */
     @Override
     public String toString() {
-        return "SMAOutput{" +
-                "outputContexts=" + outputContexts.size() +
-                '}';
+        StringBuffer buffer = new StringBuffer();
+        buffer.append("SMAOutput outputContext size=").append(outputContexts.size());
+        for (int i = 0; i < outputContexts.size(); i++) {
+            buffer.append("\n  ").append(outputContexts.get(i));
+        }
+        return buffer.toString();
     }
 }

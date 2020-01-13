@@ -113,14 +113,25 @@ public class SMAMatch {
         return memberReservedInstances;
     }
 
-
     @Override
     public String toString() {
-        return "SMAMatch{" +
-                "virtualMachine=" + virtualMachine +
-                ", template=" + template +
-                ", memberReservedInstances=" + getMemberReservedInstances().size() +
-                ", discountedCoupons=" + discountedCoupons +
-                '}';
+        StringBuffer buffer = new StringBuffer();
+        buffer.append("SMAMatch VM OID=").append(virtualMachine.getOid())
+            .append(" name=").append(virtualMachine.getName())
+            .append(" currentTemplate=").append(virtualMachine.getCurrentTemplate().getName())
+            .append(" naturalTemplate=").append(virtualMachine.getNaturalTemplate().getName())
+            .append(" projectedTemplate=").append(template.getName())
+            .append(" coupons=").append(template.getCoupons());
+        if (getMemberReservedInstances().size() > 0) {
+            buffer.append(" discountedCoupons=").append(discountedCoupons);
+            for (Pair<SMAReservedInstance, Integer> pair: memberReservedInstances) {
+                SMAReservedInstance ri = pair.first;
+                int coupons = pair.second;
+                buffer.append( " RI OID=").append(ri.getOid())
+                    .append(" template=").append(ri.getTemplate().getName())
+                    .append(" coupons=").append(coupons);
+            }
+        }
+        return buffer.toString();
     }
 }

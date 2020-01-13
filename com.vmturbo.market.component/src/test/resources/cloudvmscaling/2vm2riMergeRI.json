@@ -28,7 +28,7 @@
         {
           "oid": 2000001,
           "name": "VM1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100001
           ],
@@ -39,7 +39,7 @@
         {
           "oid": 2000002,
           "name": "VM2",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100001
           ],
@@ -52,7 +52,7 @@
         {
           "oid": 1000002,
           "name": "RI2",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -61,7 +61,7 @@
         {
           "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -71,13 +71,13 @@
       "Matching": [
         {
           "VirtualMachine": 2000001,
-          "ReservedInstance": 1000001,
+          "ReservedInstance": 1000002,
           "Template": 100001,
           "DiscountedCoupons": 3
         },
         {
           "VirtualMachine": 2000002,
-          "ReservedInstance": 1000002,
+          "ReservedInstance": 1000001,
           "Template": 100001,
           "DiscountedCoupons": 3
         }

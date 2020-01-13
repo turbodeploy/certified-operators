@@ -43,10 +43,12 @@ public class SMAOutputContext {
 
     @Override
     public String toString() {
-        return "SMAOutputContext{" +
-                "context=" + context +
-                ", matches=" + matches.size() +
-                '}';
+        StringBuffer buffer = new StringBuffer();
+        buffer.append("SMAOutputContext ").append(matches.size()).append(" matches in ").append(context);
+        for (SMAMatch match: matches) {
+            buffer.append("\n  match=").append(match);
+        }
+        return buffer.toString();
     }
 
 }

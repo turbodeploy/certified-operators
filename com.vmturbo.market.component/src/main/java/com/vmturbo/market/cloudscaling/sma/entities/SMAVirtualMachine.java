@@ -28,9 +28,9 @@ public class SMAVirtualMachine {
     /*
      * Name of VM, unique per context
      */
-     final String name;
+    private final String name;
     /*
-     * Name of group, unique per context
+     * Name of  unique per context
      */
     private final long groupOid;
     /*
@@ -40,16 +40,29 @@ public class SMAVirtualMachine {
     /*
      * VM's current template.  Infer CSP, family and coupons
      */
-    private final SMATemplate currentTemplate;
+    private SMATemplate currentTemplate;
     /*
-     * Current RI coverage as a percentage of coupons.  If 0, then no coverage.
-     * Could be used to give this VM preference for RI coverage over VMs that did not have RI coverage
+     * The original set of Providers.
      */
-    private final float currentRICoverage;
+    private List<SMATemplate> providers;
+    /*
+     * Current RI coverage as the number of coupons that are discounted; that is, covered by and RI.
+     * If 0, then no coverage.
+     * Could be used to give this VM preference for RI coverage over VMs that did not have RI coverage.
+     * Used in Stability testing.
+     * Not known at construction time, because need to process compute tiers to get number of coupons.
+     */
+    private float currentRICoverage;
     /*
      * Cloud Zone
      */
     private final long zone;
+    /*
+     * List of groupProviders (templates) that this VM could move to.
+     * If the VM is in an ASG and not the leader, groupProviders is set to null
+     */
+    private List<SMATemplate> groupProviders;
+
     /*
      * The least cost provider for this VM in each family.
      * Set in updateNaturalTemplateAndMinCostProviderPerFamily()
@@ -65,15 +78,6 @@ public class SMAVirtualMachine {
      * the ASG leadres natural template
      */
     private SMATemplate naturalTemplate;
-    /*
-     * List of groupProviders (templates) that this VM could move to.
-     * If the VM is in an ASG and not the leader, groupProviders is set to null
-     */
-    private List<SMATemplate> groupProviders;
-    /*
-     * The original set of Providers.
-     */
-    private final List<SMATemplate> providers;
 
     /*
      * The size of the group the VM belongs to.
@@ -94,30 +98,30 @@ public class SMAVirtualMachine {
      * @param currentRICoverage the current RI converage of the VM
      * @param zone the zone to which the vm belongs to.
      */
-    public SMAVirtualMachine(@Nonnull final long oid,
+    public SMAVirtualMachine(final long oid,
                              @Nonnull final String name,
                              final long groupOid,
                              final long businessAccount,
-                             @Nonnull SMATemplate currentTemplate,
+                             SMATemplate currentTemplate,
                              @Nonnull List<SMATemplate> providers,
                              final float currentRICoverage,
                              final long zone) {
-        this.oid = Objects.requireNonNull(oid, "OID is null!");
+        this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupOid = groupOid;
-        this.currentTemplate = Objects.requireNonNull(currentTemplate, "currentTemplate is null!");
+        this.currentTemplate = currentTemplate;
         this.businessAccount = businessAccount;
         this.currentRICoverage = currentRICoverage;
-        this.groupProviders = Objects.requireNonNull(providers, "groupProviders is null!");
+        this.groupProviders = Objects.requireNonNull(providers, "providers are null!");
         this.providers = new ArrayList(providers);
         this.zone = zone;
         this.groupSize = 1;
-        updateNaturalTemplateAndMinCostProviderPerFamily();
     }
 
     /**
      * Sets naturalTemplate: the natural (least cost) template.
-     * Sets minCostProviderPerFamily: the least cost template on a per family basis
+     * Sets minCostProviderPerFamily: the least cost template on a per family basis.
+     * Call only after templates have been processed fully.
      */
     public void updateNaturalTemplateAndMinCostProviderPerFamily() {
         this.minCostProviderPerFamily = new HashMap<>();
@@ -129,19 +133,19 @@ public class SMAVirtualMachine {
             minCostPerFamily.put(template.getFamily(), Float.MAX_VALUE);
         }
         for (SMATemplate template : groupProviders) {
-            if (template.getOnDemandCost().getTotal() - minCost < (-1.0 * SMAUtils.EPSILON)) {
-                minCost = template.getOnDemandCost().getTotal();
+            if (template.getOnDemandTotalCost(businessAccount) - minCost < (-1.0 * SMAUtils.EPSILON)) {
+                minCost = template.getOnDemandTotalCost(businessAccount);
                 minCostProvider = Optional.of(template);
             } else {
                 // Template cost is equal, then switch if the new template is the natural
                 // template.
-                if ((Math.abs(template.getOnDemandCost().getTotal() - minCost) < SMAUtils.EPSILON) &&
+                if ((Math.abs(template.getOnDemandTotalCost(businessAccount) - minCost) < SMAUtils.EPSILON) &&
                         getCurrentTemplate().equals(template)) {
                         minCostProvider = Optional.of(template);
                 }
             }
-            if (template.getOnDemandCost().getTotal() - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
-                minCostPerFamily.put(template.getFamily(), template.getOnDemandCost().getTotal());
+            if (template.getOnDemandTotalCost(businessAccount) - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
+                minCostPerFamily.put(template.getFamily(), template.getOnDemandTotalCost(businessAccount));
                 minCostProviderPerFamily.put(template.getFamily(), template);
             }
 
@@ -164,6 +168,16 @@ public class SMAVirtualMachine {
         return providers;
     }
 
+    /**
+     * When converting from market data structures, don't know providers until after templates are
+     * processed.
+     * @param providers list of providers as SMATemplates.
+     */
+    public void setProviders(final List<SMATemplate> providers) {
+        this.providers = new ArrayList<>(providers);
+        this.groupProviders = providers;
+    }
+
     @Nonnull
     public long getBusinessAccount() {
         return businessAccount;
@@ -172,6 +186,10 @@ public class SMAVirtualMachine {
     @Nonnull
     public SMATemplate getCurrentTemplate() {
         return currentTemplate;
+    }
+
+    public void setCurrentTemplate(SMATemplate template) {
+        currentTemplate = template;
     }
 
     public long getGroupOid() {
@@ -220,6 +238,10 @@ public class SMAVirtualMachine {
         return currentRICoverage;
     }
 
+    public void setCurrentRICoverage(float coverage) {
+        currentRICoverage = coverage;
+    }
+
     public long getZone() {
         return zone;
     }
@@ -262,7 +284,6 @@ public class SMAVirtualMachine {
         return buffer.toString();
     }
 
-
     /**
      * checks if the virtual machine and reserved instance belong to the same zone.
      *
@@ -280,7 +301,7 @@ public class SMAVirtualMachine {
          *
          */
 
-        if (groupOid != SMAUtils.NO_GROUP_OID
+        if (groupOid != SMAUtils.NO_GROUP_ID
                 && !virtualMachineGroupMap.get(this.getGroupOid()).isZonalDiscountable()
                 && !ri.isRegionScoped()) {
             return false;
@@ -298,7 +319,6 @@ public class SMAVirtualMachine {
     /**
      * Given two SMATemplate, compare by OID.
      */
-
     public static class SortTemplateByOID implements Comparator<SMATemplate> {
         @Override
         public int compare(SMATemplate template1, SMATemplate template2) {
@@ -306,4 +326,23 @@ public class SMAVirtualMachine {
         }
     }
 
+     @Override
+     public int hashCode() {
+         return Objects.hash(oid, name, businessAccount, zone);
+     }
+
+     @Override
+     public boolean equals(final Object o) {
+         if (this == o) {
+             return true;
+         }
+         if (o == null || getClass() != o.getClass()) {
+             return false;
+         }
+         final SMAVirtualMachine that = (SMAVirtualMachine)o;
+         return oid == that.oid &&
+             name.equals(that.name) &&
+             businessAccount == that.businessAccount &&
+             zone == that.zone;
+     }
 }

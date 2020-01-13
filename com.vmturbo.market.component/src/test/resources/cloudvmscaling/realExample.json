@@ -98,7 +98,7 @@
         {
           "oid": 2000001,
           "name": "VM1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100011,
@@ -114,7 +114,7 @@
         {
           "oid": 2000002,
           "name": "VM2",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100012,
@@ -128,7 +128,7 @@
         {
           "oid": 2000003,
           "name": "VM3",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100012,
@@ -142,7 +142,7 @@
         {
           "oid": 2000004,
           "name": "VM4",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100013
@@ -154,7 +154,7 @@
         {
           "oid": 2000005,
           "name": "VM5",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100003,
@@ -167,7 +167,7 @@
         {
           "oid": 2000006,
           "name": "VM6",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100003,
@@ -180,7 +180,7 @@
         {
           "oid": 2000007,
           "name": "VM7",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100011,
@@ -196,7 +196,7 @@
         {
           "oid": 2000008,
           "name": "VM8",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "count": 2,
           "providers": [
             100011,
@@ -214,7 +214,7 @@
         {
           "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
@@ -223,7 +223,7 @@
         {
           "oid": 1000004,
           "name": "RI4",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100012,
@@ -232,7 +232,7 @@
         {
           "oid": 1000005,
           "name": "RI5",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100003,
@@ -241,7 +241,7 @@
         {
           "oid": 1000002,
           "name": "RI2",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100011,
@@ -250,7 +250,7 @@
         {
           "oid": 1000003,
           "name": "RI3",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100002,
@@ -259,7 +259,7 @@
         {
           "oid": 1000006,
           "name": "RI6",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100013,

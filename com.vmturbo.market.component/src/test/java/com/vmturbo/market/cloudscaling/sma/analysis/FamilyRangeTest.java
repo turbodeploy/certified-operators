@@ -2,8 +2,8 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import org.junit.Test;
 
-import com.vmturbo.market.cloudscaling.sma.entities.SMAPlatform;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Test the template generation.
@@ -22,9 +22,9 @@ public class FamilyRangeTest {
         int families = 1;
         int familyRange = 1;
         // templates, VMs, RIs, families, zones, accounts,  OS, familyRange
-        SMATestUtils.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, SMAPlatform.LINUX, familyRange);
-        SMATestUtils.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, SMAPlatform.WINDOWS, familyRange);
-        SMATestUtils.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.ZONAL, SMAPlatform.WINDOWS, familyRange);
+        SMAUtilsTest.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, OSType.LINUX, familyRange);
+        SMAUtilsTest.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, OSType.WINDOWS, familyRange);
+        SMAUtilsTest.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.ZONAL, OSType.WINDOWS, familyRange);
     }
 
     /**
@@ -40,9 +40,9 @@ public class FamilyRangeTest {
         int families = 10;
         int familyRange = 10;
         // templates, VMs, RIs, families, zones, accounts, isZonalRIs, OS, familyRange
-        SMATestUtils.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, SMAPlatform.LINUX, familyRange);
-        SMATestUtils.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, SMAPlatform.WINDOWS, familyRange);
-        SMATestUtils.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.ZONAL, SMAPlatform.WINDOWS, familyRange);
+        SMAUtilsTest.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, OSType.LINUX, familyRange);
+        SMAUtilsTest.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.REGIONAL, OSType.WINDOWS, familyRange);
+        SMAUtilsTest.testRandomInput(nTemplates, vms, ris, families, zones, nBusinessAccounts, TypeOfRIs.ZONAL, OSType.WINDOWS, familyRange);
     }
 
 }

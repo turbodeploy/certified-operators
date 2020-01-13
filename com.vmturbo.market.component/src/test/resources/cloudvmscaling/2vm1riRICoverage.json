@@ -52,7 +52,7 @@
       "VirtualMachines": [
         {
           "name": VM2,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "providers": [
             template2,
             template3
@@ -63,7 +63,7 @@
         },
         {
           "name": VM1,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "providers": [
             template2,
             template3
@@ -76,7 +76,7 @@
       "ReservedInstances": [
         {
           "name": RI1,
-          "businessAccount": buac1,
+          "businessAccount": 10,
           "utilization": 0,
           "zone": 1a,
           "template": template3,

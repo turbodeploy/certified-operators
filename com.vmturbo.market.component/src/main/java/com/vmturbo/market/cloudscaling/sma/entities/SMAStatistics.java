@@ -130,8 +130,7 @@ public class SMAStatistics {
     private float computeCurrentCost(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            SMACost cost = vm.getCurrentTemplate().getOnDemandCost();
-            savings += cost.getTotal();
+            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccount());
         }
         return savings;
     }
@@ -143,9 +142,8 @@ public class SMAStatistics {
     private float computeCurrentCostWithRICoverage(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            SMACost cost = vm.getCurrentTemplate().getOnDemandCost();
             float currentRICoverageFraction = vm.getCurrentRICoverage() / (float)vm.getCurrentTemplate().getCoupons();
-            savings += cost.getTotal() * (1.0 - currentRICoverageFraction);
+            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccount()) * (1.0 - currentRICoverageFraction);
         }
         return savings;
     }
@@ -156,8 +154,7 @@ public class SMAStatistics {
     private float computeNaturalCost(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            SMACost cost = vm.getNaturalTemplate().getOnDemandCost();
-            savings += cost.getTotal();
+            savings += vm.getNaturalTemplate().getOnDemandTotalCost(vm.getBusinessAccount());
         }
         return savings;
     }
@@ -169,16 +166,17 @@ public class SMAStatistics {
         float total = 0;
         for (SMAMatch match : matches) {
             SMATemplate template = match.getTemplate();
-            SMACost onDemandCost = template.getOnDemandCost();
-            SMACost discountedCost = template.getDiscountedCost();
+            SMAVirtualMachine vm = match.getVirtualMachine();
+            float onDemandTotalCost = template.getOnDemandTotalCost(vm.getBusinessAccount());
+            float discountedTotalCost = template.getDiscountedTotalCost(vm.getBusinessAccount());
             float discountPercent = match.getDiscountedCoupons() / (float)template.getCoupons();
             /*
              * This computation assumes that
              * on-demand cost is the sum of the template's onDemandCosts' compute and license costs, and
              * RI cost is the sum of the template's discountedCost's compute and license costs.
              */
-            float cost = (onDemandCost.getTotal() * (1.0f - discountPercent)) +
-                    (discountedCost.getTotal() * discountPercent);
+            float cost = (onDemandTotalCost * (1.0f - discountPercent)) +
+                    (discountedTotalCost * discountPercent);
             total += cost;
         }
         return total;

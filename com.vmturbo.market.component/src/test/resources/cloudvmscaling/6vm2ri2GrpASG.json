@@ -99,7 +99,7 @@
           "oid": 2000001,
           "name": "VMA1",
           "groupName" : 101,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100001,
             100004,
@@ -115,7 +115,7 @@
           "name": "VMA2",
           "count": 2,
           "groupName" : 101,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100004,
             100005,
@@ -130,7 +130,7 @@
           "oid": 2000003,
           "name": "VMB1",
           "groupName" : 102,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100001,
             100004,
@@ -146,7 +146,7 @@
           "name": "VMB2",
           "count": 2,
           "groupName" : 102,
-          "businessAccount": 11,
+          "businessAccount": 10,
           "providers": [
             100004,
             100005,
@@ -162,7 +162,7 @@
         {
           "oid": 1000001,
           "name": "RI1",
-          "businessAccount": 11,
+          "businessAccount": 10,
           "utilization": 0,
           "template": 100006,
           "count": 1

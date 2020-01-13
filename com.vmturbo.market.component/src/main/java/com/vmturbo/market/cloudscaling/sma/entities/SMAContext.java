@@ -4,6 +4,9 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+
 /**
  * The Stable Marriage algorithm base context.
  */
@@ -13,40 +16,40 @@ public class SMAContext {
      */
     private final SMACSP csp;
     /*
-     * OS; e.g. windows or Linux
+     * OS; e.g. windows or Linux.
      */
-    private final SMAPlatform os;
+    private final OSType osType;
     /*
-     * Cloud Region
+     * Cloud Region ID.
      */
-    private final long region;
+    private final long regionId;
     /*
-     * BillingAccount: e.g. master account in AWS or EA in Azure
+     * BillingAccount ID: e.g. master account in AWS or EA in Azure
      */
-    private final long billingAccount;
+    private final long billingAccountId;
     /*
      * Tenancy
      */
-    private final SMATenancy tenancy;
+    private final Tenancy tenancy;
 
     /**
      * SMAContext constructor.
      *
      * @param csp  csp
-     * @param os operating system
-     * @param region the corresponding region
-     * @param billingAccount corresponding billing account
+     * @param osType operating system
+     * @param regionId the corresponding region
+     * @param billingAccountId corresponding billing account
      * @param tenancy the corresponding tenancy
      */
     public SMAContext(@Nonnull SMACSP csp,
-                      @Nonnull SMAPlatform os,
-                      @Nonnull long region,
-                      @Nonnull long billingAccount,
-                      @Nonnull SMATenancy tenancy) {
+                      @Nonnull OSType osType,
+                      long regionId,
+                      long billingAccountId,
+                      @Nonnull Tenancy tenancy) {
         this.csp = Objects.requireNonNull(csp);
-        this.os = Objects.requireNonNull(os);
-        this.region = Objects.requireNonNull(region);
-        this.billingAccount = Objects.requireNonNull(billingAccount);
+        this.osType = Objects.requireNonNull(osType);
+        this.regionId = regionId;
+        this.billingAccountId = billingAccountId;
         this.tenancy = Objects.requireNonNull(tenancy);
     }
 
@@ -56,27 +59,27 @@ public class SMAContext {
     }
 
     @Nonnull
-    public SMAPlatform getOs() {
-        return os;
+    public OSType getOs() {
+        return osType;
     }
 
     @Nonnull
-    public long getRegion() {
-        return region;
+    public long getRegionId() {
+        return regionId;
     }
 
-    public long getBillingAccount() {
-        return billingAccount;
+    public long getBillingAccountId() {
+        return billingAccountId;
     }
 
     @Nonnull
-     SMATenancy getTenancy() {
+     Tenancy getTenancy() {
         return tenancy;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(csp, os, region, billingAccount, tenancy);
+        return Objects.hash(csp, osType, regionId, billingAccountId, tenancy);
     }
 
     @Override
@@ -89,20 +92,20 @@ public class SMAContext {
         }
         final SMAContext that = (SMAContext)obj;
         return csp == that.csp &&
-                os == that.os &&
-                Objects.equals(region, that.region) &&
-                Objects.equals(billingAccount, that.billingAccount) &&
+                osType == that.osType &&
+                Objects.equals(regionId, that.regionId) &&
+                Objects.equals(billingAccountId, that.billingAccountId) &&
                 tenancy == that.tenancy;
     }
 
     @Override
     public String toString() {
         return "SMAContext{" +
-                "csp=" + csp +
-                ", os=" + os +
-                ", region='" + region + '\'' +
-                ", billingAccount='" + billingAccount + '\'' +
-                ", tenancy=" + tenancy +
-                '}';
+            "csp=" + csp +
+            ", billingAccount='" + billingAccountId + '\'' +
+            ", region='" + regionId + '\'' +
+            ", os=" + osType +
+            ", tenancy=" + tenancy +
+            '}';
     }
 }

@@ -1,41 +1,70 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * SMA representation of a provide, either on-demand or discounted.
  * This is a template for a specific context.
  */
 public class SMATemplate {
+
+    private static final Logger logger = LogManager.getLogger();
+    /*
+     * Instance variables set in the contstructor.
+     */
     /*
      * Unique identifier of Template
      */
     private final long oid;
+
     /*
      * name of the template; e.g. t2.micro
      * Only set in constructor and JUnit tests
      */
     private final String name;
+
     /*
      * name of the template family; e.g. "t2" from t2.micro
      */
     private final String family;
-    /*
-     * on-demand cost
-     */
-    private  SMACost onDemandCost;
-    /*
-     * discounted (or RI) cost
-     * For Azure, because RI does not include license cost.
-     * The discountedCost is zero for AWS.
-     */
-    private final SMACost discountedCost;
+
     /*
      * number of coupons
      */
     private final int coupons;
+
+    /*
+     * What context am I in?  For debugging purposes only.
+     */
+    private final SMAContext context;
+
+    /*
+     * The compute tier in XL data structures.  Needed to compute costs.
+     */
+    private final TopologyEntityDTO computeTier;
+
+    /*
+     * instance variables set outside of the construtor
+     */
+    /*
+     *  Map from business account to on-demand cost
+     */
+    private Map<Long, SMACost> onDemandCosts = new HashMap<>();
+
+    /*
+     * Map from business account to discounted cost (only Azure).
+     * For AWS, discountedCosts is always 0.
+     */
+    private Map<Long, SMACost> discountedCosts = new HashMap<>();
 
     /**
      * Constructor of the SMATemplate.
@@ -43,22 +72,23 @@ public class SMATemplate {
      * @param oid the oid of the template. unique per context
      * @param name the template name
      * @param family the family the template belongs to.
-     * @param onDemandCost the on-demand cost.
-     * @param discountedCost the discounted cost.
      * @param coupons the number of the coupons needed for SMA template.
+     * @param context what context is this template in?
+     * @param computeTier link back to XL data structures for compute tier.  Needed to compute cost.
      */
-    public SMATemplate(@Nonnull final long oid,
+    public SMATemplate(final long oid,
                        @Nonnull final String name,
                        @Nonnull final String family,
-                       @Nonnull SMACost onDemandCost,
-                       @Nonnull SMACost discountedCost,
-                       final int coupons) {
-        this.oid = Objects.requireNonNull(oid, "OID is null");
+                       final int coupons,
+                       @Nonnull final SMAContext context,
+                       TopologyEntityDTO computeTier
+                       ) {
+        this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null");
         this.family = Objects.requireNonNull(family, "family is null");
-        this.onDemandCost = Objects.requireNonNull(onDemandCost, "onDemandCost is null!");
-        this.discountedCost = Objects.requireNonNull(discountedCost, "discountedCost is null!");
         this.coupons = coupons;
+        this.context = Objects.requireNonNull(context);
+        this.computeTier = computeTier;
     }
 
     @Nonnull
@@ -75,33 +105,158 @@ public class SMATemplate {
         return family;
     }
 
-    @Nonnull
-    public SMACost getOnDemandCost() {
-        return onDemandCost;
-    }
-
-    @Nonnull
-    public SMACost getDiscountedCost() {
-        return discountedCost;
-    }
-
     public int getCoupons() {
         return coupons;
     }
 
+    public TopologyEntityDTO getComputeTier() {
+        return computeTier;
+    }
+
     /**
-     * compute the net cost based on available coupons, the template On-demand, discounted cost.
-     *
-     * @param availableCoupons available coupons
-     * @return cost after applying coupons.
+     * Given a business account ID, get the on-demand cost.
+     * @param businessAccountId business account ID
+     * @return on-demand cost
      */
-    public float getNetCost(float availableCoupons) {
-        if (availableCoupons > coupons || coupons == 0) {
-            return discountedCost.getTotal();
+    @Nonnull
+    public SMACost getOnDemandCost(long businessAccountId) {
+        return onDemandCosts.get(businessAccountId);
+    }
+
+    /**
+     * Given a business account ID, set the on-demand cost.
+     * @param businessAccountId business account ID
+     * @param cost cost
+     */
+    public void setOnDemandCost(long businessAccountId, @Nonnull SMACost cost) {
+        onDemandCosts.put(businessAccountId, Objects.requireNonNull(cost));
+    }
+
+    /**
+     * Given a business account ID, return the discounted cost.
+     * @param businessAccountId business account ID
+     * @return cost
+     */
+    @Nonnull
+    public SMACost getDiscountedCost(long businessAccountId) {
+        return discountedCosts.get(businessAccountId);
+    }
+
+    /**
+     * Given a business account ID, set the discounted cost.
+     * @param businessAccountId business account ID
+     * @param cost discounted cost
+     */
+    public void setDiscountedCost(long businessAccountId, @Nonnull SMACost cost) {
+        this.discountedCosts.put(businessAccountId, Objects.requireNonNull(cost));
+    }
+
+    /**
+     * Lookup the on-demand compute cost for the business account ID.
+     * @param businessAccountId business account ID
+     * @return on-demand compute cost or 0 if not found.
+     */
+    public float getOnDemandComputeCost(long businessAccountId) {
+        SMACost cost = onDemandCosts.get(businessAccountId);
+        if (cost == null) {
+            logger.warn("getOnDemandComputeCost: OID={} name={} has no discounted cost for businessAccountId={}!",
+                oid, name, businessAccountId);
+            return 0.0f;
+        }
+        return cost.getCompute();
+    }
+
+    /**
+     * Lookup the on-demand license cost for the business account.
+     * @param businessAccountId the business account ID.
+     * @return on-demand license cost or 0 if not found.
+     */
+    public float getOnDemandLicenseCost(long businessAccountId) {
+        SMACost cost = onDemandCosts.get(businessAccountId);
+        if (cost == null) {
+            logger.warn("getOnDemandLicenseCost: OID={} name={} has no discounted cost for businessAccountId={}!",
+                oid, name, businessAccountId);
+            return 0.0f;
+        }
+        return cost.getLicense();
+    }
+
+    /**
+     * Lookup the on-demand total cost for the business account.
+     * @param businessAccountId the business account ID.
+     * @return on-demand total cost or 0 if not found.
+     */
+    public float getOnDemandTotalCost(long businessAccountId) {
+        SMACost cost = onDemandCosts.get(businessAccountId);
+        if (cost == null) {
+            logger.warn("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={}!",
+                oid, name, businessAccountId);
+            return 0.0f;
+        }
+        return cost.getTotal();
+    }
+
+    /**
+     * Lookup the discounted compute cost for the business account.
+     * @param businessAccountId the business account ID.
+     * @return discounted compute cost or 0 if not found.
+     */
+    public float getDiscountedComputeCost(long businessAccountId) {
+        SMACost cost = discountedCosts.get(businessAccountId);
+        if (cost == null) {
+            logger.warn("getDiscountedComputeCost: OID={} name={} has no discounted cost for businessAccountId={}!",
+                oid, name, businessAccountId);
+            return 0.0f;
+        }
+        return cost.getCompute();
+    }
+
+    /**
+     * Lookup the discounted license cost for the business account.
+     * @param businessAccountId the business account ID.
+     * @return discounted license cost or 0 if not found.
+     */
+    public float getDiscountedLicenseCost(long businessAccountId) {
+        SMACost cost = discountedCosts.get(businessAccountId);
+        if (cost == null) {
+            logger.warn("getDiscountedLicenseCost: OID={} name={} has no discounted cost for businessAccountId={}!",
+                oid, name, businessAccountId);
+            return 0.0f;
+        }
+        return cost.getLicense();
+    }
+
+    /**
+     * Lookup the discounted total cost for the business account.
+     * @param businessAccountId the business account ID.
+     * @return discounted total cost or 0 if not found.
+     */
+    public float getDiscountedTotalCost(long businessAccountId) {
+        SMACost cost = discountedCosts.get(businessAccountId);
+        if (cost == null) {
+            logger.warn("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={}!",
+                oid, name, businessAccountId);
+            return 0.0f;
+        }
+        return cost.getTotal();
+    }
+
+    /**
+     * compute the net cost based on discounted coupons and onDemandCost.
+     * For AWS, the cost is only non-discounted portion times the onDemand cost.
+     * For Azure, their may be a non zero discounted cost, which is applied to the discounted coupons.
+     *
+     * @param businessAccountId business account ID
+     * @param discountedCoupons discounted coupons
+     * @return cost after applying discounted coupons.
+     */
+    public float getNetCost(long businessAccountId, float discountedCoupons) {
+        if (discountedCoupons > coupons || coupons == 0) {
+            return getDiscountedTotalCost(businessAccountId);
         } else {
-            float discountPercentage = availableCoupons / coupons;
-            return (discountedCost.getTotal() * discountPercentage) +
-                    (onDemandCost.getTotal() * (1 - discountPercentage));
+            float discountPercentage = discountedCoupons / coupons;
+            return (getDiscountedTotalCost(businessAccountId) * discountPercentage) +
+                    (getOnDemandTotalCost(businessAccountId) * (1 - discountPercentage));
 
         }
     }
@@ -112,10 +267,9 @@ public class SMATemplate {
                 "OID='" + oid + "'" +
                 ", name='" + name + '\'' +
                 ", family='" + family + '\'' +
-                ", onDemandCost=" + onDemandCost +
-                ", discountedCost=" + discountedCost +
+                ", onDemandCosts=" + onDemandCosts.size() +
+                ", discountedCosts=" + discountedCosts.size() +
                 ", coupons=" + coupons +
                 '}';
     }
-
 }
