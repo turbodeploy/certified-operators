@@ -98,7 +98,7 @@ public class SMATest {
          * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved.
          * Don't specify an empty RI json array.
          */
-        testExactResult("1vm2templates.json");
+//        testExactResult("1vm2templates.json");
         /*
          * 1 vm and 2 ris. one zonal one regional. the vm should prefer zonal.
          */
