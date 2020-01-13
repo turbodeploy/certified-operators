@@ -833,17 +833,16 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     private BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> getValueFunction(
             @Nonnull final Set<String> requestGroupBySet) {
+
         // When grouping by cloud provider, the filter's value should be the cloud provider name.
         // In this case entityDTOs is empty.
         if (requestGroupBySet.contains(CSP)) {
             return (targetId, entityDTOs) ->
                     thinTargetCache.getTargetInfo(targetId)
                             .flatMap(thinTargetInfo ->
-                                cloudTypeMapper.fromTargetType(thinTargetInfo.probeInfo().type())
-                                    .map(Enum::name));
+                                    Optional.of(cloudTypeMapper.fromTargetType(
+                                            thinTargetInfo.probeInfo().type()).name()));
         }
-
-
 
         // When grouping by cloud service, the filter's value should be the cloud service name.
         // In this case, the associated entity ID is a cloud service ID, and the DTOs are

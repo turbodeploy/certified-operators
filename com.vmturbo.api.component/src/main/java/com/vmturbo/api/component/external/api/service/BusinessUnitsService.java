@@ -209,7 +209,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
             .filter(Optional::isPresent)
             .map(Optional::get)
             .filter(thinTargetInfo -> !thinTargetInfo.isHidden())
-            .anyMatch(thinTargetInfo -> optCloudTypeEnum.equals(
+            .anyMatch(thinTargetInfo -> optCloudTypeEnum.get().equals(
                 cloudTypeMapper.fromTargetType(thinTargetInfo.probeInfo().type())));
     }
 

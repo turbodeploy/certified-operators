@@ -289,13 +289,8 @@ public class GroupMapper {
                         Optional<ThinTargetCache.ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(targetId);
                         if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
                             ThinTargetCache.ThinTargetInfo getProbeInfo = thinInfo.get();
-                            Optional<CloudType> cloudType = cloudTypeMapper.fromTargetType(getProbeInfo.probeInfo().type());
-                            // Multiple targets might have stitched to the cloud entity. For instance,
-                            // in OM-54171, AppD stitched to a cloud VM, causing an NPE.
-                            if (cloudType.isPresent()) {
-                                cloudTypes.add(cloudType.get());
-                                break;
-                            }
+                            cloudTypes.add(cloudTypeMapper.fromTargetType(getProbeInfo.probeInfo().type()));
+                            break;
                         }
                     }
                     // Once we get more than one, we know it's HYBRID
