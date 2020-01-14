@@ -15,11 +15,13 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
@@ -75,14 +77,18 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     // ActionPolicyDTO.ActionCapability protocol
     // A probe must specify correct action capabilities for specific entity types in order
     // for this editor to determine the correct action capabilities of entities discovered by
-    // that probe. Currently, only Cloud Native target probes are confirmed to provide these
+    // that probe. Currently,
+    // - Cloud Native target probes are confirmed to provide these
     // information. Cloud Native targets have probe types prefixed with "Kubernetes", for example:
-    // "Kubernetes-1848268059"
+    // "Kubernetes-1848268059".
+    // - AWS and AZURE Probes require the support for Move Volume Action capabilities.
     // In the future, when more probes start to provide proper capabilities, this predicate
     // can be modified to include those probes. When all probes start to provide proper
     // capabilities, this predicate can be removed
     private static final Predicate<Target> TARGET_PROBE_HAS_ACTION_CAPABILITIES =
-            target -> target.getProbeInfo().getProbeType().startsWith("Kubernetes");
+            target -> target.getProbeInfo().getProbeType().startsWith("Kubernetes") ||
+                target.getProbeInfo().getProbeType().equals(SDKProbeType.AWS.getProbeType()) ||
+                target.getProbeInfo().getProbeType().equals(SDKProbeType.AZURE.getProbeType());
 
     // IS_NOT_SUPPORTED_ACTION is a predicate to determine if an action can be enabled
     // for market analysis
@@ -173,6 +179,35 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editMovable(@Nonnull final TopologyEntity entity,
                              @Nonnull final List<Long> discoveryingTargets,
                              @Nonnull final Context context) {
+        // If VV's discoveryingTarget(s) all indicated movable NOT_SUPPORTED,
+        // The storage tier commodities of the VM, which VV is attached to, is set to movable false.
+        // This will not get overwritten by the VM enabling movable action setting since the existing
+        // logic only enable it if it hasn't been set.
+        if (EntityType.VIRTUAL_VOLUME_VALUE == entity.getEntityType()) {
+            // Here we try NOT to make the assumption that the target which discovered the VV and VM are the same.
+            // Even though we mark the commodity of VM as non-movable, the probe takes movable action against VV, not VM.
+            // Therefore the checking should be against vv's discovering targets
+            final boolean vvNotMovable = discoveryingTargets.stream()
+                .allMatch(id ->
+                    context.unsupportedActions.get(id).stream()
+                        .anyMatch(action -> EntityType.VIRTUAL_VOLUME_VALUE == action.entityType().getNumber() &&
+                            ActionType.MOVE == action.actionType())
+                );
+            if (vvNotMovable) {
+                entity.getInboundAssociatedEntities().stream()
+                    .filter(associatedEntity -> associatedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .forEach(vmEntity -> vmEntity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
+                        .filter(CommoditiesBoughtFromProvider.Builder::hasProviderId)
+                        .filter(CommoditiesBoughtFromProvider.Builder::hasProviderEntityType)
+                        .filter(builder -> builder.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE)
+                        .filter(builder -> builder.getVolumeId() == entity.getOid())
+                        .forEach(builder -> {
+                            builder.setMovable(false);
+                            context.editorSummary.increaseMovableToFalseCount();
+                        })
+                    );
+            }
+        }
         entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
                 .forEach(builder ->
                         updateProperty(entity, ActionType.MOVE, discoveryingTargets, context,

@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -36,6 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -151,6 +153,78 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                 CommoditiesBoughtFromProvider::getMovable);
         assertEquals(1, movableEditSummary.getMovableToTrueCounter());
         assertEquals(0, movableEditSummary.getMovableToFalseCounter());
+    }
+
+    /**
+     * Verify movable is disabled for VM's ST when movable action capability is unsupported for VV in probe
+     *
+     * <p>Scenario:
+     *   Target: AWS:
+     *     VIRTUAL_VOLUME: MOVE -> NOT_SUPPORTED
+     *   Entities:
+     *     VIRTUAL_VOLUME (id: 4)
+     *     VIRTUAL_MACHINE (id: 2)
+     *
+     * <p>Result: Movable is disabled for storage tier under the VM.
+     */
+    @Test
+    public void testEditMovableVolumeForAWSTarget() {
+        final long vvOid = 4L;
+        final long vmOid = 2L;
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_VOLUME, ActionType.MOVE, ActionCapability.NOT_SUPPORTED, SDKProbeType.AWS.getProbeType()));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(vmOid, buildVMTopologyEntityWithConnectedVV(vmOid, vvOid, 3L));
+        topology.put(vvOid, buildVVTopologyEntity(vvOid));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
+
+        validateCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            CommoditiesBoughtFromProvider::getMovable);
+        validateSpecificCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+            EntityType.STORAGE_TIER,
+            vvOid,
+            provider -> !provider.getMovable());
+
+        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
+    }
+
+    /**
+     * Verify movable is disabled for VM's ST when movable action capability is unsupported for VV in probe
+     *
+     * <p>Scenario:
+     *   Target: AWS:
+     *     VIRTUAL_VOLUME: MOVE -> SUPPORTED
+     *   Entities:
+     *     VIRTUAL_VOLUME (id: 4)
+     *     VIRTUAL_MACHINE (id: 2)
+     *
+     * <p>Result: Movable is enabled for storage tier under the VM.
+     */
+    @Test
+    public void testEditMovableVolumeForAWSTargetWithSupport() {
+        final long vvOid = 4L;
+        final long vmOid = 2L;
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_VOLUME, ActionType.MOVE, ActionCapability.SUPPORTED, SDKProbeType.AWS.getProbeType()));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(vmOid, buildVMTopologyEntityWithConnectedVV(vmOid, vvOid, 3L));
+        topology.put(vvOid, buildVVTopologyEntity(vvOid));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        editor.applyPropertiesEdits(graph);
+
+        validateCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            CommoditiesBoughtFromProvider::getMovable);
+        validateSpecificCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+            EntityType.STORAGE_TIER,
+            vvOid,
+            CommoditiesBoughtFromProvider::getMovable);
     }
 
     /**
@@ -311,9 +385,72 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         .allMatch(movable)));
     }
 
+    private void validateSpecificCommodityMovable(final TopologyGraph<TopologyEntity> graph,
+                                                  final Predicate<TopologyEntity> predicate,
+                                                  final EntityType providerEntityType,
+                                                  final long volumeId,
+                                                  final Predicate<CommoditiesBoughtFromProvider> commoditiesMovable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+            assertTrue(entity
+                .getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                .filter(provider -> provider.getProviderEntityType() == providerEntityType.getNumber())
+                .filter(provider -> provider.getVolumeId() == volumeId)
+                .allMatch(commoditiesMovable)
+            )
+        );
+    }
+
     @Nonnull
     private Predicate<TopologyEntity> getTopologyEntityPredicate(int entityTypeValue) {
         return topologyEntity -> topologyEntity.getEntityType() == entityTypeValue;
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildVVTopologyEntity(long vvOid) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id,
+            PerTargetEntityInformation.getDefaultInstance()));
+        return TopologyEntityUtils.topologyEntityBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(origin)
+                    .build())
+                .setOid(vvOid)
+        );
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildVMTopologyEntityWithConnectedVV(long vmOid, long vvOid, long providerId) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id,
+            PerTargetEntityInformation.getDefaultInstance()));
+        return TopologyEntityUtils.topologyEntityBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(origin)
+                    .build())
+                .setOid(vmOid)
+                .addConnectedEntityList(
+                    ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(vvOid)
+                        .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .build()
+                )
+                .addCommoditiesBoughtFromProviders(
+                    CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(providerId)
+                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                        .setVolumeId(vvOid)
+                )
+        );
     }
 
     @Nonnull
