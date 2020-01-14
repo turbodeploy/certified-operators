@@ -11,8 +11,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -120,5 +124,28 @@ public class ComputeTierConverterTest {
         assertEquals(diskType, builder.getComputeTierData().getInstanceDiskType());
         assertEquals(numInstanceDisks, builder.getComputeTierData().getNumInstanceDisks());
         assertEquals(instanceDiskSize, builder.getComputeTierData().getInstanceDiskSizeGb());
+    }
+
+    /**
+     * Checks that AWS profile should be connected to all storage tiers.
+     */
+    @Test
+    public void checkAwsProfileConnectedToAllStorageTiers() {
+        converter = new ComputeTierConverter(SDKProbeType.AWS);
+        final CloudDiscoveryConverter cloudDiscoveryConverter = Mockito.mock(CloudDiscoveryConverter.class);
+        final String storageid1 = "storageid1";
+        final Collection<String> allStorageTierIds = ImmutableList.of(storageid1, "storageid2");
+        Mockito.when(cloudDiscoveryConverter.getAllStorageTierIds())
+                        .thenReturn(ImmutableSet.copyOf(allStorageTierIds));
+        final String profileId = "i3.4xlarge";
+        final EntityDTO.Builder builder = EntityDTO.newBuilder().setId(profileId);
+        final EntityProfileDTO entityProfileDto = EntityProfileDTO.newBuilder().setId(profileId)
+                        .setVmProfileDTO(VMProfileDTO.newBuilder().setDiskType(storageid1).build())
+                        .setEntityType(EntityType.VIRTUAL_MACHINE)
+                        .build();
+        Mockito.when(cloudDiscoveryConverter.getProfileDTO(profileId))
+                        .thenReturn(entityProfileDto);
+        converter.convert(builder, cloudDiscoveryConverter);
+        assertEquals(allStorageTierIds, builder.getLayeredOverList());
     }
 }

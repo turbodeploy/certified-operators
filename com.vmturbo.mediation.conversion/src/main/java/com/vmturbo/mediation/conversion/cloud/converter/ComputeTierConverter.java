@@ -10,6 +10,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
@@ -36,6 +39,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  * this is a general task for how to store entity specific information in XL
  */
 public class ComputeTierConverter implements IEntityConverter {
+    private static final Logger LOGGER = LogManager.getLogger(ComputeTierConverter.class);
 
     private SDKProbeType probeType;
 
@@ -92,16 +96,10 @@ public class ComputeTierConverter implements IEntityConverter {
         String diskType = profileDTO.getVmProfileDTO().getDiskType();
 
         if (probeType == SDKProbeType.AWS) {
-            // AWS: diskType can be ssd, hdd, ebs
-            if ("ebs".equalsIgnoreCase(diskType)) {
-                // connect to all AWS ebs StorageTiers
-                converter.getAllStorageTierIds().forEach(storageTierId ->
-                        entity.addLayeredOver(storageTierId));
-            } else {
-                // disk type may be unknown, we don't know which ST to connect to in this case
-                if (!"UNKNOWN".equalsIgnoreCase(diskType)) {
-                    entity.addLayeredOver(converter.getStorageTierId(diskType.toUpperCase()));
-                }
+            // connect to all AWS StorageTiers
+            converter.getAllStorageTierIds().forEach(entity::addLayeredOver);
+            if ("UNKNOWN".equalsIgnoreCase(diskType)) {
+                LOGGER.warn("Profile '{}' has '{}' disk type", profileDTO, diskType);
             }
         } else if (probeType == SDKProbeType.AZURE) {
             // Azure: diskType can be SSD, HDD
