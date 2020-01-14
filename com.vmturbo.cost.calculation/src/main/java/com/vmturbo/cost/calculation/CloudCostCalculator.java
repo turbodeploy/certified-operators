@@ -74,7 +74,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                         EntityType.DATABASE_VALUE,
                                         EntityType.VIRTUAL_VOLUME_VALUE);
 
-    private final CloudCostData cloudCostData;
+    private final CloudCostData<ENTITY_CLASS> cloudCostData;
 
     private final CloudTopology<ENTITY_CLASS> cloudTopology;
 
@@ -86,7 +86,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
 
-    private CloudCostCalculator(@Nonnull final CloudCostData cloudCostData,
+    private CloudCostCalculator(@Nonnull final CloudCostData<ENTITY_CLASS> cloudCostData,
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory,
@@ -164,17 +164,19 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             final ENTITY_CLASS businessAccount = businessAccountOpt.get();
 
             final long businessAccountOid = entityInfoExtractor.getId(businessAccount);
-            Optional<AccountPricingData> accountPricingDataOpt = cloudCostData.getAccountPricingData(businessAccountOid);
+            Optional<AccountPricingData<ENTITY_CLASS>> accountPricingDataOpt =
+                    cloudCostData.getAccountPricingData(businessAccountOid);
             if (!accountPricingDataOpt.isPresent()) {
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
-            AccountPricingData accountPricingData = accountPricingDataOpt.get();
+            AccountPricingData<ENTITY_CLASS> accountPricingData = accountPricingDataOpt.get();
             if (!regionOpt.isPresent()) {
                 logger.warn("Unable to find region for entity {}. Returning empty cost.", entityId);
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
             final ENTITY_CLASS region = regionOpt.get();
-            final DiscountApplicator<ENTITY_CLASS> discountApplicator = (DiscountApplicator<ENTITY_CLASS>)accountPricingData.getDiscountApplicator();
+            final DiscountApplicator<ENTITY_CLASS> discountApplicator = accountPricingData
+                    .getDiscountApplicator();
 
             final CostJournal.Builder<ENTITY_CLASS> journal =
                 CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator, dependentCostLookup);
@@ -190,7 +192,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             if (!CollectionUtils.isEmpty(accountPricingData.getPriceTable().getSpotPriceByRegionIdMap())) {
                 spotInstancePriceTable = Optional.ofNullable(accountPricingData.getPriceTable().getSpotPriceByRegionIdMap().get(regionId));
             }
-            final CostCalculationContext context = new CostCalculationContext(journal, entity, regionId,
+            final CostCalculationContext<ENTITY_CLASS> context =
+                    new CostCalculationContext<>(journal, entity, regionId,
                     accountPricingData, onDemandPriceTable, spotInstancePriceTable);
 
             switch (entityInfoExtractor.getEntityType(entity)) {
@@ -221,8 +224,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         }
     }
 
-    private void calculateVirtualVolumeCost(@Nonnull CostCalculationContext context) {
-        final ENTITY_CLASS entity = (ENTITY_CLASS)context.getEntity();
+    private void calculateVirtualVolumeCost(@Nonnull CostCalculationContext<ENTITY_CLASS> context) {
+        final ENTITY_CLASS entity = context.getEntity();
         final CostJournal.Builder<ENTITY_CLASS> journal = context.getCostJournal();
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for volume {}", entityId);
@@ -235,7 +238,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final long regionId = context.getRegionid();
                 final long storageTierId = entityInfoExtractor.getId(storageTier);
                 final OnDemandPriceTable onDemandPriceTable = context.getOnDemandPriceTable().isPresent() ?
-                        ((OnDemandPriceTable)context.getOnDemandPriceTable().get()) : null;
+                        context.getOnDemandPriceTable().get() : null;
                 if (onDemandPriceTable != null) {
                     final StorageTierPriceList storageTierPrices =
                             onDemandPriceTable.getCloudStoragePricesByTierIdMap().get(storageTierId);
@@ -378,8 +381,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      *                and onDemandPriceTable
      */
     private void calculateVirtualMachineCost(
-                @Nonnull CostCalculationContext context) {
-        final ENTITY_CLASS entity = (ENTITY_CLASS)context.getEntity();
+                @Nonnull CostCalculationContext<ENTITY_CLASS> context) {
+        final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
         final CostJournal.Builder<ENTITY_CLASS> journal = context.getCostJournal();
         final AccountPricingData accountPricingData = context.getAccountPricingData();
@@ -539,7 +542,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      */
     private void recordVMSpotInstanceCost(ENTITY_CLASS computeTier,
                                           CostJournal.Builder<ENTITY_CLASS> journal,
-                                          CostCalculationContext context) {
+                                          CostCalculationContext<ENTITY_CLASS> context) {
         final Optional<SpotInstancePriceTable> spotPriceTable = context.getSpotInstancePriceTable();
         if (spotPriceTable.isPresent()) {
             Price spotPrice = spotPriceTable.get().getSpotPriceByInstanceIdMap()
@@ -551,8 +554,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     }
 
     private void calculateDatabaseCost(final boolean isDbServer,
-                                       CostCalculationContext context) {
-        final ENTITY_CLASS entity = (ENTITY_CLASS)context.getEntity();
+                                       CostCalculationContext<ENTITY_CLASS> context) {
+        final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for db {}", entityId);
         if (!isBillable(entity)) {
@@ -708,13 +711,14 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             @Nonnull
             @Override
             public CloudCostCalculator<ENTITY_CLASS> newCalculator(
-                    @Nonnull final CloudCostData cloudCostData,
+                    @Nonnull final CloudCostData<ENTITY_CLASS> cloudCostData,
                     @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                     @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                     @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
                     @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
                     @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
-                return new CloudCostCalculator<>(cloudCostData, cloudTopology, entityInfoExtractor, riApplicatorFactory,
+                return new CloudCostCalculator<>(cloudCostData, cloudTopology,
+                        entityInfoExtractor, riApplicatorFactory,
                     dependentCostLookup, topologyRICoverage);
             }
         };
@@ -741,7 +745,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
          */
         @Nonnull
         CloudCostCalculator<ENTITY_CLASS> newCalculator(
-                @Nonnull CloudCostData cloudCostData,
+                @Nonnull CloudCostData<ENTITY_CLASS> cloudCostData,
                 @Nonnull CloudTopology<ENTITY_CLASS> cloudTopology,
                 @Nonnull EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                 @Nonnull ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,

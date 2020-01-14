@@ -114,7 +114,7 @@ public class SMAInput {
     public SMAInput(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull Map<Long, Set<Long>> providers,
-            @Nonnull CloudCostData cloudCostData,
+            @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
             @Nonnull MarketPriceTable marketPriceTable,
             @Nonnull ConsistentScalingHelper consistentScalingHelper
             ) {

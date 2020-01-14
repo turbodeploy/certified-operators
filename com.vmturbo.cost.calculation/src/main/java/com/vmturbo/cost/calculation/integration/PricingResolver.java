@@ -21,6 +21,8 @@ public interface PricingResolver {
      * @return The mapping of Business Account oid to Price Table Mapping.
      * @throws CloudCostDataRetrievalException A cloud cost data retrieval exception.
      */
-    Map<Long, AccountPricingData> getAccountPricingDataByBusinessAccount(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopo) throws CloudCostDataRetrievalException;
+    Map<Long, AccountPricingData<TopologyEntityDTO>> getAccountPricingDataByBusinessAccount(
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo)
+            throws CloudCostDataRetrievalException;
 }
 

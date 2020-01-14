@@ -14,7 +14,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -23,15 +22,18 @@ import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
 
 /**
- * A class representing the Pricing Data for a particular account. An a
+ * A class representing the Pricing Data for a particular account.
+ *
+ * @param <T> The class used to represent entities in the topology. For example,
+ *            TopologyEntityDTO for the real time topology.
  */
-public class AccountPricingData {
+public class AccountPricingData<T> {
 
-    private final DiscountApplicator discountApplicator;
+    private final DiscountApplicator<T> discountApplicator;
 
     private final PriceTable priceTable;
 
-    private final Map<OSType, List<LicensePrice>> onDemandlicensePrices;
+    private final Map<OSType, List<LicensePrice>> onDemandLicensePrices;
 
     private final Map<OSType, List<LicensePrice>> reservedLicensePrices;
 
@@ -68,11 +70,11 @@ public class AccountPricingData {
      * @param priceTable The price table.
      * @param accountPricingDataOid The account pricing data oid.
      */
-    public AccountPricingData(DiscountApplicator discountApplicator,
+    public AccountPricingData(DiscountApplicator<T> discountApplicator,
                               final PriceTable priceTable, Long accountPricingDataOid) {
         this.discountApplicator = discountApplicator;
         this.priceTable = priceTable;
-        this.onDemandlicensePrices = priceTable.getOnDemandLicensePricesList().stream()
+        this.onDemandLicensePrices = priceTable.getOnDemandLicensePricesList().stream()
                 .collect(Collectors.toMap(LicensePriceByOsEntry::getOsType,
                         LicensePriceByOsEntry::getLicensePricesList,
                         // if there are duplicate OS types then merge their price lists
@@ -105,7 +107,7 @@ public class AccountPricingData {
      * @return the matching license price
      */
     private Optional<LicensePrice> getExplicitLicensePrice(OSType os, int numCores) {
-        List<LicensePrice> prices = onDemandlicensePrices.get(os);
+        List<LicensePrice> prices = onDemandLicensePrices.get(os);
         if (prices == null) {
             return Optional.empty();
         }
@@ -217,7 +219,7 @@ public class AccountPricingData {
         return this.priceTable;
     }
 
-    public DiscountApplicator<TopologyEntityDTO> getDiscountApplicator() {
+    public DiscountApplicator<T> getDiscountApplicator() {
         return this.discountApplicator;
     }
 

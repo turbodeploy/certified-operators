@@ -39,19 +39,23 @@ public class DiscountApplicatorTest {
     private EntityInfoExtractor<TestEntityClass> infoExtractor =
             (EntityInfoExtractor<TestEntityClass>)mock(EntityInfoExtractor.class);
 
-    private CloudCostData cloudCostData = mock(CloudCostData.class);
+    private CloudCostData<TestEntityClass> cloudCostData = mock(CloudCostData.class);
 
     private DiscountApplicatorFactory<TestEntityClass> factory = DiscountApplicator.newFactory();
 
-    private final AccountPricingData accountPricingData = mock(AccountPricingData.class);
+    private final AccountPricingData<TestEntityClass> accountPricingData =
+            mock(AccountPricingData.class);
 
-    private CloudCostData emptyCloudCostData = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-         Collections.emptyMap(), Collections.emptyMap());
+    private CloudCostData<TestEntityClass> emptyCloudCostData =
+            new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
     @Before
     public void setup() {
         when(cloudCostData.getAccountPricingData(anyLong())).thenReturn(Optional.ofNullable(accountPricingData));
-        when(cloudCostData.getAccountPricingData(anyLong()).get().getDiscountApplicator()).thenReturn(null);
+        when(cloudCostData.getAccountPricingData(anyLong())
+                .get().getDiscountApplicator())
+                .thenReturn(null);
         when(topology.getOwner(anyLong())).thenReturn(Optional.empty());
     }
 

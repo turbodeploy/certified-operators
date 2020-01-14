@@ -107,20 +107,31 @@ public class CloudCostDataProviderTest {
             .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_SERVER_LICENSE_PRICE))
             .build())
         .build();
-    private final DiscountApplicator discountApplicator = mock(DiscountApplicator.class);
+    private final DiscountApplicator<TopologyEntityDTO> discountApplicator =
+            mock(DiscountApplicator.class);
 
-    private final AccountPricingData awsAccountPricingData = new AccountPricingData( discountApplicator, AWS_COMPUTE_PRICE_TABLE, AWS_BUSINESS_ACCOUNT_OID);
+    private final AccountPricingData<TopologyEntityDTO> awsAccountPricingData =
+            new AccountPricingData<>( discountApplicator, AWS_COMPUTE_PRICE_TABLE,
+                    AWS_BUSINESS_ACCOUNT_OID);
 
-    private final AccountPricingData azureAccountPricingData = new AccountPricingData( discountApplicator, AZURE_COMPUTE_PRICE_TABLE, AZURE_BUSINESS_ACCOUNT_OID);
+    private final AccountPricingData<TopologyEntityDTO> azureAccountPricingData =
+            new AccountPricingData<>( discountApplicator, AZURE_COMPUTE_PRICE_TABLE,
+                    AZURE_BUSINESS_ACCOUNT_OID);
 
-    private Map<Long, AccountPricingData> awsAccountPricingDatByBaMap = new HashMap<>();
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> awsAccountPricingDatByBaMap
+            = new HashMap<>();
 
-    private Map<Long, AccountPricingData> azureAccountPricingDatByBaMap = new HashMap<>();
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> azureAccountPricingDatByBaMap
+            = new HashMap<>();
 
-    private CloudCostData cloudCostDataAWS = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private CloudCostData<TopologyEntityDTO> cloudCostDataAWS =
+            new CloudCostData<>(Collections.emptyMap(),
+    Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), awsAccountPricingDatByBaMap);
 
-    private CloudCostData cloudCostDataAzure = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private CloudCostData<TopologyEntityDTO> cloudCostDataAzure =
+            new CloudCostData<>(Collections.emptyMap(),
+    Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), azureAccountPricingDatByBaMap);
 
     /**
@@ -203,7 +214,8 @@ public class CloudCostDataProviderTest {
      *
      * @return a list of all compute prices for this tier.
      */
-    private ComputeTierPriceList getComputePriceList(CloudCostData cloudCostData, long tierID, long baOid) {
+    private ComputeTierPriceList getComputePriceList(CloudCostData<TopologyEntityDTO> cloudCostData,
+                                                     long tierID, long baOid) {
         return cloudCostData.getAccountPricingData(baOid).get().getPriceTable().getOnDemandPriceByRegionIdMap().get(REGION_ID)
             .getComputePricesByTierIdMap().get(tierID);
     }

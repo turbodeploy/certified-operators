@@ -43,7 +43,7 @@ public class LocalCostPricingResolver extends ResolverPricing {
 
     private final DiscountStore discountStore;
 
-    private final DiscountApplicatorFactory discountApplicatorFactory;
+    private final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory;
 
     private final EntityInfoExtractor<TopologyEntityDTO> topologyEntityInfoExtractor;
 
@@ -61,7 +61,8 @@ public class LocalCostPricingResolver extends ResolverPricing {
                                     @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
                                     @Nonnull IdentityProvider identityProvider,
                                     @Nonnull DiscountStore discountStore,
-                                    @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
+                                    @Nonnull DiscountApplicatorFactory<TopologyEntityDTO>
+                                            discountApplicatorFactory,
                                     @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
         this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
         this.priceTableStore = priceTableStore;
@@ -72,10 +73,13 @@ public class LocalCostPricingResolver extends ResolverPricing {
     }
 
     @Override
-    public Map<Long, AccountPricingData> getAccountPricingDataByBusinessAccount(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo) throws CloudCostDataRetrievalException {
-        Map<Long, AccountPricingData> accountPricingDatabyBusinessAccountOid = new HashMap<>();
+    public Map<Long, AccountPricingData<TopologyEntityDTO>> getAccountPricingDataByBusinessAccount(
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo)
+            throws CloudCostDataRetrievalException {
+        Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid =
+                new HashMap<>();
         Set<Long> baOids = cloudTopo.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE).stream()
-                .map(s -> s.getOid()).collect(Collectors.toSet());
+                .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
 
         final Map<Long, Long> priceTableKeyOidByBusinessAccountOid = businessAccountPriceTableKeyStore
                 .fetchPriceTableKeyOidsByBusinessAccount(baOids);
@@ -99,18 +103,23 @@ public class LocalCostPricingResolver extends ResolverPricing {
             Optional<Discount> discount = Optional.ofNullable(discountsByAccountId.get(businessAccountOid));
             PricingDataIdentifier pricingDataIdentifier = new PricingDataIdentifier(discount, priceTable);
             if (accountPricingDataMapByPricingDataIdentifier.get(pricingDataIdentifier) != null) {
-                accountPricingDatabyBusinessAccountOid.put(businessAccountOid, accountPricingDataMapByPricingDataIdentifier
+                accountPricingDataByBusinessAccountOid.put(businessAccountOid,
+                        accountPricingDataMapByPricingDataIdentifier
                         .get(pricingDataIdentifier));
             } else {
                 final AtomicLong accountProviderOid = new AtomicLong(identityProvider.next());
-                final DiscountApplicator discountApplicator = discountApplicatorFactory.accountDiscountApplicator(businessAccountOid,
+                final DiscountApplicator<TopologyEntityDTO> discountApplicator =
+                        discountApplicatorFactory.accountDiscountApplicator(businessAccountOid,
                         cloudTopo, topologyEntityInfoExtractor, discount);
-                AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, priceTable, accountProviderOid.longValue());
+                AccountPricingData<TopologyEntityDTO> accountPricingData =
+                        new AccountPricingData<>(discountApplicator, priceTable,
+                                accountProviderOid.longValue());
                 PricingDataIdentifier newPricingDataIdentifier = new PricingDataIdentifier(discount, priceTable);
-                accountPricingDataMapByPricingDataIdentifier.computeIfAbsent(newPricingDataIdentifier, k ->  accountPricingData);
-                accountPricingDatabyBusinessAccountOid.put(businessAccountOid, accountPricingData);
+                accountPricingDataMapByPricingDataIdentifier.putIfAbsent(newPricingDataIdentifier,
+                        accountPricingData);
+                accountPricingDataByBusinessAccountOid.put(businessAccountOid, accountPricingData);
             }
         }
-        return accountPricingDatabyBusinessAccountOid;
+        return accountPricingDataByBusinessAccountOid;
     }
 }
