@@ -43,10 +43,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 
 /**
  * Sub-query responsible for getting storage stats with virtual volume specific grouping.
@@ -135,38 +137,43 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
 
-                final SearchFilter.Builder connectedToVVSearchFilter =
-                    createSearchTraversalFilter(TraversalDirection.CONNECTED_TO, UIEntityType.VIRTUAL_VOLUME);
-
-                final SearchFilter.Builder connectedFromVMSearchFilter =
-                    createSearchTraversalFilter(TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE);
-
-                // VV which are attached to VM within the scope
-                final SearchParameters searchVvAttachedToVMInScope = getSearchScopeBuilder(context, requestedStat)
-                    .addSearchFilter(connectedFromVMSearchFilter)
-                    .addSearchFilter(connectedToVVSearchFilter)
+                final SearchParameters searchVvInScope = getSearchScopeBuilder(context, requestedStat)
+                    .addSearchFilter(
+                        SearchFilter.newBuilder()
+                            .setPropertyFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME))
+                            .build())
                     .build();
 
-                // VV within the scope
-                final SearchParameters searchNumOfVv = getSearchScopeBuilder(context, requestedStat)
-                    .addSearchFilter(connectedToVVSearchFilter)
-                    .build();
+                RepositoryApi.SearchRequest vvsInScope = repositoryApi.newSearchRequest(searchVvInScope);
+                final Set<Long> vvOidsAttachedToVM = vvsInScope.getFullEntities()
+                    .filter(topologyEntityDTO -> {
+                        if (!topologyEntityDTO.hasTypeSpecificInfo()) {
+                            return false;
+                        }
+                        TypeSpecificInfo typeSpecificInfo = topologyEntityDTO.getTypeSpecificInfo();
+                        if (!typeSpecificInfo.hasVirtualVolume()) {
+                            return false;
+                        }
+                        TypeSpecificInfo.VirtualVolumeInfo virtualVolumeInfo = typeSpecificInfo.getVirtualVolume();
+                        return virtualVolumeInfo.hasAttachmentState() && virtualVolumeInfo.getAttachmentState().equals(
+                            VirtualVolumeData.AttachmentState.ATTACHED);
+                    })
+                    .map(topologyEntityDTO -> topologyEntityDTO.getOid())
+                    .collect(Collectors.toSet());
 
-                Long numOfVvs = repositoryApi.newSearchRequest(searchNumOfVv).count();
                 Long numOfAttachedVvInScope;
                 if (context.isGlobalScope()) {
-                    numOfAttachedVvInScope = repositoryApi.newSearchRequest(searchVvAttachedToVMInScope).count();
+                    numOfAttachedVvInScope =  Long.valueOf(vvOidsAttachedToVM.size());
                 } else {
-                    Set<Long> vvAttachedToVM = repositoryApi.newSearchRequest(searchVvAttachedToVMInScope).getOids();
                     // This step is required because vvAttachedToVM can include VVs outside the current scope-
                     // we get VMs connected from VVs in scope, then VVs connected to those VMs- this has the potential to be
                     // a superset of the VVs we started with (VMs can be connected to more than one VV simultaneously)
-                    numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getExpandedOids(), vvAttachedToVM).size());
+                    numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getExpandedOids(), vvOidsAttachedToVM).size());
                 }
 
                 Map<String, Long> vvAttachmentCountMap = ImmutableMap.<String, Long>builder()
                     .put(StringConstants.ATTACHED, numOfAttachedVvInScope)
-                    .put(StringConstants.UNATTACHED, numOfVvs - numOfAttachedVvInScope)
+                    .put(StringConstants.UNATTACHED, vvsInScope.count() - numOfAttachedVvInScope)
                     .build();
 
                 List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, StringConstants.ATTACHMENT, vvAttachmentCountMap);

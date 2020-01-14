@@ -491,20 +491,21 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         // Note that there may be extra vvOid returned as one VM may have multiple VVs,
         //  but the VV list will still be the one associated with the cloudCostStatRecords which
         //  the scope originally retrieved.
-        final Set<Long> vvOidsAttachedToVM = repositoryApi
-            .newSearchRequest(
-                SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(vvOids))
-                    .addSearchFilter(Search.SearchFilter.newBuilder()
-                        .setTraversalFilter(
-                            SearchProtoUtil.traverseToType(Search.TraversalFilter.TraversalDirection.CONNECTED_FROM,
-                                UIEntityType.VIRTUAL_MACHINE.apiStr())))
-                    .addSearchFilter(Search.SearchFilter.newBuilder()
-                        .setTraversalFilter(
-                            SearchProtoUtil.traverseToType(Search.TraversalFilter.TraversalDirection.CONNECTED_TO,
-                                UIEntityType.VIRTUAL_VOLUME.apiStr())))
-                    .build())
-            .getOids();
+        final Set<Long> vvOidsAttachedToVM = repositoryApi.entitiesRequest(vvOids)
+            .getFullEntities()
+            .filter(topologyEntityDTO -> {
+                if (!topologyEntityDTO.hasTypeSpecificInfo()) {
+                    return false;
+                }
+                TopologyDTO.TypeSpecificInfo typeSpecificInfo = topologyEntityDTO.getTypeSpecificInfo();
+                if (!typeSpecificInfo.hasVirtualVolume()) {
+                    return false;
+                }
+                TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo virtualVolumeInfo = typeSpecificInfo.getVirtualVolume();
+                return virtualVolumeInfo.hasAttachmentState() && virtualVolumeInfo.getAttachmentState().equals(
+                        CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState.ATTACHED);})
+            .map(topologyEntityDTO -> topologyEntityDTO.getOid())
+            .collect(Collectors.toSet());
 
         Predicate<StatRecord> attachedVVFilter =
             testStatRecord -> vvOidsAttachedToVM.contains(testStatRecord.getAssociatedEntityId());

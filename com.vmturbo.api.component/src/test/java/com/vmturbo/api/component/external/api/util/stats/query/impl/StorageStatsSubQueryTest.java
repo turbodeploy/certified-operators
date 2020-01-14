@@ -22,6 +22,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -210,9 +212,18 @@ public class StorageStatsSubQueryTest {
         ArgumentCaptor<Search.SearchParameters> searchParametersArgumentCaptor = new ArgumentCaptor<>();
 
         SearchRequest searchRequest = mock(SearchRequest.class);
+        TopologyDTO.TopologyEntityDTO topologyEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(oidInScope)
+            .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE)
+            .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder().setVirtualVolume(
+                TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo.newBuilder()
+                    .setAttachmentState(CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState.ATTACHED)
+                    .build()))
+            .build();
         when(repositoryApi.newSearchRequest(searchParametersArgumentCaptor.capture()))
                 .thenReturn(searchRequest);
         when(searchRequest.getOids()).thenReturn(Sets.newHashSet(oidInScope));
+        when(searchRequest.getFullEntities()).thenReturn(Sets.newHashSet(topologyEntityDTO).stream());
         when(searchRequest.count()).thenReturn(2L);
 
         Set<StatApiInputDTO> requestedStats =
@@ -222,23 +233,11 @@ public class StorageStatsSubQueryTest {
 
         // assert that querying Repository API for getting VVs in the scope
         List<Search.SearchParameters> searchParameters = searchParametersArgumentCaptor.getAllValues();
-        assertThat(searchParameters.size(), is(2));
+        assertThat(searchParameters.size(), is(1));
         Search.SearchParameters firstParam = searchParameters.get(0);
         assertThat(firstParam.getSearchFilterCount(), is(1));
-        assertThat(firstParam.getSearchFilter(0).getTraversalFilter().getTraversalDirection(), is(TraversalDirection.CONNECTED_TO));
-        assertThat(firstParam.getSearchFilter(0).getTraversalFilter().getStoppingCondition().getStoppingPropertyFilter().getNumericFilter().getComparisonOperator(), is(ComparisonOperator.EQ));
-        assertThat(firstParam.getSearchFilter(0).getTraversalFilter().getStoppingCondition().getStoppingPropertyFilter().getNumericFilter().getValue(), is(new Long(EntityType.VIRTUAL_VOLUME.getValue()).longValue()));
-
-        // assert that querying Repository API for getting VVs which are connected from VMs in the scope
-        Search.SearchParameters secondParam = searchParameters.get(1);
-        assertThat(secondParam.getSearchFilterCount(), is(2));
-        assertThat(secondParam.getSearchFilter(0).getTraversalFilter().getTraversalDirection(), is(TraversalDirection.CONNECTED_FROM));
-        assertThat(secondParam.getSearchFilter(0).getTraversalFilter().getStoppingCondition().getStoppingPropertyFilter().getNumericFilter().getComparisonOperator(), is(ComparisonOperator.EQ));
-        assertThat(secondParam.getSearchFilter(0).getTraversalFilter().getStoppingCondition().getStoppingPropertyFilter().getNumericFilter().getValue(), is(new Long(EntityType.VIRTUAL_MACHINE.getValue()).longValue()));
-
-        assertThat(secondParam.getSearchFilter(1).getTraversalFilter().getTraversalDirection(), is(TraversalDirection.CONNECTED_TO));
-        assertThat(secondParam.getSearchFilter(1).getTraversalFilter().getStoppingCondition().getStoppingPropertyFilter().getNumericFilter().getComparisonOperator(), is(ComparisonOperator.EQ));
-        assertThat(secondParam.getSearchFilter(1).getTraversalFilter().getStoppingCondition().getStoppingPropertyFilter().getNumericFilter().getValue(), is(new Long(EntityType.VIRTUAL_VOLUME.getValue()).longValue()));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getNumericFilter().getValue(),
+            is(Long.valueOf(UIEntityType.VIRTUAL_VOLUME.typeNumber())));
 
         // assert that to get one statistic with two records: attached and unattached
         assertThat(results.size(), is(1));
@@ -256,9 +255,9 @@ public class StorageStatsSubQueryTest {
             assertThat(statFilterApiDTO.getValue(), isOneOf(StringConstants.ATTACHED, StringConstants.UNATTACHED));
 
             if (statFilterApiDTO.getValue().equals(StringConstants.ATTACHED)) {
-                assertThat(dto.getValue(), is(2f));
+                assertThat(dto.getValue(), is(1f));
             } else {
-                assertThat(dto.getValue(), is(0f));
+                assertThat(dto.getValue(), is(1f));
             }
         });
     }
