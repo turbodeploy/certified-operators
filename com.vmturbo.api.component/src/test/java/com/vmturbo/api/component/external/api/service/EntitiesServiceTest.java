@@ -120,6 +120,9 @@ public class EntitiesServiceTest {
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
+    private static final String UI_REAL_TIME_MARKET = "Market";
+    private static final String MARKET_DISPLAY_NAME = "ST";
+    private static final EntityState MARKET_STATE = EntityState.POWERED_ON;
     private static final long TARGET_ID = 7L;
     private static final String TARGET_DISPLAY_NAME = "target";
     private static final long PROBE_ID = 70L;
@@ -171,7 +174,6 @@ public class EntitiesServiceTest {
             .setEntityState(ST_STATE)
             .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
             .build();
-
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
      */
@@ -257,6 +259,11 @@ public class EntitiesServiceTest {
         when(repositoryApi.newSearchRequest(SearchProtoUtil.neighbors(PM_ID, TraversalDirection.CONSUMES)))
             .thenReturn(s2Req);
 
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(PM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(PM_ID))).thenReturn(apiId);
+
         // call service
         final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(PM_ID), false);
 
@@ -281,6 +288,21 @@ public class EntitiesServiceTest {
     }
 
     /**
+     * Tests the illegal entity id 'Market'.
+     *
+     * @throws Exception in case of illegal entity id.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetEntityByStringUuid() throws Exception {
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isEntity()).thenReturn(false);
+        when(uuidMapper.fromUuid(UI_REAL_TIME_MARKET)).thenReturn(apiId);
+
+        // call service and fail
+        service.getEntityByUuid(UI_REAL_TIME_MARKET, false);
+    }
+
+    /**
      * Searching for a non-existent entity should cause an {@link StatusRuntimeException}.
      *
      * @throws Exception expected: for entity not found.
@@ -289,6 +311,11 @@ public class EntitiesServiceTest {
     public void testGetEntityByUuidNonExistent() throws Exception {
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityEmptyRequest();
         when(repositoryApi.entityRequest(NON_EXISTENT_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(NON_EXISTENT_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(NON_EXISTENT_ID))).thenReturn(apiId);
 
         // call service and fail
         service.getEntityByUuid(Long.toString(NON_EXISTENT_ID), false);
@@ -304,6 +331,11 @@ public class EntitiesServiceTest {
     public void testGetEntityByUuidMissingTarget() throws Exception {
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityEmptyRequest();
         when(repositoryApi.entityRequest(ST_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(ST_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(ST_ID))).thenReturn(apiId);
 
         // call service and fail
         service.getEntityByUuid(Long.toString(ST_ID), false);
@@ -329,6 +361,11 @@ public class EntitiesServiceTest {
         when(relatedReq.getMinimalEntities())
             .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(relatedReq);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         // call service
         final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(VM_ID), false);
@@ -356,6 +393,11 @@ public class EntitiesServiceTest {
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
         when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
 
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
         // call service
         final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(VM_ID));
 
@@ -378,6 +420,11 @@ public class EntitiesServiceTest {
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(PM);
         when(repositoryApi.entityRequest(PM_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(PM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(PM_ID))).thenReturn(apiId);
 
         // call service
         final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(PM_ID));
@@ -410,9 +457,15 @@ public class EntitiesServiceTest {
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
         when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
 
+        final long dummy = 0L;
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(dummy);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+        when(uuidMapper.fromUuid(Long.toString(dummy))).thenReturn(apiId);
 
         // call the service
-        final long dummy = 0L;
         final ActionApiDTO result =
             service.getActionByEntityUuid(Long.toString(VM_ID), Long.toString(dummy));
 
