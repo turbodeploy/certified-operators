@@ -16,7 +16,7 @@
   "gnetId": null,
   "graphTooltip": 0,
   "id": 20,
-  "iteration": 1578895084618,
+  "iteration": 1579012347716,
   "links": [
     {
       "icon": "doc",
@@ -161,7 +161,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "node_memory_MemFree_bytes + node_memory_Buffers_bytes + node_memory_Cached_bytes",
+          "expr": "sum (container_memory_working_set_bytes{id=\"/\",kubernetes_io_hostname=~\"^$Node$\"})",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{instance}}",
@@ -1041,7 +1041,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "max(tp_discovery_status_total{status=\"SUCCESS\"})",
+          "expr": "tp_discovery_status_total{status=\"SUCCESS\"}",
           "refId": "A"
         }
       ],
@@ -1058,7 +1058,7 @@
           "value": "null"
         }
       ],
-      "valueName": "max"
+      "valueName": "current"
     },
     {
       "cacheTimeout": null,
@@ -1128,7 +1128,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "max(tp_discovery_status_total{status=\"FAILED\"})",
+          "expr": "tp_discovery_status_total{status=\"FAILED\"}",
           "refId": "A"
         }
       ],
@@ -1145,7 +1145,7 @@
           "value": "null"
         }
       ],
-      "valueName": "max"
+      "valueName": "current"
     },
     {
       "cacheTimeout": null,
@@ -1215,7 +1215,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "max(tp_validation_status_total{status=\"SUCCESS\"})",
+          "expr": "tp_validation_status_total{status=\"SUCCESS\"}",
           "refId": "A"
         }
       ],
@@ -1232,7 +1232,7 @@
           "value": "null"
         }
       ],
-      "valueName": "max"
+      "valueName": "current"
     },
     {
       "cacheTimeout": null,
@@ -1302,7 +1302,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "max(tp_validation_status_total{status=\"FAILED\"})",
+          "expr": "tp_validation_status_total{status=\"FAILED\"}",
           "refId": "A"
         }
       ],
@@ -1319,7 +1319,7 @@
           "value": "null"
         }
       ],
-      "valueName": "max"
+      "valueName": "current"
     },
     {
       "aliasColors": {},
@@ -1415,6 +1415,95 @@
     {
       "aliasColors": {},
       "bars": false,
+      "cacheTimeout": null,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "description": "",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "hiddenSeries": false,
+      "id": 56,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "repo_topology_entity_count",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Topology Processor broadcast entity count",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
       "dashLength": 10,
       "dashes": false,
       "datasource": null,
@@ -1424,7 +1513,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 41
       },
       "hiddenSeries": false,
       "id": 20,
@@ -1516,7 +1605,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 51
       },
       "hiddenSeries": false,
       "id": 22,
@@ -1603,7 +1692,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 51
       },
       "hiddenSeries": false,
       "id": 24,
@@ -1803,7 +1892,7 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {
@@ -1823,5 +1912,5 @@
   "timezone": "",
   "title": "Scalability Performance test",
   "uid": "a6FJQWLWk",
-  "version": 57
+  "version": 61
 }
