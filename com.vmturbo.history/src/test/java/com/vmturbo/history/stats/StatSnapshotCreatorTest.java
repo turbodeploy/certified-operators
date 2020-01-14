@@ -74,7 +74,7 @@ public class StatSnapshotCreatorTest {
                 .setName("mock2")
                 .build();
         when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
-            any(), any(), any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any()))
                 .thenReturn(record1, record2);
         final List<CommodityRequest> commodityRequests =
                 Collections.singletonList(CommodityRequest.newBuilder()
@@ -242,7 +242,7 @@ public class StatSnapshotCreatorTest {
                 .setName("mock")
                 .build();
         when(statRecordBuilder.buildStatRecord(any(), any(), isA(StatValue.class), any(), any(),
-            any(), any(), any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any()))
                 .thenReturn(record);
         final List<CommodityRequest> commodityRequests =
             Collections.singletonList(CommodityRequest.newBuilder()
@@ -317,9 +317,9 @@ public class StatSnapshotCreatorTest {
                         .collect(Collectors.toList());
 
         Assert.assertEquals(1, snapshots.size());
-        // average capacity should be (3+3+6)/3 = 4, and average effective capacity should be (3+1.5+3)/3 = 2.5
+        // Total capacity should be (3+3+6) = 12, and total effective capacity should be (3+1.5+3) = 7.5
         // so we expect the "reserved" amount to be (capacity - effective capacity) = (4 - 2.5) = 1.5
-        Assert.assertEquals(1.5, snapshots.get(0).getStatRecords(0).getReserved(), 0);
+        Assert.assertEquals(4.5, snapshots.get(0).getStatRecords(0).getReserved(), 0);
     }
 
     @Test
@@ -453,11 +453,8 @@ public class StatSnapshotCreatorTest {
                                           @Nullable final Float reserved,
                                           @Nullable final String relatedEntityType,
                                           @Nullable final Long producerId,
-                                          @Nullable final Float avgValue,
-                                          @Nullable final Float minValue,
-                                          @Nullable final Float maxValue,
+                                          @Nullable final StatValue statValue,
                                           @Nullable final String commodityKey,
-                                          @Nullable final Float totalValue,
                                           @Nullable final String relation,
                                           @Nullable final StatValue percentileUtilization) {
             final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
@@ -494,32 +491,15 @@ public class StatSnapshotCreatorTest {
                 statRecordBuilder.setUnits(commodityType.getUnits());
             }
 
-            // values, used, peak
-            StatValue.Builder statValueBuilder = StatValue.newBuilder();
-            if (avgValue != null) {
-                statValueBuilder.setAvg(avgValue);
-            }
-            if (minValue != null) {
-                statValueBuilder.setMin(minValue);
-            }
-            if (maxValue != null) {
-                statValueBuilder.setMax(maxValue);
-            }
-            if (totalValue != null) {
-                statValueBuilder.setTotal(totalValue);
-            }
-
             // currentValue
-            if (avgValue != null && (propertySubtype == null ||
+            if (statValue != null && statValue.hasAvg() && (propertySubtype == null ||
                     StringConstants.PROPERTY_SUBTYPE_USED.equals(propertySubtype))) {
-                statRecordBuilder.setCurrentValue(avgValue);
+                statRecordBuilder.setCurrentValue(statValue.getAvg());
             } else {
-                if (maxValue != null) {
-                    statRecordBuilder.setCurrentValue(maxValue);
+                if (statValue != null && statValue.hasMax()) {
+                    statRecordBuilder.setCurrentValue(statValue.getMax());
                 }
             }
-
-            StatValue statValue = statValueBuilder.build();
 
             statRecordBuilder.setValues(statValue);
             statRecordBuilder.setUsed(statValue);

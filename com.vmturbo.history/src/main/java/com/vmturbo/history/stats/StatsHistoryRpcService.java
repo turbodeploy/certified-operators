@@ -635,11 +635,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         (Float)null,
                         null,
                         null,
-                        value, // avg
-                        value, // min
-                        value, // max
+                        value != null ? StatsAccumulator.singleStatValue(value) : null,
                         null,
-                        value, // total
                         null));
 
             });
@@ -819,6 +816,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     + topologyContextId, e);
         }
         for (MktSnapshotsStatsRecord statsDBRecord : dbSnapshotStatsRecords) {
+            StatsAccumulator statsValue = new StatsAccumulator();
+            statsValue.record(statsDBRecord.getMinValue(), statsDBRecord.getAvgValue(),
+                    statsDBRecord.getMaxValue());
             final StatRecord statResponseRecord = statRecordBuilder.buildStatRecord(
                     statsDBRecord.getPropertyType(),
                     statsDBRecord.getPropertySubtype(),
@@ -827,12 +827,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     null /* effective capacity*/,
                     null /* relatedEntityType */,
                     null /* producerId */,
-                    statsDBRecord.getAvgValue().floatValue(),
-                    statsDBRecord.getMinValue().floatValue(),
-                    statsDBRecord.getMaxValue().floatValue(),
+                    statsValue.toStatValue(),
                     null /* commodityKey */,
-                    statsDBRecord.getAvgValue().floatValue(), /* Since there is only one value,
-                                                             set the total equal to the average.*/
                     // (Feb 3, 2017) Currently, unlike in the real-time market, UI
                     // doesn't use the 'relation' data for the plan results. Here, set the
                     // property as "plan" to indicate this record is for a plan result.

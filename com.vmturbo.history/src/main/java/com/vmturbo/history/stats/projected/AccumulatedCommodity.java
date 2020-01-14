@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
@@ -22,8 +23,6 @@ import com.vmturbo.history.stats.StatsAccumulator;
  */
 abstract class AccumulatedCommodity {
     private StatsAccumulator used = new StatsAccumulator();
-
-    private StatsAccumulator peak = new StatsAccumulator();
 
     private StatsAccumulator capacity = new StatsAccumulator();
 
@@ -43,14 +42,16 @@ abstract class AccumulatedCommodity {
             return Optional.empty();
         }
 
-        final StatRecord.Builder builder = StatRecord.newBuilder();
+        // Usage stats for values, used, peak
+        final StatValue statValue = used.toStatValue();
 
+        final StatRecord.Builder builder = StatRecord.newBuilder();
         builder.setName(commodityName);
         builder.setCapacity(capacity.toStatValue());
-        builder.setUsed(used.toStatValue());
-        builder.setValues(used.toStatValue());
-        builder.setPeak(peak.toStatValue());
-        builder.setCurrentValue((float)used.getAvg());
+        builder.setUsed(statValue);
+        builder.setValues(statValue);
+        builder.setPeak(statValue);
+        builder.setCurrentValue(statValue.getAvg());
         if (percentileUtilization.getCount() > 0) {
             builder.setPercentileUtilization(percentileUtilization.toStatValue());
         }
@@ -73,14 +74,9 @@ abstract class AccumulatedCommodity {
      */
     protected abstract StatRecord finalizeStatRecord(StatRecord.Builder builder);
 
-    protected void recordUsed(final double used) {
+    protected void recordUsed(final double used, final double peak) {
         empty = false;
-        this.used.record(used);
-    }
-
-    protected void recordPeak(final double peak) {
-        empty = false;
-        this.peak.record(peak);
+        this.used.record(used, peak);
     }
 
     protected void recordCapacity(final double capacity) {
@@ -121,8 +117,7 @@ abstract class AccumulatedCommodity {
         void recordBoughtCommodity(@Nonnull final CommodityBoughtDTO commodityBoughtDTO,
                                    @Nullable final Long providerId,
                                    final double capacity) {
-            recordUsed(commodityBoughtDTO.getUsed());
-            recordPeak(commodityBoughtDTO.getPeak());
+            recordUsed(commodityBoughtDTO.getUsed(), commodityBoughtDTO.getPeak());
             recordCapacity(capacity);
             if (commodityBoughtDTO.hasHistoricalUsed()) {
                 final HistoricalValues historicalUsed = commodityBoughtDTO.getHistoricalUsed();
@@ -165,8 +160,7 @@ abstract class AccumulatedCommodity {
          * @param commoditySoldDTO The DTO describing the sold commodity.
          */
         void recordSoldCommodity(@Nonnull final CommoditySoldDTO commoditySoldDTO) {
-            recordUsed(commoditySoldDTO.getUsed());
-            recordPeak(commoditySoldDTO.getPeak());
+            recordUsed(commoditySoldDTO.getUsed(), commoditySoldDTO.getPeak());
             recordCapacity(commoditySoldDTO.getCapacity());
             if (commoditySoldDTO.hasHistoricalUsed()) {
                 final HistoricalValues historicalUsed = commoditySoldDTO.getHistoricalUsed();
@@ -200,8 +194,7 @@ abstract class AccumulatedCommodity {
          * @param value The value for this attribute commodity
          */
         void recordAttributeCommodity(final double value) {
-            recordUsed(value);
-            recordPeak(value);
+            recordUsed(value, value);
             recordCapacity(value);
         }
 
