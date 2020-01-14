@@ -211,7 +211,7 @@ public class ScheduleMapperTest {
         Schedule convertedSchedule = scheduleMapper.convertInput(scheduleApiDTO);
         verifyInputConversionResults(convertedSchedule);
         assertFalse(convertedSchedule.hasOneTime());
-        assertEquals("FREQ=WEEKLY;BYDAY=TH;INTERVAL=1;", convertedSchedule.getRecurRule());
+        assertEquals("FREQ=WEEKLY;BYDAY=TH;WKST=TH;INTERVAL=1;", convertedSchedule.getRecurRule());
 
         recurrenceApiDTO = createRecurrenceApiDto(RecurrenceType.WEEKLY, 1,
             Arrays.asList(DayOfWeek.Sat, DayOfWeek.Sun), null, null);
@@ -219,7 +219,7 @@ public class ScheduleMapperTest {
         convertedSchedule = scheduleMapper.convertInput(scheduleApiDTO);
         verifyInputConversionResults(convertedSchedule);
         assertFalse(convertedSchedule.hasOneTime());
-        assertEquals("FREQ=WEEKLY;BYDAY=SA,SU;INTERVAL=1;", convertedSchedule.getRecurRule());
+        assertEquals("FREQ=WEEKLY;BYDAY=SA,SU;WKST=TH;INTERVAL=1;", convertedSchedule.getRecurRule());
     }
 
     /**

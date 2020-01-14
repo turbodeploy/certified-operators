@@ -176,6 +176,9 @@ public class ScheduleMapper {
             case WEEKLY:
                 recurrenceQuery.append(Frequency.WEEKLY);
                 recurrenceQuery.append(";BYDAY=");
+                final java.time.DayOfWeek dayOfWeek = scheduleApiDto.getStartTime().toLocalDate()
+                    .getDayOfWeek();
+                final String scheduleStartDay = localWeekDays.get(dayOfWeek).getDay().name();
                 if (recurrenceDto.getDaysOfWeek() != null && !recurrenceDto.getDaysOfWeek().isEmpty()) {
                     recurrenceQuery.append(recurrenceDto.getDaysOfWeek().stream()
                         .map(d -> weekdays.get(d).getDay()).filter(d -> d != null)
@@ -183,10 +186,20 @@ public class ScheduleMapper {
                         .collect(Collectors.joining(",")));
                 } else {
                     // if day of week is unspecified, set it based on start time
-                    final java.time.DayOfWeek dayOfWeek = scheduleApiDto.getStartTime().toLocalDate()
-                        .getDayOfWeek();
-                    recurrenceQuery.append(localWeekDays.get(dayOfWeek).getDay().name());
+                    recurrenceQuery.append(scheduleStartDay);
                 }
+                // set week start day based on schedule start time, so that the next weekly occurrence
+                // will be calculated relative to schedule start time.
+                // Otherwise, week start day is based on default value Monday, which may cause
+                // unexpected results in case of the recurrence interval greater then 1.
+                // e.g. if bi-weekly schedule which recurs on Tuesday every other week starts
+                // on Friday Jan 10 and by default week starts on Monday Jan 6, the next scheduled
+                // occurrence will be Jan 21 (and not Jan 14 as a customer presumably would expect),
+                // because the fist occurrence of the event would be assumed by ical to have happened
+                // on Jan 7, after week start day but before schedule start time.
+                // NOTE: This only applies to weekly schedules with interval > 1
+                // For more details https://tools.ietf.org/html/rfc5545#section-3.3.10
+                recurrenceQuery.append(";WKST=").append(scheduleStartDay);
                 break;
             case MONTHLY:
                 recurrenceQuery.append(Frequency.MONTHLY);

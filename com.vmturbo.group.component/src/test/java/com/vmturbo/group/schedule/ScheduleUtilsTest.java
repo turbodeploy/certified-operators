@@ -214,7 +214,7 @@ public class ScheduleUtilsTest {
     public void testNextOccurrenceRecurWeeklyPerpetual() throws Exception {
         Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
             .setPerpetual(Perpetual.newBuilder().build())
-            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;INTERVAL=1").build();
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;WKST=SU;INTERVAL=1").build();
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
         Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
             testSchedulePerpetual.toBuilder(), periodStartBefore);
@@ -248,7 +248,7 @@ public class ScheduleUtilsTest {
             .setRecurrenceStart(RecurrenceStart.newBuilder()
                 .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
             .setPerpetual(Perpetual.getDefaultInstance())
-            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;INTERVAL=1").build();
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;WKST=SU;INTERVAL=1").build();
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
         Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
             testSchedulePerpetual.toBuilder(), periodStartBefore);
@@ -280,7 +280,7 @@ public class ScheduleUtilsTest {
     public void testNextOccurrenceRecurWeeklyWithLast() throws Exception {
         Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
             .setLastDate(LAST_DATE)
-            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;INTERVAL=1").build();
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;WKST=SU;INTERVAL=1").build();
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
         Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
             testSchedulePerpetual.toBuilder(), periodStartBefore);
@@ -319,7 +319,7 @@ public class ScheduleUtilsTest {
             .setRecurrenceStart(RecurrenceStart.newBuilder()
                 .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
             .setLastDate(LAST_DATE)
-            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;INTERVAL=1").build();
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;WKST=SU;INTERVAL=1").build();
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
         Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
             testSchedulePerpetual.toBuilder(), periodStartBefore);
@@ -344,6 +344,84 @@ public class ScheduleUtilsTest {
         final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
         updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
             testSchedulePerpetual.toBuilder(), periodStartAfterLastDate);
+        assertFalse(updatedSchedule.hasNextOccurrence());
+    }
+
+    /**
+     * Test bi-weekly recurring.
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurBiWeekly() throws Exception {
+        Schedule testScheduleBiWeekly = SCHEDULE.toBuilder()
+            .setStartTime( Instant.parse("2010-01-15T09:30:00Z").toEpochMilli())
+            .setLastDate(LAST_DATE)
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU;INTERVAL=2;WKST=FR;")
+            .build();
+
+        final long periodStartBefore = Instant.parse("2010-01-15T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-19T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-19T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-01-20T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-02T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStartAfterLastDate);
+        assertFalse(updatedSchedule.hasNextOccurrence());
+    }
+
+    /**
+     * Test bi-weekly recurring.
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurThreeWeekly() throws Exception {
+        Schedule testScheduleBiWeekly = SCHEDULE.toBuilder()
+            .setStartTime( Instant.parse("2010-01-15T09:30:00Z").toEpochMilli())
+            .setLastDate(LAST_DATE)
+            .setRecurRule("FREQ=WEEKLY;BYDAY=WE;INTERVAL=3;WKST=FR;")
+            .build();
+
+        final long periodStartBefore = Instant.parse("2010-01-15T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-20T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-20T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-01-24T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-10T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testScheduleBiWeekly.toBuilder(), periodStartAfterLastDate);
         assertFalse(updatedSchedule.hasNextOccurrence());
     }
 
