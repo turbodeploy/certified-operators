@@ -42,8 +42,6 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         }
         final VirtualMachineData vmData = sdkEntity.getVirtualMachineData();
         VirtualMachineInfo.Builder vmInfo = VirtualMachineInfo.newBuilder()
-            // We're not currently sending tenancy via the SDK
-            .setTenancy(Tenancy.DEFAULT)
             .setGuestOsInfo(parseGuestName(vmData.getGuestName()))
             .setLicenseModel(vmData.getLicenseModel())
             .setBillingType(vmData.getBillingType())
@@ -102,6 +100,19 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
                 logger.error(
                         "Unknown virtualization type - {}. Could not add virtualization in VirtualMachineSpecificInfo for {}",
                         virtualizationTypeStr, sdkEntity.getDisplayName());
+            }
+        }
+        final String tenancyStr =
+            entityPropertyMap.get(VirtualMachineProtoUtil.PROPERTY_VM_TENANCY);
+        if (StringUtils.isNotEmpty(tenancyStr)) {
+            final Tenancy tenancy =
+                VirtualMachineProtoUtil.TENANCY.get(tenancyStr.toLowerCase());
+            if (tenancy != null) {
+                vmInfo.setTenancy(tenancy);
+            } else {
+                logger.error(
+                    "Unknown tenancy - {}. Could not add tenancy in VirtualMachineSpecificInfo for {}",
+                    tenancyStr, sdkEntity.getDisplayName());
             }
         }
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();

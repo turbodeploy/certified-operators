@@ -115,6 +115,14 @@ public class AwsCloudDiscoveryConverterTest {
                     .filter(commodityDTO -> commodityDTO.getCommodityType() == CommodityType.LICENSE_ACCESS)
                     .count());
 
+            // check VM buys TenancyAccess commodity from CT
+            assertEquals(1, newVM.getCommoditiesBoughtList().stream()
+                .filter(commodityBought -> commodityBought.getProviderType() ==
+                    EntityType.COMPUTE_TIER)
+                .flatMap(commodityBought -> commodityBought.getBoughtList().stream())
+                .filter(commodityDTO -> commodityDTO.getCommodityType() == CommodityType.TENANCY_ACCESS)
+                .count());
+
             // check VM buys 1 ZONE commodity from AZ
             assertEquals(1, newVM.getCommoditiesBoughtList().stream()
                     .filter(commodityBought -> commodityBought.getProviderType() ==

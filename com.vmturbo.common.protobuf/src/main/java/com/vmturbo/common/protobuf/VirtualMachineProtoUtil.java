@@ -1,10 +1,14 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Map;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Miscellaneous utilities for messages defined in VirtualMachineInfo/TopologyDTO.proto.
@@ -88,6 +92,26 @@ public class VirtualMachineProtoUtil {
     public static final String PVM = "PVM";
 
     /**
+     * Default/shared tenancy type both refer to DEFAULT.
+     */
+    public static final String SHARED = "shared";
+
+    /**
+     * Default/shared tenancy type both refer to DEFAULT.
+     */
+    public static final String DEFAULT = "default";
+
+    /**
+     * Dedicated tenancy type.
+     */
+    public static final String DEDICATED = "dedicated";
+
+    /**
+     * Host tenancy type.
+     */
+    public static final String HOST = "host";
+
+    /**
      * Key whose value is associated with ENA supported flag.
      */
     public static final String PROPERTY_IS_ENA_SUPPORTED = "isEnaSupported";
@@ -118,6 +142,21 @@ public class VirtualMachineProtoUtil {
             ImmutableBiMap.of(
                     HVM, VirtualizationType.HVM,
                     PVM, VirtualizationType.PVM);
+
+    /**
+     * Key whose value is associated with virtualization type.
+     */
+    public static final String PROPERTY_VM_TENANCY = "tenancy";
+
+    /**
+     * String representation of tenancy to protobuf type.
+     */
+    public static final Map<String, Tenancy> TENANCY =
+        ImmutableMap.of(
+            DEFAULT, Tenancy.DEFAULT,
+            SHARED, Tenancy.DEFAULT,
+            DEDICATED, Tenancy.DEDICATED,
+            HOST, Tenancy.HOST);
 
     private VirtualMachineProtoUtil() {}
 }

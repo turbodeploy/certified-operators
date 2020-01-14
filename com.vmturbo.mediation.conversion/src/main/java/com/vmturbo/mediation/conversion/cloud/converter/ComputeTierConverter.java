@@ -22,6 +22,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.TenancyType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -40,6 +42,12 @@ public class ComputeTierConverter implements IEntityConverter {
     private static final Map<SDKProbeType, List<CommodityType>> resizableCommodities =
             ImmutableMap.of(SDKProbeType.AWS,
                     ImmutableList.of(CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT));
+
+    private static final Map<TenancyType, Tenancy> tenancyMapping = ImmutableMap.of(
+        TenancyType.SHARED, Tenancy.DEFAULT,
+        TenancyType.DEDICATED, Tenancy.DEDICATED,
+        TenancyType.HOST, Tenancy.HOST
+    );
 
     /**
      * Constructor for {@link ComputeTierConverter}.
@@ -195,7 +203,13 @@ public class ComputeTierConverter implements IEntityConverter {
                                 .setCommodityType(CommodityType.LICENSE_ACCESS)
                                 .setKey(OsDetailParser.parseOsType(license).getName())
                                 .build()));
-
+        // Add tenancy access commodities sold
+        vmProfileDTO.getTenancyList().stream()
+            .map(tenancyType -> tenancyMapping.get(tenancyType))
+            .forEach(tenancy -> soldCommodities.add(
+                CommodityDTO.newBuilder()
+                    .setCommodityType(CommodityType.TENANCY_ACCESS)
+                    .setKey(tenancy.toString()).build()));
         return soldCommodities;
     }
 

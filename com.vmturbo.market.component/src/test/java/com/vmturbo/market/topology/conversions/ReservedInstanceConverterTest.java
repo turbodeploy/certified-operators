@@ -128,6 +128,27 @@ public class ReservedInstanceConverterTest {
     }
 
     /**
+     * Test that the tenancy commodity sold by the RI trader is based on the tenancy of the RI,
+     * and not based on the tenancy of the compute tier.
+     * Compute tier sells dedicated and host tenancies. But the RI is default tenancy. We want the
+     * RI trader to have default tenancy access commodity.
+     */
+    @Test
+    public void testTenancyCommodityConversion() {
+        final TopologyEntityDTO computeTier = mockComputeTier();
+        final RiDiscountedMarketTier riDiscountedTier = mockRiDiscountedTier(true);
+        final TopologyEntityDTO region = mockRegion(REGION_ID, REGION_NAME);
+        final List<CommoditySoldTO> tenancyCommodityTOs =
+            converter.commoditiesSoldList(computeTier, region, riDiscountedTier).stream()
+                .filter(c -> c.getSpecification().getBaseType()
+                    == CommodityDTO.CommodityType.TENANCY_ACCESS_VALUE)
+                .collect(Collectors.toList());
+
+        Assert.assertEquals(1, tenancyCommodityTOs.size());
+        Assert.assertEquals("TENANCY_ACCESS|DEFAULT", tenancyCommodityTOs.get(0).getSpecification().getDebugInfoNeverUseInCode());
+    }
+
+    /**
      * Test that non-ISF RIs have TemplateAccess commodity with key as the Compute Tier name.
      */
     @Test

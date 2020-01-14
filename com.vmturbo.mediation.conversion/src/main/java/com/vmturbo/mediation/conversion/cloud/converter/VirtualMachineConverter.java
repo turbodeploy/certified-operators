@@ -2,27 +2,34 @@ package com.vmturbo.mediation.conversion.cloud.converter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
+import com.vmturbo.mediation.hybrid.cloud.common.PropertyName;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -45,6 +52,16 @@ public class VirtualMachineConverter implements IEntityConverter {
             CommodityType.MEM_PROVISIONED,
             CommodityType.CPU_PROVISIONED
     );
+
+    private static final String VM_DEFAULT_TENANCY = "default";
+    private static final String VM_DEDICATED_TENANCY = "dedicated";
+    private static final String VM_HOST_TENANCY = "host";
+    private static final Map<String, Tenancy> tenancyMapping = ImmutableMap.of(
+        VM_DEFAULT_TENANCY, Tenancy.DEFAULT,
+        VM_DEDICATED_TENANCY, Tenancy.DEDICATED,
+        VM_HOST_TENANCY, Tenancy.HOST
+    );
+    private final Logger logger = LogManager.getLogger();
 
     private SDKProbeType probeType;
 
@@ -124,6 +141,21 @@ public class VirtualMachineConverter implements IEntityConverter {
                         .setCommodityType(CommodityType.LICENSE_ACCESS)
                         .setKey(osType.getName())
                         .build());
+                Optional<EntityProperty> tenancyProp = entity.getEntityPropertiesList().stream()
+                    .filter(prop -> prop.getName().equals(PropertyName.TENANCY)).findFirst();
+                if (tenancyProp.isPresent()) {
+                    Tenancy tenancy = tenancyMapping.get(tenancyProp.get().getValue());
+                    if (tenancy != null) {
+                        cbBuilder.addBought(CommodityDTO.newBuilder()
+                            .setCommodityType(CommodityType.TENANCY_ACCESS)
+                            .setKey(tenancy.toString())
+                            .build());
+                    } else {
+                        logger.error("Unsupported tenancy - {} - found for VM {}",
+                            tenancyProp.get().getValue(), entity.getDisplayName());
+                    }
+                }
+
                 // change commodity provider from AZ to CT
                 cbBuilder.setProviderId(entity.getProfileId());
                 cbBuilder.setProviderType(EntityType.COMPUTE_TIER);

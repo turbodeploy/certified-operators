@@ -47,7 +47,6 @@ public class VirtualMachineInfoMapperTest {
                         .setGuestOsInfo(OS.newBuilder()
                                 .setGuestOsType(OSType.UNKNOWN_OS)
                                 .setGuestOsName(""))
-                        .setTenancy(Tenancy.DEFAULT)
                         .setNumCpus(4)
                         .setLicenseModel(licenseModel)
                         .setBillingType(VirtualMachineData.VMBillingType.BIDDING)

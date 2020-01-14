@@ -166,15 +166,30 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Should the commodity be sold by the RI trader?
+     * For tenancy access, it is not taken from compute tier.
+     * For license access, it is taken from compute tier if shouldSellLicense method returns true
+     *
+     * @param commodity the commodity to check whether it is to be sold by ComputeTier
+     * @param ri the RIDiscountedMarketTier
+     * @return true if the commodity should be sold by ri trader
+     */
     private boolean shouldSellCommodity(CommoditySoldDTO commodity, RiDiscountedMarketTier ri) {
-        return !isLicenseCommodity(commodity) || shouldSellLicense(ri, commodity);
+        if (commodity.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE) {
+            return shouldSellLicense(ri, commodity);
+        }
+        return commodity.getCommodityType().getType() != CommodityDTO.CommodityType.TENANCY_ACCESS_VALUE;
     }
 
-    private boolean isLicenseCommodity(CommoditySoldDTO commoditySoldDTO) {
-        return commoditySoldDTO.getCommodityType().getType()
-                == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE;
-    }
-
+    /**
+     * License should be copied from the compute tier if RI is platform flexible or the RI has the
+     * same license as the commodity of ComputeTier being considered for copying.
+     *
+     * @param ri ri the RIDiscountedMarketTier
+     * @param commodityDto the license commodity to check if it should be sold
+     * @return true if the RI trader should sell the license commodity
+     */
     private boolean shouldSellLicense(RiDiscountedMarketTier ri, CommoditySoldDTO commodityDto) {
         final ReservedInstanceAggregate riAggregate = ri.getRiAggregate();
         return riAggregate.isPlatformFlexible() || riAggregate.getRiKey().getOs().name()

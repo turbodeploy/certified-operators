@@ -65,16 +65,18 @@ class CloudTestEntityFactory {
     }
 
     private static List<CommoditySoldDTO> createComputeTierSoldCommodities() {
-        return ImmutableList.of(createLicenseAccessCommoditySoldDTO("Linux"),
-                createLicenseAccessCommoditySoldDTO("Windows"),
-                createLicenseAccessCommoditySoldDTO("RHEL"));
+        return ImmutableList.of(createAccessCommoditySoldDTO(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Linux"),
+                createAccessCommoditySoldDTO(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Windows"),
+                createAccessCommoditySoldDTO(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "RHEL"),
+                createAccessCommoditySoldDTO(CommodityDTO.CommodityType.TENANCY_ACCESS_VALUE, "DEDICATED"),
+                createAccessCommoditySoldDTO(CommodityDTO.CommodityType.TENANCY_ACCESS_VALUE, "HOST"));
     }
 
-    private static CommoditySoldDTO createLicenseAccessCommoditySoldDTO(final String platform) {
+    private static CommoditySoldDTO createAccessCommoditySoldDTO(final int type, final String key) {
         return CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                        .setKey(platform)
+                        .setType(type)
+                        .setKey(key)
                         .build())
                 .build();
     }
