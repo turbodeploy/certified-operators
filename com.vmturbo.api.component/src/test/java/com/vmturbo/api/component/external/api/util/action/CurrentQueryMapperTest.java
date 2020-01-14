@@ -127,7 +127,7 @@ public class CurrentQueryMapperTest {
         final Set<Long> expandedScope = Sets.newHashSet(3L, 4L);
 
         when(groupExpander.expandOids(originalScope)).thenReturn(expandedScope);
-        when(supplyChainFetcherFactory.expandGroupingServiceEntities(expandedScope)).thenReturn(expandedScope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(expandedScope)).thenReturn(expandedScope);
 
         final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
                 Collections.emptySet(), Optional.empty(), userScope, Collections.emptySet());
@@ -187,9 +187,9 @@ public class CurrentQueryMapperTest {
         List<MinimalEntity> entities = Arrays.asList(vm, vm2, pm, pm2);
 
         when(groupExpander.expandOids(originalScope)).thenReturn(fullScope);
-        when(supplyChainFetcherFactory.expandGroupingServiceEntities(cloudScope)).thenReturn(cloudScope);
-        when(supplyChainFetcherFactory.expandGroupingServiceEntities(onPremScope)).thenReturn(onPremScope);
-        when(supplyChainFetcherFactory.expandGroupingServiceEntities(fullScope)).thenReturn(fullScope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(cloudScope)).thenReturn(cloudScope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(onPremScope)).thenReturn(onPremScope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(fullScope)).thenReturn(fullScope);
 
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(entities);
         when(repositoryApi.entitiesRequest(any()))
@@ -237,7 +237,7 @@ public class CurrentQueryMapperTest {
                     .build())
                 .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
-        when(supplyChainFetcherFactory.expandGroupingServiceEntities(relatedVms)).thenReturn(relatedVms);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(relatedVms)).thenReturn(relatedVms);
 
         final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
             relatedTypes,

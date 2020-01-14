@@ -184,7 +184,7 @@ public class SupplyChainFetcherFactory {
      * @return a set of ServiceEntity OIDs with types that should be expanded replaced by the
      * "constituent" ServiceEntity OIDs as computed by the supply chain.
      */
-    public Set<Long> expandGroupingServiceEntities(Collection<Long> entityOidsToExpand) {
+    public Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand) {
         // Early return if the input is empty, to prevent making
         // the initial RPC call.
         if (entityOidsToExpand.isEmpty()) {

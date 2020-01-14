@@ -245,14 +245,14 @@ public class StatsQueryScopeExpander {
             // case where VM oids need to be added separately to the scope, i.e. for Volume commodity queries
             final Set<Long> connectedVmOids = findConnectedVmOids(immediateOidsInScope);
             immediateOidsInScope.addAll(connectedVmOids);
-            expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
+            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
                 immediateOidsInScope);
         } else if (!relatedTypes.isEmpty()) {
             // We replace the proxy entities after first finding related type entities, so that the
             // supply chain search for related entities has the correct starting point (the original
             // entities in the request, rather than the replacement entities).
             try {
-                expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
+                expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
                     supplyChainFetcherFactory.expandScope(immediateOidsInScope, relatedTypes.stream()
                         .map(UIEntityType::apiStr)
                         .collect(Collectors.toList())));
@@ -264,7 +264,7 @@ public class StatsQueryScopeExpander {
                 expandedOidsInScope = immediateOidsInScope;
             }
         } else {
-            expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
+            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
                 immediateOidsInScope);
         }
 

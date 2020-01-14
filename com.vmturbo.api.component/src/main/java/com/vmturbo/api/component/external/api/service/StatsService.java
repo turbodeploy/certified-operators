@@ -860,7 +860,7 @@ public class StatsService implements IStatsService {
                         statsMapper.normalizeRelatedType(relatedType)));
             } else {
                 // try to expand grouping entity, since seedEntity can be DataCenter
-                derivedEntities = supplyChainFetcherFactory.expandGroupingServiceEntities(
+                derivedEntities = supplyChainFetcherFactory.expandAggregatedEntities(
                     Collections.singleton(seedEntity));
             }
             entityGroups.add(EntityGroup.newBuilder()

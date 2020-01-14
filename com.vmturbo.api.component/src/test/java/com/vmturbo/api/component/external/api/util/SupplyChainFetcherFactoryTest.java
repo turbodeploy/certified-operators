@@ -936,7 +936,7 @@ public class SupplyChainFetcherFactoryTest {
         when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
             responseMap.get(invocationOnMock.getArgumentAt(0, GetSupplyChainRequest.class).getScope().getStartingEntityOid(0)));
 
-        Set<Long> actual = supplyChainFetcherFactory.expandGroupingServiceEntities(Arrays.asList(0L, 1L, 2L));
+        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Arrays.asList(0L, 1L, 2L));
         Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L)), actual);
     }
 
