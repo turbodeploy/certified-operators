@@ -413,7 +413,7 @@ public class GroupMapper {
 
     private Optional<Float> calculateEstimatedCostForCloudEnv(
             @Nonnull GroupAndMembers groupAndMembers, @Nonnull EnvironmentType environmentType) {
-        if (environmentType == EnvironmentType.CLOUD) {
+        if (environmentType == EnvironmentType.CLOUD && !groupAndMembers.members().isEmpty()) {
             final GetCloudCostStatsResponse cloudCostStatsResponse;
             try {
                 cloudCostStatsResponse = costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()

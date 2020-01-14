@@ -130,34 +130,34 @@ public class ActionSearchUtil {
             }
         }
 
-        // create filter
-        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(inputDto,
-            // if there are grouping entity like DataCenter, we should expand it to PMs to show
-            // all actions for PMs in this DataCenter
-            Optional.of(supplyChainFetcherFactory.expandGroupingServiceEntities(expandedScope)),
-            scopeId);
+        if (!expandedScope.isEmpty()) {
+            // create filter
+            final ActionQueryFilter filter = actionSpecMapper.createActionFilter(inputDto,
+                    // if there are grouping entity like DataCenter, we should expand it to PMs to show
+                    // all actions for PMs in this DataCenter
+                    Optional.of(supplyChainFetcherFactory.expandGroupingServiceEntities(expandedScope)),
+                    scopeId);
 
-        // call the service and retrieve results
-        final FilteredActionResponse response =
-            actionOrchestratorRpc.getAllActions(
-                FilteredActionRequest.newBuilder()
-                    .setTopologyContextId(realtimeTopologyContextId)
-                    .setFilter(filter)
-                    .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                    .build());
+            // call the service and retrieve results
+            final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+                    FilteredActionRequest.newBuilder()
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .setFilter(filter)
+                            .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                            .build());
 
-        // translate results
-        final List<ActionApiDTO> results =
-            actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                response.getActionsList().stream()
-                    .map(ActionOrchestratorAction::getActionSpec)
-                    .collect(Collectors.toList()),
-                realtimeTopologyContextId);
+            // translate results
+            final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+                    response.getActionsList().stream()
+                        .map(ActionOrchestratorAction::getActionSpec)
+                        .collect(Collectors.toList()),
+                    realtimeTopologyContextId);
 
-        return
-            PaginationProtoUtil
-                .getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
+            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                    .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
+                    .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
+        }
+
+        return paginationRequest.finalPageResponse(Collections.emptyList(), null);
     }
 }

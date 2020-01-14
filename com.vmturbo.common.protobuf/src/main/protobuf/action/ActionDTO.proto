@@ -945,8 +945,6 @@ message ActionQueryFilter {
     // For example, the involved entities in a VM move are the VM, and the hosts.
     //
     // If not set, include any actions.
-    // Some actions have no involved entities. If you want those actions, you need to explicitly
-    // set this field with an empty "oids" list.
     optional InvolvedEntities involved_entities = 3;
 
     // Include only actions that involve entities of the specific type.

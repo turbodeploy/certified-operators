@@ -14,6 +14,7 @@ import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -65,6 +66,9 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -162,7 +166,6 @@ public class GroupMapperTest {
 
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private GroupMapper groupMapper;
-
 
     private static final String AND = "AND";
     private static final String FOO = "foo";
@@ -1755,5 +1758,35 @@ public class GroupMapperTest {
         Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);
         BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
         Assert.assertNull(billingFamilyApiDTO.getCostPrice());
+    }
+
+    /**
+     * If there are no group members we don't need to get call to cost component, because if
+     * entityFilter has empty collection of entities, cost component return cost stats for
+     * all existed entities.
+     */
+    @Test
+    public void testEmptyResourceGroupNoCostComponentInteraction() {
+        Grouping group = Grouping.newBuilder()
+                .setId(8L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("empty_rg"))
+                .build();
+        GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+        groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.CLOUD, CloudType.AZURE, false);
+        final GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(Cost.EntityFilter.newBuilder()
+                                .addAllEntityId(groupAndMembers.members())
+                                .build())
+                        .build())
+                .build();
+        Mockito.verify(costServiceMole, times(0)).getCloudCostStats(cloudCostStatsRequest);
     }
 }
