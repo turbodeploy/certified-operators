@@ -479,11 +479,72 @@ public class CostRpcService extends CostServiceImplBase {
             cloudStatRecords.add(snapshotBuilder.build());
         });
 
+        // For the projected stats, forecast data from the historic stats.
+        if (request.hasStartDate() && request.hasEndDate()) {
+            try {
+                final CloudCostStatRecord.Builder projectedSnapshotBuilder =
+                        createProjectedStatRecords(request, historicData, timeFrame);
+                cloudStatRecords.add(projectedSnapshotBuilder.build());
+            } catch (InvalidForecastingDateRangeException invalidDateRangeException) {
+                logger.error("Error getting stats snapshots for {}." +
+                                "Forecast requested for an invalid time range",
+                        request, invalidDateRangeException);
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("Internal Error fetching stats for: " + request
+                                + ", cause: " + invalidDateRangeException.getMessage())
+                        .asException());
+                return;
+            } catch (ForecastingStrategyNotProvidedException strategyNotProvidedException) {
+                logger.error("Error getting stats snapshots for {}." +
+                                "Forecast requested but forecasting strategy not specified",
+                        request, strategyNotProvidedException);
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("Internal Error fetching stats for: " + request
+                                + ", cause: " + strategyNotProvidedException.getMessage())
+                        .asException());
+                return;
+            }
+        }
+
         GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
                 .addAllCloudStatRecord(cloudStatRecords)
                 .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Create a future expense record, based on historic expenses from the DB.
+     *
+     * @param request the requested stats.
+     * @param historicData expenses from the DB.
+     * @param timeFrame the requested time frame (daily/monthly).
+     * @return a stat record builder, containing the projected stats.
+     * @throws InvalidForecastingDateRangeException in case of a forecasting error.
+     * @throws ForecastingStrategyNotProvidedException in case of a forecasting error.
+     */
+    private CloudCostStatRecord.Builder createProjectedStatRecords(GetCloudExpenseStatsRequest request,
+                                   Map<Long, Map<Long, Float>> historicData, TimeFrame timeFrame)
+            throws InvalidForecastingDateRangeException, ForecastingStrategyNotProvidedException {
+
+        final CloudCostStatRecord.Builder projectedSnapshotBuilder = CloudCostStatRecord.newBuilder();
+        long projectedTime = request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
+        projectedSnapshotBuilder.setSnapshotDate(projectedTime);
+        final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
+
+        for (Entry<Long, Map<Long, Float>> stats : historicData.entrySet()) {
+            SortedMap<Long, Float> forecast =
+                    (SortedMap<Long, Float>)forecastingContext.computeForecast(
+                            request.getStartDate(),
+                            projectedTime,
+                            com.vmturbo.commons.TimeFrame.valueOf(timeFrame.name()),
+                            stats.getValue());
+            accountExpenseStats.add(new AccountExpenseStat(stats.getKey(),
+                    Math.round(forecast.get(forecast.lastKey()))));
+
+        }
+        projectedSnapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
+        return projectedSnapshotBuilder;
     }
 
     private AccountExpenseFilterBuilder createAccountExpenseFilter(GetCloudExpenseStatsRequest request) {

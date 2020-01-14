@@ -70,7 +70,6 @@ import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -232,12 +231,8 @@ public class EntitiesService implements IEntitiesService {
     @Nonnull
     public ServiceEntityApiDTO getEntityByUuid(@Nonnull String uuid, boolean includeAspects)
             throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
         // get information about this entity from the repository
-        final long oid = uuidMapper.fromUuid(uuid).oid();
+        final long oid = Long.valueOf(uuid);
         final SingleEntityRequest req = repositoryApi.entityRequest(oid);
         if (includeAspects) {
             req.useAspectMapper(entityAspectMapper);
@@ -318,11 +313,6 @@ public class EntitiesService implements IEntitiesService {
     @Nonnull
     public ActionApiDTO getActionByEntityUuid(@Nonnull String uuid, @Nonnull String aUuid)
             throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(aUuid).oid();
         final ActionApiDTO result;
         try {
             // get the action object from the action orchestrator
@@ -332,7 +322,7 @@ public class EntitiesService implements IEntitiesService {
                     actionOrchestratorRpcService
                         .getAction(
                             SingleActionRequest.newBuilder()
-                                .setActionId(oid)
+                                .setActionId(Long.valueOf(aUuid))
                                 .setTopologyContextId(realtimeTopologyContextId)
                                 .build())
                         .getActionSpec(),
@@ -414,7 +404,7 @@ public class EntitiesService implements IEntitiesService {
         }
 
         // Get the input entity
-        long entityOid = uuidMapper.fromUuid(uuid).oid();
+        long entityOid = Long.valueOf(uuid);
         Optional<ServiceEntityApiDTO> entityApiDTO =
                 repositoryApi.entityRequest(entityOid).getSE();
 
@@ -472,15 +462,8 @@ public class EntitiesService implements IEntitiesService {
                     .filter(serviceEntityApiDTO ->
                             !UIEntityType.VIRTUAL_DATACENTER.apiStr().equals(serviceEntityApiDTO.getClassName())
                             || uuid.equals(serviceEntityApiDTO.getUuid()))
-                    .collect(Collectors.toMap(apiDTO -> {
-                        try {
-                            return uuidMapper.fromUuid(apiDTO.getUuid()).oid();
-                        } catch (OperationFailedException e) {
-                            throw new IllegalArgumentException(
-                                    String.format("The uuid %s can not be mapped to oid",
-                                            apiDTO.getUuid()), e);
-                        }
-                    }, Function.identity()));
+                    .collect(Collectors.toMap(apiDTO ->
+                            Long.valueOf(apiDTO.getUuid()), Function.identity()));
 
         // Check if the input entity belongs to a Virtual Machine Cluster.
         List<BaseApiDTO> result = getVirtualMachineClusterBreadCrumbs(entityApiDTO.get(),
@@ -502,10 +485,9 @@ public class EntitiesService implements IEntitiesService {
      *
      * @return A list of breadcrumbs entities including the physical machine cluster that
      * the input entity belongs to.
-     * @throws OperationFailedException if there is any error mapping the scope.
      */
     private List<BaseApiDTO> getClusterBreadCrumbs(ServiceEntityApiDTO entityApiDTO,
-            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) throws OperationFailedException {
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
         List<BaseApiDTO> result = serviceEntityMap.values()
                 .stream()
                 // Remove VM entity from the result unless the input entity is the same VM.
@@ -521,7 +503,7 @@ public class EntitiesService implements IEntitiesService {
         for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
             ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
             if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr())) {
-                long oidToQuery = uuidMapper.fromUuid(serviceEntityApiDTO.getUuid()).oid();
+                long oidToQuery = Long.valueOf(serviceEntityApiDTO.getUuid());
                 getClusterApiDTO(oidToQuery).ifPresent(result::add);
                 // We found the cluster that the PM belongs to, break out of the loop.
                 break;
@@ -663,12 +645,7 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
-        if (!uuidMapper.fromUuid(s).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", s));
-        }
-        long oid = uuidMapper.fromUuid(s).oid();
-        return TagsMapper.convertTagsToApi(repositoryApi.entityRequest(oid)
+        return TagsMapper.convertTagsToApi(repositoryApi.entityRequest(Long.valueOf(s))
             .getEntity()
             .orElseThrow(() -> new UnknownObjectException(s))
             .getTags().getTagsMap());
@@ -701,14 +678,9 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<SettingsPolicyApiDTO> getSettingPoliciesByEntityUuid(String uuid) throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
-                        .setEntityOid(oid)
+                        .setEntityOid(Long.valueOf(uuid))
                         .build();
 
         GetEntitySettingPoliciesResponse response =
@@ -718,13 +690,8 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
-        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(oid)
+    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException {
+        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
             .getFullEntity()
             .orElseThrow(() -> new UnknownObjectException(uuid));
         return entityAspectMapper.getAspectsByEntity(entityDTO)
@@ -733,14 +700,9 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
+    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
         AspectName aspectName = AspectName.fromString(aspectTag);
-        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(oid)
+        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
             .getFullEntity()
             .orElseThrow(() -> new UnknownObjectException(uuid));
         return entityAspectMapper.getAspectByEntity(entityDTO, aspectName);
@@ -768,10 +730,7 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<ConstraintApiDTO> getConstraintsByEntityUuid(String uuid) throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
+
         final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
                 .topologyContextId(realtimeTopologyContextId)
                 .addSeedUuids(Lists.newArrayList(uuid))
@@ -779,18 +738,10 @@ public class EntitiesService implements IEntitiesService {
                 .entityDetailType(EntityDetailType.entity)
                 .fetch();
 
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().values()
-                .stream()
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().entrySet().stream()
+                .map(Entry::getValue)
                 .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                .collect(Collectors.toMap(apiDTO -> {
-                    try {
-                        return uuidMapper.fromUuid(apiDTO.getUuid()).oid();
-                    } catch (OperationFailedException e) {
-                        throw new IllegalArgumentException(
-                                String.format("The uuid %s can not be mapped to oid",
-                                        apiDTO.getUuid()), e);
-                    }
-                }, Function.identity()));
+                .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
 
         Optional<String> myEntityType = getEntityType(uuid, supplyChain);
         // Get the consumers of this entity.
@@ -814,11 +765,8 @@ public class EntitiesService implements IEntitiesService {
         // Now query repo to get the TopologyEntityDTO for the current entity and its consumers.
         List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>();
         Set<Long> oidsToQuery = new HashSet<>();
-        for (String sUuid : consumerOids) {
-            oidsToQuery.add(uuidMapper.fromUuid(sUuid).oid());
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
-        oidsToQuery.add(oid);
+        consumerOids.forEach(oid -> oidsToQuery.add(Long.parseLong(oid)));
+        oidsToQuery.add(Long.parseLong(uuid));
 
         // The constraints are embedded in the commodities. We have to fetch the TopologyEntityDTO
         // to get the commodities info.
@@ -831,14 +779,13 @@ public class EntitiesService implements IEntitiesService {
         // We don't support fully parity with classic. We just populate the ConstraintType(CommodityDTO.Type)
         // and the ConstraintKey(CommodityDTO.Key)
         constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                Collections.singletonList(entityDtos.get(oid)),
+                Collections.singletonList(entityDtos.get(Long.valueOf(uuid))),
                 serviceEntityMap, RelationType.bought));
-        List<TopologyEntityDTO> constraintDTOs = new ArrayList<>();
-        for (String consumerOid : consumerOids) {
-            constraintDTOs.add(entityDtos.get(uuidMapper.fromUuid(consumerOid).oid()));
-        }
         constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                constraintDTOs, serviceEntityMap, RelationType.sold));
+                consumerOids.stream()
+                        .map(consumerOid -> entityDtos.get(Long.valueOf(consumerOid)))
+                        .collect(Collectors.toList()),
+                serviceEntityMap, RelationType.sold));
         return constraintApiDtos;
     }
 

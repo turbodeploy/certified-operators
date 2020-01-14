@@ -29,9 +29,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Common functionality that has to do with action searching.
+ * TODO: Future refactoring should make this class obsolete.  OM-47354
  */
 public class ActionSearchUtil {
 
@@ -58,6 +61,29 @@ public class ActionSearchUtil {
     }
 
     /**
+     * If the given scope represents an aggregation, (Business Account, Region, or Availability Zone) we should
+     * Retrieve actions associated with all nodes in the supply chain seeded by the scope UUID. Else, just get
+     * actions associated with the provided scope.
+     *
+     * @param entityType for which associated actions are being fetched
+     * @return whether or not to retrieve actions associated with all supply chain nodes
+     */
+    private boolean shouldGetSupplyChainNodeActions(int entityType) {
+        switch (entityType) {
+            // Cloud Aggregations
+            case EntityType.BUSINESS_ACCOUNT_VALUE:
+            case EntityType.REGION_VALUE:
+            case EntityType.AVAILABILITY_ZONE_VALUE:
+            // On-Prem Aggregations
+            case EntityType.DATACENTER_VALUE:
+            case EntityType.VIRTUAL_DATACENTER_VALUE:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
      * Get the actions related to the selected entity.
      *
      * @param scopeId entity selected as a scope.
@@ -78,7 +104,31 @@ public class ActionSearchUtil {
             throws  InterruptedException, OperationFailedException,
                     UnsupportedActionException, ExecutionException {
         final Set<Long> oidSet = ImmutableSet.of(scopeId.oid());
-        final Set<Long> expandedScope = scopeId.isGroup() ? groupExpander.expandOids(oidSet) : oidSet;
+        final Set<Long> expandedScope;
+        // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
+        // entities from the scoped supply chain
+        if (inputDto != null &&
+                inputDto.getRelatedEntityTypes() != null &&
+                !inputDto.getRelatedEntityTypes().isEmpty()) {
+            final Set<Long> scope = groupExpander.expandOids(oidSet);
+            // get the scoped supply chain
+            // extract entity oids from the supply chain and add them to the scope
+            expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
+        } else {
+            // If the entity for which we're collecting actions represents an aggregation, (Account, Region,
+            // Zone, DC, VDC) get actions for all nodes in the supply chain seeded from that UUID. Otherwise,
+            // just get actions corresponding to that single entity
+            final Optional<Set<UIEntityType>> scopeType = scopeId.getScopeTypes();
+            final boolean shouldExpand = scopeType.isPresent() && scopeType.get()
+                    .stream()
+                    .map(UIEntityType::typeNumber)
+                    .anyMatch(this::shouldGetSupplyChainNodeActions);
+            if (shouldExpand) {
+                expandedScope = supplyChainFetcherFactory.expandScope(oidSet, Collections.emptyList());
+            } else {
+                expandedScope = groupExpander.expandOids(oidSet);
+            }
+        }
 
         if (!expandedScope.isEmpty()) {
             // create filter
