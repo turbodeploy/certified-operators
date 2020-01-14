@@ -41,7 +41,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
@@ -349,22 +348,27 @@ public class SupplyChainStatistician {
 
         @Nonnull
         private Map<Long, Long> getResourceGroupsById(@Nonnull final List<Long> supplyChainEntities) {
-            final Map<Long, Long> resourceGroupForEntity = new HashMap<>();
+            if (supplyChainEntities.isEmpty()) {
+                logger.warn("There is no supplyChain entities.");
+                return Collections.emptyMap();
+            }
             try {
-                for (Long entity: supplyChainEntities) {
-                    final GetGroupsForEntitiesResponse groupForEntityResponse =
-                            groupService.getGroupsForEntities(
-                            GetGroupsForEntitiesRequest.newBuilder().addEntityId(entity).build());
-                    final List<Grouping> groups = groupForEntityResponse.getGroupsList();
-                    for (Grouping group: groups) {
-                        if (group.getDefinition().getType().equals(GroupType.RESOURCE)) {
-                            resourceGroupForEntity.put(entity, group.getId());
-                        } else {
-                            logger.trace("There is no resource group for {} entity", entity);
-                        }
-                    }
+                final GetGroupsForEntitiesResponse groupsForEntities =
+                        groupService.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                                .addAllEntityId(supplyChainEntities)
+                                .addGroupType(GroupType.RESOURCE)
+                                .build());
+                if (!groupsForEntities.getEntityGroupMap().isEmpty()) {
+                    return groupsForEntities.getEntityGroupMap()
+                            .entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(el -> el.getKey(),
+                                    el -> el.getValue().getGroupIdList().get(0)));
+                } else {
+                    logger.trace("There is no resource groups for {} entities",
+                            supplyChainEntities);
+                    return Collections.emptyMap();
                 }
-                return resourceGroupForEntity;
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to retrieve resource groups. Error: {}", e.getMessage());
                 return Collections.emptyMap();

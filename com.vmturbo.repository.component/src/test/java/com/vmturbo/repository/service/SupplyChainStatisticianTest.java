@@ -1,9 +1,12 @@
 package com.vmturbo.repository.service;
 
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -13,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +53,10 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
@@ -59,6 +67,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.S
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.service.SupplyChainStatistician.SupplementaryData;
 import com.vmturbo.repository.service.SupplyChainStatistician.SupplementaryDataFactory;
@@ -158,11 +167,14 @@ public class SupplyChainStatisticianTest {
 
     private ActionsServiceMole actionsServiceMole = spy(ActionsServiceMole.class);
 
+    private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
+
     /**
      * Test server to mock out gRPC dependencies.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityServiceBackend, actionsServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityServiceBackend,
+            actionsServiceMole, groupServiceMole);
 
 
     private SupplementaryDataFactory mockSupplementaryDataFactory = mock(SupplementaryDataFactory.class);
@@ -611,6 +623,40 @@ public class SupplyChainStatisticianTest {
         verify(entitySeverityServiceBackend).getEntitySeverities(MultiEntityRequest.newBuilder()
             .addAllEntityIds(entities)
             .build());
+    }
+
+    /**
+     * Test resourceGroups population related to entities.
+     */
+    @Test
+    public void testSupplementaryDataGroupByResourceGroup() {
+        final long entityId1 = 1L;
+        final long entityId2 = 2L;
+        final long resourceGroupId1 = 12L;
+        final SupplementaryDataFactory factory = new SupplementaryDataFactory(
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        final List<Long> entities = Arrays.asList(entityId1, entityId2);
+
+        final Map<Long, Groupings> entityToGroupsMap = new HashMap<>();
+        entityToGroupsMap.put(1L, Groupings.newBuilder().addGroupId(resourceGroupId1).build());
+
+        final GetGroupsForEntitiesResponse getGroupsForEntitiesResponse =
+                GetGroupsForEntitiesResponse.newBuilder()
+                        .putAllEntityGroup(entityToGroupsMap)
+                        .build();
+        when(groupServiceMole.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                .addGroupType(GroupType.RESOURCE)
+                .addAllEntityId(entities)
+                .build())).thenReturn(getGroupsForEntitiesResponse);
+
+        final SupplementaryData supplementaryData = factory.newSupplementaryData(entities,
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP));
+        assertTrue(supplementaryData.getResourceGroupId(entityId1).isPresent());
+        assertEquals(Long.valueOf(resourceGroupId1), supplementaryData.getResourceGroupId(entityId1).get());
+        assertFalse(supplementaryData.getResourceGroupId(entityId2).isPresent());
     }
 
 }
