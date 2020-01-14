@@ -4,11 +4,14 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -31,6 +34,7 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
+import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
@@ -45,6 +49,7 @@ import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -276,6 +281,17 @@ public class ActionsService implements IActionsService {
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) {
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
+        return getActionDetails(action);
+    }
+
+    /**
+     * Gets details for an action.
+     *
+     * @param action action
+     * @return details of the action
+     */
+    @Nonnull
+    private ActionDetailsApiDTO getActionDetails(@Nonnull ActionOrchestratorAction action) {
         if (action.hasActionSpec()) {
             // create action details dto based on action api dto which contains "explanation" with
             // coverage information.
@@ -286,5 +302,32 @@ public class ActionsService implements IActionsService {
             }
         }
         return new NoDetailsApiDTO();
+    }
+
+    /**
+     * Get the list of action details by multiple action uuids.
+     *
+     * @param inputDto contains information about requested action uuids
+     * @return a map of action uuid to {@link ActionDetailsApiDTO}
+     */
+    @Override
+    public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto) {
+        if (inputDto.getUuids().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> actionIds = inputDto.getUuids().stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toList());
+        Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
+                multiActionRequest(actionIds));
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(actionsIterator, 0), false)
+                .collect(Collectors.toMap(action -> Long.toString(action.getActionId()), this::getActionDetails));
+    }
+
+    private MultiActionRequest multiActionRequest(List<Long> uuids) {
+        return MultiActionRequest.newBuilder()
+                .setTopologyContextId(realtimeTopologyContextId)
+                .addAllActionIds(uuids)
+                .build();
     }
 }

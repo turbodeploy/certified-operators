@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -23,6 +24,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
@@ -38,12 +40,19 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
+import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -177,6 +186,65 @@ public class ActionsServiceTest {
         assertThat(statsByUuid.get("1").getClassName(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
 
         assertThat(statsByUuid.get("3").getStats(), is(scope2Snapshots));
+    }
+
+    /**
+     * Tests getting action details for an empty collection of uuids.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsEmptyUuids() {
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Collections.emptyList());
+
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+        assertEquals(0, actionDetails.size());
+    }
+
+    /**
+     * Tests getting action details for actions with/without spec, order of details the same as in request.
+     */
+    @Test
+    public void testGetActionDetailsByUuids() {
+        long actionIdWithSpec = 10;
+        long actionIdNoSpec = 20;
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Arrays.asList(Long.toString(actionIdWithSpec), Long.toString(actionIdNoSpec)));
+
+        List<ActionOrchestratorAction> orchestratorActions = Arrays.asList(
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionIdNoSpec)
+                        .build(),
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionIdWithSpec)
+                        .setActionSpec(ActionSpec.newBuilder()
+                                .build())
+                        .build()
+        );
+        ArgumentCaptor<MultiActionRequest> multiActionRequestCaptor =
+                ArgumentCaptor.forClass(MultiActionRequest.class);
+        when(actionsServiceBackend.getActions(multiActionRequestCaptor.capture()))
+                .thenReturn(orchestratorActions);
+
+        ArgumentCaptor<ActionOrchestratorAction> orchestratorActionCaptor =
+                ArgumentCaptor.forClass(ActionOrchestratorAction.class);
+        when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture()))
+                .thenReturn(new CloudResizeActionDetailsApiDTO());
+
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+
+        assertEquals(2, actionDetails.size());
+        assertEquals(CloudResizeActionDetailsApiDTO.class, actionDetails.get(Long.toString(actionIdWithSpec)).getClass());
+        assertEquals(NoDetailsApiDTO.class, actionDetails.get(Long.toString(actionIdNoSpec)).getClass());
+
+        List<MultiActionRequest> actualRequests = multiActionRequestCaptor.getAllValues();
+        assertEquals(1, actualRequests.size());
+        MultiActionRequest multiActionRequest = actualRequests.get(0);
+        assertEquals(actionIdWithSpec, multiActionRequest.getActionIds(0));
+        assertEquals(actionIdNoSpec, multiActionRequest.getActionIds(1));
+
+        List<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getAllValues();
+        assertEquals(1, actualOrchestratorActions.size());
+        assertEquals(actionIdWithSpec, actualOrchestratorActions.get(0).getActionId());
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
