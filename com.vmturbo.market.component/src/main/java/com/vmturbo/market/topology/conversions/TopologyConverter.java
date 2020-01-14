@@ -2656,6 +2656,12 @@ public class TopologyConverter {
 
         // If it is a tier based cloud sold TO, return the new provider capacity
         if (marketTier != null && marketTier.getTier() != null) {
+            /* We don't need to calculate the projected capacity of non-resizable commodities.
+            For instance, the vStorage commodity of an AWS RDB has the capacity as the allocated
+            storage for that DBS and Turbo does not scale storage in RDS */
+            if (!commSoldTO.getSettings().getResizable()) {
+                return  capacity;
+            }
             /*
              The capacity of the sold commodity in the projected TO needs to be
              updated to the new provider (cloud tier) capacity.
