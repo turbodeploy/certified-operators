@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -37,13 +38,13 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -272,17 +273,17 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @return a mapping from entity oid to {@link HeadroomPlanPartialEntity}
      */
     private Map<Long, HeadroomPlanPartialEntity> getPlanPartialEntities(final long topologyId) {
-        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyId(topologyId).setTopologyType(TopologyType.PROJECTED)
-            .setReturnType(Type.HEADROOM_PLAN).build();
-        return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(request))
+        final Iterable<RetrieveTopologyResponse> topologyResponse = () ->
+                repositoryService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                    .setTopologyId(topologyId)
+                    .setEntityFilter(TopologyEntityFilter.newBuilder()
+                        .addAllEntityTypes(HEADROOM_ENTITY_TYPE))
+                    .setReturnType(Type.HEADROOM_PLAN)
+                    .build());
+        return StreamSupport.stream(topologyResponse.spliterator(), false)
+            .flatMap(res -> res.getEntitiesList().stream())
             .map(PartialEntity::getHeadroomPlanPartialEntity)
-            .collect(Collectors.toMap(HeadroomPlanPartialEntity::getOid, Function.identity(),
-                (entity1, entity2) -> {
-                    logger.error("Two entities ({} and {}) with same oid {} are returned by repository. " +
-                        "Keep the first one.", entity1.getDisplayName(), entity2.getDisplayName(), entity1.getOid());
-                    return entity1;
-                }));
+            .collect(Collectors.toMap(HeadroomPlanPartialEntity::getOid, Function.identity()));
     }
 
     /**

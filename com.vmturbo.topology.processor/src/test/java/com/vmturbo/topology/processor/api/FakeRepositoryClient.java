@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationR
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -35,7 +36,7 @@ public class FakeRepositoryClient extends RepositoryClient {
         List<RetrieveTopologyResponse> response = Lists.newArrayList();
         response.add(RetrieveTopologyResponse.newBuilder()
                 // Retrieve just the single entity for now -- update as needed for new tests
-                .addEntities(entityMap.get(topologyId))
+                .addEntities(PartialEntity.newBuilder().setFullEntity(entityMap.get(topologyId)))
                 .build());
         return response.iterator();
     }

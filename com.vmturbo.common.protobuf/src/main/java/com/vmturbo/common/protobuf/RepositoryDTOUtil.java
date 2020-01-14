@@ -32,7 +32,11 @@ public class RepositoryDTOUtil {
                                               @Nonnull final TopologyEntityFilter filter) {
         // If the filter wants only unplaced entities, and this entity is placed, the entity
         // doesn't match.
-        return !(filter.getUnplacedOnly() && TopologyDTOUtil.isPlaced(entity));
+        return !(filter.getUnplacedOnly() && TopologyDTOUtil.isPlaced(entity))
+            // Entity is valid if filter has no entity type or it contains the entity type
+            // of given entity.
+            && (filter.getEntityTypesList().isEmpty() ||
+                filter.getEntityTypesList().contains(entity.getEntityType()));
     }
 
     /**

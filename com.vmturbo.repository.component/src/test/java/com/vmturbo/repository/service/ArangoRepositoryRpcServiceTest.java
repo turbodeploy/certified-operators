@@ -184,7 +184,7 @@ public class ArangoRepositoryRpcServiceTest {
             .build()).forEachRemaining(responseList::add);
 
         assertThat(responseList.size(), is(1));
-        assertThat(responseList.get(0).getEntitiesList(), containsInAnyOrder(entity.getEntity()));
+        assertEquals(responseList.get(0).getEntitiesList().get(0).getFullEntity(), entity.getEntity());
 
     }
 

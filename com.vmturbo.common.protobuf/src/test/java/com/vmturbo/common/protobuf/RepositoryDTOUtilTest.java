@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -50,6 +52,58 @@ public class RepositoryDTOUtilTest {
                 .build()));
     }
 
+    /**
+     * Test filter with different entity types.
+     */
+    @Test
+    public void testEntityTypeFilterTest() {
+        final TopologyEntityDTO vmEntity = newEntity()
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder())
+                .build();
+
+        assertTrue(RepositoryDTOUtil.entityMatchesFilter(vmEntity, TopologyEntityFilter.newBuilder()
+                .addAllEntityTypes(ImmutableList.of(EntityType.VIRTUAL_MACHINE.getValue()))
+                .build()));
+
+        assertFalse(RepositoryDTOUtil.entityMatchesFilter(vmEntity, TopologyEntityFilter.newBuilder()
+                .addAllEntityTypes(ImmutableList.of(EntityType.PHYSICAL_MACHINE.getValue()))
+                .build()));
+    }
+
+    /**
+     * Test filter with unplaced false and entityType.
+     */
+    @Test
+    public void testMultipleFilterMatch() {
+        final TopologyEntityDTO placedEntity = newEntity()
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(7L))
+                .build();
+
+        // Matched because entity is placed VM
+        assertTrue(RepositoryDTOUtil.entityMatchesFilter(placedEntity, TopologyEntityFilter.newBuilder()
+                .setUnplacedOnly(false)
+                .addAllEntityTypes(ImmutableList.of(EntityType.VIRTUAL_MACHINE.getValue()))
+                .build()));
+    }
+
+    /**
+     * Test filter with unplaced true and entityType.
+     */
+    @Test
+    public void testMultipleFilterNoMatch() {
+        final TopologyEntityDTO placedEntity = newEntity()
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(7L))
+                .build();
+
+        // No match because entity is placed VM.
+        assertFalse(RepositoryDTOUtil.entityMatchesFilter(placedEntity, TopologyEntityFilter.newBuilder()
+                .setUnplacedOnly(true)
+                .addAllEntityTypes(ImmutableList.of(EntityType.VIRTUAL_MACHINE.getValue()))
+                .build()));
+    }
+
     private List<PartialEntityBatch> entityBatches = Arrays.asList(
             PartialEntityBatch.newBuilder()
                 .addEntities(PartialEntity.newBuilder()
@@ -79,7 +133,7 @@ public class RepositoryDTOUtilTest {
     @Nonnull
     private TopologyEntityDTO.Builder newEntity() {
         return TopologyEntityDTO.newBuilder()
-                    .setEntityType(10)
+                    .setEntityType(EntityType.VIRTUAL_MACHINE.getValue())
                     .setOid(11L);
     }
 }

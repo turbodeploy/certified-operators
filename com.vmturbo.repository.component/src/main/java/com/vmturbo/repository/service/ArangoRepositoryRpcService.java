@@ -170,11 +170,11 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             while (reader.hasNext()) {
                 for (List<ProjectedTopologyEntity> chunk :
                     Lists.partition(reader.nextChunk(), maxEntitiesPerChunk)) {
-                    final RepositoryDTO.RetrieveTopologyResponse responseChunk =
-                        RepositoryDTO.RetrieveTopologyResponse.newBuilder()
-                            .addAllEntities(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity))
-                            .build();
-                    responseObserver.onNext(responseChunk);
+                    final RepositoryDTO.RetrieveTopologyResponse.Builder responseChunkBuilder =
+                        RepositoryDTO.RetrieveTopologyResponse.newBuilder();
+                    chunk.forEach(e -> responseChunkBuilder.addEntities(
+                        partialEntityConverter.createPartialEntity(e.getEntity(), topologyRequest.getReturnType())));
+                    responseObserver.onNext(responseChunkBuilder.build());
                 }
             }
             responseObserver.onCompleted();

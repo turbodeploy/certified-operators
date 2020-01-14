@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
@@ -218,8 +219,10 @@ public class ClusterHeadroomPostProcessorTest {
                 planDao, grpcTestServer.getChannel(), templatesDao));
         final long projectedTopologyId = 100;
 
-        when(repositoryServiceMole.retrieveTopologyEntities(any()))
-            .thenReturn(getProjectedTopology(setHostActive));
+        when(repositoryServiceMole.retrieveTopology(any()))
+            .thenReturn(ImmutableList.of(RetrieveTopologyResponse.newBuilder()
+                .addAllEntities(getProjectedTopology(setHostActive))
+                .build()));
 
         when(templatesDao.getClusterHeadroomTemplateForGroup(Mockito.anyLong()))
             .thenReturn(Optional.of(getTemplateForHeadroom(setValidValues)));
@@ -258,17 +261,18 @@ public class ClusterHeadroomPostProcessorTest {
      * @param setHostActive whether to set host active or not
      * @return a list of {@link PartialEntityBatch}
      */
-    private List<PartialEntityBatch> getProjectedTopology(final boolean setHostActive) {
-        return Collections.singletonList(PartialEntityBatch.newBuilder()
-            .addEntities(PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
+    private List<PartialEntity> getProjectedTopology(final boolean setHostActive) {
+        return ImmutableList.of(PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
                 HeadroomPlanPartialEntity.newBuilder()
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOid(7).build()).build())
-            .addEntities(PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
+                    .setOid(7).build())
+                .build(),
+            PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
                 HeadroomPlanPartialEntity.newBuilder()
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOid(99).build()).build())
-            .addEntities(PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
+                    .setOid(99).build())
+                .build(),
+            PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
                 HeadroomPlanPartialEntity.newBuilder()
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .setEntityState(setHostActive ? EntityState.POWERED_ON : EntityState.MAINTENANCE)
@@ -287,8 +291,9 @@ public class ClusterHeadroomPostProcessorTest {
                                     .setType(CommodityType.MEM_VALUE))
                                 .setCapacity(200)
                                 .setUsed(40)
-                                .build()))).build())
-            .addEntities(PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
+                                .build())))
+                .build(),
+            PartialEntity.newBuilder().setHeadroomPlanPartialEntity(
                 HeadroomPlanPartialEntity.newBuilder()
                     .setEntityType(EntityType.STORAGE_VALUE)
                     .setEntityState(EntityState.POWERED_ON)
@@ -300,8 +305,8 @@ public class ClusterHeadroomPostProcessorTest {
                                 .setType(CommodityType.STORAGE_AMOUNT_VALUE))
                             .setCapacity(600)
                             .setUsed(100)
-                            .build()))).build())
-            .build());
+                            .build())))
+                .build());
     }
 
     @Test

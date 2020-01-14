@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -507,6 +508,7 @@ public class Stages {
                 StreamSupport.stream(dtos.spliterator(), false)
                     .map(RepositoryDTO.RetrieveTopologyResponse::getEntitiesList)
                     .flatMap(List::stream)
+                    .map(PartialEntity::getFullEntity)
                     .map(TopologyEntityDTO::toBuilder)
                     .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
                         // TODO: Persist and pass through discovery information for this entity.

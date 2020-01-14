@@ -38,16 +38,24 @@ message RetrieveTopologyRequest {
     // A filter to restrict the entities that are returned.
     // If not set, use the default instance (which should match all entities).
     optional TopologyEntityFilter entity_filter = 2;
+
+    // The type of entity to return. This allows the client to specify a detail
+    // level, to reduce memory and CPU overhead.
+    optional .topology.PartialEntity.Type return_type = 3;
 }
 
 message TopologyEntityFilter {
     // If set, return only entities that are unplaced. An entity is considered unplaced
     // if it has any CommoditiesBoughtFromProvider where the provider is not set.
     optional bool unplaced_only = 1 [default = false];
+
+    // List of entity types which we need to retrieve.
+    // If it is empty, all entities are considered valid.
+    repeated int32 entity_types = 2;
 }
 
 message RetrieveTopologyResponse {
-    repeated topology.TopologyEntityDTO entities = 1;
+    repeated topology.PartialEntity entities = 1;
 }
 
 // Request for retrieving topology entities.

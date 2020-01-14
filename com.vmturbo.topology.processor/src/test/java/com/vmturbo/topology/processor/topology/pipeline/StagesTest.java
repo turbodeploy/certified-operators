@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -309,7 +310,9 @@ public class StagesTest {
     @Test
     public void testAcquisitionStage() {
         final RetrieveTopologyResponse response = RetrieveTopologyResponse.newBuilder()
-                .addEntities(entity)
+                .addEntities(PartialEntity.newBuilder()
+                    .setFullEntity(entity)
+                    .build())
                 .build();
         final RepositoryClient repositoryClient = mock(RepositoryClient.class);
         when(repositoryClient.retrieveTopology(eq(1L)))

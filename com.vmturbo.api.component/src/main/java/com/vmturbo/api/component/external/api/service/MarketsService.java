@@ -130,6 +130,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -481,7 +482,9 @@ public class MarketsService implements IMarketsService {
 
             List<TopologyEntityDTO> entities = new ArrayList<>();
             for (RetrieveTopologyResponse entitiesResponse : response) {
-                entities.addAll(entitiesResponse.getEntitiesList());
+                entitiesResponse.getEntitiesList().stream()
+                    .map(PartialEntity::getFullEntity)
+                    .forEach(e -> entities.add(e));
             }
             serviceEntityApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities);
             // populate priceIndex, which is always based on the projected topology
@@ -897,6 +900,7 @@ public class MarketsService implements IMarketsService {
                         .build());
         List<TopologyEntityDTO> unplacedDTOs = StreamSupport.stream(response.spliterator(), false)
                 .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
+                .map(PartialEntity::getFullEntity)
                 // right now, legacy and UI only expect unplaced virtual machine.
                 .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toList());
