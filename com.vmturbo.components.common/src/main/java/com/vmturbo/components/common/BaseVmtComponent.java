@@ -61,7 +61,6 @@ import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertiesPropertySource;
 import org.springframework.core.env.PropertySource;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
@@ -112,6 +111,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * The environment key for the IP for this component instance.
      */
     public static final String PROP_INSTANCE_IP = "instance_ip";
+    /**
+     * The environment key for the IP for this component instance.
+     */
+    public static final String PROP_INSTANCE_ROUTE = "instance_route";
     /**
      * The environment key - should this component only take configuration properties from the
      * environment ("standalone: true") vs. fetch configuration properties from
@@ -402,15 +405,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 logger.error("Jetty server failed to stop cleanly.", e);
             }
         });
-        // Remove the instance IP address from a component that is being stopped
-        // TODO: need to implement complete deregistration under OM-48049
-        if (standalone != null && !standalone) {
-            // get a pointer to the ClusterMgr client api
-            ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
-
-            clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
-                PROP_INSTANCE_IP, "");
-        }
         setStatus(ExecutionStatus.TERMINATED);
     }
 
@@ -462,7 +456,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             if (baseVmtComponentConfig.diagnosticService() == null) {
                 throw new RuntimeException("DiagnosticService missing");
             }
-            baseVmtComponentConfig.diagnosticService().dumpSystemDiags(diagnosticZip);
+            try {
+                baseVmtComponentConfig.diagnosticService().dumpSystemDiags(diagnosticZip);
+            } catch (DiagnosticsException e) {
+                logger.error("Failed to collect system diagnostics. Will try to get component diagnostics.", e);
+            }
 
             // call the component's dump diags handler override, if any
             onDumpDiags(diagnosticZip);
@@ -945,25 +943,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 baseVmtComponentConfig.keyValueStore().put(COMPONENT_VERSION_KEY, specVersion);
             } else {
                 logger.error("Could not get Specification-Version for component class {}", getClass());
-            }
-            // persist the component IP address - TODO - remove this call completely; get IP from consul
-            if (StringUtils.isNotBlank(instanceId) && StringUtils.isNotBlank(getInitializedInstanceIp())) {
-                for (int i = 1; true; i++) {
-                    try {
-                        clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
-                            PROP_INSTANCE_IP, getInitializedInstanceIp());
-                        return;
-                    } catch (ResourceAccessException e) {
-                        logger.warn("Try #{} connecting to clustermgr failed; waiting {} seconds...",
-                            i, connRetryIntervalSeconds);
-                    }
-                    try {
-                        Thread.sleep(Duration.ofSeconds(Integer.parseInt(connRetryIntervalSeconds))
-                            .toMillis());
-                    } catch (InterruptedException e) {
-                        logger.warn("Sleep interrupted");
-                    }
-                }
             }
         }
     }

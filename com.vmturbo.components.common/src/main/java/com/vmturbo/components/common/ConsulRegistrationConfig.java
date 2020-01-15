@@ -42,6 +42,8 @@ public class ConsulRegistrationConfig {
     private String instanceId;
     @Value("${" + BaseVmtComponent.PROP_INSTANCE_IP + ":}")
     private String instanceIp;
+    @Value("${" + BaseVmtComponent.PROP_INSTANCE_ROUTE + ":}")
+    private String instanceRoute;
 
     /**
      * This property is used to disable consul registration. This is necessary for tests and
@@ -61,7 +63,7 @@ public class ConsulRegistrationConfig {
         final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
         final ConsulClient consulClient = new ConsulClient(rawClient);
         return new ConsulHealthcheckRegistration(consulClient, enableConsulRegistration,
-            componentType, instanceId, instanceIp, serverPort);
+            componentType, instanceId, instanceIp, instanceRoute, serverPort);
     }
 
     /**

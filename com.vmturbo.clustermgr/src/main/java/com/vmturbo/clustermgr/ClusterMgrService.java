@@ -4,7 +4,6 @@ import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_ENABLED;
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_LOCKED;
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.UNKNOWN_VERSION_STRING;
-import static com.vmturbo.components.common.BaseVmtComponent.PROP_INSTANCE_IP;
 
 import java.io.EOFException;
 import java.io.File;
@@ -29,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,6 +49,7 @@ import com.orbitz.consul.model.kv.Value;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -64,6 +65,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 
+import com.vmturbo.clustermgr.ConsulService.ComponentInstance;
 import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
 import com.vmturbo.clustermgr.api.ComponentProperties;
@@ -679,16 +681,14 @@ public class ClusterMgrService {
      * @param diagnosticZip The diagnostic zip stream.
      * @param acceptResponseTypes The HTTP header for accepted responses.
      * @param errorMessageBuilder an accumulator for multiple error messages
-     * @throws IOException creating the CloseableHttpClient connecting to ryslog container
      * @throws EOFException from IOUtils.copy(),
      */
     private void getRsyslogDiags(ZipOutputStream diagnosticZip, String acceptResponseTypes,
-                                 @Nonnull final StringBuilder errorMessageBuilder)
-        throws IOException, EOFException {
+                                 @Nonnull final StringBuilder errorMessageBuilder) throws EOFException {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
-        URI requestUri = getComponentInstanceUri(componentName, "/diagnostics");
+        URI requestUri = getComponentInstanceUri(componentName, 8080, "/diagnostics");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
         log.info(" - fetching rsyslog diagnostics");
@@ -732,7 +732,13 @@ public class ClusterMgrService {
                     log.error(componentName + " --- missing response entity");
                 }
             }
+        } catch (IOException e) {
+            final String message = "Exception connecting to rsyslog. Diags will not have logs. Error: "
+                + e.getMessage();
+            log.error(message);
+            errorMessageBuilder.append(message);
         }
+
     }
 
     /**
@@ -821,7 +827,7 @@ public class ClusterMgrService {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
-        URI requestUri = getComponentInstanceUri(componentName, "/proactive");
+        URI requestUri = getComponentInstanceUri(componentName, 8080, "/proactive");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
@@ -861,27 +867,21 @@ public class ClusterMgrService {
                                        String acceptResponseTypes,
                                        ResponseEntityProcessor responseEntityProcessor,
                                        @Nonnull final StringBuilder errorMessageBuilder) {
-        List<String> knownComponentTypes = Lists.newArrayList(getKnownComponents());
-        for (int i = 0; i < knownComponentTypes.size(); i++) {
-            String componentType = knownComponentTypes.get(i);
+        final Map<String, List<ComponentInstance>> instancesByService = consulService.getAllServiceInstances();
+        final MutableInt curCounter = new MutableInt(1);
+        instancesByService.forEach((componentType, instances) -> {
             log.info("applying REST REQUEST {} to component type: {} [{} of {}]", requestPath,
-                componentType, i + 1, knownComponentTypes.size());
-            List<String> instanceIds = Lists.newArrayList(getComponentInstanceIds(componentType));
-            for (int j = 0; j < instanceIds.size(); j++) {
-                String instanceId = instanceIds.get(j);
-                String instanceIp = getComponentInstanceProperty(componentType, instanceId,
-                    PROP_INSTANCE_IP);
-                if (StringUtils.isNotBlank(instanceIp)) {
-                    log.info("- instance {}, ip {} [{} of {}]", instanceId,
-                        instanceIp, j + 1, instanceIds.size());
-                    URI requestUri = getComponentInstanceUri(instanceIp, requestPath);
-                    HttpGet request = new HttpGet(requestUri);
-                    request.addHeader("Accept", acceptResponseTypes);
-                    sendRequestToComponent(instanceId, request, responseEntityProcessor,
-                        java.util.Optional.of(errorMessageBuilder));
-                }
+                componentType, curCounter.getAndIncrement(), instancesByService.size());
+            for (int j = 0; j < instances.size(); j++) {
+                final ComponentInstance instance = instances.get(j);
+                log.info("- instance {} [{} of {}]", instance, j + 1, instances.size());
+                URI requestUri = instance.getUri(requestPath);
+                HttpGet request = new HttpGet(requestUri);
+                request.addHeader("Accept", acceptResponseTypes);
+                sendRequestToComponent(instance.getId(), request, responseEntityProcessor,
+                    Optional.of(errorMessageBuilder));
             }
-        }
+        });
     }
 
     /**
@@ -898,7 +898,7 @@ public class ClusterMgrService {
     private void sendRequestToComponent(String componentName,
                                         HttpUriRequest request,
                                         ResponseEntityProcessor responseEntityProcessor,
-                                        @Nonnull final java.util.Optional<StringBuilder> errorMessagBuilder) {
+                                        @Nonnull final Optional<StringBuilder> errorMessagBuilder) {
         final Instant start = Instant.now();
         // open an HttpClient link
         try (CloseableHttpClient httpclient = HttpClientBuilder.create()
@@ -933,7 +933,7 @@ public class ClusterMgrService {
 
     @VisibleForTesting
     private void appendFailedServiceName(@Nonnull final String componentName,
-                                         @Nonnull final java.util.Optional<StringBuilder> errorMessageBuilder) {
+                                         @Nonnull final Optional<StringBuilder> errorMessageBuilder) {
         errorMessageBuilder.ifPresent(builder -> builder
             .append(componentName)
             .append(NEXT_LINE));
@@ -943,18 +943,20 @@ public class ClusterMgrService {
      * Returns the component instance URI.
      *
      * @param componentInstance The dnsname or address of the component.
+     * @param port The port to access the component on.
      * @param requestPath The request path.
      * @return The URI.
      */
     @Nonnull
     private URI getComponentInstanceUri(@Nonnull String componentInstance,
-                                        @Nonnull String requestPath) {
+                                        final int port,
+                                        @Nonnull final String requestPath) {
         // create a request from the given path and the target component instance properties
         URI requestUri;
         try {
             requestUri = new URIBuilder()
                     .setHost(componentInstance)
-                    .setPort(8080)
+                    .setPort(port)
                     .setScheme("http")
                     .setPath(requestPath)
                     .build();

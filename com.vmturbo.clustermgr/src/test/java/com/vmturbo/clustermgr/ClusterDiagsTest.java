@@ -68,7 +68,7 @@ public class ClusterDiagsTest {
 
         // collectComponentDiagnostics will make a  "getValues()" call to fetch the component types.
         // Set this call to block until thread 2 has finished.
-        when(consulServiceMock.getValues(anyString())).thenAnswer((Answer)invocation -> {
+        when(consulServiceMock.getAllServiceInstances()).thenAnswer((Answer)invocation -> {
             // signal that we've entered the first operation, under thread 1
             log.info("releasing thread1Started");
             thread1Started.release();

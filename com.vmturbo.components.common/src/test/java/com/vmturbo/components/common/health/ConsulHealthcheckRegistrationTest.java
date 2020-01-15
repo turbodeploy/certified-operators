@@ -1,5 +1,7 @@
 package com.vmturbo.components.common.health;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
@@ -7,6 +9,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collections;
 
 import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.agent.model.NewCheck;
@@ -28,6 +31,7 @@ public class ConsulHealthcheckRegistrationTest {
     private final String componentType = "component_type";
     private final String instanceId = "component_instance_id";
     private final String instanceIp = "1.2.3.4";
+    private final String instanceRoute = "";
     private final Integer serverPort = 8080;
 
     // the ConsulHealthcheckRegistration under test
@@ -41,12 +45,13 @@ public class ConsulHealthcheckRegistrationTest {
     public void testRegisterConsulServiceEnabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            true, componentType, instanceId, instanceIp, serverPort);
+            true, componentType, instanceId, instanceIp, instanceRoute, serverPort);
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
         expectedNewService.setId(instanceId);
         expectedNewService.setAddress(instanceIp);
         expectedNewService.setPort(serverPort);
+        expectedNewService.setTags(Collections.singletonList(ConsulHealthcheckRegistration.COMPONENT_TAG));
         NewCheck expectedNewCheck = new NewCheck();
         expectedNewCheck.setId("service:" + instanceId);
         expectedNewCheck.setName("Service '" + componentType + "' check");
@@ -80,11 +85,12 @@ public class ConsulHealthcheckRegistrationTest {
     public void testRegisterConsulServiceEnabledNoInstanceIp() throws UnknownHostException {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            true, componentType, instanceId, null, serverPort);
+            true, componentType, instanceId, null, instanceRoute, serverPort);
         String localhostIp = InetAddress.getLocalHost().getHostAddress();
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
         expectedNewService.setId(instanceId);
+        expectedNewService.setTags(Collections.singletonList(ConsulHealthcheckRegistration.COMPONENT_TAG));
         expectedNewService.setAddress(localhostIp);
         expectedNewService.setPort(serverPort);
         NewCheck expectedNewCheck = new NewCheck();
@@ -118,7 +124,7 @@ public class ConsulHealthcheckRegistrationTest {
     public void testRegisterConsulServiceDisabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            false, componentType, instanceId, instanceIp, serverPort);
+            false, componentType, instanceId, instanceIp, instanceRoute, serverPort);
         // act
         consulHealthcheckRegistration.registerService();
         // assert
@@ -132,7 +138,7 @@ public class ConsulHealthcheckRegistrationTest {
     public void deregisterServiceEnabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            true, componentType, instanceId, instanceIp, serverPort);
+            true, componentType, instanceId, instanceIp, instanceRoute, serverPort);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert
@@ -148,10 +154,20 @@ public class ConsulHealthcheckRegistrationTest {
     public void deregisterServiceDisabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            false, componentType, instanceId, instanceIp, serverPort);
+            false, componentType, instanceId, instanceIp, instanceRoute, serverPort);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert
         verifyNoMoreInteractions(consulClient);
+    }
+
+    /**
+     * Test that encoding/decoding the instance route to a Consul tag works as expected.
+     */
+    @Test
+    public void testRouteEncodingRoundTrip() {
+        final String route = "/foo/bar";
+        assertThat(ConsulHealthcheckRegistration.decodeInstanceRoute(
+            ConsulHealthcheckRegistration.encodeInstanceRoute(route)).get(), is(route));
     }
 }
