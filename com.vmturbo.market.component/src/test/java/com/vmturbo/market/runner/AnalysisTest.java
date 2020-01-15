@@ -532,9 +532,10 @@ public class AnalysisTest {
                 getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
                 .build();
-
         final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet(),
                 TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                        .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+                        .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS)
                         .build());
         final Future<CostNotification> costNotificationFuture = mock(Future.class);
         final CostNotification costNotification = CostNotification.newBuilder()

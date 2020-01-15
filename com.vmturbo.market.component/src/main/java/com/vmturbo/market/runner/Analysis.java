@@ -86,10 +86,12 @@ import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -302,45 +304,9 @@ public class Analysis {
             logger.error(" {} Completed or Stopped or being computed", logPrefix);
             return false;
         }
-
-        if (topologyInfo.getTopologyType() == TopologyType.REALTIME
-                && !originalCloudTopology.getEntities().isEmpty()) {
-            final long waitStartTime = System.currentTimeMillis();
-            try {
-                final CostNotification notification =
-                        listener.receiveCostNotification(this).get();
-                final StatusUpdate statusUpdate = notification.getStatusUpdate();
-                final Status status = statusUpdate.getStatus();
-                if (status != Status.SUCCESS) {
-                    logger.error("Cost notification reception failed for analysis with context id" +
-                            " : {}, topology id: {} with status: {} and message: {}",
-                            this.getContextId(), this.getTopologyId(), status,
-                            statusUpdate.getStatusDescription());
-                    return false;
-                } else {
-                    logger.debug("Cost notification with a success status received for analysis " +
-                            "with context id: {}, topology id: {}", this.getContextId(),
-                            this.getTopologyId());
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.error(
-                        String.format("Error while receiving cost notification for analysis %s",
-                                getTopologyInfo()), e);
-                return false;
-            } catch (ExecutionException e) {
-                logger.error(
-                        String.format("Error while receiving cost notification for analysis %s",
-                                getTopologyInfo()), e);
-                return false;
-            } finally {
-                final long waitEndTime = System.currentTimeMillis();
-                logger.debug("Analysis with context id: {}, topology id: {} waited {} ms for the " +
-                                "cost notification.", this.getContextId(), this.getTopologyId(),
-                        waitEndTime - waitStartTime);
-            }
-        }
-
+        final List<AnalysisType> analysisTypeList = topologyInfo.getAnalysisTypeList();
+        final boolean isBuyRIImpactAnalysis = analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
+        final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
         // Use the cloud cost data we use for cost calculations for the price table.
@@ -351,159 +317,233 @@ public class Analysis {
                 config.getLiveMarketMoveCostFactor(),
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
-        state = AnalysisState.IN_PROGRESS;
-        startTime = clock.instant();
-        logger.info("{} Started", logPrefix);
-        try {
-            final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
-            final boolean enableThrottling = (config.getSuspensionsThrottlingConfig()
-                    == SuspensionsThrottlingConfig.CLUSTER);
-
-            // construct fake entities which can be used to form markets based on cluster/storage cluster
-            final Map<Long, TopologyEntityDTO> fakeEntityDTOs;
-            if (enableThrottling) {
-                fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
-                fakeEntityDTOs.forEach(topologyDTOs::put);
-            } else {
-                fakeEntityDTOs = Collections.emptyMap();
-            }
-
-            Set<TraderTO> traderTOs = new HashSet<>();
-            if (!stopAnalysis) {
-                traderTOs.addAll(converter.convertToMarket(topologyDTOs));
-            }
-            // cache the traderTOs converted from fake TopologyEntityDTOs
-            Set<TraderTO> fakeTraderTOs = new HashSet<>();
-            if (enableThrottling) {
-                for (TraderTO dto : traderTOs) {
-                    if (fakeEntityDTOs.containsKey(dto.getOid())) {
-                        fakeTraderTOs.add(dto);
-                    }
-                }
-            }
-            conversionTimer.observe();
-
-            // if a scope 'seed' entity OID list is specified, then scope the topology starting with
-            // the given 'seed' entities
-            if (!stopAnalysis) {
-                if (isScoped()) {
-                    try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
-                        traderTOs = scopeTopology(traderTOs,
-                            ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
-                        // add back fake traderTOs for suspension throttling as it may be removed due
-                        // to scoping
-                        traderTOs.addAll(fakeTraderTOs);
-                    }
-
-                    // save the scoped topology for later broadcast
-                    scopeEntities = traderTOs.stream()
-                        // convert the traders in the scope into topologyEntities
-                        .map(trader -> topologyDTOs.get(trader.getOid()))
-                        // remove the topologyEntities that were created as fake because of suspension throttling
-                        .filter(topologyEntityDTO -> !fakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
-                        // convert it to a map
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid,
-                            trader -> topologyDTOs.get(trader.getOid())));
-                } else {
-                    scopeEntities = topologyDTOs;
-                }
-            }
-
-            // remove skipped entities we don't want to send to market
-            converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
-
-            // remove any (scoped) traders that may have been flagged for removal
-            // We are doing this after the convertToMarket() function because we need the original
-            // traders available in the "old providers maps" so the biclique calculation can
-            // preserve the original topology structure. We may refactor this in a way that lets us
-            // remove the old provider map though -- see OM-26631.
-            //
-            // Note that although we do NOT attempt to unplace buyers of the entities being removed
-            // here, the effect on the analysis is exactly equivalent if we had unplaced them
-            // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
-            // an infinite quote which is exactly the same as not having a provider.
-            final Set<Long> oidsToRemove = topologyDTOs.values().stream()
-                    .filter(dto -> dto.hasEdit())
-                    .filter(dto -> dto.getEdit().hasRemoved()
-                                || dto.getEdit().hasReplaced())
-                    .map(TopologyEntityDTO::getOid)
-                    .collect(Collectors.toSet());
-            if (oidsToRemove.size() > 0) {
-                logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
-                traderTOs = traderTOs.stream()
-                        .filter(traderTO -> !(oidsToRemove.contains(traderTO.getOid())))
-                        .collect(Collectors.toSet());
-            }
-
-            if (logger.isDebugEnabled()) {
-                logger.debug(traderTOs.size() + " Economy DTOs");
-            }
-            if (logger.isTraceEnabled()) {
-                traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
-            }
-            final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
-            if (!stopAnalysis) {
-                final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                        topologyInfo, config, this);
-                final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                        topologyInfo, config, this, topology);
-                if (config.isEnableSMA()) {
-                    Map<Long, Set<Long>> cloudVmToTpsThatFitMap =
-                            TopologyEntitiesHandler
-                                    .getProviderLists(converter.getCloudVmComputeShoppingListIDs(),
-                                            topology);
-                    for (Entry<Long, Set<Long>> cloudVmToTpsThatFitEntry : cloudVmToTpsThatFitMap.entrySet()) {
-                        Set<Long> providerOIDList = new HashSet<>();
-                        for (Long tpoid : cloudVmToTpsThatFitEntry.getValue()) {
-                            providerOIDList.add(converter.convertTraderTOToTopologyEntityDTO(tpoid));
-                        }
-                        cloudVmOIDToProvidersOIDMap.put(cloudVmToTpsThatFitEntry.getKey(), providerOIDList);
-                    }
-                }
-                // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
-                converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
-                logger.info(logPrefix + "Done performing analysis");
-
-            // Calculate reservedCapacity and generate resize actions
-            ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
-            reservedCapacityAnalysis.execute();
-
-            // Execute wasted file analysis
-            WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
-            final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
-
-            List<TraderTO> projectedTraderDTO = new ArrayList<>();
-
-            try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                if (enableThrottling) {
-                    // remove the fake entities used in suspension throttling
-                    // we need to remove it both from the projected topology and the source topology
-
-                        // source, non scoped topology
-                        for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
-                            topologyDTOs.remove(fakeEntityOid);
-                        }
-
-                        // projected topology
-                        for(TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
-                            if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
-                                projectedTraderDTO.add(projectedDTO);
-                            }
-                        }
+        final boolean enableThrottling = (config.getSuspensionsThrottlingConfig()
+                == SuspensionsThrottlingConfig.CLUSTER);
+        DataMetricTimer processResultTime = null;
+        Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
+        AnalysisResults results = null;
+        if (isM2AnalysisEnabled) {
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME
+                    && !originalCloudTopology.getEntities().isEmpty()) {
+                final long waitStartTime = System.currentTimeMillis();
+                try {
+                    final CostNotification notification =
+                            listener.receiveCostNotification(this).get();
+                    final StatusUpdate statusUpdate = notification.getStatusUpdate();
+                    final Status status = statusUpdate.getStatus();
+                    if (status != Status.SUCCESS) {
+                        logger.error("Cost notification reception failed for analysis with context id" +
+                                        " : {}, topology id: {} with status: {} and message: {}",
+                                this.getContextId(), this.getTopologyId(), status,
+                                statusUpdate.getStatusDescription());
+                        return false;
                     } else {
-                        projectedTraderDTO = results.getProjectedTopoEntityTOList();
+                        logger.debug("Cost notification with a success status received for analysis " +
+                                        "with context id: {}, topology id: {}", this.getContextId(),
+                                this.getTopologyId());
                     }
-                projectedEntities = converter.convertFromMarket(
-                    projectedTraderDTO,
-                    topologyDTOs,
-                    results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData(),
-                    reservedCapacityAnalysis,
-                    wastedFilesAnalysis);
-                final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
-                        .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
-                        .map(ActionEntity::getId).collect(Collectors.toSet());
-                copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.error(
+                            String.format("Error while receiving cost notification for analysis %s",
+                                    getTopologyInfo()), e);
+                    return false;
+                } catch (ExecutionException e) {
+                    logger.error(
+                            String.format("Error while receiving cost notification for analysis %s",
+                                    getTopologyInfo()), e);
+                    return false;
+                } finally {
+                    final long waitEndTime = System.currentTimeMillis();
+                    logger.debug("Analysis with context id: {}, topology id: {} waited {} ms for the " +
+                                    "cost notification.", this.getContextId(), this.getTopologyId(),
+                            waitEndTime - waitStartTime);
+                }
+            }
+
+            state = AnalysisState.IN_PROGRESS;
+            startTime = clock.instant();
+            logger.info("{} Started", logPrefix);
+            try {
+                final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
+
+                // construct fake entities which can be used to form markets based on cluster/storage cluster
+                if (enableThrottling) {
+                    fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
+                    fakeEntityDTOs.forEach(topologyDTOs::put);
+                } else {
+                    fakeEntityDTOs = Collections.emptyMap();
+                }
+
+                Set<TraderTO> traderTOs = new HashSet<>();
+                if (!stopAnalysis) {
+                    traderTOs.addAll(converter.convertToMarket(topologyDTOs));
+                }
+                // cache the traderTOs converted from fake TopologyEntityDTOs
+                Set<TraderTO> fakeTraderTOs = new HashSet<>();
+                if (enableThrottling) {
+                    for (TraderTO dto : traderTOs) {
+                        if (fakeEntityDTOs.containsKey(dto.getOid())) {
+                            fakeTraderTOs.add(dto);
+                        }
+                    }
+                }
+                conversionTimer.observe();
+
+                // if a scope 'seed' entity OID list is specified, then scope the topology starting with
+                // the given 'seed' entities
+                if (!stopAnalysis) {
+                    if (isScoped()) {
+                        try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
+                            traderTOs = scopeTopology(traderTOs,
+                                    ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
+                            // add back fake traderTOs for suspension throttling as it may be removed due
+                            // to scoping
+                            traderTOs.addAll(fakeTraderTOs);
+                        }
+                        final Map<Long, TopologyEntityDTO> myFakeEntityDTOs = new HashMap<>(fakeEntityDTOs);
+                        // save the scoped topology for later broadcast
+                        scopeEntities = traderTOs.stream()
+                                // convert the traders in the scope into topologyEntities
+                                .map(trader -> topologyDTOs.get(trader.getOid()))
+                                // remove the topologyEntities that were created as fake because of suspension throttling
+                                .filter(topologyEntityDTO -> !myFakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
+                                // convert it to a map
+                                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
+                                        trader -> topologyDTOs.get(trader.getOid())));
+                    } else {
+                        scopeEntities = topologyDTOs;
+                    }
+                }
+
+                // remove skipped entities we don't want to send to market
+                converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
+
+                // remove any (scoped) traders that may have been flagged for removal
+                // We are doing this after the convertToMarket() function because we need the original
+                // traders available in the "old providers maps" so the biclique calculation can
+                // preserve the original topology structure. We may refactor this in a way that lets us
+                // remove the old provider map though -- see OM-26631.
+                //
+                // Note that although we do NOT attempt to unplace buyers of the entities being removed
+                // here, the effect on the analysis is exactly equivalent if we had unplaced them
+                // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
+                // an infinite quote which is exactly the same as not having a provider.
+                final Set<Long> oidsToRemove = topologyDTOs.values().stream()
+                        .filter(dto -> dto.hasEdit())
+                        .filter(dto -> dto.getEdit().hasRemoved()
+                                || dto.getEdit().hasReplaced())
+                        .map(TopologyEntityDTO::getOid)
+                        .collect(Collectors.toSet());
+                if (oidsToRemove.size() > 0) {
+                    logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
+                    traderTOs = traderTOs.stream()
+                            .filter(traderTO -> !(oidsToRemove.contains(traderTO.getOid())))
+                            .collect(Collectors.toSet());
+                }
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug(traderTOs.size() + " Economy DTOs");
+                }
+                if (logger.isTraceEnabled()) {
+                    traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
+                }
+                processResultTime = RESULT_PROCESSING.startTimer();
+                if (!stopAnalysis) {
+                    final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
+                            topologyInfo, config, this);
+                    results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+                            topologyInfo, config, this, topology);
+                    if (config.isEnableSMA()) {
+                        Map<Long, Set<Long>> cloudVmToTpsThatFitMap =
+                                TopologyEntitiesHandler
+                                        .getProviderLists(converter.getCloudVmComputeShoppingListIDs(),
+                                                topology);
+                        for (Entry<Long, Set<Long>> cloudVmToTpsThatFitEntry : cloudVmToTpsThatFitMap.entrySet()) {
+                            Set<Long> providerOIDList = new HashSet<>();
+                            for (Long tpoid : cloudVmToTpsThatFitEntry.getValue()) {
+                                providerOIDList.add(converter.convertTraderTOToTopologyEntityDTO(tpoid));
+                            }
+                            cloudVmOIDToProvidersOIDMap.put(cloudVmToTpsThatFitEntry.getKey(), providerOIDList);
+                        }
+                    }
+                    // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
+                    converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
+                    logger.info(logPrefix + "Done performing analysis");
+                } else {
+                    logger.info(logPrefix + " Analysis Stopped");
+                    processResultTime.observe();
+                    state = AnalysisState.FAILED;
+                }
+            } catch (RuntimeException e) {
+                logger.error(logPrefix + e + " Runtime exception while running M2 analysis", e);
+                state = AnalysisState.FAILED;
+                completionTime = clock.instant();
+                errorMsg = e.toString();
+                logger.info(logPrefix + "Execution time : "
+                        + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
+                logger.info(logPrefix + "Execution time : "
+                        + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
+                completed = false;
+                return false;
+            }
+        }
+
+        try {
+            if (!stopAnalysis) {
+                if (!isM2AnalysisEnabled && isBuyRIImpactAnalysis) {
+                    processResultTime = RESULT_PROCESSING.startTimer();
+                }
+                // Calculate reservedCapacity and generate resize actions
+                ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
+                reservedCapacityAnalysis.execute();
+
+                // Execute wasted file analysis
+                WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
+                        topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
+                final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
+
+                List<TraderTO> projectedTraderDTO = new ArrayList<>();
+
+                try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
+                    if (isM2AnalysisEnabled) {
+                        if (enableThrottling) {
+                            // remove the fake entities used in suspension throttling
+                            // we need to remove it both from the projected topology and the source topology
+
+                            // source, non scoped topology
+                            for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
+                                topologyDTOs.remove(fakeEntityOid);
+                            }
+
+                            // projected topology
+                            for (TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
+                                if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
+                                    projectedTraderDTO.add(projectedDTO);
+                                }
+                            }
+                        } else {
+                            projectedTraderDTO = results.getProjectedTopoEntityTOList();
+                        }
+                    }
+                    // Set projectedTraderDTO identical to topologyDTOs if we run
+                    // buyRI only plan
+                    if (!isM2AnalysisEnabled && isBuyRIImpactAnalysis) {
+                        projectedTraderDTO.addAll(converter.convertToMarket(topologyDTOs));
+                    }
+                    // results can be null if M2Analysis is not run
+                    PriceIndexMessage priceIndexMessage = results != null ?
+                            results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
+                    projectedEntities = converter.convertFromMarket(
+                            projectedTraderDTO,
+                            topologyDTOs,
+                            priceIndexMessage, topologyCostCalculator.getCloudCostData(),
+                            reservedCapacityAnalysis,
+                            wastedFilesAnalysis);
+                    final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
+                            .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
+                            .map(ActionEntity::getId).collect(Collectors.toSet());
+                    copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds);
 
                     // Calculate the projected entity costs.
                     final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
@@ -532,9 +572,10 @@ public class Analysis {
                                 .setMarket(MarketActionPlanInfo.newBuilder()
                                         .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                converter.interpretAllActions(results.getActionsList(), projectedEntities,
-                    originalCloudTopology, projectedEntityCosts, topologyCostCalculator)
-                .forEach(actionPlanBuilder::addAction);
+                final List<ActionTO> actionsList = results != null ? results.getActionsList() : Collections.emptyList();
+                converter.interpretAllActions(actionsList, projectedEntities,
+                        originalCloudTopology, projectedEntityCosts, topologyCostCalculator)
+                        .forEach(actionPlanBuilder::addAction);
 
                 // TODO move wasted files action out of main analysis once we have a framework
                 // to support multiple analyses for the same topology ID

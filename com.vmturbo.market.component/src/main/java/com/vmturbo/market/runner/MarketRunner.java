@@ -122,42 +122,6 @@ public class MarketRunner {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark));
 
-            if (isBuyRIOnlyOptimizeCloudPlan(topologyInfo)) {
-                try {
-                    // Notify source topology
-                    serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
-                            analysis.getTopology().values());
-                    // Notify projected topology (same as source)
-                    final long projectedTopologyId = IdentityGenerator.next();
-                    logger.info("Creating empty action plan for " +
-                                    "SOURCE topology context {} " +
-                                    "PROJECTED topology id {}.  " +
-                                    "Projected topology == Source Topology ",
-                            analysis.getTopologyInfo().getTopologyContextId(),
-                            projectedTopologyId);
-                    final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
-                            .setId(IdentityGenerator.next())
-                            .setInfo(ActionPlanInfo.newBuilder()
-                                    .setMarket(MarketActionPlanInfo.newBuilder()
-                                            .setSourceTopologyInfo(topologyInfo)))
-                            .setAnalysisStartTimestamp(Clock.systemUTC().instant().toEpochMilli());
-                    Set<ProjectedTopologyEntity> projectedEntitiesFromSourceEntities =
-                            topologyDTOs
-                                    .stream()
-                                    .map(sourceEntityDTO -> ProjectedTopologyEntity.newBuilder()
-                                            .setEntity(sourceEntityDTO).build()).collect(Collectors.toSet());
-                    actionPlanBuilder.setAnalysisCompleteTimestamp(Clock.systemUTC().instant().toEpochMilli()).build();
-                    serverApi.notifyProjectedTopology(analysis.getTopologyInfo(), // original (source) topology info
-                            projectedTopologyId,  // Generate a projected topologyID
-                            projectedEntitiesFromSourceEntities, // Same as source topology
-                            actionPlanBuilder.getId()); // Empty action plan
-                    return analysis;
-                } catch (CommunicationException | InterruptedException e) {
-                    logger.error("Could not send market notifications", e);
-                } finally {
-                    TheMatrix.clearInstance(analysis.getTopologyId());
-                }
-            }
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()
                                 .getGlobalSetting(GlobalSettingSpecs.DisableAllActions);

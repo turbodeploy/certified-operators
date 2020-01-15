@@ -724,7 +724,7 @@ public class TopologyConverter {
 
                 Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(
                         projectedRiTierSl.get());
-                if (!projectedCouponCommBought.isPresent()) {
+                if (projectedRiTierDestination == null || !projectedCouponCommBought.isPresent()) {
                     logger.error("Projected trader {} is placed on RI {}, but it's RI shopping list does not have " +
                                     "projectedCouponCommBought",
                             projectedTraderTO.getDebugInfoNeverUseInCode(),
