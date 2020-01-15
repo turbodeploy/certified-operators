@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -84,7 +85,7 @@ public class ReservedInstanceDataProcessorTest {
         ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider = Mockito
                 .mock(ReservedInstanceAnalyzerRateAndRIs.class);
         Mockito.when(priceAndRIProvider
-                .lookupReservedInstanceBoughtInfos(anyLong(), anyLong())).thenReturn(riBoughts);
+                .lookupReservedInstanceBoughtInfos(anyLong(), anyLong(), anyString())).thenReturn(riBoughts);
         Mockito.when(priceAndRIProvider
                 .lookupReservedInstanceSpecWithId(applicableRI.getReservedInstanceSpec()))
                 .thenReturn(riSpec1);
@@ -132,7 +133,7 @@ public class ReservedInstanceDataProcessorTest {
         ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider = Mockito
                 .mock(ReservedInstanceAnalyzerRateAndRIs.class);
         List<ReservedInstanceBoughtInfo> riBoughts = Lists.newArrayList(applicableRI);
-        Mockito.when(priceAndRIProvider.lookupReservedInstancesBoughtInfos(any()))
+        Mockito.when(priceAndRIProvider.lookupReservedInstancesBoughtInfos(any(), anyString()))
                 .thenReturn(riBoughts);
         Mockito.when(priceAndRIProvider.lookupReservedInstanceSpecWithId(applicableRI.getReservedInstanceSpec()))
                 .thenReturn(riSpec1);

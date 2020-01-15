@@ -55,6 +55,11 @@ public class ReservedInstanceDataProcessor {
     public static final int WEEKLY_DEMAND_DATA_SIZE = 168;
 
     /**
+     * log tag for this recommendation.
+     */
+    private final String logTag;
+
+    /**
      * Facade to access the historical demand.
      */
     private ReservedInstanceAnalyzerHistoricalData historicalData;
@@ -124,6 +129,7 @@ public class ReservedInstanceDataProcessor {
     /**
      * Public Constructor.
      *
+     * @param logTag            A unique string to identify related messages for a particular RI Buy analysis
      * @param historicalData    Facade to access the historical demand.
      * @param regionalContext   The regional context of the analysis cluster.
      * @param zonalContexts     A list of zonal contexts in the analysis cluster.
@@ -133,7 +139,8 @@ public class ReservedInstanceDataProcessor {
      * @param rateAndRIProvider Facade to access the rate and reserved instances.
      * @param demandWeight      The weight of the current value when added to the  historical data.
      */
-    public ReservedInstanceDataProcessor(@Nonnull ReservedInstanceAnalyzerHistoricalData historicalData,
+    public ReservedInstanceDataProcessor(@Nonnull String logTag,
+        @Nonnull ReservedInstanceAnalyzerHistoricalData historicalData,
                                          @Nonnull ReservedInstanceRegionalContext regionalContext,
                                          @Nonnull List<ReservedInstanceZonalContext> zonalContexts,
                                          @Nonnull ReservedInstanceAnalysisScope scope,
@@ -141,6 +148,7 @@ public class ReservedInstanceDataProcessor {
                                          @Nonnull TopologyEntityCloudTopology cloudTopology,
                                          @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
                                          float demandWeight) {
+        this.logTag = Objects.requireNonNull(logTag);
         this.historicalData = Objects.requireNonNull(historicalData);
         this.regionalContext = Objects.requireNonNull(regionalContext);
         this.zonalContexts = Objects.requireNonNull(zonalContexts);
@@ -155,6 +163,7 @@ public class ReservedInstanceDataProcessor {
 
     @VisibleForTesting
     protected ReservedInstanceDataProcessor() {
+        logTag = "DummyLogTag";
         currentHour = roundDownToHour(System.currentTimeMillis());
         demandWeight = 0.6f;
         currentSlot = calculateSlot(currentHour);
@@ -214,7 +223,7 @@ public class ReservedInstanceDataProcessor {
                     getDemandFromDB(scope, zonalContexts, demandDataType);
 
             final Map<ReservedInstanceZonalContext, float[]> demandByZonalContext
-                    = normalizeDemand(demandFromDB, regionalContext, "");
+                    = normalizeDemand(demandFromDB, regionalContext);
 
             applyZonalRIsToCluster(demandByZonalContext, regionalContext, rateAndRIProvider);
 
@@ -274,12 +283,10 @@ public class ReservedInstanceDataProcessor {
      *
      * @param dBDemand a mapping between zonal context and their demand from DB.
      * @param regionalContext  the scope of analysis, a regional context.
-     * @param logTag The log tag.
      * @return mapping from zonalContext to normalized demand.
      */
     Map<ReservedInstanceZonalContext, float[]> normalizeDemand(Map<ReservedInstanceZonalContext, float[]> dBDemand,
-                                                               ReservedInstanceRegionalContext regionalContext,
-                                                               String logTag) {
+                                                               ReservedInstanceRegionalContext regionalContext) {
 
         Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
         // why isn't the next line: regionCoupons = regionalContext.getComputeTier().getNumCoupons();
@@ -336,23 +343,32 @@ public class ReservedInstanceDataProcessor {
      * @param cloudEntities dictionary for cloud entities.
      */
     void applyRegionalRIs(Map<ReservedInstanceZonalContext, float[]> demandByZonalContext,
-                             @Nonnull ReservedInstanceRegionalContext regionalContext,
-                             @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
-                             @Nonnull Map<Long, TopologyEntityDTO> cloudEntities) {
+                          @Nonnull ReservedInstanceRegionalContext regionalContext,
+                          @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
+                          @Nonnull Map<Long, TopologyEntityDTO> cloudEntities) {
 
         List<ReservedInstanceBoughtInfo> risBought =
-                rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext);
-
+                rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext, logTag);
+        if (risBought == null) {
+            // log message generated in rateAndRIProvider.
+            return;
+        }
         ComputeTierInfo computeTierInfo = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier();
         String regionalContextFamily = computeTierInfo.getFamily();
         int buyComputeTierCoupons = computeTierInfo.getNumCoupons();
 
         float normalizedCoupons = 0;
         for (ReservedInstanceBoughtInfo boughtInfo: risBought) {
+            if (!boughtInfo.hasBusinessAccountId()) {
+                logger.warn("{}applyRegionalRIs boughtInfo={} has no business account in regionalContext={}",
+                    logTag, boughtInfo, regionalContext);
+                continue;
+            }
             ReservedInstanceSpec riSpec =
                     rateAndRIProvider.lookupReservedInstanceSpecWithId(boughtInfo.getReservedInstanceSpec());
-            if (riSpec == null || !boughtInfo.hasBusinessAccountId()) {
-                logger.warn("applyRegionalRIs Skipping RI: {}", boughtInfo);
+            if (riSpec == null) {
+                logger.warn("{}applyRegionalRIs riSpec == null for boughtInfo={} in regionalContext={}",
+                    logTag, boughtInfo, regionalContext);
                 continue;
             }
             ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
@@ -431,33 +447,30 @@ public class ReservedInstanceDataProcessor {
                           @Nonnull ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider) {
         List<ReservedInstanceBoughtInfo> risBought =
                 priceAndRIProvider.lookupReservedInstanceBoughtInfos(zonalContext.getMasterAccountId(),
-                        zonalContext.getAvailabilityZoneId());
+                        zonalContext.getAvailabilityZoneId(), logTag);
 
         if (risBought == null) {
-            logger.debug("applyZonalRIs() no RI Bought records found for MasterAccount={} and AvailabilityZone={}",
-                    zonalContext.getMasterAccountId(), zonalContext.getAvailabilityZoneId());
+            logger.debug("{}no RIs found in zonalContext={}", logTag, zonalContext);
             return;
         }
-
         for (ReservedInstanceBoughtInfo riBought : risBought) {
             ReservedInstanceSpec riSpec =
                     priceAndRIProvider.lookupReservedInstanceSpecWithId(riBought.getReservedInstanceSpec());
-            ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
-
             if (riSpec == null) {
-                logger.warn("RISpec is null. Skipping RI: {}", riBought.getDisplayName());
+                logger.warn("{}applyZonalRIs riSpec == null for boughtInfo={} in zonalContext={}",
+                    logTag, riBought, zonalContext);
                 continue;
             }
+            ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
 
             if (riSpecInfo.getTenancy() == zonalContext.getTenancy()
                     && riSpecInfo.getOs() == zonalContext.getPlatform()
                     && riSpecInfo.getTierId() == zonalContext.getComputeTier().getOid()) {
-
-                int normalizedCoupons =  (riBought.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
+                int normalizedCoupons = (riBought.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
                         buyComputeTier.getTypeSpecificInfo().getComputeTier().getNumCoupons());
-
                 if (normalizedCoupons == 0) {
-                    logger.debug("no zonal RIs applicable in context {}", zonalContext);
+                    logger.debug("{}applyZonalRIs() no zonal RIs applicable in zonalContext={}",
+                        logTag, zonalContext);
                     return;
                 }
 
@@ -626,14 +639,14 @@ public class ReservedInstanceDataProcessor {
             reservedInstanceAdjustmentTracker = new ReservedInstanceAdjustmentTracker(
                     smallAdjustmentArray, largeAdjustmentArray, smallAdjustment, largeAdjustment);
             riAdjustments.put(riBought, reservedInstanceAdjustmentTracker);
-            logger.debug("Creating adjustments for RI: {} for the contexts: {}, " +
+            logger.debug("{}Creating adjustments for RI: {} for the contexts: {}, " +
                             "largeAdjustment: {}, smallAdjustment: {}, Total " +
-                            "largeAdjustment: {}, Total smallAdjustment: {}", riBought.getDisplayName(),
-                    demandByZonalContext.keySet(), largeAdjustment, smallAdjustment,
-                    sum(largeAdjustmentArray), sum(smallAdjustmentArray));
+                            "largeAdjustment: {}, Total smallAdjustment: {}", logTag,
+                riBought.getDisplayName(), demandByZonalContext.keySet(), largeAdjustment,
+                smallAdjustment, sum(largeAdjustmentArray), sum(smallAdjustmentArray));
         } else {
-            logger.debug("Reusing adjustments for RI: {} for the contexts: {}", riBought.getDisplayName(),
-                    demandByZonalContext.keySet());
+            logger.debug("{}Reusing adjustments for RI: {} for the contexts: {}", logTag,
+                riBought.getDisplayName(), demandByZonalContext.keySet());
             largeAdjustmentArray = reservedInstanceAdjustmentTracker.getLargeAdjustmentArray();
             smallAdjustmentArray = reservedInstanceAdjustmentTracker.getSmallAdjustmentArray();
             smallAdjustment = reservedInstanceAdjustmentTracker.getSmallAdjustment();
@@ -643,10 +656,8 @@ public class ReservedInstanceDataProcessor {
         int purchaseSlot = calculateSlot(riPurchaseHour);
         // If it's too small to matter, don't bother updating all the data points.
         if (largeAdjustment < ADJUSTMENT_CUTOFF) {
-            logger.debug("No adjustment for RI {} bought {} weeks ago, effect would be only {} coupons",
-                    riBought.getDisplayName(),
-                    purchaseWeeksAgo,
-                    largeAdjustment);
+            logger.debug("{}No adjustment for RI {} bought {} weeks ago, effect would be only {} coupons",
+                    logTag, riBought.getDisplayName(), purchaseWeeksAgo, largeAdjustment);
 
             return;
         }
@@ -677,8 +688,8 @@ public class ReservedInstanceDataProcessor {
                IndexError and blowing up the whole analysis
              */
             if (demand.length < WEEKLY_DEMAND_DATA_SIZE) {
-                logger.error("Demand array is the wrong size processing RI coverage for {}, skipping.",
-                        riBought.getDisplayName());
+                logger.error("{}Demand array is the wrong size processing RI coverage for {}, skipping.",
+                        logTag, riBought.getDisplayName());
 
                 return;
             }
@@ -734,16 +745,15 @@ public class ReservedInstanceDataProcessor {
                                      ReservedInstanceBoughtInfo ri) {
         Locale locale = Locale.getDefault();
 
-        logger.debug(
-                "Reducing demand in range ({} {}:00, {} {}:00] by {} coupons " +
-                        "for RI {} bought {} weeks ago",
-                from.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.SHORT, locale),
-                from.get(Calendar.HOUR_OF_DAY),
-                to.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.SHORT, locale),
-                to.get(Calendar.HOUR_OF_DAY),
-                adjustment,
-                ri.getDisplayName(),
-                weeksAgo);
+        logger.debug("{}Reducing demand in range ({} {}:00, {} {}:00] by {} coupons " +
+                "for RI {} bought {} weeks ago",
+            logTag, from.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.SHORT, locale),
+            from.get(Calendar.HOUR_OF_DAY),
+            to.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.SHORT, locale),
+            to.get(Calendar.HOUR_OF_DAY),
+            adjustment,
+            ri.getDisplayName(),
+            weeksAgo);
     }
 
     /**

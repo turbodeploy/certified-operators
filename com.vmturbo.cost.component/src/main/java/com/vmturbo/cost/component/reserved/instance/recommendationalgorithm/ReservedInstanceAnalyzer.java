@@ -449,8 +449,9 @@ public class ReservedInstanceAnalyzer {
             // it must be the smallest compute tier for this family.
             TopologyEntityDTO buyComputeTier = regionalContext.getComputeTier();
 
-            ReservedInstanceDataProcessor dataProcessor = new ReservedInstanceDataProcessor(historicalDemandDataReader,
-                    regionalContext, zonalContexts, scope, demandDataType, cloudTopology, rateAndRIProvider, preferredCurrentWeight);
+            ReservedInstanceDataProcessor dataProcessor = new ReservedInstanceDataProcessor(logTag,
+                historicalDemandDataReader, regionalContext, zonalContexts, scope, demandDataType,
+                cloudTopology, rateAndRIProvider, preferredCurrentWeight);
             final float[] riBuyDemand = dataProcessor.getRIBuyDemand();
 
             if (ArrayUtils.isEmpty(riBuyDemand)) {
@@ -473,9 +474,7 @@ public class ReservedInstanceAnalyzer {
             PricingProviderResult rates = rateAndRIProvider.findRates(regionalContext,
                             purchaseConstraints, logTag);
             if (rates == null) {
-                // something went wrong with the looking up rates.
-                logger.warn("{}analyze() rates are null for regionContext={} and constraints={}",
-                            logTag, regionalContext, purchaseConstraints);
+                // something went wrong with the looking up rates.  Error already logged.
                 continue;
             }
             clustersAnalyzed++;
@@ -601,21 +600,14 @@ public class ReservedInstanceAnalyzer {
         int numberOfRIsToBuy = kernelResult.getNumberOfRIsToBuy();
         // OM-42801: override RI coverage is disabled
         final String actionGoal = "Max Savings";
-
         float hourlyCostSavings = kernelResult.getHourlyCostSavings().get(numberOfRIsToBuy);
-
-        float riHourlyCost = kernelResult.getRiHourlyCost();
-        if (riHourlyCost <= 0) {
-            logger.error("{}Reserved Instance regionalContext={} has RI with hourly RI cost={} "
-                            + "(less than or equal zero) and hourly cost saving {}. ",
-                            logTag, regionalContext, riHourlyCost, hourlyCostSavings);
+        if (!logExplanation(kernelResult, logTag, regionalContext, hourlyCostSavings, numberOfRIsToBuy)) {
+            return null;
         }
 
-        logger.debug("{}numberOfRIsToBuy {} > 0  for computeTierId={} in regionalContext={}",
-            logTag, numberOfRIsToBuy, regionalContext.getComputeTier().getOid(), regionalContext);
         ReservedInstanceSpec riSpec = rateAndRIProvider.lookupReservedInstanceSpec(regionalContext, constraints);
         if (riSpec == null) {
-            logger.error("Could not find riSpec for {}", regionalContext);
+            // error log message generated in rateAndRIProvider.lookupReservedInstanceSpec
             return null;
         }
         int riPotentialInCoupons = kernelResult.getRiNormalizedCouponsMap().get(numberOfRIsToBuy);
@@ -635,8 +627,29 @@ public class ReservedInstanceAnalyzer {
                 riPotentialInCoupons,
                 riUsedInCoupons,
                 riSpec, scope.getTopologyInfo());
-
         return recommendation;
+    }
+
+    /*
+     * If RI hourly cost is 0, then don't log, because logged previously.  Otherwise log.
+     */
+    private boolean logExplanation(RecommendationKernelAlgorithmResult kernelResult, String logTag,
+                                ReservedInstanceRegionalContext regionalContext, float hourlyCostSavings,
+                                int numberOfRIsToBuy) {
+        boolean result = true;
+        float riHourlyCost = kernelResult.getRiHourlyCost();
+        if (riHourlyCost <= 0) {
+            result = false;
+            if (kernelResult.isValid()) {
+                logger.error("{} RI with hourly cost={} (less than or equal zero) "
+                        + "and hourly cost saving={} in cluster={}. ",
+                    logTag, riHourlyCost, hourlyCostSavings, regionalContext);
+            }
+        } else {
+            logger.debug("{}numberOfRIsToBuy {} > 0 in regionalContext={}",
+                logTag, numberOfRIsToBuy, regionalContext);
+        }
+        return result;
     }
 
     /**

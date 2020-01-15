@@ -41,6 +41,8 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
     static final ReservedInstanceBoughtStore riBoughtStoreArg = Mockito.mock(ReservedInstanceBoughtStore.class);
     static final ReservedInstanceAnalyzerRateAndRIs rateAndRIsProvider = Mockito.spy(ReservedInstanceAnalyzerRateAndRIs.class);
 
+    static final String logTag = "testLogTag";
+
     /**
      * Test ReservedInstanceSpecInfo constructor, hashCode and Equals.
      */
@@ -295,7 +297,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         List<ReservedInstanceBoughtInfo> infoList2 =
             rateAndRIsProvider.lookupReservedInstanceBoughtInfos(
                 ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
-                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_1_OID);
+                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_1_OID, logTag);
         Assert.assertTrue(infoList2 != null);
         Assert.assertTrue(infoList2.size() == 1);
         Assert.assertTrue(infoList2.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_1));
@@ -338,7 +340,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          * lookup by regional context
          */
         List<ReservedInstanceBoughtInfo> infoList3 =
-            rateAndRIsProvider.lookupReservedInstancesBoughtInfos(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1);
+            rateAndRIsProvider.lookupReservedInstancesBoughtInfos(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1, logTag);
         Assert.assertTrue(infoList3 != null);
         Assert.assertTrue(infoList3.size() == 1);
         Assert.assertTrue(infoList3.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_REGIONAL_1));
@@ -373,7 +375,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          List<ReservedInstanceBoughtInfo> lookupList1 =
             rateAndRIsProvider.lookupReservedInstanceBoughtInfos(
                 ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
-                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_1_OID);
+                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_1_OID, logTag);
         Assert.assertTrue(lookupList1 != null);
         Assert.assertTrue(lookupList1.size() == 1);
         Assert.assertTrue(lookupList1.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_1));
@@ -381,7 +383,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         List<ReservedInstanceBoughtInfo> lookupList2 =
             rateAndRIsProvider.lookupReservedInstanceBoughtInfos(
                 ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
-                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_2_OID);
+                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OHIO_2_OID, logTag);
         Assert.assertTrue(lookupList2 != null);
         Assert.assertTrue(lookupList2.size() == 1);
         Assert.assertTrue(lookupList2.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_2));
@@ -389,7 +391,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         List<ReservedInstanceBoughtInfo> lookupList3 =
             rateAndRIsProvider.lookupReservedInstanceBoughtInfos(
                 ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
-                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OREGON_1_OID);
+                ReservedInstanceAnalyzerConstantsTest.ZONE_AWS_OREGON_1_OID, logTag);
         Assert.assertTrue(lookupList3 != null);
         Assert.assertTrue(lookupList3.size() == 2);
         Assert.assertTrue(lookupList3.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_3));
@@ -437,13 +439,13 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          * Lookup
          */
         List<ReservedInstanceBoughtInfo> infoList3 =
-            rateAndRIsProvider.lookupReservedInstancesBoughtInfos(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1);
+            rateAndRIsProvider.lookupReservedInstancesBoughtInfos(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1, logTag);
         Assert.assertTrue(infoList3 != null);
         Assert.assertTrue(infoList3.size() == 2);
         Assert.assertTrue(infoList3.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_REGIONAL_1));
         Assert.assertTrue(infoList3.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_REGIONAL_2));
         List<ReservedInstanceBoughtInfo> infoList4 =
-            rateAndRIsProvider.lookupReservedInstancesBoughtInfos(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2);
+            rateAndRIsProvider.lookupReservedInstancesBoughtInfos(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2, logTag);
         Assert.assertTrue(infoList4 != null);
         Assert.assertTrue(infoList4.size() == 2);
         Assert.assertTrue(infoList4.contains(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_INFO_REGIONAL_3));

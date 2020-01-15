@@ -133,13 +133,21 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      * @param regionalContext regional context.
      * @param constraints reserved instance purchase constraints.
      * @param logTag A unique string to identify related messages for a particular RI Buy analysis
-     * @return on-demand and RI rates for this regional context and purchase constraints.
+     * @return on-demand and RI rates for this regional context and purchase constraints, or null
+     * if on-demand or RI rates are not found
      */
     public PricingProviderResult findRates(ReservedInstanceRegionalContext regionalContext,
                                            ReservedInstancePurchaseConstraints constraints,
                                            String logTag) {
-        return new PricingProviderResult(lookupOnDemandRate(regionalContext, logTag),
-                        lookupReservedInstanceRate(regionalContext, constraints, logTag));
+        float onDemandRate = lookupOnDemandRate(regionalContext, logTag);
+        if (onDemandRate == 0) {
+            return null;
+        }
+        Pair<Float, Float> riPairOfRates =lookupReservedInstanceRate(regionalContext, constraints, logTag);
+        if (riPairOfRates.getLeft() == Float.MAX_VALUE) {
+            return null;
+        }
+        return new PricingProviderResult(onDemandRate, riPairOfRates);
     }
 
     /**
@@ -155,7 +163,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
 
         // onDemandPriceTableByRegion from constructor
         if (CollectionUtils.isEmpty(onDemandRateMap)) {
-            logger.warn("{}lookupOnDemandRate() on-demand rates are not available!", logTag);
+            logger.warn("{}lookupOnDemandRate() on-demand rates are not available", logTag);
             return onDemandRate;
         }
         OnDemandPriceTable onDemandPriceTable = onDemandRateMap.get(regionalContext.getRegionId());
@@ -257,7 +265,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     void populateOnDemandRateMap(PriceTableStore store) {
        PriceTable priceTable = store.getMergedPriceTable();
         if (priceTable == null) {
-            logger.warn("populateOnDemandRateMap() priceTableStore.getMergedPriceTable() == null!");
+            logger.warn("populateOnDemandRateMap() priceTableStore.getMergedPriceTable() == null");
             return;
         }
         onDemandRateMap = ImmutableMap.copyOf(priceTable.getOnDemandPriceByRegionIdMap());
@@ -322,7 +330,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     void populateReservedInstanceRateMap(PriceTableStore store) {
         ReservedInstancePriceTable riPriceTable = store.getMergedRiPriceTable();
         if (riPriceTable == null) {
-            logger.warn("populateReservedInstanceRateMap() priceTableStore.getMergedRiPriceTable() == null!");
+            logger.warn("populateReservedInstanceRateMap() priceTableStore.getMergedRiPriceTable() == null");
             return;
         }
         validateRiPricesBySpecIdMap(riPriceTable.getRiPricesBySpecIdMap());
@@ -348,7 +356,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             }
             ReservedInstanceSpecInfo info = spec.getReservedInstanceSpecInfo();
             if (info == null) {
-                logger.error("validateRiPricesBySpecIdMap() RISpec with Id={} does not have info!", id);
+                logger.error("validateRiPricesBySpecIdMap() RISpec with Id={} does not have info", id);
                 continue;
             }
             long regionId = info.getRegionId();
@@ -401,14 +409,16 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      *
      * @param masterAccountId master account ID
      * @param zoneId avialability zone ID, constraint must be > 0.
+     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return reserved instance inventory
      */
     @Nullable
     public List<ReservedInstanceBoughtInfo> lookupReservedInstanceBoughtInfos(long masterAccountId,
-                                                                              long zoneId) {
+                                                                              long zoneId,
+                                                                              String logTag) {
         if (zoneId < 0) {
-            logger.warn("lookupReservedInstanceBoughtInfos() masterAccountId={} zoneId={} < 0!",
-                masterAccountId, zoneId);
+            logger.warn("{}no RIs for masterAccountId={} zoneId={} < 0",
+                logTag, masterAccountId, zoneId);
             return null;
         }
         return reservedInstanceBoughtInfoTable.get(masterAccountId, zoneId);
@@ -419,17 +429,18 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      * regional context and a dictionary for cloud entities.
      *
      * @param regionalContext regional context
+     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return list of regional RIs in the business account.
      */
     @Nonnull
     public List<ReservedInstanceBoughtInfo>
-    lookupReservedInstancesBoughtInfos(ReservedInstanceRegionalContext regionalContext) {
+    lookupReservedInstancesBoughtInfos(ReservedInstanceRegionalContext regionalContext, String logTag) {
         List<ReservedInstanceBoughtInfo> reservedInstances = new ArrayList<>();
         Map<Long, List<ReservedInstanceBoughtInfo>> risBought =
                             reservedInstanceBoughtInfoTable.rowMap().get(regionalContext.getMasterAccountId());
         if (risBought == null) {
-            logger.debug("lookupReservedInstancesBoughtInfos: found no bought RIs for context={}",
-                regionalContext);
+            logger.debug("{}no RIs found in regionalContext={}",
+                logTag, regionalContext);
             return Collections.emptyList();
         }
         long regionId = regionalContext.getRegionId();
@@ -441,8 +452,8 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                     long specId = info.getReservedInstanceSpec();
                     ReservedInstanceSpec spec = lookupReservedInstanceSpecWithId(specId);
                     if (spec == null) {
-                        logger.error("lookupReservedInstancesBoughtInfos() spec not found for ID={}",
-                            specId);
+                        logger.error("{}spec not found for ID={} in regionalContext={}",
+                            logTag, specId, regionalContext);
                         continue;
                     }
                     if (spec.getReservedInstanceSpecInfo().getRegionId() == regionId) {
