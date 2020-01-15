@@ -215,9 +215,9 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
 
     @Nonnull
     @Override
-    public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
+    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
         return entityBuilder.getCommoditySoldListList().stream()
-            .collect(Collectors.toMap(commSold -> commSold.getCommodityType().getType(), Function.identity()));
+            .collect(Collectors.groupingBy(commSold -> commSold.getCommodityType().getType()));
     }
 
     @Nonnull

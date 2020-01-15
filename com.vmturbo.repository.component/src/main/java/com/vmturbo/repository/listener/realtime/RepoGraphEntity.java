@@ -16,12 +16,12 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -60,7 +60,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
     private final EntityState state;
     private final Map<String, List<String>> tags;
-    private final Map<Integer, CommoditySoldDTO> soldCommodities;
+    private final Map<Integer, List<CommoditySoldDTO>> soldCommodities;
     private final Map<Long, PerTargetEntityInformation> discoveredTargetData;
 
     /**
@@ -127,7 +127,12 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             soldCommodities = Collections.emptyMap();
         } else {
             soldCommodities = new HashMap<>(commsToPersist.size());
-            commsToPersist.forEach(comm -> soldCommodities.put(comm.getCommodityType().getType(), comm));
+            commsToPersist.forEach(comm -> soldCommodities.computeIfAbsent(comm.getCommodityType().getType(),
+                    // Initialize to 1 because we typically expect just 1 sold commodity.
+                    k -> new ArrayList<>(1))
+                .add(comm));
+            soldCommodities.values().forEach(commList ->
+                ((ArrayList<CommoditySoldDTO>)commList).trimToSize());
         }
 
         // Use the fastest java instance to avoid using JNI & off-heap memory.
@@ -298,7 +303,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
     @Nonnull
     @Override
-    public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
+    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
         return soldCommodities;
     }
 
@@ -344,7 +349,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
                     .putAllDiscoveredTargetData(discoveredTargetData)));
         }
 
-        builder.addAllCommoditySoldList(soldCommodities.values());
+        soldCommodities.values().forEach(builder::addAllCommoditySoldList);
         return builder.build();
     }
 

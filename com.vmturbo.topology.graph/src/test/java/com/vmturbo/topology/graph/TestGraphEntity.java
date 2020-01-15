@@ -35,7 +35,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     private final Map<Long, String> discoveringTargetIds = new HashMap<>();
 
-    private final Map<Integer, CommoditySoldDTO> commsSoldByType = new HashMap<>();
+    private final Map<Integer, List<CommoditySoldDTO>> commsSoldByType = new HashMap<>();
 
     private final Map<String, List<String>> tags = new HashMap<>();
 
@@ -110,7 +110,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     @Nonnull
     @Override
-    public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
+    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
         return commsSoldByType;
     }
 
@@ -240,7 +240,8 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         }
 
         public Builder addCommSold(final CommoditySoldDTO commSold) {
-            entity.commsSoldByType.put(commSold.getCommodityType().getType(), commSold);
+            entity.commsSoldByType.computeIfAbsent(commSold.getCommodityType().getType(),
+                k -> new ArrayList<>()).add(commSold);
             return this;
         }
 

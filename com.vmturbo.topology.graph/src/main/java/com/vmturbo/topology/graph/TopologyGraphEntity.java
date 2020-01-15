@@ -113,13 +113,14 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
 
     /**
      * Get the commodities sold by this entity, organized by type.
+     * Multiple commodities may exist for the same type if they have different keys.
      * This may not return the full list of sold commodities. Implementations are only
      * required to return commodities that are supported in the filters
      * in {@link com.vmturbo.topology.graph.search.filter.TopologyFilterFactory}.
      * See: {@link TopologyGraphEntity#COMM_SOLD_TYPES_TO_PERSIST}.
      */
     @Nonnull
-    Map<Integer, CommoditySoldDTO> soldCommoditiesByType();
+    Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType();
 
     /**
      * Get the tags associated with an entity. This field corresponds to

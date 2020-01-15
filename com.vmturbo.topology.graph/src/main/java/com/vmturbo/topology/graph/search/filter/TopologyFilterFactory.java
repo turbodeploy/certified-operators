@@ -404,14 +404,18 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                             return new PropertyFilter<>(longPredicate(valueFilter.getValue(),
                                 valueFilter.getComparisonOperator(),
                                 entity -> Optional.ofNullable(entity.soldCommoditiesByType().get(CommodityType.VMEM.getNumber()))
-                                    .map(sold -> (long)sold.getCapacity())
+                                    .filter(sold -> !sold.isEmpty())
+                                    // We expect at most one VMEM.
+                                    .map(sold -> (long)sold.get(0).getCapacity())
                                     .orElse(-1L))
                             );
                         } else if (commTypeRegex.matcher(UICommodityType.MEM.apiStr()).matches()) {
                             return new PropertyFilter<>(longPredicate(valueFilter.getValue(),
                                 valueFilter.getComparisonOperator(),
                                 entity -> Optional.ofNullable(entity.soldCommoditiesByType().get(CommodityType.MEM.getNumber()))
-                                    .map(sold -> (long)sold.getCapacity())
+                                    .filter(sold -> !sold.isEmpty())
+                                    // We expect at most one MEM.
+                                    .map(sold -> (long)sold.get(0).getCapacity())
                                     .orElse(-1L)));
                         } else {
                             throw new IllegalArgumentException("Unsupported commodity type for search: " + commodityType);

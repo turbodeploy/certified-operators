@@ -1,5 +1,6 @@
 package com.vmturbo.repository.service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -10,9 +11,7 @@ import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -20,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWith
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.HeadroomPlanPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -78,10 +78,8 @@ public class PartialEntityConverter {
                     .addAllDiscoveringTargetIds(
                             repoGraphEntity.getDiscoveringTargetIds().collect(Collectors.toList()));
                 ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.forEach(commType -> {
-                    final CommoditySoldDTO comm = repoGraphEntity.soldCommoditiesByType().get(commType);
-                    if (comm != null) {
-                        actionEntityBldr.addCommoditySold(comm);
-                    }
+                    repoGraphEntity.soldCommoditiesByType().getOrDefault(commType, Collections.emptyList())
+                        .forEach(actionEntityBldr::addCommoditySold);
                 });
                 List<Integer> providerEntityTypes = repoGraphEntity.getProviders().stream()
                     .map(RepoGraphEntity::getEntityType).collect(Collectors.toList());
