@@ -38,6 +38,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRe
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
+
 /**
  * Aggregates plan topology stats by commodity type and by entity type.
  *
@@ -249,7 +250,8 @@ public class PlanStatsAggregator {
                     commodityRecord.setMaxValue(historydbIO.clipValue(Math.max(used, commodityRecord.getMaxValue())));
                     // in the first phase we use the "avgValue" field to store the sum of used
                     commodityRecord.setAvgValue(historydbIO.clipValue(used + commodityRecord.getAvgValue()));
-                    commodityRecord.setCapacity(historydbIO.clipValue(capacity));
+                    // Capacity is the aggregate of all the individual commodity capacities
+                    commodityRecord.setCapacity(historydbIO.clipValue(capacity + commodityRecord.getCapacity()));
                 }
                 commodityTypeCounts.put(commodityType, ++commodityCount);
             }

@@ -109,7 +109,7 @@ public class PlanStatsAggregatorTest {
         MktSnapshotsStatsRecord cpuStats = records.stream().filter(rec -> rec.getPropertyType()
             .contains("CPU")).findFirst().get();
         Assert.assertEquals(CONTEXT_ID, (long)cpuStats.getMktSnapshotId());
-        Assert.assertEquals(CPU_CAPACITY, cpuStats.getCapacity(), 0);
+        Assert.assertEquals(CPU_CAPACITY * 3, cpuStats.getCapacity(), 0);
         Assert.assertEquals((CPU_MIN + CPU_MID + CPU_MAX) / 3, cpuStats.getAvgValue(), 0);
         Assert.assertEquals(CPU_MIN, cpuStats.getMinValue(), 0);
         Assert.assertEquals(CPU_MAX, cpuStats.getMaxValue(), 0);
