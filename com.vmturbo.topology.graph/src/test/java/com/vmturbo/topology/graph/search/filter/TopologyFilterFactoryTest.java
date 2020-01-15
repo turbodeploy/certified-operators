@@ -890,14 +890,24 @@ public class TopologyFilterFactoryTest {
             negativeSearchFilter = negativeSearchFilterBldr.build();
         }
 
+        final Search.PropertyFilter searchFilterWithRegex =
+                Search.PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+                    .setMapFilter(MapFilter.newBuilder()
+                                           .setRegex("O.*=.*A.*"))
+                    .build();
+
         final PropertyFilter<TestGraphEntity> positiveFilter = filterFactory.filterFor(positiveSearchFilter);
         final PropertyFilter<TestGraphEntity> negativeFilter = filterFactory.filterFor(negativeSearchFilter);
+        final PropertyFilter<TestGraphEntity> filterWithRegex =
+                filterFactory.filterFor(searchFilterWithRegex);
 
         // entity has no tags
         final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
             .build();
         assertFalse(positiveFilter.test(noTagsEntity));
         assertTrue(negativeFilter.test(noTagsEntity));
+        assertFalse(filterWithRegex.test(noTagsEntity));
 
         // entity does not have the key
         final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
@@ -905,6 +915,7 @@ public class TopologyFilterFactoryTest {
             .build();
         assertFalse(positiveFilter.test(noKeyEntity));
         assertTrue(negativeFilter.test(noKeyEntity));
+        assertTrue(filterWithRegex.test(noKeyEntity));
 
         // entity has the key, but not one of the values
         final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
@@ -913,6 +924,7 @@ public class TopologyFilterFactoryTest {
             .build();
         assertFalse(positiveFilter.test(wrongValueEntity));
         assertTrue(negativeFilter.test(wrongValueEntity));
+        assertTrue(filterWithRegex.test(wrongValueEntity));
 
         // entity has the key, and one of the values
         final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
@@ -920,6 +932,7 @@ public class TopologyFilterFactoryTest {
             .build();
         assertTrue(positiveFilter.test(rightValueEntity));
         assertFalse(negativeFilter.test(rightValueEntity));
+        assertFalse(filterWithRegex.test(rightValueEntity));
     }
 
     @Test

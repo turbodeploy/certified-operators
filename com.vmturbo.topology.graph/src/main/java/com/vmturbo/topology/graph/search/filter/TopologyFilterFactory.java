@@ -2,6 +2,7 @@ package com.vmturbo.topology.graph.search.filter;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -338,17 +339,32 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
     private PropertyFilter<E> mapFilter(
             @Nonnull final String propertyName,
             @Nonnull final Search.PropertyFilter.MapFilter mapCriteria) {
-        if (!mapCriteria.hasKey()) {
-            throw new IllegalArgumentException("Map filter without key value: " + mapCriteria.toString());
-        }
-        final Predicate<String> valueFilter;
-        if (!StringUtils.isEmpty(mapCriteria.getRegex())) {
+        final Predicate<Entry<String, List<String>>> entryFilter;
+
+        if (StringUtils.isEmpty(mapCriteria.getKey())) {
+            // key is not present in the filter
+            // string key=value must match the regex
             final Pattern pattern = Pattern.compile(mapCriteria.getRegex());
-            valueFilter = v -> pattern.matcher(v).matches();
-        } else if (!mapCriteria.getValuesList().isEmpty()) {
-            valueFilter = v -> mapCriteria.getValuesList().contains(v);
+            entryFilter = e -> e.getValue().stream()
+                            .anyMatch(v -> pattern.matcher(e.getKey() + "=" + v).matches());
         } else {
-            valueFilter = v -> true;
+            // key is present in the filter
+            // key must match and value must satisfy a specific predicate
+            final Predicate<String> valueFilter;
+            if (!StringUtils.isEmpty(mapCriteria.getRegex())) {
+                // value must match regex
+                final Pattern pattern = Pattern.compile(mapCriteria.getRegex());
+                valueFilter = v -> pattern.matcher(v).matches();
+            } else if (!mapCriteria.getValuesList().isEmpty()) {
+                // value must match one of the options given in the filter
+                valueFilter = v -> mapCriteria.getValuesList().contains(v);
+            } else {
+                // regex and options are empty
+                // no requirements for value
+                valueFilter = v -> true;
+            }
+            entryFilter = e -> e.getKey().equals(mapCriteria.getKey())
+                            && e.getValue().stream().anyMatch(valueFilter);
         }
 
         // currently only entity tags is a property of type map
@@ -357,8 +373,7 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                 // Check tags for the match, and negate the result if we're not actually looking
                 // for a positive match.
                 mapCriteria.getPositiveMatch() == te.getTags().entrySet().stream()
-                    .anyMatch(e -> e.getKey().equals(mapCriteria.getKey()) &&
-                        e.getValue().stream().anyMatch(valueFilter)));
+                                                    .anyMatch(entryFilter));
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }

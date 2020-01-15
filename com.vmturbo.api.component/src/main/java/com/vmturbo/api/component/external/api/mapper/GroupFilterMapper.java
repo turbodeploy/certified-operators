@@ -239,10 +239,9 @@ public class GroupFilterMapper {
         final boolean positiveMatch = EntityFilterMapper
             .isPositiveMatchingOperator(input.getExpType());
         if (EntityFilterMapper.isRegexOperator(input.getExpType())) {
-            final String[] kv = input.getExpVal().split("=");
             return
                 Optional.of(EntityFilterMapper.mapPropertyFilterForMultimapsRegex(
-                    StringConstants.TAGS_ATTR, kv[0], kv[1], positiveMatch));
+                    StringConstants.TAGS_ATTR, input.getExpVal(), positiveMatch));
         } else {
             return
                 Optional.of(EntityFilterMapper.mapPropertyFilterForMultimapsExact(

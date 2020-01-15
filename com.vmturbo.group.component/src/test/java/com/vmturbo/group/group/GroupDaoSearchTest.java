@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
@@ -22,6 +23,7 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
@@ -227,10 +229,11 @@ public class GroupDaoSearchTest {
     }
 
     /**
-     * Tests searching by tags.
+     * Tests searching by tags when the tag filter provides options for
+     * the values of a tag.
      */
     @Test
-    public void testSearchByTags() {
+    public void testSearchByTagsWithOptionsFilter() {
         final Collection<Grouping> groupsByTags = groupStore.getGroups(
                 GroupDTO.GroupFilter.newBuilder()
                         .addPropertyFilters(PropertyFilter.newBuilder()
@@ -284,5 +287,81 @@ public class GroupDaoSearchTest {
                                 .addMembers(counter.getAndIncrement())))
                 .setIsHidden(false)
                 .build();
+    }
+
+    /**
+     * Tests searching by tags when the tag filter provides a regex
+     * to match key=value against.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testSearchByTagsWithRegexFilter() throws Exception {
+        final Origin origin = createUserOrigin();
+        final String tagKey1 = "tagkey1";
+        final String tagKey2 = "tagkey2";
+        final String tagValue1 = "tagValue1";
+        final String tagValue2 = "tagValue2";
+        final String tagValue3 = "tagValue3";
+        final long oidForFourthGroup = 1004L;
+
+        final GroupDefinition groupDefinition =
+                GroupDefinition.newBuilder(createGroupDefinition())
+                        .setTags(Tags.newBuilder()
+                                    .putTags(tagKey1, TagValuesDTO.newBuilder()
+                                                            .addValues(tagValue1)
+                                                            .addValues(tagValue2).build())
+                                    .putTags(tagKey2, TagValuesDTO.newBuilder()
+                                                            .addValues(tagValue3).build()))
+                        .build();
+        groupStore.createGroup(oidForFourthGroup, origin, groupDefinition, EXPECTED_MEMBERS, false);
+
+        final Set<Long> emptyResult = Collections.emptySet();
+        final Set<Long> resultWithOnlyGroup4 = ImmutableSet.of(oidForFourthGroup);
+        final Set<Long> resultWithTwoGroups = ImmutableSet.of(oidForFourthGroup, OID1);
+
+        Assert.assertEquals(resultWithOnlyGroup4,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setKey(tagKey1)
+                                                        .addValues(tagValue2)
+                                                        .build()));
+        Assert.assertEquals(emptyResult,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setKey(tagKey2)
+                                                        .addValues(tagValue1)
+                                                        .addValues(tagValue2)
+                                                        .build()));
+        Assert.assertEquals(emptyResult,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setRegex(".*=.*4")
+                                                        .build()));
+        Assert.assertEquals(resultWithOnlyGroup4,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setRegex(".*1=t.*")
+                                                        .build()));
+        Assert.assertEquals(resultWithOnlyGroup4,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setRegex(".*1=.*2")
+                                                        .build()));
+        Assert.assertEquals(emptyResult,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setRegex(".*1=.*3")
+                                                        .build()));
+        Assert.assertEquals(resultWithTwoGroups,
+                            numberOfAcceptedGroups(MapFilter.newBuilder()
+                                                        .setRegex("t.*")
+                                                        .build()));
+    }
+
+    private Set<Long> numberOfAcceptedGroups(MapFilter mapFilter) {
+        return groupStore.getGroups(GroupFilter.newBuilder()
+                                        .addPropertyFilters(
+                                            PropertyFilter.newBuilder()
+                                                .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+                                                .setMapFilter(mapFilter))
+                                        .build())
+                         .stream()
+                         .map(Grouping::getId)
+                         .collect(Collectors.toSet());
     }
 }

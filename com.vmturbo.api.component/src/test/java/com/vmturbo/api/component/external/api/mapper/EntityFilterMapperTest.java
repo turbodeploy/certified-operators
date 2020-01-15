@@ -568,10 +568,9 @@ public class EntityFilterMapperTest {
     public void testByTagSearchRegex() {
         final MapFilter tagFilter =
                         testByTagSearchGoodExpVal(EntityFilterMapper.REGEX_MATCH, "k=.*a.*");
-        assertEquals("k", tagFilter.getKey());
         assertEquals(0, tagFilter.getValuesCount());
         assertTrue(tagFilter.getPositiveMatch());
-        assertEquals("^.*a.*$", tagFilter.getRegex());
+        assertEquals("^k=.*a.*$", tagFilter.getRegex());
     }
 
     /**
@@ -598,15 +597,13 @@ public class EntityFilterMapperTest {
 
         final MapFilter filter4 =
                         testByTagSearchGoodExpVal(EntityFilterMapper.REGEX_NO_MATCH, "k=.*");
-        assertEquals("k", filter4.getKey());
         assertEquals(0, filter4.getValuesCount());
-        assertEquals("^.*$", filter4.getRegex());
+        assertEquals("^k=.*$", filter4.getRegex());
         assertFalse(filter4.getPositiveMatch());
 
         final MapFilter filter5 = testByTagSearchGoodExpVal(EntityFilterMapper.REGEX_MATCH, "k=.*");
-        assertEquals("k", filter5.getKey());
         assertEquals(0, filter5.getValuesCount());
-        assertEquals("^.*$", filter5.getRegex());
+        assertEquals("^k=.*$", filter5.getRegex());
         assertTrue(filter5.getPositiveMatch());
     }
 

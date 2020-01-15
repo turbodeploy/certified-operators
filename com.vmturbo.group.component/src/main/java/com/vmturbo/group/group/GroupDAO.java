@@ -45,6 +45,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,7 +64,6 @@ import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -110,8 +110,6 @@ public class GroupDAO implements IGroupStore {
 
     private static final String CREATE_LABEL = "create";
 
-    private static final String UPDATE_DISCOVERED_LABEL = "update_discovered";
-
     private static final String UPDATE_LABEL = "update";
 
     private static final String DELETE_LABEL = "delete";
@@ -144,8 +142,8 @@ public class GroupDAO implements IGroupStore {
                 ImmutableMap.<String, Function<PropertyFilter, Optional<Condition>>>builder().put(
                         SearchableProperties.DISPLAY_NAME,
                         GroupDAO::createDisplayNameSearchCondition)
-                        .put(StringConstants.TAGS_ATTR, prpertyFilter -> Optional.of(
-                                createTagsSearchCondition(prpertyFilter)))
+                        .put(StringConstants.TAGS_ATTR, propertyFilter -> Optional.of(
+                                createTagsSearchCondition(propertyFilter)))
                         .put(StringConstants.OID, propertyFilter -> Optional.of(
                                 createOidCondition(propertyFilter, GROUPING.ID)))
                         .put(StringConstants.ACCOUNTID, propertyFilter -> Optional.of(
@@ -1082,39 +1080,39 @@ public class GroupDAO implements IGroupStore {
                             propertyFilter);
         }
         final MapFilter filter = propertyFilter.getMapFilter();
-        final String key = filter.getKey();
-        if (key == null) {
-            throw new IllegalArgumentException(
-                    "Property filter has no key specified: " + propertyFilter);
-        }
-        if (filter.getValuesCount() == 0 && !filter.hasRegex()) {
-            throw new IllegalArgumentException(
-                    "Either regexp or values must be specified in MapFilter: " + propertyFilter);
-        }
-        if (filter.getValuesCount() > 0 && filter.hasRegex()) {
-            throw new IllegalArgumentException(
-                    "Only one of regexp or values could be specified in MapFilter: " +
-                            propertyFilter);
-        }
-        final Condition tagValuesCondition;
-        if (filter.hasRegex()) {
-            final String regexp = filter.getRegex();
-            if (filter.getPositiveMatch()) {
-                tagValuesCondition = GROUP_TAGS.TAG_VALUE.likeRegex(regexp);
-            } else {
-                tagValuesCondition = GROUP_TAGS.TAG_VALUE.notLikeRegex(regexp);
-            }
+        final Condition tagCondition;
+        if (StringUtils.isEmpty(filter.getKey())) {
+            // key is not present in the filter
+            // string key=value must match the regex
+            final Field<String> stringToMatch =
+                    DSL.concat(GROUP_TAGS.TAG_KEY, DSL.val("="), GROUP_TAGS.TAG_VALUE);
+            tagCondition = filter.getPositiveMatch()
+                                    ? stringToMatch.likeRegex(filter.getRegex())
+                                    : stringToMatch.notLikeRegex(filter.getRegex());
         } else {
-            final Collection<String> values = filter.getValuesList();
-            if (filter.getPositiveMatch()) {
-                tagValuesCondition = GROUP_TAGS.TAG_VALUE.in(values);
+            // key is present in the filter
+            // key must match and value must satisfy a specific predicate
+            final Condition tagKeyCondition = GROUP_TAGS.TAG_KEY.eq(filter.getKey());
+            final Condition tagValueCondition;
+            if (!StringUtils.isEmpty(filter.getRegex())) {
+                // value must match regex
+                tagValueCondition = GROUP_TAGS.TAG_VALUE.likeRegex(filter.getRegex());
+            } else if (!filter.getValuesList().isEmpty()) {
+                // value must be equal to one of the options
+                tagValueCondition = GROUP_TAGS.TAG_VALUE.in(filter.getValuesList());
             } else {
-                tagValuesCondition = GROUP_TAGS.TAG_VALUE.notIn(values);
+                // no restriction on the value
+                tagValueCondition = DSL.trueCondition();
+            }
+            if (filter.getPositiveMatch()) {
+                tagCondition = tagKeyCondition.and(tagValueCondition);
+            } else {
+                tagCondition = tagKeyCondition.and(tagValueCondition.not());
             }
         }
         return GROUPING.ID.in(DSL.select(GROUP_TAGS.GROUP_ID)
-                .from(GROUP_TAGS)
-                .where(GROUP_TAGS.TAG_KEY.eq(key).and(tagValuesCondition)));
+                                 .from(GROUP_TAGS)
+                                 .where(tagCondition));
     }
 
     @Nonnull
@@ -1238,7 +1236,6 @@ public class GroupDAO implements IGroupStore {
      * @param groupsToDelete groups to delete from the store.
      * @throws StoreOperationException if group configuration is incorrect
      */
-    @Nonnull
     private void updateDiscoveredGroups(@Nonnull DSLContext context,
             @Nonnull Collection<DiscoveredGroup> groupsToAdd,
             @Nonnull Collection<DiscoveredGroup> groupsToUpdate, @Nonnull Set<Long> groupsToDelete)
@@ -1279,8 +1276,6 @@ public class GroupDAO implements IGroupStore {
             requireTrue(!group.getSourceIdentifier().isEmpty(), "Source identifier must be set");
             final String sourceIdentifier = group.getSourceIdentifier();
             final GroupDefinition def = group.getDefinition();
-            final String identifyingKey =
-                    GroupProtoUtil.createIdentifyingKey(def.getType(), sourceIdentifier);
             final long effectiveId = group.getOid();
             final Grouping groupPojo = createGroupFromDefinition(def);
             groupPojo.setId(effectiveId);

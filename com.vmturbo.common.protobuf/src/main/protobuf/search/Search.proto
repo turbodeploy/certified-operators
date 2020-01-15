@@ -170,27 +170,33 @@ message PropertyFilter {
         optional int64 value = 2;
     }
 
-    // This is a filter for properties whose value is a map from strings to strings.
-    // Key matching is exact string matching.
-    // Value matching can be either exact string matching or regex matching.
-    // Value matching can also be negated.
+    // This is a filter for properties whose value is a map from strings to strings
+    // (for example, tags).
+    // Three kinds of matching are supported:
+    // 1. given a key and a set of values an entity matches if and only if it has
+    //    an entry with that key and one of the values. The string matching of both
+    //    key and value is exact (no regex matching)
+    // 2. given a regex, an entity matches if it has an entry with key k and value v
+    //    such that k=v match that regex
+    // 3. given a key and a regex, a key matches if it has an entry with key k
+    //    and value that matches that regex
+    // A map that negates the result of the match is also supported
     message MapFilter {
-        // String checked against the tag key
-        // The value in this field must much one of the tag keys of the entity
+        // If non-empty, string checked against the entry key (cases 1 and 3)
         optional string key = 1;
 
-        // Strings checked against the tag value
-        // one of the strings in this field must match
-        // one of the tag values of the entity exactly
-        // If empty, this field is ignored
+        // If non-empty, strings checked against the entry value(s) (case 2)
         repeated string values = 2;
 
         // True iff this is a multimap (multiple values per key are possible)
+        // For tags searching, this flag should be set to true
         optional bool is_multimap = 3 [default = true];
 
-        // If non-empty, it is a regex that values are mapped against.
-        // If non-empty, then field "values" should be empty.
-        // If empty, then it is ignored.
+        // If non-empty and key is not empty, then match entry value(s)
+        // against this regex (case 3)
+        // If non-empty and key is empty, then for every entry (key;value)
+        // match string key=value against this regex (case 2)
+        // If empty, then it is ignored
         optional string regex = 4;
 
         // If false, then negate the result

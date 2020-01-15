@@ -191,13 +191,10 @@ public class EntityFilterMapper {
         final boolean positiveMatch = isPositiveMatchingOperator(operator);
         if (isRegexOperator(operator)) {
             // regex match is required
-            // break input into key and value
-            final String[] keyval = context.getFilter().getExpVal().split("=");
-            final String key = keyval[0];
-            final String value = keyval[1];
             final PropertyFilter tagsFilter =
-                    mapPropertyFilterForMultimapsRegex(
-                            StringConstants.TAGS_ATTR, key, value, positiveMatch);
+                mapPropertyFilterForMultimapsRegex(StringConstants.TAGS_ATTR,
+                                                   context.getFilter().getExpVal(),
+                                                   positiveMatch);
             return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
         } else {
             // exact match is required
@@ -381,27 +378,24 @@ public class EntityFilterMapper {
      * Create a map filter for the specified property name
      * and specified regex coming from the UI.
      *
-     * <p>This filter should match values to the regex expression.</p>
+     * <p>This filter should match the expression key=value
+     * to the regex expression.</p>
      *
      * <p>The filter created allows for multimap properties.  The values of such
      * properties are maps, in which multiple values may correspond to a single key.
      * For example key "user" -> ["peter" and "paul"].</p>
      *
      * @param propName the property name to use for the search.
-     * @param key the key to search for.
-     * @param regex the regex to match values against.
+     * @param regex the regex to match keys and values against.
      * @param positiveMatch if false, then negate the result of the filter.
      * @return the property filter.
      */
     @Nonnull
     public static PropertyFilter mapPropertyFilterForMultimapsRegex(
-            @Nonnull String propName, @Nonnull String key,
-            @Nonnull String regex, boolean positiveMatch) {
+            @Nonnull String propName, @Nonnull String regex, boolean positiveMatch) {
         final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
             .setPropertyName(propName)
             .setMapFilter(MapFilter.newBuilder()
-                // The key is not a regex, so remove backslashes.
-                .setKey(key.replaceAll("\\\\", ""))
                 .setRegex(SearchProtoUtil.makeFullRegex(regex))
                 .setPositiveMatch(positiveMatch)
                 .build())
