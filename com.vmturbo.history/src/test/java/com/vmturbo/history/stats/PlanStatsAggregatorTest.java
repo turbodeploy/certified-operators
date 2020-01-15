@@ -4,16 +4,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -22,6 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
@@ -56,6 +56,7 @@ public class PlanStatsAggregatorTest {
         final TopologyEntityDTO pm1 = pm(30, CPU_MIN);
         final TopologyEntityDTO pm2 = pm(40, CPU_MAX);
         final TopologyEntityDTO pm3 = pm(50, CPU_MID);
+        final TopologyEntityDTO containerPod1 = containerPod(60);
 
         final TopologyInfo topologyOrganizer = TopologyInfo.newBuilder()
             .setTopologyContextId(CONTEXT_ID)
@@ -65,7 +66,7 @@ public class PlanStatsAggregatorTest {
         aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2));
-        aggregator.handleChunk(Lists.newArrayList(pm3));
+        aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1));
         records = aggregator.statsRecords();
     }
 
@@ -79,6 +80,7 @@ public class PlanStatsAggregatorTest {
         Map<Integer, Integer> entityTypeCounts = aggregator.getEntityTypeCounts();
         Assert.assertEquals(2, (int)entityTypeCounts.get(EntityType.VIRTUAL_MACHINE_VALUE));
         Assert.assertEquals(3, (int)entityTypeCounts.get(EntityType.PHYSICAL_MACHINE_VALUE));
+        Assert.assertEquals(1, (int)entityTypeCounts.get(EntityType.CONTAINER_POD_VALUE));
         Assert.assertEquals(3, (int)aggregator.getCommodityTypeCounts().get(CommodityDTO.CommodityType.CPU_VALUE));
     }
 
@@ -96,18 +98,18 @@ public class PlanStatsAggregatorTest {
             PREFIX + "NumHosts", PREFIX + "NumVMsPerHost", PREFIX + "NumContainersPerHost",
             PREFIX + "NumVMs", PREFIX + "NumStorages", PREFIX + "NumVMsPerStorage",
             PREFIX + "NumContainersPerStorage", PREFIX + "NumContainers",
-            PREFIX + "CPU"),
+            PREFIX + "NumContainerPods", PREFIX + "NumCPUs", PREFIX + "CPU" ),
             propertyTypes);
     }
 
     /**
      * Verify that the CPU stats record is as expected.
-     *
      */
     @Test
     public void testCPURecord() {
         MktSnapshotsStatsRecord cpuStats = records.stream().filter(rec -> rec.getPropertyType()
-            .contains("CPU")).findFirst().get();
+            .contains("CPU") && !rec.getPropertyType()
+                .contains("NumCPUs")).findFirst().get();
         Assert.assertEquals(CONTEXT_ID, (long)cpuStats.getMktSnapshotId());
         Assert.assertEquals(CPU_CAPACITY * 3, cpuStats.getCapacity(), 0);
         Assert.assertEquals((CPU_MIN + CPU_MID + CPU_MAX) / 3, cpuStats.getAvgValue(), 0);
@@ -118,8 +120,21 @@ public class PlanStatsAggregatorTest {
     }
 
     /**
+     * Verify that the numCPUs stats record is as expected.
+     */
+    @Test
+    public void testNumCPUsRecord() {
+        MktSnapshotsStatsRecord numCPUsStats = records.stream().filter(rec -> rec.getPropertyType()
+                .contains("NumCPUs")).findFirst().get();
+
+        Assert.assertEquals(PREFIX + "NumCPUs", numCPUsStats.getPropertyType());
+        Assert.assertTrue(18 == numCPUsStats.getMaxValue());
+        Assert.assertTrue(18 == numCPUsStats.getMinValue());
+        Assert.assertTrue(18 == numCPUsStats.getAvgValue());
+    }
+
+    /**
      * Verify that the PM stats record is as expected.
-     *
      */
     @Test
     public void testNumPMsRecord() {
@@ -158,6 +173,7 @@ public class PlanStatsAggregatorTest {
                     .setOid(oid)
                     .setDisplayName("PM-" + oid)
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(PhysicalMachineInfo.newBuilder().setNumCpus(6)))
                     .addCommoditySoldList(cpu(cpuUsed)).build();
     }
 
@@ -166,5 +182,19 @@ public class PlanStatsAggregatorTest {
                     .setCommodityType(CPU_TYPE)
                     .setUsed(used)
                     .setCapacity(CPU_CAPACITY).build();
+    }
+
+    /**
+     * Creates a containerPod TopologyEntityDTO.
+     *
+     * @param oid oid to use for the TopologyEntityDTO
+     * @return TopologyEntityDTO created
+     */
+    private static TopologyEntityDTO containerPod(long oid) {
+        return TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setDisplayName("ContainerPod-" + oid)
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .build();
     }
 }
