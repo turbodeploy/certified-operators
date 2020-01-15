@@ -85,20 +85,34 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
             responseObserver.onCompleted();
             return;
         }
+
         if (request.getPaginationParams().hasLimit() &&
                 request.getPaginationParams().getLimit() <= 0) {
             throw new IllegalArgumentException("Illegal pagination limit: " +
                     request.getPaginationParams().getLimit() + " must be be a positive integer");
         }
+
         final PaginationParameters paginationParameters = resetPaginationWithDefaultLimit(request);
         final long skipCount = paginationParameters.hasCursor() ? Long.valueOf(paginationParameters.getCursor()) : 0;
-        final Comparator<Long> comparator = getComparator(optionalCache);
-        final List<EntitySeverity> results = request.getEntityIdsList().stream()
-                .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
-                .skip(skipCount)
-                .limit(paginationParameters.getLimit())
-                .map(oid -> generateEntitySeverity(oid, optionalCache))
+        final List<Long> sortedEntityOids;
+        if (optionalCache.isPresent()) {
+            // Compare entity severity if entity severity cached is present.
+            sortedEntityOids = optionalCache.get().sortEntityOids(
+                request.getEntityIdsList(), paginationParameters.getAscending());
+        } else {
+            // Compare entity oids directly.
+            final Comparator<Long> comparator = Long::compare;
+            sortedEntityOids = request.getEntityIdsList().stream()
+                .sorted(paginationParameters.getAscending() ?
+                    comparator : comparator.reversed())
                 .collect(Collectors.toList());
+        }
+
+        final List<EntitySeverity> results = sortedEntityOids.stream()
+            .skip(skipCount)
+            .limit(paginationParameters.getLimit())
+            .map(oid -> generateEntitySeverity(oid, optionalCache))
+            .collect(Collectors.toList());
 
         if ((skipCount + results.size()) < request.getEntityIdsCount()) {
             EntitySeveritiesResponse.Builder paginationResponseBuilder =
@@ -153,23 +167,6 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
         }
 
         responseObserver.onCompleted();
-    }
-
-    /**
-     * Create a comparator to sort entity oid, if there is related entity severity cached, use its
-     * entity severity as comparator, otherwise, use the entity oid as the default comparator.
-     *
-     * @param optionalCache {@link EntitySeverityCache}
-     * @return a comparator to sort entity oids.
-     */
-    private Comparator<Long> getComparator(@Nonnull final Optional<EntitySeverityCache> optionalCache) {
-        if (!optionalCache.isPresent()) {
-            // if there is no severity cache, use the oid order as default comparator.
-            return Comparator.comparingLong(Long::valueOf);
-        }
-        final EntitySeverityCache severityCache = optionalCache.get();
-        return Comparator.comparing(entity ->
-                severityCache.getSeverity(entity).orElse(Severity.NORMAL));
     }
 
     /**

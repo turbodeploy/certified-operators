@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -17,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -135,6 +135,25 @@ public class EntitySeverityCache {
             return entityOids.stream()
                 .map(oid -> Optional.ofNullable(severities.get(oid)))
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        }
+    }
+
+    /**
+     * Sort given entity oids based on corresponding severity.
+     * Note that this method is guarded by a lock
+     * so that the severities of entities are in a consistent state when sorting.
+     *
+     * @param entityOids entity oids
+     * @param ascending whether to sort in ascending order
+     * @return sorted entity oids
+     */
+    public List<Long> sortEntityOids(@Nonnull final Collection<Long> entityOids, final boolean ascending) {
+        synchronized (severities) {
+            final Comparator<Long> comparator = Comparator.comparing((Long entityOid) ->
+                getSeverity(entityOid).orElse(Severity.NORMAL)).thenComparing(Long::compare);
+            return entityOids.stream()
+                .sorted(ascending ? comparator : comparator.reversed())
+                .collect(Collectors.toList());
         }
     }
 

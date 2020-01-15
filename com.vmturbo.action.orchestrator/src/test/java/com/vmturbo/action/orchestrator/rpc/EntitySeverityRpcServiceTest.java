@@ -52,7 +52,7 @@ public class EntitySeverityRpcServiceTest {
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
 
-    private final EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
+    private final EntitySeverityCache severityCache = Mockito.spy(EntitySeverityCache.class);
     private final long topologyContextId = 3;
 
     private final EntitySeverityRpcService entitySeverityRpcService =
@@ -190,7 +190,7 @@ public class EntitySeverityRpcServiceTest {
 
     @Test
     public void testPaginateEntitiesBySeverity() {
-        final List<Long> oids = Lists.newArrayList(1L, 2L, 3L);
+        final List<Long> oids = Lists.newArrayList(1L, 3L, 2L);
         final PaginationParameters paginationParams = PaginationParameters.newBuilder()
                 .setLimit(2)
                 .setOrderBy(OrderBy.newBuilder().setSearch(SearchOrderBy.ENTITY_SEVERITY))
