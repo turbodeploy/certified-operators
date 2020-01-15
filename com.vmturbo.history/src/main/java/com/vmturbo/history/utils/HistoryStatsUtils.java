@@ -171,6 +171,7 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.DESKTOP_POOL, DESKTOP_POOL)
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, BUSINESS_USER)
                     .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE, EntityType.DATABASE)
                     .build();
 
     /**
@@ -200,6 +201,7 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.DESKTOP_POOL, DESKTOP_POOL)
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, BUSINESS_USER)
                     .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE, EntityType.DATABASE)
                     .build();
 
     public static final Set<Integer> SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES =
