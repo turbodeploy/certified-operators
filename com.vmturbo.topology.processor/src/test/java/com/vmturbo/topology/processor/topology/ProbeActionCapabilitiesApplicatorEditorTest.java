@@ -14,6 +14,7 @@ import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -167,6 +168,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      *
      * <p>Result: Movable is disabled for storage tier under the VM.
      */
+    @Ignore("Re-Enable when AWS Target is ready")
     @Test
     public void testEditMovableVolumeForAWSTarget() {
         final long vvOid = 4L;
@@ -204,6 +206,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      *
      * <p>Result: Movable is enabled for storage tier under the VM.
      */
+    @Ignore("Re-Enable when AWS Target is ready")
     @Test
     public void testEditMovableVolumeForAWSTargetWithSupport() {
         final long vvOid = 4L;

@@ -86,9 +86,10 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     // can be modified to include those probes. When all probes start to provide proper
     // capabilities, this predicate can be removed
     private static final Predicate<Target> TARGET_PROBE_HAS_ACTION_CAPABILITIES =
-            target -> target.getProbeInfo().getProbeType().startsWith("Kubernetes") ||
-                target.getProbeInfo().getProbeType().equals(SDKProbeType.AWS.getProbeType()) ||
+            target -> target.getProbeInfo().getProbeType().startsWith("Kubernetes"); /* ||
+                target.getProbeInfo().getProbeType().equals(SDKProbeType.AWS.getProbeType()) ;||
                 target.getProbeInfo().getProbeType().equals(SDKProbeType.AZURE.getProbeType());
+                */
 
     // IS_NOT_SUPPORTED_ACTION is a predicate to determine if an action can be enabled
     // for market analysis
