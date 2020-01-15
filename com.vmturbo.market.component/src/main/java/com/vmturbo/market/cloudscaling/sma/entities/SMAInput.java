@@ -42,6 +42,7 @@ import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -105,14 +106,17 @@ public class SMAInput {
      * @param providers     a map from VM ID  to list of compute tier ID s that are providers
      *                      for this VM.
      * @param cloudCostData what are the cloud costs.
+     * @param marketPriceTable used to figure out the discounts for buisness accounts
+     * @param consistentScalingHelper used to figure out the consistent scaling information.
      * @param marketPriceTable price table to compute on-demand cost.
      */
     public SMAInput(
-        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-        @Nonnull Map<Long, Set<Long>> providers,
-        @Nonnull CloudCostData cloudCostData,
-        @Nonnull MarketPriceTable marketPriceTable
-    ) {
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+            @Nonnull Map<Long, Set<Long>> providers,
+            @Nonnull CloudCostData cloudCostData,
+            @Nonnull MarketPriceTable marketPriceTable,
+            @Nonnull ConsistentScalingHelper consistentScalingHelper
+            ) {
         // check input parameters are not null
         Objects.requireNonNull(cloudTopology, "source cloud topology is null");
         Objects.requireNonNull(providers, "providers are null");
@@ -150,7 +154,7 @@ public class SMAInput {
             }
             numberVMsCreated++;
             processVirtualMachine(vm, cloudTopology, cloudCostData, vms, smaContextToVMs,
-                regionToOsTypeToContext, regionToVirtualMachines, contextToBusinessAccountIds);
+                regionToOsTypeToContext, regionToVirtualMachines, contextToBusinessAccountIds, consistentScalingHelper);
         }
         dumpVMsByRegion(regionToVirtualMachines);
         dumpRegionToOsTypeToContext(regionToOsTypeToContext);
@@ -246,6 +250,7 @@ public class SMAInput {
      * @param regionToOsTypeToContext   table from region ID  to osType to set of SMAContexts, to be updated
      * @param regionToVirtualMachines   map from region ID  to set of SMAVirtualMachines, to be updated
      * @param contextToBusinessAccountIds map from context to set of business account IDs, to be updated.
+     * @param consistentScalingHelper   used to figure out the consistent scaling information.
      */
     private void processVirtualMachine(@Nonnull TopologyEntityDTO entity,
                                        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
@@ -254,7 +259,8 @@ public class SMAInput {
                                        Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
                                        Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext,
                                        Map<Long, Set<SMAVirtualMachine>> regionToVirtualMachines,
-                                       Map<SMAContext, Set<Long>> contextToBusinessAccountIds
+                                       Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
+                                       ConsistentScalingHelper consistentScalingHelper
     ) {
         long oid = entity.getOid();
         String name = entity.getDisplayName();
@@ -304,8 +310,11 @@ public class SMAInput {
             contextToBusinessAccountIds.put(context, accounts);
         }
         accounts.add(businessAccountId);
-        // TODO: determine GROUP ID
-        long groupId = SMAUtils.NO_GROUP_ID;
+        Optional<String> groupIdOptional = consistentScalingHelper.getScalingGroupId(oid);
+        String groupId = SMAUtils.NO_GROUP_ID;
+        if (groupIdOptional.isPresent()) {
+            groupId = groupIdOptional.get();
+        }
         /*
          * Create Virtual Machine
          */

@@ -14,10 +14,7 @@ import javax.annotation.Nonnull;
  */
 
 public class SMAVirtualMachineGroup {
-    /*
-     * Unique Identifier
-     */
-    private final long oid;
+
     /*
      * Name of VM Group, unique per context
      */
@@ -38,14 +35,11 @@ public class SMAVirtualMachineGroup {
     /**
      * Constructor for SMAVirtualMachineGroup.
      *
-     * @param oid the oid of the Virtual Machine Group
      * @param groupName the group name
      * @param virtualMachines the virtual machines that belong to this group.
      */
-    public SMAVirtualMachineGroup(final long oid,
-                                  @Nonnull final String groupName,
+    public SMAVirtualMachineGroup(@Nonnull final String groupName,
                                   List<SMAVirtualMachine> virtualMachines) {
-        this.oid = oid;
         this.name = Objects.requireNonNull(groupName, "groupName is null!");
         this.virtualMachines = virtualMachines;
         Collections.sort(getVirtualMachines(), new SortByVMOID());
@@ -75,10 +69,6 @@ public class SMAVirtualMachineGroup {
                 groupMember.setNaturalTemplate(groupMember.getCurrentTemplate());
             }
         }
-    }
-
-    public long getOid() {
-        return oid;
     }
 
     public String getName() {
@@ -125,13 +115,18 @@ public class SMAVirtualMachineGroup {
      */
     public static class SortByVMOID implements Comparator<SMAVirtualMachine> {
         /**
-         * given two vms compare them by oid.
-         * @param vm1 first vm
-         * @param vm2 second vm
-         * @return -1 if vm1 has a higher oid. 1 otherwise.
+         * given two VMs compare them by RI converage and then by oid.
+         * @param vm1 first VM
+         * @param vm2 second VM
+         * @return -1 if vm1 has a higher RI coverage. 1 otherwise. higher oid is used to break ties.
          */
         @Override
         public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
+            if (Math.round(vm1.getCurrentRICoverage()) - Math.round(vm2.getCurrentRICoverage()) > 0) {
+                return -1;
+            } else if (Math.round(vm1.getCurrentRICoverage()) - Math.round(vm2.getCurrentRICoverage()) < 0) {
+                return 1;
+            }
             return (vm1.getOid() - vm2.getOid() > 0) ? -1 : 1;
         }
     }

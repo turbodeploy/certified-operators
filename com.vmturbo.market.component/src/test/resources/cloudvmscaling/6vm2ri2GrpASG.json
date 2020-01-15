@@ -123,7 +123,7 @@
             100006
           ],
           "zone": 22,
-          "currentRICoverage": 0,
+          "currentRICoverage": 1,
           "currentTemplate": 100004
         },
         {
@@ -154,7 +154,7 @@
             100006
           ],
           "zone": 22,
-          "currentRICoverage": 2,
+          "currentRICoverage": 0,
           "currentTemplate": 100003
         }
       ],
@@ -171,15 +171,11 @@
       "Matching": [
         {
           "VirtualMachine": 2000003,
-          "ReservedInstance": 1000001,
-          "Template": 100004,
-          "DiscountedCoupons": 1
-        },
+          "Template": 100004
+          },
         {
           "VirtualMachine": 2000020,
-          "ReservedInstance": 1000001,
-          "Template": 100004,
-          "DiscountedCoupons": 1
+          "Template": 100004
         },
         {
           "VirtualMachine": 2000021,
@@ -188,15 +184,19 @@
           "DiscountedCoupons": 1
         },
         {
-          "VirtualMachine": 2000001,
-          "Template": 100004
+          "VirtualMachine": 2000011,
+          "ReservedInstance": 1000001,
+          "Template": 100004,
+          "DiscountedCoupons": 1
         },
         {
           "VirtualMachine": 2000010,
-          "Template": 100004
+          "ReservedInstance": 1000001,
+          "Template": 100004,
+          "DiscountedCoupons": 1
         },
         {
-          "VirtualMachine": 2000011,
+          "VirtualMachine": 2000001,
           "ReservedInstance": 1000001,
           "Template": 100004,
           "DiscountedCoupons": 1

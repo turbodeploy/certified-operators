@@ -113,7 +113,7 @@ public class SMAUtilsTest {
                 SMAVirtualMachine oldVM = smaVirtualMachines.get(i);
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                         oldVM.getName(),
-                        oldVM.getGroupOid(),
+                        oldVM.getGroupName(),
                         oldVM.getBusinessAccount(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
@@ -352,7 +352,7 @@ public class SMAUtilsTest {
                 SMAVirtualMachine oldVM = smaVirtualMachines.get(i);
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                         oldVM.getName(),
-                        oldVM.getGroupOid(),
+                        oldVM.getGroupName(),
                         oldVM.getBusinessAccount(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
@@ -619,7 +619,7 @@ public class SMAUtilsTest {
                     jitter++;
                 }
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(), oldVM.getName(),
-                        oldVM.getGroupOid(),
+                        oldVM.getGroupName(),
                         oldVM.getBusinessAccount(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
@@ -724,7 +724,7 @@ public class SMAUtilsTest {
                 long vmOid = SMATestConstants.VIRTUAL_MACHINE_BASE + (i * size) + j;
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(vmOid,
                         "vm_" + vmOid + "_" + j,
-                        SMATestConstants.GROUP_NAME_BASE + i,
+                        (SMATestConstants.GROUP_NAME_BASE + i),
                         businessAccount,
                         providers.get(rand.nextInt(providerSize)),
                         memberProviders,

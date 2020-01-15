@@ -24,7 +24,7 @@ public class SMATestConstants {
     /**
      * base for auto scaling group oid.
      */
-    public static final long GROUP_NAME_BASE = 100L;
+    public static final String GROUP_NAME_BASE = "100";
     /**
      * base for template oid.
      */

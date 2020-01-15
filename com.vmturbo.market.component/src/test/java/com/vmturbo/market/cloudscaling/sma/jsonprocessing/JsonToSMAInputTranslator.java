@@ -89,9 +89,11 @@ public class JsonToSMAInputTranslator {
 
         List<SMAReservedInstance> reservedInstances = new ArrayList<>();
         JsonArray reservedInstancesObjs = (JsonArray)inputContextObj.get("ReservedInstances");
-        for (JsonElement reservedInstancesObj : reservedInstancesObjs) {
-            SMAReservedInstance reservedInstance = parseReservedInstance(reservedInstancesObj.getAsJsonObject(), oidToTemplate, context);
-            reservedInstances.add(reservedInstance);
+        if (reservedInstancesObjs != null) {
+            for (JsonElement reservedInstancesObj : reservedInstancesObjs) {
+                SMAReservedInstance reservedInstance = parseReservedInstance(reservedInstancesObj.getAsJsonObject(), oidToTemplate, context);
+                reservedInstances.add(reservedInstance);
+            }
         }
 
         SMAInputContext inputContext = new SMAInputContext(context, virtualMachines, reservedInstances, templates);
@@ -145,9 +147,9 @@ public class JsonToSMAInputTranslator {
         }
         Long zoneOid = virtualMachineObj.get("zone").getAsLong();
         JsonElement groupNameObj = virtualMachineObj.get("groupName");
-        Long groupOid = SMAUtils.NO_GROUP_ID;
+        String groupName = SMAUtils.NO_GROUP_ID;
         if (groupNameObj != null) {
-            groupOid = groupNameObj.getAsLong();
+            groupName = groupNameObj.getAsString();
         }
         JsonElement countObj = virtualMachineObj.get("count");
         List<SMAVirtualMachine> smaVirtualMachines = new ArrayList<>();
@@ -156,13 +158,13 @@ public class JsonToSMAInputTranslator {
             for (Integer i = 0; i < count; i++) {
                 String vm_name = name + i.toString();
                 long newOid = oid + i;
-                SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupOid, businessAccountOid,
+                SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupName, businessAccountOid,
                     oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
                 virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
-            SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupOid, businessAccountOid,
+            SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupName, businessAccountOid,
                 oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
             virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
@@ -220,31 +222,9 @@ public class JsonToSMAInputTranslator {
         Objects.requireNonNull(template, "parseMatch: template == null for OID=" + templateOid +
             ", could not find template in input context");
 
-        JsonArray reservedInstancesObj = (JsonArray)matchesObj.get("ReservedInstances");
-        List<Pair<SMAReservedInstance, Integer>> memberReservedInstances = new ArrayList<>();
-        if (reservedInstancesObj != null) {
-            for (JsonElement rInstanceObj : reservedInstancesObj) {
-                long reservedInstanceOid = rInstanceObj.getAsJsonObject().get("ReservedInstance").getAsLong();
-                int memberdiscountedCoupons = rInstanceObj.getAsJsonObject().get("DiscountedCoupons").getAsInt();
-                SMAReservedInstance memberReservedInstance = null;
-                for (SMAReservedInstance ri : smaInputContext.getReservedInstances()) {
-                    if (ri.getOid() == reservedInstanceOid) {
-                        memberReservedInstance = ri;
-                        break;
-                    }
-                }
-                memberReservedInstances.add(new Pair<>(memberReservedInstance, memberdiscountedCoupons));
-            }
-        }
-        if (memberReservedInstances.isEmpty()) {
-            SMAMatch smaMatch = new SMAMatch(virtualMachine, template, reservedInstance, discountedCoupons);
-            return smaMatch;
-        } else {
-            discountedCoupons = matchesObj.get("DiscountedCoupons").getAsInt();
-            SMAMatch smaMatch = new SMAMatch(virtualMachine, template, discountedCoupons, memberReservedInstances);
-            return smaMatch;
-        }
 
+        SMAMatch smaMatch = new SMAMatch(virtualMachine, template, reservedInstance, discountedCoupons);
+        return smaMatch;
 
     }
 

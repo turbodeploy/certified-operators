@@ -30,9 +30,9 @@ public class SMAVirtualMachine {
      */
     private final String name;
     /*
-     * Name of  unique per context
+     * Name of  auto scaling group unique per context
      */
-    private final long groupOid;
+    private final String groupName;
     /*
      * BusinessAccount, subaccount of billing account
      */
@@ -91,7 +91,7 @@ public class SMAVirtualMachine {
      *
      * @param oid the unique id of the virtual machine
      * @param name the display name of the
-     * @param groupOid oid of the group the VM belongs to.
+     * @param groupName unique name of the group the VM belongs to.
      * @param businessAccount the buisness account
      * @param currentTemplate the current template of the vm
      * @param providers the list of templates that the vm can fit in.
@@ -100,7 +100,7 @@ public class SMAVirtualMachine {
      */
     public SMAVirtualMachine(final long oid,
                              @Nonnull final String name,
-                             final long groupOid,
+                             final String groupName,
                              final long businessAccount,
                              SMATemplate currentTemplate,
                              @Nonnull List<SMATemplate> providers,
@@ -108,7 +108,7 @@ public class SMAVirtualMachine {
                              final long zone) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
-        this.groupOid = groupOid;
+        this.groupName = groupName;
         this.currentTemplate = currentTemplate;
         this.businessAccount = businessAccount;
         this.currentRICoverage = currentRICoverage;
@@ -192,8 +192,8 @@ public class SMAVirtualMachine {
         currentTemplate = template;
     }
 
-    public long getGroupOid() {
-        return groupOid;
+    public String getGroupName() {
+        return groupName;
     }
 
     public SMATemplate getNaturalTemplate() {
@@ -292,7 +292,7 @@ public class SMAVirtualMachine {
      * @return true if the vm and ri belong to the same zone or if the ri is region scoped
      */
     public boolean zoneCompatible(SMAReservedInstance ri,
-                                  Map<Long, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+                                  Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         /*
          * If the vm is the leader of ASG and the vms belong to different zones only a regional RI can
          * discount it.
@@ -301,8 +301,8 @@ public class SMAVirtualMachine {
          *
          */
 
-        if (groupOid != SMAUtils.NO_GROUP_ID
-                && !virtualMachineGroupMap.get(this.getGroupOid()).isZonalDiscountable()
+        if (!groupName.equals(SMAUtils.NO_GROUP_ID)
+                && !virtualMachineGroupMap.get(this.getGroupName()).isZonalDiscountable()
                 && !ri.isRegionScoped()) {
             return false;
         }

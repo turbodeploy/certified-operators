@@ -25,9 +25,9 @@ public class Stability {
         for (int i = 0; i < 100; i++) {
             // templates, VMs, RIs, families, zones, accounts, isZonalRIs, OS, familyRange
             //SMATestUtils.testStability(175, 1000, 1000, 25, 4, 1, TypeOfRIs.REGIONAL, SMAPlatform.WINDOWS, familyRange, loops);
-            SMAUtilsTest.testStability(175, 10000, 10000, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.WINDOWS, familyRange, loops);
-            SMAUtilsTest.testStability(175, 10000, 10000, 25, 4, 1, TypeOfRIs.ZONAL, OSType.WINDOWS, familyRange, loops);
-            SMAUtilsTest.testStability(175, 10000, 10000, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.LINUX, familyRange, loops);
+            SMAUtilsTest.testStability(175, 1000, 1000, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.WINDOWS, familyRange, loops);
+            SMAUtilsTest.testStability(175, 1000, 1000, 25, 4, 1, TypeOfRIs.ZONAL, OSType.WINDOWS, familyRange, loops);
+            SMAUtilsTest.testStability(175, 1000, 1000, 25, 4, 1, TypeOfRIs.REGIONAL, OSType.LINUX, familyRange, loops);
         }
     }
 

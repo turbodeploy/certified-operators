@@ -56,13 +56,9 @@ public class SMATest {
         for (SMAInputContext inputContext : smaInput.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
             List<SMAMatch> actualMatches = outputContext.getMatches().stream()
-                    .filter(a -> !(a.getMemberReservedInstances() == null || a.getMemberReservedInstances().isEmpty())).collect(Collectors.toList());
+                    .filter(a -> (a.getReservedInstance() != null)).collect(Collectors.toList());
             Assert.assertEquals(count, actualMatches.size());
         }
-    }
-    @Test
-    public void testSMApfs() {
-        // testExactResult("2vm2riMergeRI.json");
     }
 
     /**
@@ -93,12 +89,11 @@ public class SMATest {
          * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved
          */
         testExactResult("1vm0ri2templates.json");
-
         /*
          * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved.
          * Don't specify an empty RI json array.
          */
-//        testExactResult("1vm2templates.json");
+        testExactResult("1vm2templates.json");
         /*
          * 1 vm and 2 ris. one zonal one regional. the vm should prefer zonal.
          */
@@ -128,18 +123,12 @@ public class SMATest {
          */
         testExactResult("1vm2rinodiff.json");
         /*
-         * 2 identical vm and 1 ri. The current RI coverage breaks the tie.
-         */
-        //testExactResult("2vm1riRICoverage.json");
-        /*
          * 1 vm and 2 same ri's. The name breaks the tie.
          */
         testExactResult("1vm2riNameBreaksTie.json");
 
-        /*
-         * TODO: fix this
         testExactResult("2vm2riMergeRI.json");
-        */
+
         testExactResult("2vm2riInstanceSFMergeRIs.json");
 
     }
@@ -182,7 +171,8 @@ public class SMATest {
         for (SMAMatch match1 : matches1) {
             boolean found = false;
             for (SMAMatch match2 : matches2) {
-                if (compareAllocation(match1.getMemberReservedInstances(), match2.getMemberReservedInstances()) &&
+                if (compareReservedInstance(match1.getReservedInstance(),
+                        match2.getReservedInstance()) &&
                         (match1.getDiscountedCoupons() == match2.getDiscountedCoupons()) &&
                         (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid()) &&
                         (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
@@ -198,23 +188,20 @@ public class SMATest {
     }
 
     /**
-     * Compare two list of RI,coupon pairs and make sure they have the same elements.
-     * @param allocation1 first list
-     * @param allocation2 second list
-     * @return true if the lists are same.
+     * Compare 2 RI's are same.
+     * @param ri1 first RI
+     * @param ri2 second RI
+     * @return true if the RI's are same.
      */
-    public boolean compareAllocation(List<Pair<SMAReservedInstance, Integer>> allocation1,
-                                     List<Pair<SMAReservedInstance, Integer>> allocation2) {
-
-        if (allocation1 == null || allocation2 == null || allocation1.size() != allocation2.size()) {
+    private boolean compareReservedInstance(SMAReservedInstance ri1, SMAReservedInstance ri2) {
+        if (ri1 == null && ri2 == null) {
+            return true;
+        } else if (ri1 == null) {
             return false;
+        } else if (ri2 == null) {
+            return false;
+        } else {
+            return (ri1.getOid() == ri2.getOid());
         }
-        for (int i = 0; i < allocation1.size(); i++) {
-            if (allocation1.get(i).first.getOid() != allocation2.get(i).first.getOid() ||
-                    allocation1.get(i).second != allocation2.get(i).second) {
-                return false;
-            }
-        }
-        return true;
     }
 }

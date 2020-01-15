@@ -87,13 +87,11 @@ public class SMAReservedInstance {
      */
     private final boolean isf;
 
-    // list of RI that constitute this normalized RIs. along with the coupon of the RI already used.
-    private List<MutablePair<SMAReservedInstance, Integer>> members;
 
     // map to keep track of RI Coverage for each group.
     // Saved to avoid recomputing everytime.
     // RI OID x Pair<couponsCovered, totalCoupons>
-    private HashMap<Long, Pair<Float, Float>> riCoveragePerGroup;
+    private HashMap<String, Pair<Float, Float>> riCoveragePerGroup;
 
     // last discounted VM
     private SMAVirtualMachine lastDiscountedVM;
@@ -129,7 +127,6 @@ public class SMAReservedInstance {
         this.count = count;
         Objects.requireNonNull(context, "context is null!");
         this.isf = computeInstanceSizeFlexible(context);
-        this.members = new ArrayList<>();
         couponToBestVM = new HashMap<>();
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
@@ -230,10 +227,6 @@ public class SMAReservedInstance {
 
     public void setTotalCount(final float totalCount) {
         this.totalCount = totalCount;
-    }
-
-    public List<MutablePair<SMAReservedInstance, Integer>> getMembers() {
-        return members;
     }
 
     /**
@@ -350,7 +343,7 @@ public class SMAReservedInstance {
             total = total + member.getCurrentTemplate().getCoupons();
         }
         Pair<Float, Float> pair = new Pair<>(coverage, total);
-        riCoveragePerGroup.put(virtualMachineGroup.getOid(), pair);
+        riCoveragePerGroup.put(virtualMachineGroup.getName(), pair);
     }
 
     /**
@@ -361,8 +354,8 @@ public class SMAReservedInstance {
      */
     public float getRICoverage(SMAVirtualMachine vm) {
         if (vm.getGroupSize() > 1) {
-            return riCoveragePerGroup.get(vm.getGroupOid()).first
-                    / riCoveragePerGroup.get(vm.getGroupOid()).second;
+            return riCoveragePerGroup.get(vm.getGroupName()).first
+                    / riCoveragePerGroup.get(vm.getGroupName()).second;
         } else {
             if (isSingleVMDiscounted(vm)) {
                 return vm.getCurrentRICoverage()

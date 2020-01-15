@@ -97,16 +97,7 @@
       "Matching": [
         {
           "VirtualMachine": 2000002,
-          "ReservedInstances": [
-            {
-              "ReservedInstance": 1000001,
-              "DiscountedCoupons": 2
-            },
-            {
-              "ReservedInstance": 1000002,
-              "DiscountedCoupons": 2
-            }
-          ],
+          "ReservedInstance": 1000001,
           "Template": 100003,
           "DiscountedCoupons": 4
         },

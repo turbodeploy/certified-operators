@@ -24,10 +24,7 @@ public class SMAMatch {
      */
     private final SMATemplate template;
 
-    /**
-     * ReservedInstance.
-     */
-    private List<Pair<SMAReservedInstance, Integer>> memberReservedInstances;
+    private SMAReservedInstance reservedInstance;
 
     /**
      * Discounted Coupons.
@@ -49,32 +46,7 @@ public class SMAMatch {
         this.virtualMachine = Objects.requireNonNull(virtualMachine, "virtualMachine is null!");
         this.template = Objects.requireNonNull(template, "template is null!");
         this.discountedCoupons = discountedCoupons;
-        if (reservedInstance == null) {
-            this.memberReservedInstances = new ArrayList<>();
-        } else {
-            this.memberReservedInstances =
-                    new ArrayList<>(Arrays.asList(new Pair<>(reservedInstance, discountedCoupons)));
-        }
-
-    }
-
-    /**
-     * Constructor when the VM is matched to multiple reserved instances.
-     *
-     * @param virtualMachine  virtual machine
-     * @param template  the template the virtual machine is scaled to
-     * @param discountedCoupons  the number of coupons the ri discounts the vm
-     * @param memberReservedInstances the reserved instances the VM is associated with along
-     *                                with actual coupons each ri is discounting.
-     */
-    public SMAMatch(@Nonnull final SMAVirtualMachine virtualMachine,
-                    @Nonnull final SMATemplate template,
-                    final int discountedCoupons,
-                    final List<Pair<SMAReservedInstance, Integer>> memberReservedInstances) {
-        this.virtualMachine = Objects.requireNonNull(virtualMachine, "virtualMachine is null!");
-        this.template = Objects.requireNonNull(template, "template is null!");
-        this.discountedCoupons = discountedCoupons;
-        this.memberReservedInstances = memberReservedInstances;
+        this.reservedInstance = reservedInstance;
     }
 
     // TODO add the netcost computation method
@@ -90,15 +62,12 @@ public class SMAMatch {
     }
 
     /**
-     * return the reserved instance associated with a match. call this only when we know that
-     * the match is associated with a single RI.
-     * @return the first reserved instance associated with the match.(Ideally there is only one)
+     * return the reserved instance associated with a match.
+     * @return the reserved instance associated with the match.
      */
+    @Nonnull
     public SMAReservedInstance getReservedInstance() {
-        if (memberReservedInstances == null || memberReservedInstances.size() == 0) {
-            return null;
-        }
-        return memberReservedInstances.get(0).first;
+        return reservedInstance;
     }
 
     public int getDiscountedCoupons() {
@@ -107,10 +76,6 @@ public class SMAMatch {
 
     public void setDiscountedCoupons(final int discountedCoupons) {
         this.discountedCoupons = discountedCoupons;
-    }
-
-    public List<Pair<SMAReservedInstance, Integer>> getMemberReservedInstances() {
-        return memberReservedInstances;
     }
 
     @Override
@@ -122,15 +87,10 @@ public class SMAMatch {
             .append(" naturalTemplate=").append(virtualMachine.getNaturalTemplate().getName())
             .append(" projectedTemplate=").append(template.getName())
             .append(" coupons=").append(template.getCoupons());
-        if (getMemberReservedInstances().size() > 0) {
-            buffer.append(" discountedCoupons=").append(discountedCoupons);
-            for (Pair<SMAReservedInstance, Integer> pair: memberReservedInstances) {
-                SMAReservedInstance ri = pair.first;
-                int coupons = pair.second;
-                buffer.append( " RI OID=").append(ri.getOid())
-                    .append(" template=").append(ri.getTemplate().getName())
-                    .append(" coupons=").append(coupons);
-            }
+        if (reservedInstance != null) {
+                buffer.append( " RI OID=").append(reservedInstance.getOid())
+                    .append(" template=").append(reservedInstance.getTemplate().getName())
+                    .append(" coupons=").append(discountedCoupons);
         }
         return buffer.toString();
     }

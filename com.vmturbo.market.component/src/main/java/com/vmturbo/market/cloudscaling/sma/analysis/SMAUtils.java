@@ -20,7 +20,7 @@ public class SMAUtils {
     /**
      * oid for vm's that does not belong to any ASG.
      */
-    public static final long NO_GROUP_ID = -1;
+    public static final String NO_GROUP_ID = new String();
     /**
      * epsilon for floating point comparison.
      */
