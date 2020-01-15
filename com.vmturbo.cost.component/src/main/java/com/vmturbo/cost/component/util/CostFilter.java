@@ -12,12 +12,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Sets;
+
 import org.jooq.Condition;
 import org.jooq.Table;
 
-import com.google.common.collect.Sets;
-
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 
 /**
  * A abstract class represents the filter object.

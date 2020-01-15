@@ -11,13 +11,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
 /**

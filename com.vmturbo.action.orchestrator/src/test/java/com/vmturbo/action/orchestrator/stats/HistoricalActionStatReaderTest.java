@@ -19,9 +19,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBuckets;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory;
@@ -49,8 +49,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.A
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 
 public class HistoricalActionStatReaderTest {
 

@@ -2,14 +2,13 @@ package com.vmturbo.history.stats.live;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,17 +17,20 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
@@ -39,7 +41,7 @@ public class TimeRangeTest {
 
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
 
-    private HistoryTimeFrameCalculator timeFrameCalculator = mock(HistoryTimeFrameCalculator.class);
+    private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
     private final TimeRangeFactory timeRangeFactory =
             new DefaultTimeRangeFactory(historydbIO,
@@ -222,6 +224,44 @@ public class TimeRangeTest {
                 Optional.empty(), Optional.empty(), Optional.of(paginationParam));
         assertTrue(timeRangeOpt2.isPresent());
         assertTrue(timeRangeOpt2.get().getMostRecentSnapshotTime().getTime() == piTimestamp.getTime());
+    }
+
+    /**
+     * Checks that rollup period takes precedence calculated timeframe from start/end time
+     * difference.
+     *
+     * @throws VmtDbException in case of error while doing request to DB to get
+     *                 timestamps in range.
+     */
+    @Test
+    public void testRollupPeriodTakesPrecedenceAsTimeFrame() throws VmtDbException {
+        final Timestamp timestamp = new Timestamp(9L);
+        final long startTime = 10L;
+        final long endTime = 15L;
+        final long rollupPeriod = 30L;
+        // Time frame not latest.
+        Mockito.when(timeFrameCalculator.millis2TimeFrame(startTime)).thenReturn(TimeFrame.DAY);
+        Mockito.when(timeFrameCalculator.millis2TimeFrame(rollupPeriod)).thenReturn(TimeFrame.MONTH);
+        Mockito.when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
+                        startTime, endTime, Optional.empty(), Optional.empty()))
+                        .thenReturn(Collections.singletonList(timestamp));
+
+        final Optional<TimeRange> timeRangeOpt =
+                        timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
+                                        .setStartDate(startTime)
+                                        .setEndDate(endTime)
+                                        .setRollupPeriod(rollupPeriod)
+                                        .build(), Optional.empty(), Optional.empty(), Optional.empty());
+        Mockito.verify(timeFrameCalculator).millis2TimeFrame(rollupPeriod);
+        Mockito.verify(historydbIO).getTimestampsInRange(TimeFrame.MONTH,
+                        startTime, endTime, Optional.empty(), Optional.empty());
+
+        final TimeRange timeRange = timeRangeOpt.get();
+        Assert.assertThat(timeRange.getStartTime(), is(startTime));
+        Assert.assertThat(timeRange.getEndTime(), is(endTime));
+        Assert.assertThat(timeRange.getMostRecentSnapshotTime(), is(timestamp));
+        Assert.assertThat(timeRange.getTimeFrame(), is(TimeFrame.MONTH));
+        Assert.assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));
     }
 
     @Test

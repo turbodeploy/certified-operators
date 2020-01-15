@@ -34,9 +34,6 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 
 /**
  * Test the ReservedInstanceUtilizationCoverageRpcService public methods which get coverage

@@ -9,15 +9,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang3.ArrayUtils;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Table;
 
-import com.google.common.collect.ImmutableList;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil;
 

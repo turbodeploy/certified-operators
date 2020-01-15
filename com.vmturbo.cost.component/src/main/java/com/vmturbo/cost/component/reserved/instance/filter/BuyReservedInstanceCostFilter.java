@@ -5,8 +5,8 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest.GroupBy;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 
 /**
  * Filter used to extract RI costs from the underlying tables.

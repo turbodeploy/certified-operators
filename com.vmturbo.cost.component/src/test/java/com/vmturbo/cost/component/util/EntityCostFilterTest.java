@@ -17,8 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 
 /**
@@ -52,7 +51,7 @@ public class EntityCostFilterTest {
         assertThat(filter.getEndDateMillis(), is(Optional.of(2L)));
 
         final EntityCostFilterBuilder builder =
-            EntityCostFilterBuilder.newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+            EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
                 .duration(1L, 2L)
                 .entityIds(Collections.singleton(5L))
                     .costCategoryFilter(CostCategoryFilter.newBuilder()

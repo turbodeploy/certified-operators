@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.stats;
 
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,8 +22,8 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 

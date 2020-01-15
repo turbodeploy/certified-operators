@@ -15,8 +15,7 @@ import com.google.common.collect.ImmutableSet;
 import org.jooq.Table;
 import org.junit.Test;
 
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 
@@ -32,7 +31,7 @@ public class AccountExpensesFilterTest {
     @Test
     public void testObjectOverrideMethods() {
         AccountExpensesFilter filter = AccountExpenseFilterBuilder
-            .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST)
             .duration(1L, 2L)
             .entityIds(Collections.singleton(5L))
             .entityTypes(ImmutableSet.of(10, 11))
@@ -43,7 +42,7 @@ public class AccountExpensesFilterTest {
         assertThat(filter.getEndDateMillis(), is(Optional.of(2L)));
 
         AccountExpenseFilterBuilder builder =
-            AccountExpenseFilterBuilder.newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+            AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
                 .duration(1L, 2L)
                 .entityIds(Collections.singleton(5L))
                 .entityTypes(ImmutableSet.of(10, 11))

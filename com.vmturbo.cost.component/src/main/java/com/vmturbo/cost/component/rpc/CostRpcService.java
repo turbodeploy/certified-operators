@@ -23,16 +23,16 @@ import java.util.stream.DoubleStream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -63,13 +63,13 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.forecasting.ForecastingContext;
 import com.vmturbo.commons.forecasting.ForecastingStrategyNotProvidedException;
 import com.vmturbo.commons.forecasting.InvalidForecastingDateRangeException;
 import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;

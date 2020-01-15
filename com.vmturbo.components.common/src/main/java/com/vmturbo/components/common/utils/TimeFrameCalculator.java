@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
@@ -14,7 +15,6 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPerio
  * timestamp, depending on the stats retainment configuration.
  */
 public class TimeFrameCalculator {
-
     private final Clock clock;
 
     private final RetentionPeriodFetcher retentionPeriodFetcher;
@@ -33,7 +33,6 @@ public class TimeFrameCalculator {
      */
     @Nonnull
     public TimeFrame millis2TimeFrame(final long millis) {
-
         // no start date was mentioned - use latest
         if (millis == 0) {
             return TimeFrame.LATEST;
@@ -53,30 +52,6 @@ public class TimeFrameCalculator {
         if (timeBack.toDays() <= retentionPeriods.dailyRetentionDays()) {
             return TimeFrame.DAY;
         }
-
         return TimeFrame.MONTH;
-    }
-
-    public enum TimeFrame {
-        LATEST("$/h", 1),
-        HOUR("$/h", 1),
-        DAY("$/day", 24),
-        MONTH("$/mo", 730);
-
-        private final String units;
-        private final double multiplier;
-
-        TimeFrame(String units, double multiplier) {
-            this.units = units;
-            this.multiplier = multiplier;
-        }
-
-        public String getUnits() {
-            return this.units;
-        }
-
-        public double getMultiplier() {
-            return this.multiplier;
-        }
     }
 }

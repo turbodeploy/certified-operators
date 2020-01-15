@@ -26,7 +26,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;

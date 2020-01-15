@@ -19,7 +19,7 @@ import org.jooq.Field;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 
 /**
  * A abstract class represent a filter object which will be used to query reserved instance stats

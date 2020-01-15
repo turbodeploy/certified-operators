@@ -24,12 +24,12 @@ import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
-import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
 import com.vmturbo.history.stats.live.RatioRecordFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
@@ -140,8 +140,8 @@ public class StatsConfig {
     }
 
     @Bean
-    public HistoryTimeFrameCalculator timeFrameCalculator() {
-        return new HistoryTimeFrameCalculator(clock(), retentionPeriodFetcher());
+    public TimeFrameCalculator timeFrameCalculator() {
+        return new TimeFrameCalculator(clock(), retentionPeriodFetcher());
     }
 
     @Bean

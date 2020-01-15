@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Instant;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -12,14 +11,14 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -32,8 +31,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStats
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;

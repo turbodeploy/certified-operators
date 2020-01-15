@@ -115,6 +115,10 @@ message StatsFilter {
 
     optional int64 end_date = 4;
 
+    // force data to be returned only for explicitly specified rollup period (specified in milliseconds)
+    // this is not an enum (latest/hourly/daily/monthly) to decouple from history implementation
+    optional int64 rollup_period = 5;
+
     // Specify the commodity to fetch along with filters and grouping
     message CommodityRequest {
 

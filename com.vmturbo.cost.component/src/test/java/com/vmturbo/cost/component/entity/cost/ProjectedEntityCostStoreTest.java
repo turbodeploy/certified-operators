@@ -14,6 +14,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -22,9 +25,6 @@ import org.junit.runner.RunWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -39,9 +39,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -168,7 +167,7 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsWithCostFilter() {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
-                .newBuilder(TimeFrameCalculator.TimeFrame.LATEST).build());
+                .newBuilder(TimeFrame.LATEST).build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID, DB1_OID));
         assertThat(costs.get(VM1_OID), is(VM1_COST));
         assertThat(costs.get(VM2_OID), is(VM2_COST));
@@ -190,7 +189,7 @@ public class ProjectedEntityCostStoreTest {
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
                 .thenReturn(Collections.singletonList(response));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
-                .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST)
                 .entityIds(ImmutableSet.of(VM1_OID, DB1_OID))
                 .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, DB1_OID));
@@ -205,7 +204,7 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsWithCostFilterOnEntitiesTypes() {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
-                .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST)
                 .entityTypes(ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE))
                 .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID));
@@ -259,7 +258,7 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsWithCostFilterOnCostSourceInclusion() {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
-                .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST)
                 .costSources(false, ImmutableSet.of(CostSource.ON_DEMAND_RATE_VALUE))
                 .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID));
@@ -277,7 +276,7 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsWithCostFilterOnCostSourceExclusion() {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
-                .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST)
                 .costSources(true, ImmutableSet.of(CostSource.BUY_RI_DISCOUNT_VALUE))
                 .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID, DB1_OID));

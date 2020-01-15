@@ -12,12 +12,11 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.history.db.VmtDbException;
 
 /**
@@ -133,13 +132,13 @@ public class TimeRange {
 
             private final HistorydbIO historydbIO;
 
-            private final HistoryTimeFrameCalculator timeFrameCalculator;
+            private final TimeFrameCalculator timeFrameCalculator;
 
             // time (MS) to specify a window before startTime; the config property is latestTableTimeWindowMin
             private final long latestTableTimeWindowMS;
 
             public DefaultTimeRangeFactory(@Nonnull final HistorydbIO historydbIO,
-                                           @Nonnull final HistoryTimeFrameCalculator timeFrameCalculator,
+                                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                                            final long latestTableTimeWindow,
                                            final TimeUnit latestTableTimeWindowUnit) {
                 this.historydbIO = Objects.requireNonNull(historydbIO);
@@ -190,7 +189,7 @@ public class TimeRange {
                     }
                     timestampsInRange = Collections.singletonList(mostRecentDbTimestamp.get());
                     resolvedStartTime = resolvedEndTime = mostRecentDbTimestamp.get().getTime();
-                    timeFrame = timeFrameCalculator.millis2TimeFrame(resolvedStartTime);
+                    timeFrame = getTimeFrame(resolvedStartTime, statsFilter);
 
                 } else {
                     // in this case we have a start and end date
@@ -198,7 +197,7 @@ public class TimeRange {
                     Preconditions.checkArgument(statsFilter.hasEndDate());
                     // if the startTime and endTime are equal, and within the LATEST table window, open
                     // up the window a bit so that we will catch a stats value
-                    timeFrame = timeFrameCalculator.millis2TimeFrame(statsFilter.getStartDate());
+                    timeFrame = getTimeFrame(statsFilter.getStartDate(), statsFilter);
 
                     if (statsFilter.getStartDate() == statsFilter.getEndDate() &&
                         timeFrame.equals(TimeFrame.LATEST)) {
@@ -230,6 +229,15 @@ public class TimeRange {
                     return Optional.of(new TimeRange(resolvedStartTime, resolvedEndTime, timeFrame, timestampsInRange));
                 }
 
+            }
+
+            @Nonnull
+            private TimeFrame getTimeFrame(long resolvedStartTime,
+                            @Nonnull StatsFilter statsFilter) {
+                if (statsFilter.hasRollupPeriod()) {
+                    return timeFrameCalculator.millis2TimeFrame(statsFilter.getRollupPeriod());
+                }
+                return timeFrameCalculator.millis2TimeFrame(resolvedStartTime);
             }
         }
     }

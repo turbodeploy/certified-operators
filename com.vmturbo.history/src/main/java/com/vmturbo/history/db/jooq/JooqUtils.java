@@ -18,8 +18,8 @@ import org.jooq.Record;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.history.schema.RelationType;
 
 public class JooqUtils {
