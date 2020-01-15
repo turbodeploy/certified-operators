@@ -253,9 +253,14 @@ public class AnalysisServer implements AutoCloseable {
                     analysisInstanceInfoMap.get(message.getTopologyId())
                                     .getCurrentPartial().addTradersForHeadroom(message.getDiscoveredTrader());
                 } else {
-                    ProtobufToAnalysis.addTrader(
-                                    analysisInstanceInfoMap.get(message.getTopologyId())
-                                                    .getCurrentPartial(), message.getDiscoveredTrader());
+                    try {
+                        ProtobufToAnalysis.addTrader(
+                            analysisInstanceInfoMap.get(message.getTopologyId())
+                                .getCurrentPartial(), message.getDiscoveredTrader());
+                    } catch (Exception e) {
+                        throw new RuntimeException(String.format("Error when adding trader %s",
+                            message.getDiscoveredTrader().getDebugInfoNeverUseInCode()), e);
+                    }
                 }
                 break;
             case END_DISCOVERED_TOPOLOGY:
