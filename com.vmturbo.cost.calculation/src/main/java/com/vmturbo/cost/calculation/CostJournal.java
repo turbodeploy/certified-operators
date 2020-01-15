@@ -542,7 +542,7 @@ public class CostJournal<ENTITY_CLASS> {
         @Override
         public int compareTo(final Object o) {
             // The RI journal entry has a dependence on the on Demand journal entry and requires it
-            // to calculate RI disocunted costs.
+            // to calculate RI discounted costs.
             if (o instanceof OnDemandJournalEntry) {
                 return Integer.MAX_VALUE;
             } else {
@@ -868,7 +868,7 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final TraxNumber hourlyCost) {
             if (logger.isTraceEnabled()) {
                 logger.trace("RI {} coverage by {} at cost {}",
-                        payee.getReservedInstanceBought().getId(), hourlyCost);
+                        payee.getReservedInstanceBought().getId(), couponsCovered, hourlyCost);
             }
             final Set<JournalEntry<ENTITY_CLASS_>> prices =
                     costEntries.computeIfAbsent(CostCategory.RI_COMPUTE, k -> new TreeSet<>());

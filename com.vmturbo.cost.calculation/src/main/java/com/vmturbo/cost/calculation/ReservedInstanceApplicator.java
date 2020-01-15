@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
 
 /**
@@ -135,8 +136,16 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
             Optional<ReservedInstanceData> riDataOpt = riDataResolver.apply(riOid);
             if (riDataOpt.isPresent()) {
                 final ReservedInstanceData riData = riDataOpt.get();
-                final TraxNumber coveragePercentage = coveredCoupons.dividedBy(totalCoverageCapacity)
+                TraxNumber coveragePercentage = coveredCoupons.dividedBy(totalCoverageCapacity)
                         .compute("Coverage percentage");
+
+                if (coveragePercentage.getValue() > 1) {
+                    logger.warn("Above 100% RI coverage {}%: entity OID={}, RI OID={}, Buy RI={})",
+                            coveragePercentage.getValue() * 100, entityOid, riOid, isBuyRI);
+                    final TraxNumber maxCoverage = trax(1, "Maximum allowed coverage");
+                    coveragePercentage = Trax.max(coveragePercentage, maxCoverage)
+                            .compute("Cap coverage to 100%");
+                }
 
                 if (isBuyRI) {
                     journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
