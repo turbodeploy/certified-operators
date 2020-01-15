@@ -75,6 +75,7 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             add:
+            - CHOWN
             - KILL
             - SETGID
             - SETUID
