@@ -82,6 +82,7 @@ public class MarketRunnerTest {
     private Optional<Integer> maxPlacementsOverride = Optional.empty();
     private final static float rightsizeLowerWatermark = 0.1f;
     private final static float rightsizeUpperWatermark = 0.7f;
+    private static final float discountedComputeCostFactor = 4f;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService, testSettingService);
@@ -161,7 +162,8 @@ public class MarketRunnerTest {
     @Test
     public void testGetRuns() throws Exception {
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, dtos(true), true,
-            maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+            maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark,
+            discountedComputeCostFactor);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(100);
@@ -186,14 +188,14 @@ public class MarketRunnerTest {
         Set<TopologyEntityDTO> dtos = dtos(true);
         Analysis analysis1 =
             runner.scheduleAnalysis(topologyInfo, dtos, true,  maxPlacementsOverride,
-                    rightsizeLowerWatermark, rightsizeLowerWatermark);
+                    rightsizeLowerWatermark, rightsizeLowerWatermark, discountedComputeCostFactor);
         Analysis analysis2 =
             runner.scheduleAnalysis(topologyInfo, dtos, true,  maxPlacementsOverride,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark);
+                    rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
         Analysis analysis3 = runner.scheduleAnalysis(topologyInfo.toBuilder()
                         .setTopologyContextId(topologyInfo.getTopologyContextId() + 1)
                         .build(), dtos, true, maxPlacementsOverride,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark);
+                    rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
         assertSame(analysis1, analysis2);
         assertNotSame(analysis1, analysis3);
     }
@@ -216,7 +218,8 @@ public class MarketRunnerTest {
 
         Analysis analysis =
             runner.scheduleAnalysis(topologyInfo, badDtos, true,
-                    maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+                    maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                    discountedComputeCostFactor);
 
         assertSame(badAnalysis, analysis);
 
@@ -232,7 +235,8 @@ public class MarketRunnerTest {
     @Test
     public void testMarketRunning() {
         runner.scheduleAnalysis(rtTopologyInfo, dtos(true), true,
-                maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+                maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                discountedComputeCostFactor);
         assertTrue(runner.isAnalysisRunningForRtTopology(rtTopologyInfo));
         // assert if the plan analysis is not running
         assertFalse(runner.isAnalysisRunningForRtTopology(topologyInfo));

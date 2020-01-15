@@ -88,6 +88,9 @@ public class MarketRunner {
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
      *                                it, Market could generate resize up actions.
+     * @param discountedComputeCostFactor The maximum ratio of the on-demand cost of new template
+     *                                    to current template that is allowed for analysis engine
+     *                                    to recommend resize up to utilize a RI.
      * @return the resulting Analysis object capturing the results
      */
     @Nonnull
@@ -96,7 +99,8 @@ public class MarketRunner {
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
                                      final float rightsizeLowerWatermark,
-                                     final float rightsizeUpperWatermark) {
+                                     final float rightsizeUpperWatermark,
+                                     final float discountedComputeCostFactor) {
 
         INPUT_TOPOLOGY.observe((double)topologyDTOs.size());
         final Analysis analysis;
@@ -120,7 +124,8 @@ public class MarketRunner {
                         .setIncludeVDC(includeVDC)
                         .setMaxPlacementsOverride(maxPlacementsOverride)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
-                        .setRightsizeUpperWatermark(rightsizeUpperWatermark));
+                        .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                        .setDiscountedComputeCostFactor(discountedComputeCostFactor));
 
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()

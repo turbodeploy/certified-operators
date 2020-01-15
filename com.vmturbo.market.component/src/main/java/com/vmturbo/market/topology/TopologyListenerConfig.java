@@ -42,6 +42,9 @@ public class TopologyListenerConfig {
     @Value("${rightsizeUpperWatermark}")
     private float rightsizeUpperWatermark;
 
+    @Value("${discountedComputeCostFactor:4.0}")
+    private float discountedComputeCostFactor;
+
     @Bean
     public Optional<Integer> maxPlacementsOverride() {
         return maxPlacementIterations > 0
@@ -53,7 +56,7 @@ public class TopologyListenerConfig {
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
                 marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
-                rightsizeLowerWatermark, rightsizeUpperWatermark,
+                rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor,
                 licenseCheckClientConfig.licenseCheckClient());
         tpConfig.topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         tpConfig.topologyProcessor().addPlanTopologyListener(topologyEntitiesListener);

@@ -113,6 +113,7 @@ public class ScopedTopologyTest {
                  spy(new SettingServiceMole());
     private final float rightsizeLowerWatermark = 0.1f;
     private final float rightsizeUpperWatermark = 0.7f;
+    private final float discountedComputeCostFactor = 4f;
 
     private GroupServiceBlockingStub groupServiceClient;
     Analysis testAnalysis;
@@ -356,7 +357,8 @@ public class ScopedTopologyTest {
 
         Analysis analysis =
                 runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
-                        Optional.empty(), rightsizeLowerWatermark, rightsizeUpperWatermark);
+                        Optional.empty(), rightsizeLowerWatermark, rightsizeUpperWatermark,
+                        discountedComputeCostFactor);
 
         assertThat(analysis.getConfig().getRightsizeLowerWatermark(), is(rightsizeLowerWatermark));
         assertThat(analysis.getConfig().getRightsizeUpperWatermark(), is(rightsizeUpperWatermark));

@@ -275,7 +275,24 @@ public interface AnalysisFactory {
         private final float rightsizeUpperWatermark;
 
         /**
-         * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}
+         * The maximum ratio of the on-demand cost of new template to current template that is
+         * allowed for analysis engine to recommend resize up to utilize a RI. If we are sizing up
+         * to use a RI, we only allow resize up to templates  that have cost less than :
+         * (riCostFactor * cost at current supplier). If it is more, we prevent
+         * such a resize to avoid cases like forcing small VMs to use large unused RIs.
+         */
+        private final float discountedComputeCostFactor;
+
+        /**
+         * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
+         *
+         * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
+         *                                it, Market could generate resize down actions.
+         * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
+         *                                it, Market could generate resize up actions.
+         * @param discountedComputeCostFactor The maximum ratio of the on-demand cost of new
+         *                                    template to current template that is allowed for
+         *                                    analysis engine to recommend resize up to utilize a RI.
          */
         private AnalysisConfig(final boolean enableSMA,
                               final float quoteFactor,
@@ -285,7 +302,8 @@ public interface AnalysisFactory {
                               final boolean includeVDC,
                               final Optional<Integer> maxPlacementsOverride,
                               final float rightsizeLowerWatermark,
-                              final float rightsizeUpperWatermark) {
+                              final float rightsizeUpperWatermark,
+                              final float discountedComputeCostFactor) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -295,6 +313,7 @@ public interface AnalysisFactory {
             this.rightsizeLowerWatermark = rightsizeLowerWatermark;
             this.rightsizeUpperWatermark = rightsizeUpperWatermark;
             this.enableSMA = enableSMA;
+            this.discountedComputeCostFactor = discountedComputeCostFactor;
         }
 
         public float getQuoteFactor() {
@@ -329,6 +348,21 @@ public interface AnalysisFactory {
 
         public float getRightsizeUpperWatermark() {
             return rightsizeUpperWatermark;
+        }
+
+        /**
+         * Returns the maximum ratio of the on-demand cost of new template to current template
+         * that is allowed for analysis engine to recommend resize up to utilize a RI. If we are
+         * sizing up to use a RI, we only allow resize up to templates  that have cost less than :
+         * (riCostFactor * cost at current supplier). If it is more, we prevent
+         * such a resize to avoid cases like forcing small VMs to use large unused RIs.
+         * If negative, it means that this factor is not set and this functionality is disabled.
+         *
+         * @return the maximum ratio of the on-demand cost of new template to current
+         * template that is allowed for analysis engine to recommend resize up to utilize a RI.
+         */
+        public float getDiscountedComputeCostFactor() {
+            return discountedComputeCostFactor;
         }
 
         @Nonnull
@@ -402,6 +436,8 @@ public interface AnalysisFactory {
 
             private float rightsizeUpperWatermark;
 
+            private float discountedComputeCostFactor;
+
             private Builder(final boolean enableSMA,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
@@ -463,12 +499,33 @@ public interface AnalysisFactory {
                 return this;
             }
 
+
+            /**
+             * Returns the maximum ratio of the on-demand cost of new template to current template
+             * that is allowed for analysis engine to recommend resize up to utilize a RI. If we are
+             * sizing up to use a RI, we only allow resize up to templates  that have cost less than :
+             * (riCostFactor * cost at current supplier). If it is more, we prevent
+             * such a resize to avoid cases like forcing small VMs to use large unused RIs.
+             * If negative, it means that this factor is not set and this functionality is disabled.
+             *
+             * @param discountedComputeCostFactor the maximum ratio of the on-demand cost of new
+             *                                    template to current template that is allowed for
+             *                                    analysis engine to recommend resize up to utilize
+             *                                    a RI.
+             * @return this Builder to support flow style.
+             */
+            @Nonnull
+            public Builder setDiscountedComputeCostFactor(final float discountedComputeCostFactor) {
+                this.discountedComputeCostFactor = discountedComputeCostFactor;
+                return this;
+            }
+
             @Nonnull
             public AnalysisConfig build() {
                 return new AnalysisConfig(enableSMA, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings,
                     includeVDC, maxPlacementsOverride, rightsizeLowerWatermark,
-                    rightsizeUpperWatermark);
+                    rightsizeUpperWatermark, discountedComputeCostFactor);
             }
         }
     }

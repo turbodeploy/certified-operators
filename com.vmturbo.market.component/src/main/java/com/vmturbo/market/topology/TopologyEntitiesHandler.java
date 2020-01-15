@@ -421,6 +421,11 @@ public class TopologyEntitiesHandler {
         economySettings.setEstimatesEnabled(false);
         economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());
         economySettings.setRightSizeUpper(analysisConfig.getRightsizeUpperWatermark());
+        if (analysisConfig.getDiscountedComputeCostFactor() > 0) {
+            economySettings.setDiscountedComputeCostFactor(analysisConfig.getDiscountedComputeCostFactor());
+            logger.info("Setting discounted compute cost factor with value : {}",
+                analysisConfig.getDiscountedComputeCostFactor());
+        }
 
         analysisConfig.getGlobalSetting(GlobalSettingSpecs.RateOfResize).ifPresent(rateOfResize -> {
             if (rateOfResize.hasNumericSettingValue()) {

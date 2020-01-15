@@ -46,6 +46,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final float rightsizeUpperWatermark;
 
+    private final float discountedComputeCostFactor;
+
     // TODO: we need to make sure that only a single instance of TopologyEntitiesListener
     // be created and used. Using public constructor here can not guarantee it!
     @SuppressWarnings("unused")
@@ -58,12 +60,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
                              @Nonnull final Optional<Integer> maxPlacementsOverride,
                              final float rightsizeLowerWatermark,
                              final float rightsizeUpperWatermark,
+                             final float discountedComputeCostFactor,
                              @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
+        this.discountedComputeCostFactor = discountedComputeCostFactor;
 
         maxPlacementsOverride.ifPresent(maxPlacementIterations ->
             logger.info("Overriding max placement iterations to: {}", maxPlacementIterations));
@@ -116,7 +120,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     "context " + topologyContextId, e);
         }
         marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride,
-                rightsizeLowerWatermark, rightsizeUpperWatermark);
+                rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
     }
 
     /**

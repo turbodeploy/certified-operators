@@ -187,6 +187,9 @@ data:
             rightsizeLowerWatermark: 0.7
             # If entity utilization is above the upper watermark, Market could generate resize up actions.
             rightsizeUpperWatermark: 0.7
+            # The maximum ratio of on-demand cost for the new template to current template of a vm for analysis engine to
+            # recommend to change to that template to utilize that RI.
+            discountedComputeCostFactor: 4.0
             # Quote Factor to be used by alleviate pressure plans.
             alleviatePressureQuoteFactor: 0.2
             # Suspension throttling configuration
