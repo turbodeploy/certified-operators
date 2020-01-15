@@ -141,7 +141,11 @@
         "resizeVmemMaxThreshold",
         "consistentResizing",
         "ignoreNvmePreRequisite",
-        "instanceStoreAwareScaling"
+        "instanceStoreAwareScaling",
+        "poolCpuUtilizationThreshold",
+        "poolMemoryUtilizationThreshold",
+        "poolStorageUtilizationThreshold",
+        "viewPodActiveSessionCapacity"
       ]
     },
     "storagesettingsmanager": {

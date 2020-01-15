@@ -545,7 +545,7 @@ public enum EntitySettingSpecs {
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
         string(), true),
 
     /**
@@ -556,7 +556,7 @@ public enum EntitySettingSpecs {
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
             string(), true),
 
     /**
@@ -567,7 +567,7 @@ public enum EntitySettingSpecs {
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
         string(), true),
 
     /**
@@ -878,7 +878,36 @@ public enum EntitySettingSpecs {
     InstanceStoreAwareScaling("instanceStoreAwareScaling", "Instance Store Aware Scaling",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
         SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-        new BooleanSettingDataType(false), true);
+        new BooleanSettingDataType(false), true),
+
+    /**
+     * Pool CPU utilization threshold.
+     */
+    PoolCpuUtilizationThreshold("poolCpuUtilizationThreshold", "Pool CPU Utilization",
+                 Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
+                 EnumSet.of(EntityType.DESKTOP_POOL), numeric(0f, 100f, 95.0f), true),
+
+    /**
+     * Pool memory utilization threshold.
+     */
+    PoolMemoryUtilizationThreshold("poolMemoryUtilizationThreshold", "Pool Memory Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DESKTOP_POOL), numeric(0f, 100f, 95.0f), true),
+
+    /**
+     * Pool storage utilization threshold.
+     */
+    PoolStorageUtilizationThreshold("poolStorageUtilizationThreshold", "Pool Storage Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DESKTOP_POOL), numeric(0f, 100f, 95.0f), true),
+
+    /**
+     * Active session capacity.
+     */
+    ViewPodActiveSessionsCapacity("viewPodActiveSessionCapacity", "Active Sessions Capacity",
+                          Collections.emptyList(), SettingTiebreaker.SMALLER,
+                          EnumSet.of(EntityType.VIEW_POD),
+                          numeric(0f, 10000f, 8000f), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(

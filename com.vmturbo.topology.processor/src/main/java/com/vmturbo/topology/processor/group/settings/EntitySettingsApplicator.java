@@ -133,6 +133,12 @@ public class EntitySettingsApplicator {
                         CommodityType.COLLECTION_TIME),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
                         CommodityType.VCPU_REQUEST),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.PoolCpuUtilizationThreshold,
+                        CommodityType.POOL_CPU),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.PoolMemoryUtilizationThreshold,
+                        CommodityType.POOL_MEM),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.PoolStorageUtilizationThreshold,
+                        CommodityType.POOL_STORAGE),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
@@ -169,7 +175,9 @@ public class EntitySettingsApplicator {
                         EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM),
                 new InstanceStoreSettingApplicator(graphWithSettings.getTopologyGraph(),
                                         new VmInstanceStoreCommoditiesCreator(),
-                                        new ComputeTierInstanceStoreCommoditiesCreator()));
+                                        new ComputeTierInstanceStoreCommoditiesCreator()),
+                new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
+                                                   CommodityType.ACTIVE_SESSIONS));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -817,6 +825,33 @@ public class EntitySettingsApplicator {
                                 entity.getDisplayName(), getCommodityType().getNumber(),
                                 commodityBuilder.getResizeTargetUtilization());
                     });
+        }
+    }
+
+    /**
+     * Applicator for the setting of capacity.
+     * This sets capacity in {@link CommoditySoldDTO}.
+     */
+    @ThreadSafe
+    private static class OverrideCapacityApplicator extends SingleSettingApplicator {
+
+        private final CommodityType commodityType;
+
+        private OverrideCapacityApplicator(@Nonnull EntitySettingSpecs setting,
+                                               @Nonnull final CommodityType commodityType) {
+            super(setting);
+            this.commodityType = Objects.requireNonNull(commodityType);
+        }
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+            final Float settingValue = getEntitySettingSpecs().getValue(setting, Float.class);
+            if (settingValue == null) {
+                return;
+            }
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+                commodity.setCapacity(settingValue);
+            }
         }
     }
 }
