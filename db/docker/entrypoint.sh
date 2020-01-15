@@ -16,7 +16,7 @@ fi
 copy_mysql_default_conf_file () {
     echo "Copying default DB config. file from $DEFAULT_MYSQL_CONF to $MYSQL_CONF" | logger --tag mariadb -u /tmp/log.sock
     # backslash suppresses any potential alias
-    \cp $DEFAULT_MYSQL_CONF $MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    \su mysql -c "cp $DEFAULT_MYSQL_CONF $MYSQL_CONF" 2>&1 | logger --tag mariadb -u /tmp/log.sock
 }
 
 if [ ! -d "/var/lib/mysql/mysql" ]; then
