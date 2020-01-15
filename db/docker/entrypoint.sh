@@ -16,7 +16,7 @@ fi
 copy_mysql_default_conf_file () {
     echo "Copying default DB config. file from $DEFAULT_MYSQL_CONF to $MYSQL_CONF" | logger --tag mariadb -u /tmp/log.sock
     # backslash suppresses any potential alias
-    \su mysql -c "cp $DEFAULT_MYSQL_CONF $MYSQL_CONF" 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    \su mysql -c "cp -p $DEFAULT_MYSQL_CONF $MYSQL_CONF" 2>&1 | logger --tag mariadb -u /tmp/log.sock
 }
 
 if [ ! -d "/var/lib/mysql/mysql" ]; then
@@ -89,7 +89,7 @@ else
     echo '+++ MariaDB upgrade process successful.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
 fi
 
-/customize_my_cnf.sh $MYSQL_CONF  2>&1 | logger --tag mariadb -u /tmp/log.sock
+su mysql -c "/customize_my_cnf.sh $MYSQL_CONF" 2>&1 | logger --tag mariadb -u /tmp/log.sock
 
 # Start the database server
 exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql > >(logger --tag mariadb -u /tmp/log.sock) 2>&1
