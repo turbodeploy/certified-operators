@@ -135,7 +135,7 @@ public class EstimateSupply {
             for (int sellerIndex = 0, superIndex = 0; sellerIndex < sellerBasketSold.size()
                             && superIndex < superCommSoldList.size(); sellerIndex++, superIndex++) {
                 while (!superCommSoldList.get(superIndex).getCommoditySpecification()
-                                .isSatisfiedBy(sellerBasketSold.get(sellerIndex))) {
+                                .equals(sellerBasketSold.get(sellerIndex))) {
                     sellerIndex++;
                 }
                 CommodityResource commResourceSold = superCommSoldList.get(superIndex);

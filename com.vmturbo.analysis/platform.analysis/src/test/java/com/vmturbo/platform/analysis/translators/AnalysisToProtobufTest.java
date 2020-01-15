@@ -63,8 +63,8 @@ import junitparams.naming.TestCaseName;
 public class AnalysisToProtobufTest {
     // Fields
     private static final Economy e = new Economy();
-    private static final CommoditySpecification CPU = new CommoditySpecification(100, 1000, 0, Integer.MAX_VALUE);
-    private static final CommoditySpecification MEM = new CommoditySpecification(101, 1001, 0, Integer.MAX_VALUE);
+    private static final CommoditySpecification CPU = new CommoditySpecification(100, 1000);
+    private static final CommoditySpecification MEM = new CommoditySpecification(101, 1001);
     private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(200);
     private static final Basket empty = new Basket();
     private static final Basket basketBought1 = new Basket(CPU, MEM);
@@ -193,12 +193,10 @@ public class AnalysisToProtobufTest {
                         .setMostExpensiveCommodity(((Activate)activate)
                                         .getReason().getBaseType())
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
-                                        .setBaseType(1000).setQualityLowerBound(0)
-                                        .setQualityUpperBound(Integer.MAX_VALUE)
+                                        .setBaseType(1000)
                                         .build())
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(101)
-                                        .setBaseType(1001).setQualityLowerBound(0)
-                                        .setQualityUpperBound(Integer.MAX_VALUE)
+                                        .setBaseType(1001)
                                         .build()))
                         .setImportance((float)((ActionImpl)activate).getImportance())
                         .setIsNotExecutable(false)
@@ -209,13 +207,9 @@ public class AnalysisToProtobufTest {
                         .setTraderToDeactivate(1l)
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
                                                         .setBaseType(1000)
-                                                        .setQualityLowerBound(0)
-                                                        .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build())
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(101)
                                                         .setBaseType(1001)
-                                                        .setQualityLowerBound(0)
-                                                        .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build()).build()).setImportance((float)(
                                                         (ActionImpl)deactivate).getImportance())
                         .setIsNotExecutable(false)
@@ -286,8 +280,6 @@ public class AnalysisToProtobufTest {
                         .setSpecification(
                                         CommoditySpecificationTO.newBuilder().setType(100)
                                                         .setBaseType(1000)
-                                                        .setQualityLowerBound(0)
-                                                        .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build())).setImportance((float)
                                                         ((ActionImpl)resize).getImportance())
                         .setIsNotExecutable(false)

@@ -1117,9 +1117,9 @@ public class ResizerTest {
     private Economy setUpEconomyWithHistoricalQuantity(double currentQuantity, double historicalQuanity) {
         Economy economy = new Economy();
         final CommoditySpecification cpuSpec =
-                        new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
+                        new CommoditySpecification(0, 1000);
         final CommoditySpecification vcpuSpec =
-                        new CommoditySpecification(1, 1000, 1, Integer.MAX_VALUE);
+                        new CommoditySpecification(1, 1000);
         Basket basketSoldBySeller = new Basket(Collections.singleton(cpuSpec));
         Basket basketSoldByBuyer = new Basket(Collections.singleton(vcpuSpec));
 

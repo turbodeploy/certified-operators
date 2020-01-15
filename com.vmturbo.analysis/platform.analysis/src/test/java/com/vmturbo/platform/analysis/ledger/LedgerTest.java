@@ -40,11 +40,11 @@ public class LedgerTest {
     // Fields
 
     // CommoditySpecifications to use in tests
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
+    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
     private static final CommoditySpecification V_CPU = new CommoditySpecification(2);
     private static final CommoditySpecification V_MEM = new CommoditySpecification(3);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004, 0, 0);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004);
 
     // Baskets to use in tests
     private static final Basket PM_ANY = new Basket(CPU_ANY, MEM);
@@ -83,7 +83,7 @@ public class LedgerTest {
     @Test
     public final void testGetUnmodifiableTraderIncomeStatements() {
         Economy economy = new Economy();
-        economy.addTrader(1, TraderState.ACTIVE, new Basket(new CommoditySpecification(0,1000,4,8)));
+        economy.addTrader(1, TraderState.ACTIVE, new Basket(new CommoditySpecification(0,1000)));
         Ledger ledger = new Ledger(economy);
         List<IncomeStatement> isList = ledger.getTraderIncomeStatements();
         ListTests.verifyUnmodifiableValidOperations(isList, new IncomeStatement());
@@ -220,7 +220,7 @@ public class LedgerTest {
             // Set Commodity utilization to the percentage that we set
             for (int idx = 0; idx < seller.getCommoditiesSold().size(); idx++) {
                 CommoditySold commSold = seller.getCommoditiesSold().get(idx);
-                commSold.setCapacity(commList.get(idx).getQualityUpperBound() / 2)
+                commSold.setCapacity((rand.nextInt(100000) + 10000) / 2)
                                 .setQuantity(util[idx] * commSold.getCapacity())
                                 .setPeakQuantity(commSold.getQuantity());
                 shoppingList.setQuantity(idx, commSold.getQuantity()).setPeakQuantity(idx, commSold.getQuantity());
@@ -239,7 +239,7 @@ public class LedgerTest {
     private List<CommoditySpecification> createCommodities(int numOfComm){
         Random rand = new Random();
         return IntStream.range(0, numOfComm)
-                        .mapToObj(idx -> new CommoditySpecification(idx, 0, rand.nextInt(100000) + 10000, false))
+                        .mapToObj(idx -> new CommoditySpecification(idx, false))
                         .collect(Collectors.toCollection(() -> new ArrayList<CommoditySpecification>()));
     }
 
@@ -288,7 +288,7 @@ public class LedgerTest {
             // Set Commodity utilization to the percentage that we set
             for (int idx = 0; idx < seller.getCommoditiesSold().size(); idx++) {
                 CommoditySold commSold = seller.getCommoditiesSold().get(idx);
-                commSold.setCapacity(commList.get(idx).getQualityUpperBound() / 2)
+                commSold.setCapacity(rand.nextInt(100000) + 10000 / 2)
                                 .setQuantity(util[idx] * commSold.getCapacity())
                                 .setPeakQuantity(commSold.getQuantity());
                 shoppingList.setQuantity(idx, commSold.getQuantity())
@@ -458,9 +458,9 @@ public class LedgerTest {
         Economy economy = new Economy();
 
         List<CommoditySpecification> commSpecSold = new ArrayList<>();
-        commSpecSold.add(new CommoditySpecification(0, 0, 10, false));
-        commSpecSold.add(new CommoditySpecification(1, 0, 20, false));
-        commSpecSold.add(new CommoditySpecification(2, 0, 5, false));
+        commSpecSold.add(new CommoditySpecification(0, false));
+        commSpecSold.add(new CommoditySpecification(1, false));
+        commSpecSold.add(new CommoditySpecification(2, false));
 
         Basket basketSold = new Basket(commSpecSold);
 
@@ -509,9 +509,9 @@ public class LedgerTest {
 
         //2.  Test some commodities over max desired utilization
         commSpecSold.clear();
-        commSpecSold.add(new CommoditySpecification(0, 4, 10, false));
-        commSpecSold.add(new CommoditySpecification(1, 10, 20, false));
-        commSpecSold.add(new CommoditySpecification(2, 5, 5, false));
+        commSpecSold.add(new CommoditySpecification(0, false));
+        commSpecSold.add(new CommoditySpecification(1, false));
+        commSpecSold.add(new CommoditySpecification(2, false));
 
         basketSold = new Basket(commSpecSold);
 
@@ -573,9 +573,9 @@ public class LedgerTest {
 
         Economy economy = new Economy();
         final CommoditySpecification cpuSpec =
-                        new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
+                        new CommoditySpecification(0, 1000);
         final CommoditySpecification vcpuSpec =
-                        new CommoditySpecification(1, 1000, 1, Integer.MAX_VALUE);
+                        new CommoditySpecification(1, 1000);
         Basket basketSoldBySeller = new Basket(Collections.singleton(cpuSpec));
         Basket basketSoldByBuyer = new Basket(Collections.singleton(vcpuSpec));
 

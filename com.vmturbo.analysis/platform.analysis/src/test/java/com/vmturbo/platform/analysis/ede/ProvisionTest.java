@@ -24,7 +24,7 @@ import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 /**
- * Test the functionality of {@link Provision#ProvisionDecisions}.
+ * Test the functionality of {@link Provision#provisionDecisions}.
  *
  */
 @RunWith(JUnitParamsRunner.class)
@@ -36,7 +36,7 @@ public class ProvisionTest {
      * Helper method to assert the number of all actions
      *
      * @param actions the list of actions generated in each test
-     * @param the number of all actions that should be generated in each test
+     * @param value number of all actions that should be generated in each test
      */
     private void assertAllCount(List<Action> actions, int value) {
         assertTrue(actions.size() == value);
@@ -46,7 +46,7 @@ public class ProvisionTest {
      * Helper method to assert the number of PROVISION_BY_SUPPLY actions
      *
      * @param actions the list of actions generated in each test
-     * @param the number of PROVISION_BY_SUPPLY actions that should be generated in each test
+     * @param value number of PROVISION_BY_SUPPLY actions that should be generated in each test
      */
     private void assertProvisionBySupplyCount(List<Action> actions, int value) {
         assertTrue(actions.stream().
@@ -57,7 +57,7 @@ public class ProvisionTest {
      * Helper method to assert the number of ACTIVATE actions
      *
      * @param actions the list of actions generated in each test
-     * @param the number of ACTIVATE actions that should be generated in each test
+     * @param value number of ACTIVATE actions that should be generated in each test
      */
     private void assertActivateCount(List<Action> actions, int value) {
         assertTrue(actions.stream().
@@ -68,7 +68,7 @@ public class ProvisionTest {
      * Helper method to assert the number of MOVE actions
      *
      * @param actions the list of actions generated in each test
-     * @param the number of MOVE actions that should be generated in each test
+     * @param value number of MOVE actions that should be generated in each test
      */
     private void assertMoveCount(List<Action> actions, int value) {
         assertTrue(actions.stream().

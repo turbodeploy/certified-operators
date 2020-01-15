@@ -885,7 +885,7 @@ public class BootstrapSupply {
         CommoditySpecification commWithInfQuote = null;
         for (int soldIndex = 0, boughtIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
-            while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
+            while (!basketCommSpec.equals(traderToInspect.getBasketSold().get(soldIndex))) {
                 soldIndex++;
                 if (soldIndex >= traderToInspect.getBasketSold().size()) {
                     logBasketUnsatisfiedErrorMessage(traderToInspect, sl, basketCommSpec);
@@ -927,7 +927,7 @@ public class BootstrapSupply {
         boolean isBasketUnsatisfied = false;
         for (int soldIndex = 0, boughtIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
-            while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
+            while (!basketCommSpec.equals(traderToInspect.getBasketSold().get(soldIndex))) {
                 soldIndex++;
                 if (soldIndex >= traderToInspect.getBasketSold().size()) {
                     isBasketUnsatisfied = true;

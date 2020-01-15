@@ -144,8 +144,8 @@ public final class ProtobufToAnalysis {
      * @return The resulting {@link CommoditySpecification}.
      */
     public static @NonNull CommoditySpecification commoditySpecification(@NonNull CommoditySpecificationTO input) {
-        return new CommoditySpecification(input.getType(),input.getBaseType(),input.getQualityLowerBound(),
-                       input.getQualityUpperBound(), input.getCloneWithNewType()).setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
+        return new CommoditySpecification(input.getType(),input.getBaseType(), input.getCloneWithNewType())
+                .setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
     }
 
     /**

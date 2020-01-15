@@ -302,7 +302,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basketBought.size(); ++boughtIndex) {
                 final int soldIndexBackUp = soldIndex;
                 while (soldIndex < basketSold.size()
-                    && !basketBought.get(boughtIndex).isSatisfiedBy(basketSold.get(soldIndex))) {
+                    && !basketBought.get(boughtIndex).equals(basketSold.get(soldIndex))) {
                     ++soldIndex;
                 }
 

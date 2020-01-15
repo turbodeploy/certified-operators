@@ -43,12 +43,12 @@ public class ExecutableActionsTest {
     public final void testClassifyAndMarkMoves_Action() {
         Economy economy = new Economy();
 
-        Basket BASKET_1 = new Basket(new CommoditySpecification(0, 40, 100, false),
-                                     new CommoditySpecification(1, 100, 200, false));
-        Basket BASKET_2 = new Basket(new CommoditySpecification(2, 50, 50, false));
-        Basket BASKET_3 = new Basket(new CommoditySpecification(0, 40, 100, false),
-                                     new CommoditySpecification(1, 100, 200, false),
-                                     new CommoditySpecification(2, 50, 50, false));
+        Basket BASKET_1 = new Basket(new CommoditySpecification(0, false),
+                                     new CommoditySpecification(1, false));
+        Basket BASKET_2 = new Basket(new CommoditySpecification(2, false));
+        Basket BASKET_3 = new Basket(new CommoditySpecification(0, false),
+                                     new CommoditySpecification(1, false),
+                                     new CommoditySpecification(2, false));
 
         // Sellers
         Trader s1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET_1);
@@ -115,9 +115,9 @@ public class ExecutableActionsTest {
         List<Action> actions = new ArrayList<>();
 
         List<CommoditySpecification> commSpecSold = new ArrayList<>();
-        commSpecSold.add(new CommoditySpecification(0, 40, 100, false));
-        commSpecSold.add(new CommoditySpecification(1, 100, 200, false));
-        commSpecSold.add(new CommoditySpecification(2, 50, 50, false));
+        commSpecSold.add(new CommoditySpecification(0, false));
+        commSpecSold.add(new CommoditySpecification(1, false));
+        commSpecSold.add(new CommoditySpecification(2, false));
 
         Basket basketSold = new Basket(commSpecSold);
 
@@ -173,9 +173,9 @@ public class ExecutableActionsTest {
         List<Action> actions = new ArrayList<>();
 
         List<CommoditySpecification> commSpecSold = new ArrayList<>();
-        commSpecSold.add(new CommoditySpecification(0, 40, 100, false));
-        commSpecSold.add(new CommoditySpecification(1, 100, 200, false));
-        commSpecSold.add(new CommoditySpecification(2, 50, 50, false));
+        commSpecSold.add(new CommoditySpecification(0, false));
+        commSpecSold.add(new CommoditySpecification(1, false));
+        commSpecSold.add(new CommoditySpecification(2, false));
 
         Basket basketSold = new Basket(commSpecSold);
 

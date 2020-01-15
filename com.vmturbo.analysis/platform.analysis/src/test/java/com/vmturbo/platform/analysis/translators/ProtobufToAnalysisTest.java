@@ -88,30 +88,24 @@ public class ProtobufToAnalysisTest {
     // Methods for converting EconomyDTOs.
 
     @Test
-    @Parameters({"0, 0, 0", "1, 1, 2147483647", "35, 10000, 10000"})
-    @TestCaseName("Test #{index}: commoditySpecification({0}, {1}, {2})")
-    public final void testCommoditySpecification(@NonNull int type, @NonNull int lowerBound,
-                    @NonNull int upperBound) {
+    @Parameters({"0", "1", "35"})
+    @TestCaseName("Test #{index}: commoditySpecification({0})")
+    public final void testCommoditySpecification(@NonNull int type) {
         CommoditySpecificationTO commSpecTO = CommoditySpecificationTO.newBuilder().setType(type)
-                        .setBaseType(1000).setQualityLowerBound(lowerBound)
-                        .setQualityUpperBound(upperBound).build();
+                        .setBaseType(1000).build();
         CommoditySpecification spec = ProtobufToAnalysis.commoditySpecification(commSpecTO);
         assertEquals(type, spec.getType());
-        assertEquals(lowerBound, spec.getQualityLowerBound());
-        assertEquals(upperBound, spec.getQualityUpperBound());
     }
 
     @Test
-    @Parameters({"0,0,2147483647", "1,2,16",})
-    @TestCaseName("Test #{index}: Basket_ListOfCommoditySpecificationTO({0}, {1}, {2})")
-    public final void testBasket_ListOfCommoditySpecificationTO(int type, int lowerBound,
-                    int upperBound) {
+    @Parameters({"0", "1",})
+    @TestCaseName("Test #{index}: Basket_ListOfCommoditySpecificationTO({0})")
+    public final void testBasket_ListOfCommoditySpecificationTO(int type) {
         CommoditySpecificationTO specTO = CommoditySpecificationTO.newBuilder().setType(type)
-                        .setBaseType(1000).setQualityLowerBound(lowerBound)
-                        .setQualityUpperBound(upperBound).build();
+                        .setBaseType(1000).build();
         Basket basket = ProtobufToAnalysis.basket(
                         new ArrayList<CommoditySpecificationTO>(Arrays.asList(specTO)));
-        assertEquals(new CommoditySpecification(type, 1000, lowerBound, upperBound), basket.get(0));
+        assertEquals(new CommoditySpecification(type, 1000), basket.get(0));
 
     }
 
@@ -120,29 +114,27 @@ public class ProtobufToAnalysisTest {
     @TestCaseName("Test #{index}: Basket_ShoppingListTO({0}, {1}, {2})")
     public final void testBasket_ShoppingListTO(int type, int lowerBound, int upperBound) {
         CommoditySpecificationTO specTO = CommoditySpecificationTO.newBuilder().setType(type)
-                        .setBaseType(1000).setQualityLowerBound(lowerBound)
-                        .setQualityUpperBound(upperBound).build();
+                        .setBaseType(1000).build();
         CommodityBoughtTO commBoughtTO = CommodityBoughtTO.newBuilder().setSpecification(specTO)
                         .setQuantity(50).setPeakQuantity(50).build();
         ShoppingListTO shopTO = ShoppingListTO.newBuilder().addCommoditiesBought(commBoughtTO)
                         .setMovable(true).setOid(111).setSupplier(222).build();
         Basket basket = ProtobufToAnalysis.basket(shopTO);
-        Basket expect = new Basket(new CommoditySpecification(type, 1000, lowerBound, upperBound));
+        Basket expect = new Basket(new CommoditySpecification(type, 1000));
         assertEquals(expect, basket);
     }
 
     @Test
-    @Parameters({"0, 0, 0", "1, 1, 2147483647", "2, 50, 50"})
-    @TestCaseName("Test #{index}: Basket_TraderTO({0}, {1}, {2})")
-    public final void testBasket_TraderTO(int type, int lowerBound, int upperBound) {
+    @Parameters({"0", "1", "2"})
+    @TestCaseName("Test #{index}: Basket_TraderTO({0})")
+    public final void testBasket_TraderTO(int type) {
         TraderTO trader = TraderTO.newBuilder().setOid(1).addCommoditiesSold(CommoditySoldTO
                         .newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder().setType(type)
-                                        .setBaseType(1000).setQualityLowerBound(lowerBound)
-                                        .setQualityUpperBound(upperBound).build())
+                                        .setBaseType(1000).build())
                         .build()).build();
         Basket basket = ProtobufToAnalysis.basket(trader);
-        Basket expect = new Basket(new CommoditySpecification(type, 1000, lowerBound, upperBound));
+        Basket expect = new Basket(new CommoditySpecification(type, 1000));
         assertEquals(expect, basket);
     }
 

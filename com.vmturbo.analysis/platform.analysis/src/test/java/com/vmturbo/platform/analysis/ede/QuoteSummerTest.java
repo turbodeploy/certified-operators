@@ -54,7 +54,7 @@ public class QuoteSummerTest {
         Market market = new Market(basket);
 
         // Create provider 1
-        Basket basketProvider1 = new Basket(new CommoditySpecification(0, 1000, 0, 0));
+        Basket basketProvider1 = new Basket(new CommoditySpecification(0, 1000));
         Mockito.when(provider1.getEconomyIndex()).thenReturn(0);
         Mockito.when(provider1.getType()).thenReturn(0);
         Mockito.when(provider1.getState()).thenReturn(TraderState.ACTIVE);
@@ -65,7 +65,7 @@ public class QuoteSummerTest {
         Mockito.when(provider1.getSettings()).thenReturn(mockedtraderSettings);
 
         // Create provider 2
-        Basket basketProvider2 = new Basket(new CommoditySpecification(0, 1000, 0, 0));
+        Basket basketProvider2 = new Basket(new CommoditySpecification(0, 1000));
         Mockito.when(provider2.getEconomyIndex()).thenReturn(0);
         Mockito.when(provider2.getType()).thenReturn(0);
         Mockito.when(provider2.getState()).thenReturn(TraderState.ACTIVE);
@@ -76,7 +76,7 @@ public class QuoteSummerTest {
         Mockito.when(provider2.getSettings()).thenReturn(mockedtraderSettings2);
 
         Trader buyer = Mockito.mock(Trader.class);
-        Basket basketBuyer = new Basket(new CommoditySpecification(0, 1000, 0, 0));
+        Basket basketBuyer = new Basket(new CommoditySpecification(0, 1000));
         Mockito.when(buyer.getEconomyIndex()).thenReturn(0);
         Mockito.when(buyer.getType()).thenReturn(0);
         Mockito.when(buyer.getState()).thenReturn(TraderState.ACTIVE);

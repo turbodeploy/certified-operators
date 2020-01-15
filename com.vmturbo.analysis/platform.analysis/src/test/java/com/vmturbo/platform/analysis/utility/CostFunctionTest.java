@@ -184,11 +184,11 @@ public class CostFunctionTest {
         Economy economy = new Economy();
         BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
         CommoditySpecification linuxComm =
-                new CommoditySpecification(TestUtils.LINUX_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
+                new CommoditySpecification(TestUtils.LINUX_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, false);
         CommoditySpecification windowsComm =
-                new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
+                new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, false);
         CommoditySpecification regionComm =
-                new CommoditySpecification(TestUtils.REGION_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
+                new CommoditySpecification(TestUtils.REGION_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, false);
         Trader t2Nano = economy.addTrader(1, TraderState.ACTIVE, new Basket(linuxComm, windowsComm, regionComm),
                                           Arrays.asList(0l));
         t2Nano.getSettings().setContext(new Context(10L, zoneId, ba));
@@ -789,9 +789,9 @@ public class CostFunctionTest {
         final Trader dbs1 = TestUtils.createDBS(economy);
         dbs1.getSettings().setContext(new Context(dcCommType, zoneId, ba));
         final CommoditySpecification winComm =
-                new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
+                new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, false);
         final CommoditySpecification dcComm =
-                new CommoditySpecification(dcCommType, TestUtils.DC_COMM_BASE_TYPE, 0, 100000, false);
+                new CommoditySpecification(dcCommType, TestUtils.DC_COMM_BASE_TYPE, false);
         final Trader trader = economy.addTrader(1, TraderState.ACTIVE, new Basket(winComm, dcComm),
                 Arrays.asList(0L));
         trader.getSettings().setContext(new Context(dcCommType, zoneId, ba));

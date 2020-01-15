@@ -33,9 +33,9 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public final class TraderWithSettingsTest {
     // Fields
-    private static final CommoditySpecification A = new CommoditySpecification(0,1000,0,0);
-    private static final CommoditySpecification B = new CommoditySpecification(0,1000,0,100);
-    private static final CommoditySpecification C = new CommoditySpecification(1,1001,0,100);
+    private static final CommoditySpecification A = new CommoditySpecification(0,1000);
+    private static final CommoditySpecification B = new CommoditySpecification(1,1001);
+    private static final CommoditySpecification C = new CommoditySpecification(2,1001);
 
     private static final Integer[] validIndices = {0, 1, 100, Integer.MAX_VALUE};
     private static final Integer[] invalidIndices = {-1, -100, Integer.MIN_VALUE};
@@ -202,7 +202,7 @@ public final class TraderWithSettingsTest {
             {new Basket(A,B,C),A,3},
             {new Basket(A,B,C),B,3},
             {new Basket(A,B,C),C,3},
-            {new Basket(A,B,C),new CommoditySpecification(0),4},
+            {new Basket(A,B,C),new CommoditySpecification(0),3},
         };
     }
 
@@ -229,13 +229,14 @@ public final class TraderWithSettingsTest {
             {new Basket(),B,0},
             {new Basket(A),A,0},
             {new Basket(A),B,1},
+            {new Basket(A,B),new CommoditySpecification(0),1},
             {new Basket(A,B),A,1},
             {new Basket(A,B),B,1},
             {new Basket(A,B),C,2},
             {new Basket(A,B,C),A,2},
             {new Basket(A,B,C),B,2},
             {new Basket(A,B,C),C,2},
-            {new Basket(A,B,C),new CommoditySpecification(0),3},
+            {new Basket(A,B,C),new CommoditySpecification(0),2},
         };
     }
 

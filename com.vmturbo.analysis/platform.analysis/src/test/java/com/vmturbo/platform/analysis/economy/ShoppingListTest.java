@@ -30,8 +30,8 @@ public class ShoppingListTest {
     private static final Basket EMPTY = new Basket();
     private static final Trader trader1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final Trader trader2 = new TraderWithSettings(0, 0, TraderState.INACTIVE, EMPTY);
-    private static final Trader trader3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0, 1000, 0, 0)));
-    private static final Trader trader4 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(new CommoditySpecification(0, 1000, 0, 0)));
+    private static final Trader trader3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0, 1000)));
+    private static final Trader trader4 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(new CommoditySpecification(0, 1000)));
 
     private static final Trader[] validBuyers = {trader1, trader2, trader3, trader4};
     private static final Trader[] validSuppliers = {null,trader1, trader2, trader3, trader4};

@@ -55,7 +55,7 @@ public class PlacementTest {
     private static final CommoditySpecification STA = new CommoditySpecification(2);
     private static final CommoditySpecification LAT = new CommoditySpecification(3);
 
-    private static final CommoditySpecification SEGMENT_0 = new CommoditySpecification(4,1004,0,0);
+    private static final CommoditySpecification SEGMENT_0 = new CommoditySpecification(4,1004);
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();

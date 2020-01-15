@@ -453,8 +453,7 @@ public class ProvisionBySupplyTest {
         int appCommBaseType = 100;
         int appCommType = 200;
         // appCommodity has cloneWithNewType = true
-        CommoditySpecification appCs = new CommoditySpecification(appCommType, appCommBaseType, 0,
-                                                                  Integer.MAX_VALUE, true);
+        CommoditySpecification appCs = new CommoditySpecification(appCommType, appCommBaseType, true);
         Basket b1 = new Basket(appCs, TestUtils.VCPU);
         Basket b2 = new Basket(TestUtils.TRANSACTION);
         Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),

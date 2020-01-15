@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -77,27 +78,22 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     // Methods
 
     /**
-     * Returns whether a buyer shopping for {@code this} basket, can be satisfied by a given basket.
-     *
-     * <p>
-     *  e.g. a buyer buying CPU with 4 cores and memory, can be satisfied by a seller selling CPU
-     *  with 8 cores, memory and some access commodities.
-     * </p>
+     * Returns whether a buyer shopping for {@code this} basket, is a subset of a given basket.
      *
      * <p>
      *  The current implementation returns {@code true} iff for every commodity specification in
-     *  {@code this} there is a corresponding commodity specification in other that satisfies it.
+     *  {@code this} there is a corresponding commodity specification in other that equals it in type.
      *  It assumes commodity types are sorted with type as the primary key.
      * </p>
      *
      * @param other the Basket to be tested against {@code this}.
-     * @return {@code true} if {@code this} basket is satisfied by {@code other}.
+     * @return {@code true} if {@code this} basket is a subset of the {@code other}.
      */
     @Pure
     public final boolean isSatisfiedBy(@ReadOnly Basket this, @NonNull @ReadOnly Basket other) {
         int otherIndex = 0;
         for(CommoditySpecification specification : contents_) {
-            while(otherIndex < other.contents_.length && !specification.isSatisfiedBy(other.contents_[otherIndex])) {
+            while(otherIndex < other.contents_.length && !specification.equals(other.contents_[otherIndex])) {
                 ++otherIndex;
             }
             if (otherIndex >= other.contents_.length) {
@@ -266,6 +262,14 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
                 return contents_[index--];
             }
         }; // end Iterator implementation
+    }
+
+    /**
+     * Returns a sequential Stream of {@link CommoditySpecification}'s with this collection as its source.
+     */
+    @SideEffectFree
+    public Stream<@NonNull @ReadOnly CommoditySpecification> stream(@ReadOnly Basket this) {
+        return Arrays.stream(contents_);
     }
 
     /**

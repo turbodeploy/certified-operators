@@ -100,7 +100,7 @@ public final class Utility {
      * Creates a map of newly generated {@link CommoditySpecification}s that are sold
      * by the clone in place of the commodities sold by the modelSeller
      *
-     * @param shoppingList shopping list who may be cloned
+     * @param sl shopping list who may be cloned
      * @return a map where the key and values are a {@link CommoditySpecification}s with same
      *              "baseType" but different "commodityType"
      */
@@ -114,8 +114,6 @@ public final class Utility {
             if (!newCommSoldMap.containsKey(cs) && cs.isCloneWithNewType()) {
                 // change commType and add commSpecs into the basket
                 newCommSoldMap.put(cs, new CommoditySpecification(cs.getBaseType(),
-                                                                  cs.getQualityLowerBound(),
-                                                                  cs.getQualityUpperBound(),
                                                                   cs.isCloneWithNewType()));
             }
         }

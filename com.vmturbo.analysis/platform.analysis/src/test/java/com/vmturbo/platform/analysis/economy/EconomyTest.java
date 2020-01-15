@@ -39,43 +39,26 @@ public class EconomyTest {
 
     // CommoditySpecifications to use in tests
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0,1000,1,Integer.MAX_VALUE);
-    private static final CommoditySpecification CPU_4 = new CommoditySpecification(0,1000,4,4);
-    private static final CommoditySpecification CPU_1to8 = new CommoditySpecification(0,1000,1,8);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
-    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2,1002,1000,Integer.MAX_VALUE);
-    private static final CommoditySpecification ST_UPTO1200 = new CommoditySpecification(2,1002,0,1200);
-    private static final CommoditySpecification VM1 = new CommoditySpecification(3,1003,0,0);
-    private static final CommoditySpecification VM2 = new CommoditySpecification(3,1003,1,1);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4,1004,0,0);
-    private static final CommoditySpecification CLUSTER_B = new CommoditySpecification(4,1004,1,1);
-    private static final CommoditySpecification SEGMENT_1 = new CommoditySpecification(5,1005,0,0);
-    private static final CommoditySpecification SEGMENT_2 = new CommoditySpecification(5,1005,1,1);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4,1004);
+    private static final CommoditySpecification SEGMENT_1 = new CommoditySpecification(5,1005);
+    private static final CommoditySpecification CPU_1 = new CommoditySpecification(6,1000);
+    private static final CommoditySpecification CPU_2 = new CommoditySpecification(7,1000);
+    private static final CommoditySpecification CPU_4 = new CommoditySpecification(8,1000);
+    private static final CommoditySpecification CPU_8 = new CommoditySpecification(9,1000);
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();
-    private static final Basket PM_ANY = new Basket(CPU_ANY,MEM);
+    private static final Basket PM_ANY = new Basket(CPU,MEM);
     private static final Basket PM_4CORE = new Basket(CPU_4,MEM);
-    private static final Basket PM_SELL = new Basket(CPU_1to8,MEM);
-    private static final Basket ST_BUY = new Basket(ST_OVER1000);
-    private static final Basket ST_SELL = new Basket(ST_UPTO1200);
-    private static final Basket APP_1 = new Basket(VM1);
-    private static final Basket APP_2 = new Basket(VM2);
-    private static final Basket PM_A = new Basket(CPU_ANY,MEM,CLUSTER_A);
-    private static final Basket PM_B = new Basket(CPU_ANY,MEM,CLUSTER_B);
-    private static final Basket PM_SELL_A = new Basket(CPU_1to8,MEM,CLUSTER_A);
-    private static final Basket PM_SELL_B = new Basket(CPU_1to8,MEM,CLUSTER_B);
-    private static final Basket ST_A1 = new Basket(ST_OVER1000,CLUSTER_A,SEGMENT_1);
-    private static final Basket ST_A2 = new Basket(ST_OVER1000,CLUSTER_A,SEGMENT_2);
-    private static final Basket ST_SELL_A1 = new Basket(ST_UPTO1200,CLUSTER_A,SEGMENT_1);
-    private static final Basket ST_SELL_A2 = new Basket(ST_UPTO1200,CLUSTER_A,SEGMENT_2);
+    private static final Basket PM_SELL = new Basket(CPU_1, CPU_2, CPU_4, CPU_8,MEM);
     private static final Basket PMtoVM = new Basket(CPU,
         new CommoditySpecification(1), // MEM
-        new CommoditySpecification(2), // Datastore commodity with key 1
-        new CommoditySpecification(3));// Datastore commodity with key 2
+        new CommoditySpecification(10), // Datastore commodity with key 1
+        new CommoditySpecification(11));// Datastore commodity with key 2
     private static final Basket STtoVM = new Basket(
-        new CommoditySpecification(4), // Storage Amount (no key)
-        new CommoditySpecification(5));// DSPM access commodity with key A
+        new CommoditySpecification(12), // Storage Amount (no key)
+        new CommoditySpecification(13));// DSPM access commodity with key A
 
     private static final int[] types = {0,1};
     private static final TraderState[] states = {TraderState.ACTIVE,TraderState.INACTIVE};
@@ -543,7 +526,7 @@ public class EconomyTest {
     public static class AddCommodityBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testAddCommodityBought() {
-            final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU_ANY};
+            final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU};
             double quantity = 45;
             double peakQuantity = 45;
 
@@ -581,7 +564,7 @@ public class EconomyTest {
     public static class RemoveCommodityBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testRemoveCommodityBought() {
-            final CommoditySpecification[] specifications = {CLUSTER_A,CPU_1to8,MEM};
+            final CommoditySpecification[] specifications = {CLUSTER_A, CPU_1, CPU_2, CPU_4, CPU_8, MEM};
             double quantity = 45;
             double peakQuantity = 45;
 

@@ -29,11 +29,11 @@ public class EdeCommonTest {
     private static final double expectedQuote = 5.11;
 
     // CommoditySpecifications to use in tests
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
+    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
-    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2, 1002, 1000, Integer.MAX_VALUE);
-    private static final CommoditySpecification ST_LAT = new CommoditySpecification(3, 1003, 0, 100);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004, 0, 0);
+    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2, 1002);
+    private static final CommoditySpecification ST_LAT = new CommoditySpecification(3, 1003);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004);
 
 
     // Baskets to use in tests

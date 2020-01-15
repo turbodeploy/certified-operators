@@ -6,6 +6,8 @@ import "UpdatingFunctionDTOs.proto";
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
 // currently buying) or a seller is able to sell (but may not be currently selling).
 message CommoditySpecificationTO {
+    // quality_bounds using index 3, 4 has been deleted.
+    reserved 3, 4;
     // The type of the commodity provided or requested. e.g. CPU or Memory. Using an int32 instead
     // of an enum keeps us agnostic and lets us support all types that may be added in the future.
     required int32 type = 1;
@@ -13,18 +15,6 @@ message CommoditySpecificationTO {
     // The base type of the commodity. This does not include information about the subtype that
     // is part of the type field above.
     required int32 base_type = 2;
-
-    // Two commodities (one bought and one sold) will match iff their types are the same and their
-    // quality ranges overlap. This may be used e.g. to match a VM that needs 4 cores with a host
-    // that sells 1-8 cores, for storage tiers, or to encode keys if the ranges only contain one
-    // element.
-
-    // The lower bound on the quality provided or requested.
-    optional int32 quality_lower_bound = 3;
-
-    // The upper bound on the quality provided or requested. The default is intended to be
-    // Integer.MAX_VALUE. The relationship quality_lower_bound <= quality_upper_bound must hold.
-    optional int32 quality_upper_bound = 4 [default = 2147483647];
 
     // The field contains info about commodity's eclass and key, it is used for debugging only
     optional string debug_info_never_use_in_code = 5;

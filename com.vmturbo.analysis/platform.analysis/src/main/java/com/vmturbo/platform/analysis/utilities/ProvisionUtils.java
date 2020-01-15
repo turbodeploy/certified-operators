@@ -35,7 +35,7 @@ public class ProvisionUtils {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
             // basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
-            while (!basketCommSpec.isSatisfiedBy(basketSold.get(soldIndex))) {
+            while (!basketCommSpec.equals(basketSold.get(soldIndex))) {
                 soldIndex++;
                 if (soldIndex >= basketSold.size()) {
                     return false;

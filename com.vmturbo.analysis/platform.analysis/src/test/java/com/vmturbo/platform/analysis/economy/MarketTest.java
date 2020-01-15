@@ -53,9 +53,9 @@ import junitparams.naming.TestCaseName;
 public class MarketTest {
 
     // Fields
-    private static final CommoditySpecification A = new CommoditySpecification(0,1000,0,0);
-    private static final CommoditySpecification B = new CommoditySpecification(0,1000,0,100);
-    private static final CommoditySpecification C = new CommoditySpecification(1,1001,0,100);
+    private static final CommoditySpecification A = new CommoditySpecification(0,1000);
+    private static final CommoditySpecification B = new CommoditySpecification(0,1000);
+    private static final CommoditySpecification C = new CommoditySpecification(1,1001);
 
     private static final Basket EMPTY = new Basket();
 

@@ -42,7 +42,7 @@ public class CloudActionsIntegrationTest {
     private static final CommoditySpecification CPU = new CommoditySpecification(0).setDebugInfoNeverUseInCode("CPU");
     private static final CommoditySpecification COUPON = new CommoditySpecification(1).setDebugInfoNeverUseInCode("COUPON");
     private static final CommoditySpecification FAMILY = new CommoditySpecification(2).setDebugInfoNeverUseInCode("FAMILY");
-    private static final CommoditySpecification LICENSE = new CommoditySpecification(5, 5, 0, 0).setDebugInfoNeverUseInCode("LICENSE");
+    private static final CommoditySpecification LICENSE = new CommoditySpecification(5, 5).setDebugInfoNeverUseInCode("LICENSE");
     private static final Basket SOLDbyTP = new Basket(CPU, COUPON, FAMILY, LICENSE);
     private static final Basket SOLDbyCBTP = new Basket(CPU, COUPON, LICENSE);
     private static final Basket BOUGHTbyVM = new Basket(CPU, COUPON, LICENSE);
