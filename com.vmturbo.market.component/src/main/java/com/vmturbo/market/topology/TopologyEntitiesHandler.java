@@ -411,7 +411,7 @@ public class TopologyEntitiesHandler {
         MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
                 .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
                 .map(analysis::getCommSpecForCommodity)
-                .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType(), 0, Integer.MAX_VALUE))
+                .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType()))
                 .forEach(topology::addCommsToAdjustOverhead);
     }
 
