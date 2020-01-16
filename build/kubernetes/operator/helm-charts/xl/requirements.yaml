@@ -133,10 +133,6 @@ dependencies:
     repository: file://../base/chronograf
     version: 1.1.0
     condition: chronograf.enabled
-  - name: datacloud
-    repository: file://../base/datacloud
-    version: 0.1.0
-    condition: datacloud.enabled
 
 # Tracing dependencies
   - name: jaeger

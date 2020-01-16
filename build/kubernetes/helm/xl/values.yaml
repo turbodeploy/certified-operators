@@ -95,8 +95,6 @@ jaeger:
   cassandra:
     config:
       dc_name: dc1
-datacloud:
-  enabled: false
 
 # Enable mediation
 actionscript:
