@@ -390,7 +390,7 @@ public class SMAUtilsTest {
                 SMATemplate matchTemplate = match.getTemplate();
                 if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
                     System.out.println(String.format("testStability mismatch VM=%s: currentTemplate=%s != matchTemplate=%s coverage=%s discount=%s",
-                            vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
+                            vm.getName(), currentTemplate.getName(), matchTemplate.getName(), vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
                     newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
@@ -677,7 +677,7 @@ public class SMAUtilsTest {
 
     private static SMAInputContext generateASGInput(int nTemplates,
                                                     int nfamily, int nzones, int nbusinessAccount,
-                                                    TypeOfRIs typeOfRIs, OSType os, int familyRange, int asgCount, int asgsize) {
+                                                    TypeOfRIs typeOfRIs, OSType os, int familyRange, int asgCount, int asgSize) {
         SMAContext context = new SMAContext(SMACSP.AWS,
                 os,
                 SMATestConstants.REGION_BASE,
@@ -705,8 +705,8 @@ public class SMAUtilsTest {
         Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
         for (int i = 0; i < asgCount; i++) {
-            int size = rand.nextInt(asgsize) + 1;
-            int rsize = rand.nextInt(asgsize) + 1;
+            int size = rand.nextInt(asgSize) + 1;
+            int rsize = rand.nextInt(asgSize) + 1;
             SMATemplate riTemplate = smaTemplates.get(rand.nextInt(nTemplates - 1));
             Long businessAccount = SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount);
             Long vmZone = 10L + rand.nextInt(nzones);
@@ -721,7 +721,7 @@ public class SMAUtilsTest {
                 SMATemplate memberCurrentTemplate = providers.get(rand.nextInt(providerSize));
                 List<SMATemplate> memberProviders = new ArrayList(providers);
                 memberProviders.remove(rand.nextInt(memberProviders.size()));
-                long vmOid = SMATestConstants.VIRTUAL_MACHINE_BASE + (i * size) + j;
+                long vmOid = SMATestConstants.VIRTUAL_MACHINE_BASE + (i * (asgSize + 1)) + j;
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(vmOid,
                         "vm_" + vmOid + "_" + j,
                         (SMATestConstants.GROUP_NAME_BASE + i),
@@ -734,7 +734,7 @@ public class SMAUtilsTest {
                 smaVirtualMachines.add(smaVirtualMachine);
             }
             for (int j = 0; j < rsize; j++) {
-                Long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + (i * rsize) + j;
+                Long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + (i * (asgSize + 1)) + j;
                 SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid, "ri_" + riOid + "_" + j,
                         businessAccount,
                         0,

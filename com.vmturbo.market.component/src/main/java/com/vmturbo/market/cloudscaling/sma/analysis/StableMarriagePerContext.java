@@ -7,7 +7,6 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -20,11 +19,9 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
-import org.apache.commons.lang3.tuple.MutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -832,52 +829,78 @@ public class StableMarriagePerContext {
          */
         @Override
         public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
-            float netSavingvm1 = computeSaving(vm1);
-            float netSavingvm2 = computeSaving(vm2);
+            float netSavingVm1 = computeSaving(vm1);
+            float netSavingVm2 = computeSaving(vm2);
 
             String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
-            float couponsVM1 = (float)reservedInstance.getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
-            float couponsVM2 = (float)reservedInstance.getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
+            float couponsVm1 = (float)reservedInstance.getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
+            float couponsVm2 = (float)reservedInstance.getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
             if (reservedInstance.isIsf()) {
-                couponsVM1 = (float)Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
-                couponsVM2 = (float)Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
+                couponsVm1 = (float)Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
+                couponsVm2 = (float)Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
             }
-            float netSavingvm1PerCoupon = netSavingvm1 / couponsVM1;
-            float netSavingvm2PerCoupon = netSavingvm2 / couponsVM2;
+            float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;
+            float netSavingVm2PerCoupon = netSavingVm2 / couponsVm2;
 
-            //Round all values;
-            netSavingvm1 = (float)Math.round(netSavingvm1 * SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
-            netSavingvm2 = (float)Math.round(netSavingvm2 * SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
-            netSavingvm1PerCoupon = (float)Math.round(netSavingvm1PerCoupon *
+            netSavingVm1PerCoupon = (float)Math.round(netSavingVm1PerCoupon *
                     SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
-            netSavingvm2PerCoupon = (float)Math.round(netSavingvm2PerCoupon *
+            netSavingVm2PerCoupon = (float)Math.round(netSavingVm2PerCoupon *
                     SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
 
-
-            if (netSavingvm1PerCoupon - netSavingvm2PerCoupon > SMAUtils.EPSILON) {
+            // Pick VM with higher savings per coupon.
+            if ((netSavingVm1PerCoupon - netSavingVm2PerCoupon) > SMAUtils.EPSILON) {
                 return -1;
             }
-            if (netSavingvm2PerCoupon - netSavingvm1PerCoupon > SMAUtils.EPSILON) {
+            if ((netSavingVm2PerCoupon - netSavingVm1PerCoupon) > SMAUtils.EPSILON) {
                 return 1;
             }
 
-            if (couponsVM1 - couponsVM2 > SMAUtils.EPSILON) {
+            if ((couponsVm1 - couponsVm2) > SMAUtils.EPSILON) {
                 return -1;
             }
-            if (couponsVM2 - couponsVM1 > SMAUtils.EPSILON) {
+            if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
                 return 1;
             }
 
-            float discountvm1 = reservedInstance.getRICoverage(vm1);
-            float discountvm2 = reservedInstance.getRICoverage(vm2);
+            // pick VM with higher RI coverage.
+            float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
+            float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
             // if vm is already covered by one of the RI prefer that RI
 
-            if (discountvm1 - discountvm2 > SMAUtils.EPSILON) {
+            if ((riCoverageVm1 - riCoverageVm2) > SMAUtils.EPSILON) {
                 return -1;
             }
-            if (discountvm2 - discountvm1 > SMAUtils.EPSILON) {
+            if ((riCoverageVm2 - riCoverageVm1) > SMAUtils.EPSILON) {
                 return 1;
             }
+
+            // pick vm with lesser moves
+            if (!reservedInstance.isIsf()) {
+                int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate());
+                int vm2TemplateMoves = templateMoves(vm2, reservedInstance.getNormalizedTemplate());
+                if (vm1TemplateMoves < vm2TemplateMoves) {
+                    return -1;
+                } else if (vm1TemplateMoves > vm2TemplateMoves) {
+                    return 1;
+            }
+            } else {
+                int vm1TemplateMoves = templateMoves(vm1, vm1.getMinCostProviderPerFamily(riFamily));
+                int vm2TemplateMoves = templateMoves(vm2, vm2.getMinCostProviderPerFamily(riFamily));
+                if (vm1TemplateMoves < vm2TemplateMoves) {
+                    return -1;
+                } else if (vm1TemplateMoves > vm2TemplateMoves) {
+                    return 1;
+                }
+            }
+            // pick vm in the same family
+            int vm1FamilyMoves = familyMoves(vm1, riFamily);
+            int vm2FamilyMoves = familyMoves(vm2, riFamily);
+            if (vm1FamilyMoves < vm2FamilyMoves) {
+                return -1;
+            } else if (vm1FamilyMoves > vm2FamilyMoves) {
+                return 1;
+            }
+
 
             //return breakTie(vm1, vm2);
             // We could break tie yet. Last resort is to use oid.
@@ -885,6 +908,49 @@ public class StableMarriagePerContext {
                 return -1;
             } else {
                 return 1;
+            }
+        }
+
+        /**
+         * the number of moves required for the vm/vmGroup to change to the new template.
+         *
+         * @param vm                  the VM of interest
+         * @param template            new  template
+         * @return move count
+         */
+        int templateMoves(final SMAVirtualMachine vm,
+                                         final SMATemplate template) {
+            int moves = 0;
+            if (vm.getGroupSize() > 1) {
+                for (SMAVirtualMachine member : virtualMachineGroupMap
+                        .get(vm.getGroupName()).getVirtualMachines()) {
+                    moves += member.getCurrentTemplate().equals(template) ? 0 : 1;
+                }
+                return moves;
+            } else {
+                return vm.getCurrentTemplate().equals(template) ? 0 : 1;
+            }
+        }
+
+
+        /**
+         * the number of family change for the vm/vmGroup to change to the new template.
+         *
+         * @param vm                  the VM of interest
+         * @param family            new  template family
+         * @return move count
+         */
+        int familyMoves(final SMAVirtualMachine vm,
+                                       final String family) {
+            int moves = 0;
+            if (vm.getGroupSize() > 1) {
+                for (SMAVirtualMachine member : virtualMachineGroupMap
+                        .get(vm.getGroupName()).getVirtualMachines()) {
+                    moves += member.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
+                }
+                return moves;
+            } else {
+                return vm.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
             }
         }
 
