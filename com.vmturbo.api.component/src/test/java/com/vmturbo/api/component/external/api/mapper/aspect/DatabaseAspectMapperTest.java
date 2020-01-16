@@ -47,5 +47,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(TEST_DATABASE_EDITION.name(), dbAspect.getDbEdition());
         assertEquals(TEST_DATABASE_ENGINE.name(), dbAspect.getDbEngine());
         assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());
+        assertEquals(TEST_LICENSE_MODEL.name(), dbAspect.getLicenseModel());
+        assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
     }
 }

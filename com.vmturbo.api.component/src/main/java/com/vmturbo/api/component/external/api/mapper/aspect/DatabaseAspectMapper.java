@@ -28,6 +28,12 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
             if (databaseInfo.hasVersion()) {
                 aspect.setDbVersion(databaseInfo.getVersion());
             }
+            if (databaseInfo.hasLicenseModel()) {
+                aspect.setLicenseModel(databaseInfo.getLicenseModel().name());
+            }
+            if (databaseInfo.hasDeploymentType()) {
+                aspect.setDeploymentType(databaseInfo.getDeploymentType().name());
+            }
         }
         return aspect;
     }

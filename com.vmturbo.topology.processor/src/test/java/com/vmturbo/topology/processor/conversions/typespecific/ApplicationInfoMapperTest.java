@@ -15,6 +15,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
@@ -27,6 +28,8 @@ public class ApplicationInfoMapperTest {
     private static final DatabaseEngine DATABASE_ENGINE = DatabaseEngine.MARIADB;
     private static final DatabaseEdition DATABASE_EDITION = DatabaseEdition.ENTERPRISE;
     private static final String DATABASE_VERSION = "1.0";
+    private static final String LICENSE_MODEL = "NoLicenseRequired";
+    private static final String DEPLOYMENT_TYPE = "MultiAz";
 
     @Test
     public void testExtractTypeSpecificInfo() {
@@ -72,6 +75,74 @@ public class ApplicationInfoMapperTest {
                 .setEdition(DATABASE_EDITION)
                 .setVersion(DATABASE_VERSION)
                 .build())
+            .build();
+        final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
+        // act
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO,
+            Collections.emptyMap());
+        // assert
+        assertThat(result, equalTo(expected));
+    }
+
+    /**
+     * This test checks if license model and deployment type is converted correctly.
+     */
+    @Test
+    public void testExtractDbTypeSpecificInfoWithLicenseModelAnDeploymentType() {
+        // arrange
+        final EntityDTOOrBuilder applicationEntityDTO = EntityDTO.newBuilder()
+            .setApplicationData(ApplicationData.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS.getIpAddress())
+                .setDbData(DatabaseData.newBuilder()
+                    .setEngine(DATABASE_ENGINE.name())
+                    .setEdition(DATABASE_EDITION.name())
+                    .setVersion(DATABASE_VERSION)
+                    .setLicenseModel(LICENSE_MODEL)
+                    .setDeploymentType(DEPLOYMENT_TYPE)
+                ));
+        TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
+            .setApplication(ApplicationInfo.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS)
+                .build())
+            .setDatabase(DatabaseInfo.newBuilder()
+                .setEngine(DATABASE_ENGINE)
+                .setEdition(DATABASE_EDITION)
+                .setVersion(DATABASE_VERSION)
+                .setLicenseModel(CloudCostDTO.LicenseModel.NO_LICENSE_REQUIRED)
+                .setDeploymentType(CloudCostDTO.DeploymentType.MULTI_AZ))
+            .build();
+        final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
+        // act
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO,
+            Collections.emptyMap());
+        // assert
+        assertThat(result, equalTo(expected));
+    }
+
+    /**
+     * This test runs the DB conversion with invalid license model and deployment profile.
+     */
+    @Test
+    public void testExtractDbTypeSpecificInfoWithUnsupportedLicenseModelAnDeploymentType() {
+        // arrange
+        final EntityDTOOrBuilder applicationEntityDTO = EntityDTO.newBuilder()
+            .setApplicationData(ApplicationData.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS.getIpAddress())
+                .setDbData(DatabaseData.newBuilder()
+                    .setEngine(DATABASE_ENGINE.name())
+                    .setEdition(DATABASE_EDITION.name())
+                    .setVersion(DATABASE_VERSION)
+                    .setLicenseModel("Test")
+                    .setDeploymentType("Test")
+                ));
+        TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
+            .setApplication(ApplicationInfo.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS)
+                .build())
+            .setDatabase(DatabaseInfo.newBuilder()
+                .setEngine(DATABASE_ENGINE)
+                .setEdition(DATABASE_EDITION)
+                .setVersion(DATABASE_VERSION))
             .build();
         final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
         // act
