@@ -390,31 +390,9 @@ public class Analysis {
                 }
                 conversionTimer.observe();
 
-                // if a scope 'seed' entity OID list is specified, then scope the topology starting with
-                // the given 'seed' entities
-                if (!stopAnalysis) {
-                    if (isScoped()) {
-                        try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
-                            traderTOs = scopeTopology(traderTOs,
-                                    ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
-                            // add back fake traderTOs for suspension throttling as it may be removed due
-                            // to scoping
-                            traderTOs.addAll(fakeTraderTOs);
-                        }
-                        final Map<Long, TopologyEntityDTO> myFakeEntityDTOs = new HashMap<>(fakeEntityDTOs);
-                        // save the scoped topology for later broadcast
-                        scopeEntities = traderTOs.stream()
-                                // convert the traders in the scope into topologyEntities
-                                .map(trader -> topologyDTOs.get(trader.getOid()))
-                                // remove the topologyEntities that were created as fake because of suspension throttling
-                                .filter(topologyEntityDTO -> !myFakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
-                                // convert it to a map
-                                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
-                                        trader -> topologyDTOs.get(trader.getOid())));
-                    } else {
-                        scopeEntities = topologyDTOs;
-                    }
-                }
+                // add back fake traderTOs for suspension throttling as it may be removed due
+                // to scoping
+                traderTOs.addAll(fakeTraderTOs);
 
                 // remove skipped entities we don't want to send to market
                 converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
@@ -908,7 +886,7 @@ public class Analysis {
      * @return an unmodifiable view of the map of topology entity DTOs that this analysis run is executed on
      */
     public Map<Long, TopologyEntityDTO> getTopology() {
-        return isScoped() ? scopeEntities : Collections.unmodifiableMap(topologyDTOs);
+        return Collections.unmodifiableMap(topologyDTOs);
     }
 
     /**

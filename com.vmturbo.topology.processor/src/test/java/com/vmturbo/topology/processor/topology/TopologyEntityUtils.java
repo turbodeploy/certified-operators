@@ -34,6 +34,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * Utilities for generating {@link TopologyEntity} objects for tests.
  */
 public class TopologyEntityUtils {
+
     /**
      * Create a {@link TopologyEntity.Builder}.
      *
@@ -187,6 +188,41 @@ public class TopologyEntityUtils {
         return builder;
     }
 
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity.
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
+     *                  associated with commodities bought from the provider.
+     * @param soldComms is the list of {@link CommodityType} sold.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntity(long oid,
+                                                        long discoveringTargetId,
+                                                        long lastUpdatedTime,
+                                                        String displayName,
+                                                        EntityType entityType,
+                                                        Map<Long, List<CommodityType>> producers,
+                                                        List<CommodityType> soldComms) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(oid)
+                        .setEntityType(entityType.getNumber())
+                        .setDisplayName(displayName)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
+                                        .lastUpdatedAt(lastUpdatedTime))));
+        for (CommodityType ct : soldComms) {
+            builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
+        }
+
+        addCommodityBoughtFromProviderMap(builder.getEntityBuilder(), producers);
+        return builder;
+    }
 
     /**
      * Create a minimal topology entity builder.
@@ -339,7 +375,24 @@ public class TopologyEntityUtils {
     }
 
     /**
-     * Add each producer to builder commodity bought map
+     * Add each producer to builder commodity bought map.
+     * @param builder The builder of the topology entity
+     * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
+     *                  associated with commodities bought from the provider.
+     */
+    private static void addCommodityBoughtFromProviderMap(TopologyEntityDTO.Builder builder,
+                                                          Map<Long, List<CommodityType>> producers) {
+        for (Map.Entry<Long, List<CommodityType>> producer : producers.entrySet()) {
+            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addAllCommodityBought(producer.getValue().stream().map(c ->
+                            CommodityBoughtDTO.newBuilder().setCommodityType(c).build()).collect(Collectors.toList()))
+                .setProviderId(producer.getKey())
+                .build());
+        }
+    }
+
+    /**
+     * Add each producer to builder commodity bought map.
      * @param builder The builder of the topology entity
      * @param producers The OIDs of the producers that the created entity should be consuming from.
      *                  Does not actually associate any commodities with the producers.
@@ -347,8 +400,8 @@ public class TopologyEntityUtils {
     private static void addCommodityBoughtMap(TopologyEntityDTO.Builder builder, long... producers) {
         for (long producer : producers) {
             builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(producer)
-                .build());
+                    .setProviderId(producer)
+                    .build());
         }
     }
 

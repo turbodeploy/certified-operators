@@ -54,7 +54,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
@@ -209,10 +208,10 @@ public class PlanPipelineFactory {
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
+                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))
-                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingManager))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
@@ -220,7 +219,6 @@ public class PlanPipelineFactory {
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
                 .addStage(new ExtractTopologyGraphStage())
-                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
@@ -247,7 +245,6 @@ public class PlanPipelineFactory {
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
                 .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient))
                 .addStage(new GraphCreationStage())
-                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
                 // TODO (roman, Nov 2017): We need to do policy and setting application for
                 // plan-over-plan as well. However, the topology we get from the repository
