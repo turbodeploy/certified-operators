@@ -40,6 +40,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -115,6 +117,8 @@ public class ActionOrchestratorTestUtils {
                         .setInfo(
                             TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
                                 destinationId, destType))
+                        .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                            .addChangeProviderExplanation(ChangeProviderExplanation.getDefaultInstance()).build()).build())
                         .build();
     }
 

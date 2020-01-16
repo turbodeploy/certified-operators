@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -246,6 +247,39 @@ public class ActionDTOUtilTest {
 
         assertEquals(TARGET, ActionDTOUtil.getSeverityEntity(cloudMoveAction));
         assertEquals(TARGET, ActionDTOUtil.getSeverityEntity(cloudScaleAction));
+    }
+
+    /**
+     * Verify that the severity entity for compliance move actions is the target entity.
+     *
+     * @throws UnsupportedActionException is not supposed to happen
+     */
+    @Test
+    public void testGetSeverityForComplianceMoves() throws UnsupportedActionException {
+        ActionEntity target = createActionEntity(TARGET, EntityType.VIRTUAL_MACHINE_VALUE, EnvironmentType.ON_PREM);
+        ChangeProvider changeProvider = ChangeProvider.newBuilder()
+            .setSource(createActionEntity(SOURCE_1, EntityType.PHYSICAL_MACHINE_VALUE, EnvironmentType.ON_PREM))
+            .setDestination(createActionEntity(DEST_1, EntityType.PHYSICAL_MACHINE_VALUE, EnvironmentType.ON_PREM))
+            .build();
+
+        ActionInfo moveInfo = ActionInfo.newBuilder()
+            .setMove(Move.newBuilder()
+                .setTarget(target)
+                .addChanges(changeProvider)
+                .build())
+            .build();
+
+        Action moveAction = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setIsPrimaryChangeProviderExplanation(true).setCompliance(
+                        Compliance.getDefaultInstance()).build()).build()))
+            .setInfo(moveInfo)
+            .setDeprecatedImportance(1)
+            .build();
+
+        assertEquals(TARGET, ActionDTOUtil.getSeverityEntity(moveAction));
     }
 
     @Test

@@ -210,8 +210,13 @@ public class EntitySeverityCacheTest {
             case NORMAL:
                 return Explanation.newBuilder().build();
             case MINOR:
-                return Explanation.newBuilder().setDeactivate(
-                    DeactivateExplanation.newBuilder().build()).build();
+                return Explanation.newBuilder().setMove(
+                    MoveExplanation.newBuilder().addChangeProviderExplanation(
+                        ChangeProviderExplanation.newBuilder().setEfficiency(
+                            ChangeProviderExplanation.Efficiency.getDefaultInstance())
+                            .build())
+                        .build())
+                    .build();
             case MAJOR:
                 return Explanation.newBuilder().setMove(
                     MoveExplanation.newBuilder().addChangeProviderExplanation(
@@ -221,8 +226,13 @@ public class EntitySeverityCacheTest {
                         .build())
                     .build();
             case CRITICAL:
-                return Explanation.newBuilder().setReconfigure(
-                    ReconfigureExplanation.newBuilder().build()).build();
+                return Explanation.newBuilder().setMove(
+                    MoveExplanation.newBuilder().addChangeProviderExplanation(
+                        ChangeProviderExplanation.newBuilder().setCongestion(
+                            ChangeProviderExplanation.Congestion.getDefaultInstance())
+                            .build())
+                        .build())
+                    .build();
             default:
                 throw new IllegalArgumentException("Unknown severity " + severity);
         }

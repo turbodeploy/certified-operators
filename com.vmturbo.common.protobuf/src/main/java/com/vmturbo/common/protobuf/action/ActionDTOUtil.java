@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -160,6 +161,14 @@ public class ActionDTOUtil {
                 // for correct severity calculations
                 ActionEntity primaryEntity = getPrimaryEntity(action.getId(), actionInfo, false);
                 if (primaryEntity.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+                    return primaryEntity.getId();
+                }
+                // For compliance actions, the target entity is the severity entity.
+                // TODO: Another case where the target entity is the severity entity is for VDI
+                // move actions. This special case also needs to be added here.
+                ChangeProviderExplanation primaryExplanation =
+                    getPrimaryChangeProviderExplanation(action);
+                if (primaryExplanation.getChangeProviderExplanationTypeCase() == ChangeProviderExplanationTypeCase.COMPLIANCE) {
                     return primaryEntity.getId();
                 }
                 // For move/scale actions, the importance of the action
@@ -536,6 +545,26 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Get the list of {@link ChangeProviderExplanation} associated with Move or Scale action.
+     *
+     * @param action Move or Scale action.
+     * @return List of {@link ChangeProviderExplanation}.
+     * @throws IllegalArgumentException if action is not of Move/Scale type.
+     */
+    @Nonnull
+    public static List<ChangeProviderExplanation> getChangeProviderExplanationList(@Nonnull final Action action) {
+        switch (action.getExplanation().getActionExplanationTypeCase()) {
+            case MOVE:
+                return action.getExplanation().getMove().getChangeProviderExplanationList();
+            case SCALE:
+                return action.getExplanation().getScale().getChangeProviderExplanationList();
+            default:
+                throw new IllegalArgumentException("Cannot get change provider explanation list for " +
+                    "action type " + action.getExplanation().getActionExplanationTypeCase());
+        }
+    }
+
+    /**
      * Get the list of {@link ChangeProviderExplanation} associated with Move or Right Size action.
      *
      * @param explanation Action explanation.
@@ -585,12 +614,9 @@ public class ActionDTOUtil {
     @Nonnull
     private static ChangeProviderExplanation getPrimaryChangeProviderExplanation(
         @Nonnull final ActionDTO.Action action) {
-        return getChangeProviderExplanationList(action.getExplanation()).get(
-            getPrimaryChangeProviderIdx(action));
-    }
-
-    private static int getPrimaryChangeProviderIdx(@Nonnull final ActionDTO.Action action) {
-        return getPrimaryChangeProviderIdx(action.getInfo());
+        List<ChangeProviderExplanation> changeExplanations = getChangeProviderExplanationList(action);
+        return changeExplanations.stream().filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+            .findFirst().orElse(changeExplanations.get(0));
     }
 
     private static int getPrimaryChangeProviderIdx(@Nonnull final ActionInfo actionInfo) {
