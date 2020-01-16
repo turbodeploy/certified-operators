@@ -4,6 +4,7 @@ import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -76,6 +77,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -1081,6 +1083,54 @@ public class StatsServiceTest {
 
         //THEN
         verify(paginationRequest).nextPageResponse(any(), eq("NextCursor"), eq(100));
+    }
+
+    /**
+     * Test globalTempGroup of environmentType Hyrid returns non empty optional of relatedType.
+     */
+    @Test
+    public void testGetGlobalTempGroupEntityTypeWithTempGlobalHybridGroup() {
+        //GIVEN
+        Grouping grouping = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setIsTemporary(true)
+                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                .setIsGlobalScope(true)
+                        .setEnvironmentType(EnvironmentType.HYBRID))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                        .newBuilder()
+                                        .setType(MemberType
+                                                .newBuilder()
+                                                .setEntity(UIEntityType.PHYSICAL_MACHINE
+                                                        .typeNumber())))))
+                .build();
+
+        //THEN
+        assertTrue(statsService.getGlobalTempGroupEntityType(Optional.of(grouping)).isPresent());
+    }
+
+    /**
+     * Test globalTempGroup of environmentType non Hybrid returns empty optional.
+     */
+    @Test
+    public void testGetGlobalTempGroupEntityTypeWithTempGlobalGroupWithNonHybridGroup() {
+        //GIVEN
+        Grouping grouping = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setIsTemporary(true)
+                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                .setIsGlobalScope(true)
+                                .setEnvironmentType(EnvironmentType.ON_PREM))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                        .newBuilder()
+                                        .setType(MemberType
+                                                .newBuilder()
+                                                .setEntity(UIEntityType.PHYSICAL_MACHINE
+                                                        .typeNumber())))))
+                .build();
+
+        //THEN
+        assertFalse(statsService.getGlobalTempGroupEntityType(Optional.of(grouping)).isPresent());
     }
 
 }

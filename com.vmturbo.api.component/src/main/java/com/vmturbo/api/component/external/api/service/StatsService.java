@@ -60,7 +60,7 @@ import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -1086,7 +1086,8 @@ public class StatsService implements IStatsService {
      * @return return a optional of entity type, if input group is a temporary global scope group,
      *         otherwise return empty option.
      */
-    private Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Grouping> groupOptional) {
+    @VisibleForTesting
+    protected Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Grouping> groupOptional) {
         if (!groupOptional.isPresent() || !groupOptional.get().getDefinition().getIsTemporary()
                         || !groupOptional.get().getDefinition().hasStaticGroupMembers()
                         || groupOptional.get().getDefinition()
@@ -1097,17 +1098,10 @@ public class StatsService implements IStatsService {
         final GroupDefinition tempGroup = groupOptional.get().getDefinition();
         final boolean isGlobalTempGroup = tempGroup.hasOptimizationMetadata()
                         && tempGroup.getOptimizationMetadata().getIsGlobalScope()
-                // TODO (roman, Nov 21 2018) OM-40569: Add proper support for environment type for
                 // the global scope optimization.
-                //
-                // Right now we treat "on-prem" groups as "global" groups to avoid
-                // performance regressions in large customer environments. However, this will give
-                // incorrect results for entity types that can appear in both cloud an on-prem
-                // environments (e.g. VMs). Since no customers of XL currently use the cloud
-                // capabilities, this is ok as a short-term fix.
                 && (!tempGroup.getOptimizationMetadata().hasEnvironmentType()
                             || tempGroup.getOptimizationMetadata().getEnvironmentType()
-                                    == EnvironmentTypeEnum.EnvironmentType.ON_PREM);
+                                    == EnvironmentType.HYBRID);
 
         int entityType = tempGroup.getStaticGroupMembers()
                         .getMembersByType(0)

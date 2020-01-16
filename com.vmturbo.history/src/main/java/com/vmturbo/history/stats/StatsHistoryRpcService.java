@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
@@ -336,7 +337,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param ascending whether to create comparator in the ascending order or descending order
      * @return comparator used to sort EntityStats
      */
-    private Comparator<EntityStats> getEntityStatsComparator(@Nonnull List<EntityStats> entityStats,
+    @VisibleForTesting
+    protected Comparator<EntityStats> getEntityStatsComparator(@Nonnull List<EntityStats> entityStats,
                                                              @Nonnull String commodity,
                                                              final boolean ascending) {
         // pre calculate the utilization for each entity, to reduce the calculation during sorting
@@ -477,7 +479,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param responseObserver the chunking channel on which the response should be returned
      * @throws VmtDbException if there is an error interacting with the database
      */
-    private void returnStatsForEntityGroups(@Nonnull EntityGroupList entityGroupList,
+    @VisibleForTesting
+    protected void returnStatsForEntityGroups(@Nonnull EntityGroupList entityGroupList,
                                             @Nonnull StatsFilter statsFilter,
                                             @Nonnull Optional<PaginationParameters> paginationParameters,
                                             @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver)
@@ -501,7 +504,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         // if no pagination parameters provided, return all
         if (!paginationParameters.isPresent()) {
             responseObserver.onNext(GetEntityStatsResponse.newBuilder()
-                .addAllEntityStats(entityStatsList).build());
+                .addAllEntityStats(entityStatsList)
+                    .build());
             responseObserver.onCompleted();
             return;
         }
@@ -523,7 +527,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 .addAllEntityStats(entityStatsList.subList(startIndex, endIndex));
 
         // set nextCursor on pagination response
-        final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+        final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder()
+                .setTotalRecordCount(entityGroups.size());
         if (endIndex < entityStatsList.size()) {
             paginationResponse.setNextCursor(String.valueOf(endIndex));
         }

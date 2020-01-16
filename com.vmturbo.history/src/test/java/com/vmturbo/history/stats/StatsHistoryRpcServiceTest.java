@@ -10,6 +10,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -46,6 +47,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 
 import org.jooq.Record;
 import org.junit.Before;
@@ -136,6 +138,9 @@ public class StatsHistoryRpcServiceTest {
     private StatSnapshotCreator statSnapshotCreatorSpy = spy(new DefaultStatSnapshotCreator(statRecordBuilderSpy));
 
     private SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
+
+    private GetEntityStatsResponseStreamObserver getEntityStatsResponseStreamObserver =
+            new GetEntityStatsResponseStreamObserver();
 
     private StatsHistoryRpcService statsHistoryRpcService =
         Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
@@ -935,6 +940,30 @@ public class StatsHistoryRpcServiceTest {
             });
     }
 
+    /**
+     * Tests returnStatsForEntityGroups setting {@link PaginationResponse} totalRecordCount.
+     *
+     * @throws VmtDbException if database errors occurs
+     */
+    @Test
+    public void testReturnStatsForEntityGroupsSettingTotalRecordCountInPaginationResponse()
+            throws VmtDbException {
+        //WHEN
+        EntityGroup eGroup1 = EntityGroup.newBuilder().setSeedEntity(1).build();
+        EntityGroup eGroup2 = EntityGroup.newBuilder().setSeedEntity(2).build();
+        EntityGroupList entityGroupList  = EntityGroupList.newBuilder().addGroups(eGroup1).addGroups(eGroup2).build();
+        StatsFilter statsFilter = StatsFilter.newBuilder().build();
+        PaginationParameters paginationParameters = PaginationParameters.newBuilder().build();
+
+        //GIVEN
+        statsHistoryRpcService.returnStatsForEntityGroups(entityGroupList, statsFilter, Optional.of(paginationParameters), this.getEntityStatsResponseStreamObserver);
+
+        //THEN
+        assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse());
+        assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse());
+        assertTrue(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse().getTotalRecordCount() == 2);
+    }
+
     private static SystemLoadRecord newSystemLoadInfo(@Nonnull final String clusterId) {
         return new SystemLoadRecord(
             clusterId, SNAPSHOT_TIME, "2", null, "4", null, 1d, 2d, null, null, COMMODITIES, "6");
@@ -947,5 +976,34 @@ public class StatsHistoryRpcServiceTest {
             .setMinValue(-1).setMaxValue(-1).setRelationType(COMMODITIES.ordinal())
             .setCommodityKey("6").build();
     }
+
+    /**
+     * Allows testing of StreamObserver<GetEntityStatsResponse>.
+     */
+    private static class GetEntityStatsResponseStreamObserver implements StreamObserver<GetEntityStatsResponse> {
+
+        //GetEntityStatsResponse set from via observer onNext
+        private GetEntityStatsResponse getEntityStatsResponse;
+
+        public GetEntityStatsResponse getGetEntityStatsResponse() {
+            return this.getEntityStatsResponse;
+        }
+
+        @Override
+        public void onNext(GetEntityStatsResponse getEntityStatsResponse) {
+            this.getEntityStatsResponse = getEntityStatsResponse;
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+
+        }
+
+        @Override
+        public void onCompleted() {
+
+        }
+    }
+
 
 }
