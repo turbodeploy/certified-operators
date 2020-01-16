@@ -46,7 +46,6 @@ import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
-import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -468,7 +467,7 @@ public class GroupsService implements IGroupsService {
                     .stream()
                     .map(settingManager -> settingManager.getSettings())
                     .flatMap(List::stream)
-                    .map(setting -> (SettingApiDTO) setting)
+                    .map(setting -> (SettingApiDTO)setting)
                     .findFirst();
 
             if (!optionalSetting.isPresent()) {
@@ -502,25 +501,6 @@ public class GroupsService implements IGroupsService {
                         .flatMap(List::stream)
                         .collect(Collectors.toList());
         }
-    }
-
-    /**
-     * Populate the SettingsManagerApiDTO object with data from managerInfo and the template setting.
-     *
-     * @param managerInfo manager info object
-     * @param templateSetting Settings object that contains the template ID
-     * @return
-     */
-    @Nonnull
-    private List<SettingsManagerApiDTO> getHeadroomSettingsMangerApiDTO(
-            @Nonnull SettingsManagerInfo managerInfo,
-            @Nonnull SettingApiDTO<String> templateSetting) {
-        final SettingsManagerApiDTO settingsManager = new SettingsManagerApiDTO();
-        settingsManager.setUuid(SettingsMapper.CLUSTER_HEADROOM_SETTINGS_MANAGER);
-        settingsManager.setDisplayName(managerInfo.getDisplayName());
-        settingsManager.setCategory(managerInfo.getDefaultCategory());
-        settingsManager.setSettings(Collections.singletonList(templateSetting));
-        return Collections.singletonList(settingsManager);
     }
 
     private Template getHeadroomTemplate(final long groupId) throws UnknownObjectException {
@@ -945,7 +925,7 @@ public class GroupsService implements IGroupsService {
                 } else {
                     // Get entities of group members from the repository component
                     final long skipCount;
-                    if (request.getCursor().isPresent()){
+                    if (request.getCursor().isPresent()) {
                         try {
                             skipCount = Long.parseLong(request.getCursor().get());
                             if (skipCount < 0) {
@@ -964,6 +944,7 @@ public class GroupsService implements IGroupsService {
                         throw new InvalidOperationException("Order " + request.getOrderBy().name() +
                             " is invalid. The only supported order is by id");
                     }
+                    final int memberCount = groupAndMembers.members().size();
                     final Set<Long> nextPageIds = groupAndMembers.members().stream()
                         .sorted()
                         .skip(skipCount)
@@ -983,11 +964,11 @@ public class GroupsService implements IGroupsService {
                             missingEntities, uuid);
                     }
                     Long nextCursor = skipCount + nextPageIds.size();
-                    if (nextCursor == groupAndMembers.members().size()) {
-                        return request.finalPageResponse(Lists.newArrayList(results), null);
+                    if (nextCursor == memberCount) {
+                        return request.finalPageResponse(Lists.newArrayList(results), memberCount);
                     }
                     return request.nextPageResponse(Lists.newArrayList(results),
-                        Long.toString(nextCursor), null);
+                        Long.toString(nextCursor), memberCount);
 
                 }
             }

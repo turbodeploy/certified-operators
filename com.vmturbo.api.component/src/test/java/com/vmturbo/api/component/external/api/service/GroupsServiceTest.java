@@ -16,12 +16,14 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -44,7 +46,6 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -628,6 +629,63 @@ public class GroupsServiceTest {
         assertTrue(response.getRestResponse().getBody().isEmpty());
         // Should be no call to repository to get entity information.
         verifyZeroInteractions(repositoryApi);
+    }
+
+    /**
+     * Tests pagination of getMembersByGroupUuid.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetGroupMembersByUuidPagination() throws Exception {
+        final long groupId = 1L;
+        // contains 78 ids from 0 to 77 .range upperbound is exclusive
+        // this is too many, and cannot fit in a page size of 20
+        final Set<Long> membersSet = LongStream.range(0, 78).boxed().collect(Collectors.toSet());
+
+        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
+            .setId(groupId)
+            .build()))
+            .thenReturn(GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(membersSet))
+                .build());
+
+        final GroupDefinition groupDefinition =
+            GroupDefinition.newBuilder().setType(GroupType.REGULAR).build();
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(groupDefinition)
+            .setId(groupId)
+            .addExpectedTypes(
+                MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+            .build();
+        final GroupAndMembers groupAndMembers = groupAndMembers(group, membersSet);
+        Mockito.when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.of(groupAndMembers));
+        final ArgumentCaptor<Collection<Long>> collectionCaptor = ArgumentCaptor.forClass((Class)Collection.class);
+        Mockito.when(repositoryApi.getByIds(collectionCaptor.capture(), eq(Collections.emptyList()), eq(false)))
+            .thenReturn(new RepositoryRequestResult(
+                Collections.emptyList(),
+                // We assume that we were asked for 20, return 20, and check to make sure we asked
+                // the repository for 20 using an argument captor and an assert that later on.
+                LongStream.range(0, 20).boxed().map(oid -> makeMinimalDTO(oid)).collect(Collectors.toList())));
+        final GroupMembersPaginationRequest request =
+            new GroupMembersPaginationRequest(null, 20, false, GroupMemberOrderBy.DEFAULT);
+
+        final GroupMembersPaginationResponse response =
+            groupsService.getMembersByGroupUuid(Long.toString(groupId), request);
+
+        final Collection<Long> actualAsk = collectionCaptor.getValue();
+        // Should only ask for first 20 items from the repository.
+        Assert.assertEquals(20, collectionCaptor.getValue().size());
+        Assert.assertEquals(
+            LongStream.range(0, 20).boxed().collect(Collectors.toSet()), actualAsk);
+        Assert.assertEquals("20", response.getRestResponse().getHeaders().get("X-Next-Cursor").get(0));
+        Assert.assertEquals("78", response.getRestResponse().getHeaders().get("X-Total-Record-Count").get(0));
+    }
+
+    private ServiceEntityApiDTO makeMinimalDTO(long oid) {
+        final ServiceEntityApiDTO serviceEntityAPiDDTO = new ServiceEntityApiDTO();
+        serviceEntityAPiDDTO.setUuid(Long.toString(oid));
+        return serviceEntityAPiDDTO;
     }
 
     @Test
