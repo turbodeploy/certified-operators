@@ -30,6 +30,8 @@ RUN mkdir -p /var/log/nginx/logs && \
 ADD rsyslog.conf /etc
 
 COPY nginx.conf.template /etc/nginx/
+COPY includes /etc/nginx/includes
+RUN chown -R nginx:nginx /etc/nginx/includes
 COPY entrypoint.sh /
 
 # copy static html resources
