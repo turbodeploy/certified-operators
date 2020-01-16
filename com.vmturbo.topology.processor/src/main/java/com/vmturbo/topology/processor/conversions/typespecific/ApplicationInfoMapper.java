@@ -49,14 +49,6 @@ public class ApplicationInfoMapper extends TypeSpecificInfoMapper {
             if (dbData.hasVersion()) {
                 databaseInfoBuilder.setVersion(dbData.getVersion());
             }
-            if (dbData.hasDeploymentType()) {
-                parseDeploymentType(dbData.getDeploymentType()).ifPresent(
-                    databaseInfoBuilder::setDeploymentType);
-            }
-            if (dbData.hasLicenseModel()) {
-                parseLicenseModel(dbData.getLicenseModel()).ifPresent(
-                    databaseInfoBuilder::setLicenseModel);
-            }
             // we don't yet need 'dbData.getVersion() - but that may change
             appInfo.setDatabase(databaseInfoBuilder);
         }
