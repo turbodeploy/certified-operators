@@ -381,9 +381,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         // method.
         final ExecutorService svc = Executors.newSingleThreadExecutor();
         svc.execute(() -> {
-            this.onStartComponent();
-            publishVersionInformation();
-            setStatus(ExecutionStatus.RUNNING);
+            try {
+                this.onStartComponent();
+                publishVersionInformation();
+                setStatus(ExecutionStatus.RUNNING);
+            } catch (Exception e) {
+                logger.error("Error while trying to finish startup routine. Will shut down.", e);
+                System.exit(1);
+            }
         });
         svc.shutdown();
     }
@@ -933,9 +938,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     private void publishVersionInformation() {
         if (standalone != null && !standalone) {
-            // get a pointer to the ClusterMgr client api
-            ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
-
             // get the component version and record it in the key/value store
             final String specVersion = getClass().getPackage().getSpecificationVersion();
             if (specVersion != null) {
