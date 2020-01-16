@@ -906,12 +906,38 @@
         <profile>
             <id>release</id>
             <modules>
+                <!-- There is a non-maven dependency between any module
+                     that builds a docker image and the baseimage module.
+                     The baseimage module creates the docker image that
+                     all other images should be based on, but the poms don't
+                     capture that relationship.
+
+                     Therefore, keep this at the top of the modules list
+                     so that it gets built first despite not being explicitly
+                     depended on by other modules.
+
+                     For order of module building see:
+                     https://maven.apache.org/guides/mini/guide-multiple-modules.html -->
+                <module>../versioning</module>
+                <module>../com.vmturbo.components.baseimage</module>
+
+                <!-- Infrequently changing dependencies. Essentially the equivalent of
+                     libraries from the XL developer's point of view.
+                     There may be non-maven dependencies between the development modules
+                     and these libraries, so keep them towards the top of the module list. -->
+                <module>../syslog</module>
+                <module>../db</module>
+                <module>../com.vmturbo.arangodb</module>
+                <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-grpc-moles</module>
+                <module>../diags</module>
+                <module>../kafka</module>
+                <module>../zookeeper</module>
+                <module>../nginx</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
-                <module>../com.vmturbo.influxdb</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -964,7 +990,6 @@
                 <module>../com.vmturbo.mediation.probe.parent</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../versioning</module>
 
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
