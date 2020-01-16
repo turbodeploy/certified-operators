@@ -103,7 +103,9 @@ public class AnalysisRpcServiceTest {
     @Test
     public void testStartAnalysisOldTopology() throws Exception {
         // arrange
+        final long retTopologyId = 7129;
         final TopologyPipelineRequest req = mock(TopologyPipelineRequest.class);
+        when(req.getTopologyId()).thenReturn(retTopologyId);
         when(pipelineExecutorService.queuePlanOverPlanPipeline(eq(topologyId), eq(topologyInfo), eq(Collections.emptyList()), any()))
             .thenReturn(req);
 
@@ -119,7 +121,9 @@ public class AnalysisRpcServiceTest {
                     .setPlanSubType(testPlanSubType)
                     .build(), responseObserver);
 
-        verify(responseObserver).onNext(StartAnalysisResponse.getDefaultInstance());
+        verify(responseObserver).onNext(StartAnalysisResponse.newBuilder()
+            .setTopologyId(retTopologyId)
+            .build());
         verify(responseObserver).onCompleted();
     }
 
@@ -130,8 +134,10 @@ public class AnalysisRpcServiceTest {
     @Test
     public void testStartAnalysisPlan() throws Exception {
         // arrange
+        final long retTopologyId = 7129;
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
+        when(topologyPipelineRequest.getTopologyId()).thenReturn(retTopologyId);
         when(pipelineExecutorService.queuePlanPipeline(eq(topologyInfo), eq(Collections.emptyList()), any(),
             any(StitchingJournalFactory.class)))
             .thenReturn(topologyPipelineRequest);
@@ -150,7 +156,9 @@ public class AnalysisRpcServiceTest {
         verify(pipelineExecutorService).queuePlanPipeline(eq(topologyInfo), eq(Collections.emptyList()),
             any(), any(StitchingJournalFactory.class));
 
-        verify(responseObserver).onNext(StartAnalysisResponse.getDefaultInstance());
+        verify(responseObserver).onNext(StartAnalysisResponse.newBuilder()
+            .setTopologyId(retTopologyId)
+            .build());
         verify(responseObserver).onCompleted();
     }
 

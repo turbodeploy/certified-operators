@@ -1,22 +1,21 @@
 package com.vmturbo.market.runner;
 
-import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -26,7 +25,6 @@ import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotif
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -35,6 +33,8 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate.Ticket;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -57,6 +57,8 @@ public class MarketRunner {
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
+    private final TopologyProcessingGate topologyProcessingGate;
+
     private final Set<Long> analysisStoppageSet = Sets.newConcurrentHashSet();
 
     private static final DataMetricHistogram INPUT_TOPOLOGY = DataMetricHistogram.builder()
@@ -69,11 +71,13 @@ public class MarketRunner {
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
-                        @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService) {
+                        @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
+                        final TopologyProcessingGate topologyProcessingGate) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
         this.analysisFactory = Objects.requireNonNull(analysisFactory);
+        this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
     }
 
     /**
@@ -162,7 +166,20 @@ public class MarketRunner {
         }
         logger.info("Queueing analysis {} for execution", topologyContextId);
         analysis.queued();
-        runnerThreadPool.execute(() -> runAnalysis(analysis));
+        runnerThreadPool.execute(() -> {
+            try (Ticket ticket = topologyProcessingGate.enter(topologyInfo, topologyDTOs)) {
+                runAnalysis(analysis);
+            } catch (InterruptedException e) {
+                logger.error("Analysis of topology {} interrupted while waiting to start.",
+                    topologyInfo);
+                // Send notification of Analysis FAILURE
+                sendAnalysisStatus(analysis, AnalysisState.FAILED.ordinal());
+            } catch (TimeoutException e) {
+                logger.error("Analysis of topology timed out waiting to start.", e);
+                // Send notification of Analysis FAILURE
+                sendAnalysisStatus(analysis, AnalysisState.FAILED.ordinal());
+            }
+        });
         return analysis;
     }
 

@@ -26,6 +26,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.QueueCapacityExceededException;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRequest;
 
 /**
  * See: topology/AnalysisDTO.proto.
@@ -90,15 +91,19 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 .build();
 
         try {
+            final TopologyPipelineRequest pipelineRequest;
             if (request.hasTopologyId()) {
-                pipelineExecutorService.queuePlanOverPlanPipeline(request.getTopologyId(), topologyInfo,
+                pipelineRequest = pipelineExecutorService.queuePlanOverPlanPipeline(
+                    request.getTopologyId(), topologyInfo,
                     request.getScenarioChangeList(), request.getPlanScope());
             } else {
-                pipelineExecutorService.queuePlanPipeline(topologyInfo,
+                pipelineRequest = pipelineExecutorService.queuePlanPipeline(topologyInfo,
                     request.getScenarioChangeList(), request.getPlanScope(), journalFactory);
             }
 
-            responseObserver.onNext(StartAnalysisResponse.getDefaultInstance());
+            responseObserver.onNext(StartAnalysisResponse.newBuilder()
+                .setTopologyId(pipelineRequest.getTopologyId())
+                .build());
             responseObserver.onCompleted();
         } catch (QueueCapacityExceededException e) {
             responseObserver.onError(Status.UNAVAILABLE.withDescription(e.getMessage())

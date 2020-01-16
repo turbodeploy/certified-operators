@@ -16,11 +16,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.Sets;
 
 import org.junit.After;
 import org.junit.Before;
@@ -28,8 +33,6 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -61,12 +64,21 @@ import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
 
 /**
  * Unit tests for the {@link MarketRunner}.
  */
 @Ignore("Some tests fail intermittently on Jenkins. See issue OM-28793")
 public class MarketRunnerTest {
+
+    private static final TopologyProcessingGate PASSTHROUGH_GATE = new TopologyProcessingGate() {
+        @Nonnull
+        @Override
+        public Ticket enter(@Nonnull final TopologyInfo topologyInfo, @Nonnull final Collection<TopologyEntityDTO> entities) {
+            return () -> { };
+        }
+    };
 
     private MarketRunner runner;
     private ExecutorService threadPool;
@@ -112,7 +124,8 @@ public class MarketRunnerTest {
     public void before() {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
-        runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty());
+        runner = new MarketRunner(threadPool, serverApi,
+            analysisFactory, Optional.empty(), PASSTHROUGH_GATE);
 
         topologyContextId += 100;
 

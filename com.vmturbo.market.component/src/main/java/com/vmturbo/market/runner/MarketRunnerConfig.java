@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -50,6 +51,8 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
+import com.vmturbo.topology.processor.api.util.ConcurrentLimitProcessingGate;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
 
 /**
  * Configuration for market runner in the market component.
@@ -101,6 +104,12 @@ public class MarketRunnerConfig {
     @Value("${liveMarketMoveCostFactor}")
     private float liveMarketMoveCostFactor;
 
+    @Value("${concurrentPlanAnalyses:1}")
+    private int concurrentPlanAnalyses;
+
+    @Value("${analysisQueueTimeoutMins:90}")
+    private long analysisQueueTimeoutMins;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -108,13 +117,26 @@ public class MarketRunnerConfig {
         return Executors.newCachedThreadPool(threadFactory);
     }
 
+    /**
+     * Utility to restrict the number of concurrent analyses we run.
+     *
+     * @return The {@link TopologyProcessingGate}.
+     */
+    @Bean
+    public TopologyProcessingGate analysisGate() {
+        // In the future we could use a configuration property to control what kind of gate to use.
+        return new ConcurrentLimitProcessingGate(concurrentPlanAnalyses,
+            analysisQueueTimeoutMins, TimeUnit.MINUTES);
+    }
+
     @Bean
     public MarketRunner marketRunner() {
         return new MarketRunner(
-                marketRunnerThreadPool(),
-                apiConfig.marketApi(),
-                analysisFactory(),
-                marketRpcConfig.marketDebugRpcService());
+            marketRunnerThreadPool(),
+            apiConfig.marketApi(),
+            analysisFactory(),
+            marketRpcConfig.marketDebugRpcService(),
+            analysisGate());
     }
 
     @Bean

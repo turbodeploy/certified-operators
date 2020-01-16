@@ -20,6 +20,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -31,11 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -43,6 +40,12 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -73,15 +76,16 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
-import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
 
 @Ignore("Some tests fail intermittently on Jenkins. See issue OM-28793")
 public class ScopedTopologyTest {
@@ -124,8 +128,16 @@ public class ScopedTopologyTest {
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
 
+    private final TopologyProcessingGate passthroughGate = new TopologyProcessingGate() {
+        @Nonnull
+        @Override
+        public Ticket enter(@Nonnull final TopologyInfo topologyInfo, @Nonnull final Collection<TopologyEntityDTO> entities) {
+            return () -> { };
+        }
+    };
+
     @Rule
-    private GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService, testSettingService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService, testSettingService);
 
     /**
      * Read the test topology from a resource file (.json).
@@ -318,7 +330,7 @@ public class ScopedTopologyTest {
                 mock(TopologyEntityCloudTopologyFactory.class);
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         when(topologyCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO, any())).thenReturn(topologyCostCalculator);
-        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty());
+        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty(), passthroughGate);
 
         long topologyContextId = 1000;
         long topologyId = 2000;

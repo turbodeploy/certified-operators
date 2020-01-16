@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
+import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
@@ -404,12 +405,14 @@ public class PlanRpcService extends PlanServiceImplBase {
                         oldInstance.setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY));
 
                 try {
-                    RetriableOperation.newOperation(() -> analysisService.startAnalysis(request))
+                    final StartAnalysisResponse response = RetriableOperation.newOperation(
+                            () -> analysisService.startAnalysis(request))
                         // Retry if unavailable.
                         .retryOnException(e -> (e instanceof StatusRuntimeException) &&
                             ((StatusRuntimeException)e).getStatus().getCode() == Code.UNAVAILABLE)
                         .run(startAnalysisRetryMs, TimeUnit.MILLISECONDS);
-                    logger.info("Started analysis for plan {} on topology {}", request.getPlanId());
+                    logger.info("Started analysis for plan {} on topology {}",
+                        request.getPlanId(), response.getTopologyId());
                 } catch (InterruptedException | TimeoutException | RetriableOperationFailedException e) {
                     if (e instanceof InterruptedException) {
                         // Reset interrupt status.
