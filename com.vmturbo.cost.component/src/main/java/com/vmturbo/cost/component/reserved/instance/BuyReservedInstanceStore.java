@@ -167,13 +167,10 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore {
      * @param newRecommendations new Buy RI recommendations
      * @param topologyContextId the topology context id
      */
-    public void udpateBuyReservedInstances(@Nonnull final Collection<ReservedInstanceAnalysisRecommendation> newRecommendations,
+    public void updateBuyReservedInstances(@Nonnull final Collection<ReservedInstanceAnalysisRecommendation> newRecommendations,
                                            final long topologyContextId) {
         // First, delete the existing buy RIs for the given topologyContextId. (Deleting applies
         // to real time buy RIs). Then create the new buy RIs.
-        if (newRecommendations.isEmpty()) {
-            return;
-        }
         deleteBuyReservedInstances(topologyContextId);
         createBuyReservedInstances(newRecommendations, topologyContextId);
     }

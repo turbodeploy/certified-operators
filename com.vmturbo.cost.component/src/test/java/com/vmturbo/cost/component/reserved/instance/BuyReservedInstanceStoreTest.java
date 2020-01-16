@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.BUY_RESERVED_INSTANCE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -46,6 +47,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.Off
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import org.springframework.util.CollectionUtils;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
@@ -261,7 +263,7 @@ public class BuyReservedInstanceStoreTest {
         when(recommendation.getRiSpec()).thenReturn(riSpec);
         when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
+        buyRiStore.updateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         Map<Long, List<BuyReservedInstanceRecord>> recordsByContextId = records.stream().collect(
@@ -276,6 +278,24 @@ public class BuyReservedInstanceStoreTest {
     }
 
     /**
+     * Inserts 3 Buy RI Record for topology context id 1 and 1 buy RI for topology context id 2.
+     * Deletes Buy RI Record for topology context id 1 and does not update as buy RI recommendations
+     * are empty.
+     */
+    @Test
+    public void testUpdateNoBuyRIs() {
+        insertOldBuyRIRecords();
+        buyRiStore.updateBuyReservedInstances(Collections.emptyList(), 1L);
+        final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
+        Map<Long, List<BuyReservedInstanceRecord>> recordsByContextId = records.stream().collect(
+                        Collectors.groupingBy(BuyReservedInstanceRecord::getTopologyContextId));
+        //Verify that data of Topology Context ID 2 is not cleared
+        assertEquals(1, recordsByContextId.get(2L).size());
+        //Verify that data of Topology Context ID 1 was deleted
+        assertTrue(CollectionUtils.isEmpty(recordsByContextId.get(1L)));
+    }
+
+    /**
      * Inserts Buy RI Record for topology context id 1.
      */
     @Test
@@ -284,7 +304,7 @@ public class BuyReservedInstanceStoreTest {
         when(recommendation.getRiSpec()).thenReturn(riSpec);
         when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
+        buyRiStore.updateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         assertEquals(1, records.size());
@@ -304,7 +324,7 @@ public class BuyReservedInstanceStoreTest {
         when(recommendation.getRiSpec()).thenReturn(riSpec);
         when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.udpateBuyReservedInstances(Arrays.asList(recommendation), 1L);
+        buyRiStore.updateBuyReservedInstances(Arrays.asList(recommendation), 1L);
     }
 
     private void insertDefaultReservedInstanceSpec() {

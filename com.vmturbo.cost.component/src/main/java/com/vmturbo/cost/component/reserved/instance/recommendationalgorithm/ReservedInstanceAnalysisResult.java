@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -217,7 +216,7 @@ public class ReservedInstanceAnalysisResult {
      * Also insert RI Buy recommendations into action_context_ri_buy table.
      */
     public void persistResults() {
-        buyRiStore.udpateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
+        buyRiStore.updateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
 
     }
 
