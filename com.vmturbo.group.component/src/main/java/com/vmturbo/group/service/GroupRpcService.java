@@ -501,7 +501,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             return;
         }
 
-        logger.info("Creating a group: {}", request.getGroupDefinition());
+        logger.info("Creating group {}", request.getGroupDefinition().getDisplayName());
 
         final GroupDefinition groupDef = request.getGroupDefinition();
 
