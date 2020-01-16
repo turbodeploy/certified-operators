@@ -60,8 +60,8 @@ public class TemplatesConfig {
     @Bean
     public TemplatesRpcService templatesService() {
         return new TemplatesRpcService(templatesDao(),
-            deploymentProfileConfig.deploymentProfileDao(),
-            getTemplatesChunkSize);
+                deploymentProfileConfig.deploymentProfileDao(),
+                databaseConfig.reservationDao(), getTemplatesChunkSize);
     }
 
     @Bean

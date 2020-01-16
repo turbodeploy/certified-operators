@@ -3,13 +3,12 @@ package com.vmturbo.plan.orchestrator.templates;
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -56,6 +55,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
     private DeploymentProfileDaoImpl deploymentProfileDao;
 
+    private ReservationDaoImpl reservationDao;
+
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
@@ -72,6 +73,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         discoveredTemplateDeploymentProfileDao = new DiscoveredTemplateDeploymentProfileDaoImpl(dsl);
         templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
                 new IdentityInitializer(0));
+        reservationDao = new ReservationDaoImpl(dsl);
     }
 
     @After
@@ -204,7 +206,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
      * Test upload discovered templates and deployment profile to table which also have user created
      * templates.
      */
-    @Test
+   @Test
     public void testWithExistingUserCreatedData() throws DuplicateTemplateException {
         final long targetId = 123;
         final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
@@ -353,6 +355,76 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
     }
 
     /**
+     * Test reservations will have "invalid" status, if the depended template is deleted.
+     */
+    @Test
+    public void testUpdateReservationToInvalidWhenDeletingDependedTemplate() {
+        final long firstTarget = 123;
+        final long secondTarget = 456;
+        final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
+        final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
+
+        TemplateInfoToDeploymentProfileMap firstTargetMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap secondTargetMap = new TemplateInfoToDeploymentProfileMap();
+
+        TemplateInfo firstTargetTemplateInfo1 = TemplateInfo.newBuilder()
+                .setProbeTemplateId("probe-template-1")
+                .setName("first-target-template-1")
+                .build();
+        TemplateInfo secondTargetTemplateInfo2 = TemplateInfo.newBuilder()
+                .setProbeTemplateId("probe-template-2")
+                .setName("first-target-template-2")
+                .build();
+        TemplateInfo thirdTemplateInfo = TemplateInfo.newBuilder()
+                .setProbeTemplateId("probe-template-3")
+                .setName("second-target-template-1")
+                .build();
+
+        DeploymentProfileInfo firstDeploymentProfile = DeploymentProfileInfo.newBuilder()
+                .setName("first-target-deployment-profile")
+                .setProbeDeploymentProfileId("probe-dp-1")
+                .build();
+        DeploymentProfileInfo secondDeploymentProfile = DeploymentProfileInfo.newBuilder()
+                .setName("second-target-deployment-profile")
+                .setProbeDeploymentProfileId("probe-dp-2")
+                .build();
+
+        firstTargetMap.put(firstTargetTemplateInfo1, Lists.newArrayList(firstDeploymentProfile));
+        firstTargetMap.put(secondTargetTemplateInfo2, Lists.newArrayList(firstDeploymentProfile));
+        secondTargetMap.put(thirdTemplateInfo, Lists.newArrayList(secondDeploymentProfile));
+
+        uploadMap.put(firstTarget, firstTargetMap);
+        uploadMap.put(secondTarget, secondTargetMap);
+        noReferenceMap.put(firstTarget, new ArrayList<>());
+        noReferenceMap.put(secondTarget, new ArrayList<>());
+
+        discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
+
+        final Set<Template> allTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
+
+        uploadMap.clear();
+        noReferenceMap.clear();
+
+        uploadMap.put(secondTarget, secondTargetMap);
+        noReferenceMap.put(secondTarget, new ArrayList<>());
+
+        // verify init states before removing templates
+        final Set<ReservationDTO.Reservation> reservations = allTemplates.stream()
+                .map(template -> reservationDao.createReservation(buildReservation(template.getId())))
+                .collect(Collectors.toSet());
+        assertEquals(3, reservations.size());
+        reservations.stream().allMatch(reservation -> reservation.getStatus().equals(ReservationDTO.ReservationStatus.FUTURE));
+
+        // delete system templates
+        discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
+
+        // verify all reservations depend on deleted system templates are set to invalid state.
+        Set<ReservationDTO.Reservation> allReservations = reservationDao.getAllReservations();
+        assertEquals(3, allReservations.size());
+        allReservations.stream().allMatch(reservation -> reservation.getStatus().equals(ReservationDTO.ReservationStatus.INVALID));
+    }
+
+    /**
      * Test duplicate name filtering.
      */
     @Test
@@ -474,4 +546,29 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         assertTrue(allNewDeploymentProfiles.stream().anyMatch(deploymentProfile ->
             deploymentProfile.getDeployInfo().getName().equals("second-target-deployment-profile")));
     }
+
+    private ReservationDTO.Reservation buildReservation(long templateId) {
+        return ReservationDTO.Reservation.newBuilder()
+                .setName("Test-first-reservation")
+                .setStartDate(1543105352845L)
+                .setExpirationDate(1553105352845L)
+                .setStatus(ReservationDTO.ReservationStatus.FUTURE)
+                .setReservationTemplateCollection(ReservationDTO.ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(ReservationDTO.ReservationTemplateCollection.ReservationTemplate.newBuilder()
+                                .setCount(1)
+                                .setTemplateId(templateId)
+                                .addReservationInstance(ReservationDTO.ReservationTemplateCollection
+                                        .ReservationTemplate.ReservationInstance.newBuilder()
+                                        .setEntityId(456)
+                                        .addPlacementInfo(ReservationDTO.ReservationTemplateCollection
+                                                .ReservationTemplate.ReservationInstance.PlacementInfo.newBuilder()
+                                                .setProviderId(678)
+                                                .setProviderId(14)))))
+                .setConstraintInfoCollection(ReservationDTO.ConstraintInfoCollection.newBuilder()
+                        .addReservationConstraintInfo(ScenarioOuterClass.ReservationConstraintInfo.newBuilder()
+                                .setConstraintId(100)
+                                .setType(ScenarioOuterClass.ReservationConstraintInfo.Type.DATA_CENTER)))
+                .build();
+    }
+
 }

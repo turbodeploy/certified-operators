@@ -21,6 +21,8 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -59,8 +61,9 @@ public class TemplatesRpcTest {
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
     private DeploymentProfileDaoImpl deploymentProfileDao = mock(DeploymentProfileDaoImpl.class);
+    private ReservationDaoImpl reservationDao = mock(ReservationDaoImpl.class);
 
-    private TemplatesRpcService templatesRpcService = new TemplatesRpcService(templatesDao, deploymentProfileDao, 1);
+    private TemplatesRpcService templatesRpcService = new TemplatesRpcService(templatesDao, deploymentProfileDao, reservationDao, 1);
 
     private TemplateServiceBlockingStub templateServiceBlockingStub;
 
@@ -278,6 +281,26 @@ public class TemplatesRpcTest {
         when(templatesDao.deleteTemplateById(123)).thenReturn(template);
         Template result = templateServiceBlockingStub.deleteTemplate(request);
         assertEquals(result, template);
+    }
+
+    /**
+     * Test that if there is reservation depends on this user template, {@link StatusRuntimeException} will be thrown.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test(expected = StatusRuntimeException.class)
+    public void testDeleteTemplateFailed() throws Exception {
+        int value = 123;
+        final DeleteTemplateRequest request = DeleteTemplateRequest.newBuilder()
+                .setTemplateId(value)
+                .build();
+        Template template = Template.newBuilder()
+                .setId(value)
+                .setTemplateInfo(TemplateInfo.newBuilder().setName("test").build())
+                .build();
+        when(reservationDao.getReservationsByTemplates(Collections.singleton(Integer.toUnsignedLong(value))))
+                .thenReturn(Collections.singleton(ReservationDTO.Reservation.getDefaultInstance()));
+       templateServiceBlockingStub.deleteTemplate(request);
     }
 
     /**

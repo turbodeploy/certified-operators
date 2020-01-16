@@ -1,6 +1,8 @@
 package com.vmturbo.plan.orchestrator.templates;
 
 import static com.vmturbo.plan.orchestrator.db.Tables.DEPLOYMENT_PROFILE;
+import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION;
+import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION_TO_TEMPLATE;
 import static com.vmturbo.plan.orchestrator.db.Tables.TEMPLATE;
 import static com.vmturbo.plan.orchestrator.db.Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE;
 
@@ -16,6 +18,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.plan.orchestrator.db.enums.ReservationStatus;
+import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -31,6 +35,7 @@ import com.vmturbo.plan.orchestrator.db.tables.records.DeploymentProfileRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfileRecord;
 
+
 /**
  * Store discovered templates and deployment profiles into database. And right now,
  * the relationship between templates with deployment profiles is many to many.
@@ -40,7 +45,6 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
     private final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
-
 
     public DiscoveredTemplateDeploymentProfileDaoImpl(@Nonnull final DSLContext dsl) {
         this.dsl = dsl;
@@ -71,6 +75,20 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
                 .selectFrom(TEMPLATE)
                 .where(TEMPLATE.TARGET_ID.isNotNull().and(TEMPLATE.TARGET_ID.notIn(discoveredTargetIds)))
                 .fetch();
+
+            // Find reservation records that used the templates to be deleted.
+            final List<ReservationRecord> invalidReservationRecords = transactionDsl.selectFrom(
+                    RESERVATION.join(RESERVATION_TO_TEMPLATE)
+                            .on(RESERVATION.ID.eq(RESERVATION_TO_TEMPLATE.RESERVATION_ID))
+                            .and(RESERVATION_TO_TEMPLATE.TEMPLATE_ID.in(buildTemplateIds(missingTargetTemplateRecords))))
+                    .fetch()
+                    .into(RESERVATION);
+            if (!invalidReservationRecords.isEmpty()) {
+                transactionDsl.batchUpdate(invalidateReservation(invalidReservationRecords)).execute();
+                logger.warn("Invalidated reservations: {}", invalidReservationRecords.stream()
+                        .map(ReservationRecord::getName).collect(Collectors.toList()));
+            }
+
             final List<DeploymentProfileRecord> missingTargetDeployprofileRecords = transactionDsl
                 .selectFrom(DEPLOYMENT_PROFILE)
                 .where(DEPLOYMENT_PROFILE.TARGET_ID.isNotNull().and(DEPLOYMENT_PROFILE.TARGET_ID.notIn(discoveredTargetIds)))
@@ -87,6 +105,17 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
         });
 
         return response.build();
+    }
+
+    private Set<Long> buildTemplateIds(List<TemplateRecord> missingTargetTemplateRecords) {
+        return missingTargetTemplateRecords.stream().map(TemplateRecord::getId).collect(Collectors.toSet());
+    }
+
+    private List<ReservationRecord> invalidateReservation(List<ReservationRecord> oldRecords) {
+        return oldRecords.stream()
+                .map(r -> new ReservationRecord(r.getId(), r.getName(), r.getStartTime(), r.getExpireTime(),
+                        ReservationStatus.invalid, r.getReservationTemplateCollection(), r.getConstraintInfoCollection()))
+                .collect(Collectors.toList());
     }
 
     /**

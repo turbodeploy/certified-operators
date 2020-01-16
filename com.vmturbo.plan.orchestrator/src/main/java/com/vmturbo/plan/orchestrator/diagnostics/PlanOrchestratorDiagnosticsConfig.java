@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.diagnostics;
 
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +20,7 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
  * Configuration from plan orchestrator component diagnostics
  */
 @Configuration
-@Import({TemplatesConfig.class, PlanConfig.class, PlanProjectConfig.class, ReservationConfig.class,
+@Import({TemplatesConfig.class, PlanConfig.class, PlanProjectConfig.class, PlanOrchestratorDBConfig.class,
     ScenarioConfig.class, DeploymentProfileConfig.class})
 public class PlanOrchestratorDiagnosticsConfig {
 
@@ -33,13 +34,13 @@ public class PlanOrchestratorDiagnosticsConfig {
     private PlanProjectConfig planProjectConfig;
 
     @Autowired
-    private ReservationConfig reservationConfig;
-
-    @Autowired
     private ScenarioConfig scenarioConfig;
 
     @Autowired
     private DeploymentProfileConfig deploymentProfileConfig;
+
+    @Autowired
+    private PlanOrchestratorDBConfig planOrchestratorDBConfig;
 
     @Bean
     public DiagnosticsWriter diagnosticsWriter() {
@@ -54,7 +55,7 @@ public class PlanOrchestratorDiagnosticsConfig {
     @Bean
     public PlanOrchestratorDiagnosticsHandler diagnosticsHandler() {
         return new PlanOrchestratorDiagnosticsHandler(planConfig.planDao(),
-            planProjectConfig.planProjectDao(), reservationConfig.reservationDao(),
+            planProjectConfig.planProjectDao(), planOrchestratorDBConfig.reservationDao(),
             scenarioConfig.scenarioDao(), templatesConfig.templatesDao(),
             templatesConfig.templateSpecParser(), deploymentProfileConfig.deploymentProfileDao(),
             recursiveZipReaderFactory(), diagnosticsWriter());

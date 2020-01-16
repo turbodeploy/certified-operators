@@ -12,6 +12,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Iterators;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -53,11 +55,15 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
 
     private final int templateChunkSize;
 
+    private final ReservationDao reservationDao;
+
     TemplatesRpcService(@Nonnull final TemplatesDao templatesDao,
                         @Nonnull final DeploymentProfileDaoImpl deploymentProfileDao,
+                        @Nonnull final ReservationDao reservationDao,
                         final int templateChunkSize) {
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.deploymentProfileDao = Objects.requireNonNull(deploymentProfileDao);
+        this.reservationDao = Objects.requireNonNull(reservationDao);
         this.templateChunkSize = templateChunkSize;
     }
 
@@ -70,6 +76,7 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
                 .withDescription("Delete templates by target ID must have an target ID").asException());
             return;
         }
+
         try {
             final List<Template> deletedTemplates = templatesDao.deleteTemplateByTargetId(request.getTargetId());
             deletedTemplates.stream().forEach(responseObserver::onNext);
@@ -210,6 +217,13 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
                 .withDescription("Delete template must have an template ID").asException());
             return;
         }
+
+        if (templateUsedByReservation(request.getTemplateId())) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription("Delete the reservations used by this template first.").asException());
+            return;
+        }
+
         try {
             final Template template = templatesDao.deleteTemplateById(request.getTemplateId());
             responseObserver.onNext(template);
@@ -227,6 +241,17 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
                 .withDescription(e.getLocalizedMessage())
                 .asException());
         }
+    }
+
+    private boolean templateUsedByReservation(long templateId) {
+        final Set<ReservationDTO.Reservation> reservationsByTemplates =
+                reservationDao.getReservationsByTemplates(Collections.singleton(templateId));
+        if (!reservationsByTemplates.isEmpty()) {
+            logger.error("This template {} is being used by reservations {}.", templateId,
+                    reservationsByTemplates.stream().map(ReservationDTO.Reservation::getName).collect(Collectors.toSet()));
+            return true;
+        }
+        return false;
     }
 
     @Override

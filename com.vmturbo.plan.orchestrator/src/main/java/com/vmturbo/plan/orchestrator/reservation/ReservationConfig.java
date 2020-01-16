@@ -29,15 +29,11 @@ public class ReservationConfig {
     @Autowired
     private RepositoryConfig repositoryConfig;
 
-    @Bean
-    public ReservationDao reservationDao() {
-        return new ReservationDaoImpl(dbConfig.dsl());
-    }
 
     @Bean
     public ReservationRpcService reservationRpcService() {
         return new ReservationRpcService(planConfig.planDao(), templatesConfig.templatesDao(),
-                reservationDao(), planConfig.planService());
+                dbConfig.reservationDao(), planConfig.planService());
     }
 
     @Bean
@@ -47,7 +43,7 @@ public class ReservationConfig {
 
     @Bean
     public ReservationPlacementHandler reservationPlacementHandler() {
-        return new ReservationPlacementHandler(reservationDao(),
+        return new ReservationPlacementHandler(dbConfig.reservationDao(),
                 repositoryConfig.repositoryServiceBlockingStub());
     }
 }

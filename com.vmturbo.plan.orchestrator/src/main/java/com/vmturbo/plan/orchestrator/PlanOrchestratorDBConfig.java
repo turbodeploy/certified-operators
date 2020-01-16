@@ -2,6 +2,8 @@ package com.vmturbo.plan.orchestrator;
 
 import javax.sql.DataSource;
 
+import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -48,5 +50,16 @@ public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
         String dbPassword = !Strings.isEmpty(planDbPassword) ?
             planDbPassword : dbPasswordUtil.getSqlDbRootPassword();
         return dataSourceConfig(dbSchemaName, planDbUsername, dbPassword);
+    }
+
+    /**
+     * To avoid circular dependency between {@link com.vmturbo.plan.orchestrator.templates.TemplatesConfig} and
+     * {@link com.vmturbo.plan.orchestrator.reservation.ReservationConfig}, initialize the reservation DAO here.
+     *
+     * @return reservation DAO.
+     */
+    @Bean
+    public ReservationDao reservationDao() {
+        return new ReservationDaoImpl(super.dsl());
     }
 }

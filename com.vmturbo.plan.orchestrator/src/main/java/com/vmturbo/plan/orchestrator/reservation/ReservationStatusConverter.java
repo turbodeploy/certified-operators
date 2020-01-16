@@ -17,6 +17,8 @@ public class ReservationStatusConverter {
                 return ReservationStatus.future;
             case RESERVED:
                 return ReservationStatus.reserved;
+            case INVALID:
+                return ReservationStatus.invalid;
             default:
                 throw new IllegalArgumentException("Unexpected status: " + status);
         }
@@ -29,6 +31,8 @@ public class ReservationStatusConverter {
                 return ReservationDTO.ReservationStatus.FUTURE;
             case reserved:
                 return ReservationDTO.ReservationStatus.RESERVED;
+            case invalid:
+                return ReservationDTO.ReservationStatus.INVALID;
             default:
                 throw new IllegalArgumentException("Unexpected status: " + dbStatus);
         }

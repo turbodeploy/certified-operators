@@ -39,11 +39,14 @@ message Reservation {
 //ie: current date     start_date
 //    ----------------|--------------
 //    FUTURE           RESERVED
+// If the reservation's template was deleted, status is INVALID.
 enum ReservationStatus {
     // FUTURE means that reservation's start day is after current date.
     FUTURE = 1;
     // RESERVED means that reservation is active now which start day is on or before current date.
     RESERVED = 2;
+    // INVALID means that the reservation's template was deleted.
+    INVALID = 3;
 }
 
 message ReservationTemplateCollection {
