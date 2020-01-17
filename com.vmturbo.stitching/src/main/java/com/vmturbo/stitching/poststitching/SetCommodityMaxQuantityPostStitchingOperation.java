@@ -122,7 +122,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             CommodityType.STORAGE_CLUSTER_VALUE,
             CommodityType.VAPP_ACCESS_VALUE,
             CommodityType.VDC_VALUE,
-            CommodityType.VMPM_ACCESS_VALUE);
+            CommodityType.VMPM_ACCESS_VALUE,
+            CommodityType.LICENSE_ACCESS_VALUE);
 
     // In legacy, maxQuantity value is being set only for VM entities.
     // Here, we are setting maxQuantity value for all entities whose
@@ -143,7 +144,9 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             EntityType.SWITCH,
             EntityType.VIRTUAL_DATACENTER,
             EntityType.VIRTUAL_MACHINE,
-            EntityType.VPOD
+            EntityType.VPOD,
+            EntityType.DATABASE_SERVER,
+            EntityType.DATABASE
             );
 
     private static final List<Integer> interestedEntityTypesNumbers =
