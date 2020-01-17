@@ -122,11 +122,17 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
         Assert.assertFalse(isProbeRegistered(probe));
     }
 
+    /**
+     * Tests that probe with null account definitions will not be registered in probe store.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testAccountDefinition() throws Exception {
-        expectedException.expectCause(new CauseMatcher(ProbeConfigurationLoadException.class));
         registerProbe(new NotValidatableProbe(NullAccountDefinitionsProbe.class),
-                        "NullAccountDefinitionChain");
+                "NullAccountDefinitionChain");
+        awaitContainersRegister();
+        Assert.assertEquals(Collections.emptyMap(), getProbeStore().getProbes());
     }
 
     /**

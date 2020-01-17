@@ -34,11 +34,11 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.stereotype.Component;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.ConsulRegistrationConfig;
 import com.vmturbo.components.common.migration.MigrationFramework;
@@ -92,16 +92,13 @@ public abstract class AbstractIntegrationTest {
 
     @Configuration
     @Import({BaseVmtComponentConfig.class, MediationComponentConfig.class})
+    @Component("theComponent")
     static class ContextConfiguration extends MediationComponentMain {
+
         @Primary
         @Bean
         public MigrationFramework migrationFramework() {
             return Mockito.mock(MigrationFramework.class);
-        }
-
-        @Bean
-        public BaseVmtComponent theComponent() {
-            return new MediationComponentMain();
         }
     }
 
@@ -305,8 +302,12 @@ public abstract class AbstractIntegrationTest {
                                 "Websocket server should be started before container");
             }
             this.probe = probe;
-            this.probeJarsDir = tmpFolder.newFolder("probe-jars");
-            this.probeHome = tmpFolder.newFolder("probe-jars", "testprobe");
+            this.probeJarsDir = tmpFolder.newFolder();
+            this.probeHome =
+                    new File(probeJarsDir, probe.getType().replaceAll("[^\\p{Alnum}]", "X"));
+            if (!probeHome.mkdir()) {
+                throw new IllegalStateException("Could not create directory " + probeHome);
+            }
             final MockEnvironment environment = new MockEnvironment() {
                 @Override
                 protected void customizePropertySources(MutablePropertySources propertySources) {

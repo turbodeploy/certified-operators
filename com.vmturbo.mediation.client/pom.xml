@@ -29,9 +29,6 @@
 								from different JVMs -->
 							<forkNumber>test-fork-${surefire.forkNumber}</forkNumber>
 						</systemPropertyVariables>
-                        <excludes>
-                            <exclude>**client/it/*Test.java</exclude>
-                        </excludes>
 					</configuration>
 				</plugin>
 				<plugin>
