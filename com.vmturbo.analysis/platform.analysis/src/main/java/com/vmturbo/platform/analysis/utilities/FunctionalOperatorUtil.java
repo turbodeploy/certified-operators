@@ -197,7 +197,14 @@ public class FunctionalOperatorUtil {
                             .orElse(0.0) - entry.getValue());
                 }
                 // actual relinquishing of coupons to the seller
-                commSold.setQuantity(commSold.getQuantity() - relinquishedCouponsOnSeller);
+                double updatedUsage = commSold.getQuantity() - relinquishedCouponsOnSeller;
+                if (updatedUsage < 0) {
+                    logger.warn("coupon usage on consumer {} was greater than that on the seller {}",
+                            buyer.getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
+                    commSold.setQuantity(0);
+                } else {
+                    commSold.setQuantity(updatedUsage);
+                }
             }
             if (!seller.getCustomers().contains(buyer)) {
                 // reset usage while moving out
