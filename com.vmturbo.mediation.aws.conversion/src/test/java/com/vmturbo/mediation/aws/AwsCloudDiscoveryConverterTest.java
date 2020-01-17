@@ -16,13 +16,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import com.vmturbo.mediation.aws.util.AwsConstants;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
@@ -286,8 +286,7 @@ public class AwsCloudDiscoveryConverterTest {
                     .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.CPU,
                     CommodityType.CPU_PROVISIONED, CommodityType.MEM, CommodityType.MEM_PROVISIONED,
                     CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT,
-                    CommodityType.NUM_DISK, CommodityType.NETWORK_INTERFACE_COUNT,
-                    CommodityType.LICENSE_ACCESS));
+                    CommodityType.NUM_DISK, CommodityType.LICENSE_ACCESS));
 
             // check ct owned by CloudService
             assertThat(awsConverter.getNewEntityBuilder(CloudService.AWS_EC2.getId()).getConsistsOfList(),
