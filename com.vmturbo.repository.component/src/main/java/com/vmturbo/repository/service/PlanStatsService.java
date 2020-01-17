@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -66,6 +67,13 @@ public class PlanStatsService {
     private static final Predicate<TopologyEntityDTO> ENTITY_ADDED_BY_SCENARIO =
         topologyEntityDTO -> topologyEntityDTO.hasOrigin()
         && topologyEntityDTO.getOrigin().hasPlanScenarioOrigin();
+
+    /**
+     * A predicate to test whether a given {@link TopologyEntityDTO} is suspended.
+     */
+    private static final Predicate<TopologyEntityDTO> ENTITY_SUSPENDED =
+        topologyEntityDTO -> topologyEntityDTO.hasEntityState()
+            && EntityState.SUSPENDED == topologyEntityDTO.getEntityState();
 
     /**
      * A factory for creating {@link EntityStatsPaginationParams}.
@@ -249,15 +257,18 @@ public class PlanStatsService {
         // Similar logic applies to projected stats, where the endDate must be greater than planStartTime.
         long sourceSnapshotTime = statsFilter.getStartDate();
         long projectedSnapshotTime = statsFilter.getEndDate();
+        // Filter suspended entities from both the source and projected topologies
+        final Predicate<TopologyEntityDTO> projectedEntityPredicate = entityPredicate
+            .and(ENTITY_SUSPENDED.negate());
         // Filter entities added via scenario changes from the source topology response
-        final Predicate<TopologyEntityDTO> sourceEntityPredicate = entityPredicate
+        final Predicate<TopologyEntityDTO> sourceEntityPredicate = projectedEntityPredicate
             .and(ENTITY_ADDED_BY_SCENARIO.negate());
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> sourceEntities =
             retrieveTopologyEntitiesAndStats(sourceReader, sourceEntityPredicate, statsFilter,
                 StatEpoch.PLAN_SOURCE, sourceSnapshotTime);
         final Map<Long, EntityAndStats> projectedEntities =
-            retrieveTopologyEntitiesAndStats(projectedReader, entityPredicate, statsFilter,
+            retrieveTopologyEntitiesAndStats(projectedReader, projectedEntityPredicate, statsFilter,
                 StatEpoch.PLAN_PROJECTED, projectedSnapshotTime);
 
         // Determine which topology to sort on

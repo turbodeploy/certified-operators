@@ -17,6 +17,7 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -51,8 +52,9 @@ public class PlanStatsAggregatorTest {
      */
     @BeforeClass
     public static void setup() {
-        final TopologyEntityDTO vm1 = vm(10);
-        final TopologyEntityDTO vm2 = vm(20);
+        final TopologyEntityDTO vm1 = vm(10, EntityState.POWERED_ON);
+        final TopologyEntityDTO vm2 = vm(20, EntityState.POWERED_ON);
+        final TopologyEntityDTO suspendedVm = vm(25, EntityState.SUSPENDED);
         final TopologyEntityDTO pm1 = pm(30, CPU_MIN);
         final TopologyEntityDTO pm2 = pm(40, CPU_MAX);
         final TopologyEntityDTO pm3 = pm(50, CPU_MID);
@@ -65,7 +67,7 @@ public class PlanStatsAggregatorTest {
         HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class), null);
         aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
-        aggregator.handleChunk(Lists.newArrayList(vm2, pm2));
+        aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));
         aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1));
         records = aggregator.statsRecords();
     }
@@ -78,6 +80,7 @@ public class PlanStatsAggregatorTest {
     @Test
     public void testCounts() {
         Map<Integer, Integer> entityTypeCounts = aggregator.getEntityTypeCounts();
+        // The suspended VM should not be counted
         Assert.assertEquals(2, (int)entityTypeCounts.get(EntityType.VIRTUAL_MACHINE_VALUE));
         Assert.assertEquals(3, (int)entityTypeCounts.get(EntityType.PHYSICAL_MACHINE_VALUE));
         Assert.assertEquals(1, (int)entityTypeCounts.get(EntityType.CONTAINER_POD_VALUE));
@@ -156,11 +159,12 @@ public class PlanStatsAggregatorTest {
                     .setCommodityType(CPU_TYPE)
                     .build();
 
-    private static TopologyEntityDTO vm(long oid) {
+    private static TopologyEntityDTO vm(long oid, EntityState state) {
         return TopologyEntityDTO.newBuilder()
                     .setOid(oid)
                     .setDisplayName("VM-" + oid)
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setEntityState(state)
                     // 999 is the provider id. Don't care that it doesn't exist.
                     .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderId(999)

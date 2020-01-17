@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -122,6 +123,8 @@ public class PlanStatsAggregator {
      */
     private void countTypes(Collection<TopologyEntityDTO> chunk) {
         chunk.stream()
+            // Suspended entities should not appear in the counts
+            .filter(dto -> dto.getEntityState() != EntityState.SUSPENDED)
             .map(TopologyEntityDTO::getEntityType)
             .forEach(this::increment);
 
