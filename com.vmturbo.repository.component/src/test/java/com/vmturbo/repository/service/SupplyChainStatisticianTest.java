@@ -116,6 +116,8 @@ public class SupplyChainStatisticianTest {
 
     private static final long DB_OID = 321;
 
+    private static final long REALTIME_TOPOLOGY_CONTEXT_ID = 777777;
+
     private static final String BA1_DISPLAY_NAME = "BA1";
     private static final String BA2_DISPLAY_NAME = "BA2";
     private static final String VM_DISPLAY_NAME = "VM1";
@@ -233,7 +235,7 @@ public class SupplyChainStatisticianTest {
         entityLookup = (oid) -> Optional.ofNullable(entityMap.get(oid));
 
 
-        when(mockSupplementaryDataFactory.newSupplementaryData(any(), any()))
+        when(mockSupplementaryDataFactory.newSupplementaryData(any(), any(), anyLong()))
             .thenReturn(mockSupplementaryData);
     }
 
@@ -243,7 +245,7 @@ public class SupplyChainStatisticianTest {
     @Test
     public void testNoGroupBy() {
         final List<SupplyChainStat> stats =
-            statistician.calculateStats(SUPPLY_CHAIN, Collections.emptyList(), entityLookup);
+            statistician.calculateStats(SUPPLY_CHAIN, Collections.emptyList(), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, contains(SupplyChainStat.newBuilder()
             .setStatGroup(StatGroup.getDefaultInstance())
             .setNumEntities(4)
@@ -257,7 +259,7 @@ public class SupplyChainStatisticianTest {
     public void testGroupByBusinessAccount() {
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Collections.singletonList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder())
@@ -286,7 +288,7 @@ public class SupplyChainStatisticianTest {
         when(mockSupplementaryData.getResourceGroupId(TIER_1_OID)).thenReturn(Optional.empty());
         when(mockSupplementaryData.getResourceGroupId(TIER_2_OID)).thenReturn(Optional.empty());
         final List<SupplyChainStat> stats = statistician.calculateStats(SUPPLY_CHAIN_VM_N_DB,
-                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
                 SupplyChainStat.newBuilder()
                         .setStatGroup(StatGroup.newBuilder())
@@ -311,7 +313,7 @@ public class SupplyChainStatisticianTest {
         when(mockSupplementaryData.getResourceGroupId(TIER_1_OID)).thenReturn(Optional.empty());
         when(mockSupplementaryData.getResourceGroupId(TIER_2_OID)).thenReturn(Optional.empty());
         final List<SupplyChainStat> stats = statistician.calculateStats(SUPPLY_CHAIN_VM_N_DB,
-                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
                 SupplyChainStat.newBuilder()
                         .setStatGroup(StatGroup.newBuilder())
@@ -336,7 +338,7 @@ public class SupplyChainStatisticianTest {
     public void testGroupByTarget() {
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Collections.singletonList(SupplyChainGroupBy.TARGET), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.TARGET), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
@@ -357,7 +359,7 @@ public class SupplyChainStatisticianTest {
     public void testGroupByEntityType() {
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Collections.singletonList(SupplyChainGroupBy.ENTITY_TYPE), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.ENTITY_TYPE), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
@@ -378,7 +380,7 @@ public class SupplyChainStatisticianTest {
     public void testGroupByEntityState() {
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Collections.singletonList(SupplyChainGroupBy.ENTITY_STATE), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.ENTITY_STATE), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
@@ -402,7 +404,7 @@ public class SupplyChainStatisticianTest {
 
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Collections.singletonList(SupplyChainGroupBy.SEVERITY), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.SEVERITY), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
@@ -428,7 +430,7 @@ public class SupplyChainStatisticianTest {
 
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Collections.singletonList(SupplyChainGroupBy.ACTION_CATEGORY), entityLookup);
+                Collections.singletonList(SupplyChainGroupBy.ACTION_CATEGORY), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
@@ -458,7 +460,8 @@ public class SupplyChainStatisticianTest {
 
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN,
-                Arrays.asList(SupplyChainGroupBy.TARGET, SupplyChainGroupBy.ENTITY_TYPE, SupplyChainGroupBy.ACTION_CATEGORY), entityLookup);
+                Arrays.asList(SupplyChainGroupBy.TARGET, SupplyChainGroupBy.ENTITY_TYPE,
+                        SupplyChainGroupBy.ACTION_CATEGORY), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
@@ -518,7 +521,7 @@ public class SupplyChainStatisticianTest {
         // ACT
         final List<SupplyChainStat> stats =
             statistician.calculateStats(SUPPLY_CHAIN_VM_N_DB,
-                Arrays.asList(SupplyChainGroupBy.TEMPLATE), entityLookup);
+                Arrays.asList(SupplyChainGroupBy.TEMPLATE), entityLookup, REALTIME_TOPOLOGY_CONTEXT_ID);
 
         // ASSERT
         assertThat(stats.size(), is(3));
@@ -571,7 +574,7 @@ public class SupplyChainStatisticianTest {
                     .build());
 
         final SupplementaryData suppData = factory.newSupplementaryData(
-            entities, Collections.singletonList(SupplyChainGroupBy.ACTION_CATEGORY));
+            entities, Collections.singletonList(SupplyChainGroupBy.ACTION_CATEGORY), REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(suppData.getCategories(1L),
             containsInAnyOrder(ActionCategory.PERFORMANCE_ASSURANCE, ActionCategory.EFFICIENCY_IMPROVEMENT));
         assertThat(suppData.getCategories(2L),
@@ -614,13 +617,14 @@ public class SupplyChainStatisticianTest {
 
 
         final SupplementaryData suppData = factory.newSupplementaryData(
-            entities, Collections.singletonList(SupplyChainGroupBy.SEVERITY));
+            entities, Collections.singletonList(SupplyChainGroupBy.SEVERITY), REALTIME_TOPOLOGY_CONTEXT_ID);
         assertThat(suppData.getSeverity(1L), is(Severity.CRITICAL));
         assertThat(suppData.getSeverity(2L), is(Severity.MAJOR));
         // Normal by default
         assertThat(suppData.getSeverity(3L), is(Severity.NORMAL));
 
         verify(entitySeverityServiceBackend).getEntitySeverities(MultiEntityRequest.newBuilder()
+            .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
             .addAllEntityIds(entities)
             .build());
     }
@@ -653,7 +657,7 @@ public class SupplyChainStatisticianTest {
                 .build())).thenReturn(getGroupsForEntitiesResponse);
 
         final SupplementaryData supplementaryData = factory.newSupplementaryData(entities,
-                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP));
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), REALTIME_TOPOLOGY_CONTEXT_ID);
         assertTrue(supplementaryData.getResourceGroupId(entityId1).isPresent());
         assertEquals(Long.valueOf(resourceGroupId1), supplementaryData.getResourceGroupId(entityId1).get());
         assertFalse(supplementaryData.getResourceGroupId(entityId2).isPresent());

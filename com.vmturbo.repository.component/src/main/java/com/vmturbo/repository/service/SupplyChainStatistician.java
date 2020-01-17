@@ -322,12 +322,14 @@ public class SupplyChainStatistician {
         }
 
         @Nonnull
-        private Map<Long, Severity> getSeveritiesById(@Nonnull final List<Long> supplyChainEntities) {
+        private Map<Long, Severity> getSeveritiesById(@Nonnull final List<Long> supplyChainEntities,
+                                                      @Nonnull final long topoContextId) {
             try {
                 Map<Long, Severity> entityToSeverity = new HashMap<>();
                 final Iterable<EntitySeveritiesResponse> resp = () ->
                     severityService.getEntitySeverities(
                     MultiEntityRequest.newBuilder()
+                        .setTopologyContextId(topoContextId)
                         .addAllEntityIds(supplyChainEntities)
                         .build());
                 StreamSupport.stream(resp.spliterator(), false)
@@ -378,14 +380,15 @@ public class SupplyChainStatistician {
         @Nonnull
         @VisibleForTesting
         SupplementaryData newSupplementaryData(@Nonnull final List<Long> supplyChainEntities,
-                                               @Nonnull final List<SupplyChainGroupBy> groupByList) {
+                                               @Nonnull final List<SupplyChainGroupBy> groupByList,
+                                                @Nonnull final long topoContextId) {
             final Map<Long, Set<ActionCategory>> actionCategoriesById =
                 groupByList.contains(SupplyChainGroupBy.ACTION_CATEGORY) ?
                     getCategoriesById(supplyChainEntities) :
                     Collections.emptyMap();
             final Map<Long, Severity> severitiesById =
                 groupByList.contains(SupplyChainGroupBy.SEVERITY) ?
-                    getSeveritiesById(supplyChainEntities) :
+                    getSeveritiesById(supplyChainEntities, topoContextId) :
                     Collections.emptyMap();
             final Map<Long, Long> resourceGroupsById =
                 groupByList.contains(SupplyChainGroupBy.RESOURCE_GROUP) ?
@@ -440,12 +443,14 @@ public class SupplyChainStatistician {
      *                    in the supply chain, and return a single {@link SupplyChainStat} for each
      *                    unique combination of the values. See: {@link StatGroup}.
      * @param entityLookup Interface to look up other {@link RepoGraphEntity}s in the topology.
+     * @param topoContextId The topologyContextId to be queried
      * @return The list of {@link SupplyChainStat}s to return to the client.
      */
     @Nonnull
     public List<SupplyChainStat> calculateStats(@Nonnull final SupplyChain supplyChain,
                                                 @Nonnull final List<SupplyChainGroupBy> groupByList,
-                                                @Nonnull final TopologyEntityLookup entityLookup) {
+                                                @Nonnull final TopologyEntityLookup entityLookup,
+                                                @Nonnull final long topoContextId) {
         final Map<StatGroupKey, MutableLong> countsByKey = new HashMap<>();
         final Set<Long> missingEntities = new HashSet<>();
 
@@ -456,7 +461,7 @@ public class SupplyChainStatistician {
             .collect(Collectors.toList());
 
         final SupplementaryData supplementaryData =
-            supplementaryDataFactory.newSupplementaryData(supplyChainEntities, groupByList);
+            supplementaryDataFactory.newSupplementaryData(supplyChainEntities, groupByList, topoContextId);
 
 
         for (Long oid : supplyChainEntities) {

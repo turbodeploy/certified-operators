@@ -425,7 +425,8 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Mockito.verify(supplyChainStatistician)
                .calculateStats(Mockito.eq(supplyChain),
                                Mockito.eq(Collections.singletonList(SupplyChainGroupBy.ENTITY_TYPE)),
-                               Mockito.any());
+                               Mockito.any(),
+                               Mockito.anyLong());
     }
 
     /**

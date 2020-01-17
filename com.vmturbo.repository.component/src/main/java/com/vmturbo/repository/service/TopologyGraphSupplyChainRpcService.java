@@ -184,7 +184,8 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
         final List<SupplyChainStat> stats =
             supplyChainStatistician.calculateStats(supplyChain.get(),
                                                    request.getGroupByList(),
-                                                   topologyGraph::getEntity);
+                                                   topologyGraph::getEntity,
+                    realtimeTopologyContextId);
         responseObserver.onNext(GetSupplyChainStatsResponse.newBuilder()
                                     .addAllStats(stats)
                                     .build());
