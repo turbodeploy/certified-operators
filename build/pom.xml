@@ -947,7 +947,6 @@
                 <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
-                <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
