@@ -466,6 +466,12 @@ public class ActionInterpreter {
             throw new IllegalStateException(
                     "Market returned invalid shopping list for MOVE: " + moveTO);
         } else {
+            MarketTier destination = cloudTc.getMarketTier(moveTO.getDestination());
+            if (destination != null && destination.hasRIDiscount()) {
+                logger.error("MoveTO for entity {} has RI {} as destination. This should not happen.",
+                    shoppingList.buyerId, destination.getDisplayName());
+                return Optional.empty();
+            }
             List<ChangeProvider> changeProviderList = createChangeProviders(moveTO,
                     projectedTopology, originalCloudTopology, shoppingList.buyerId);
             if (!CollectionUtils.isEmpty(changeProviderList)) {
