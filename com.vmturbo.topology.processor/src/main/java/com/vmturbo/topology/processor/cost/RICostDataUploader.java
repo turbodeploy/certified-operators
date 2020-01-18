@@ -404,17 +404,6 @@ public class RICostDataUploader {
                                     cloudServiceData.getAccountId(),
                                     accountOid);
                         }
-                        // assign this account id to any RI bought by this account
-                        billingData.getReservedInstancesList().forEach(riEntity -> {
-                            // get the RI object we've created that has the matching local id.
-                            if (riCostComponentData.riBoughtByLocalId.containsKey(riEntity.getId())) {
-                                logger.debug("Assigning RI {} to Account {}", riEntity.getId(),
-                                        cloudServiceData.getAccountId());
-                                riCostComponentData.riBoughtByLocalId.get(riEntity.getId())
-                                        .getReservedInstanceBoughtInfoBuilder()
-                                        .setBusinessAccountId(accountOid);
-                            }
-                        });
                         // map RI coverages on any VM's too.
                         billingData.getVirtualMachinesList().forEach(vmEntity -> {
                             // create an EntityRICoverage object if any coupons are traded by this VM

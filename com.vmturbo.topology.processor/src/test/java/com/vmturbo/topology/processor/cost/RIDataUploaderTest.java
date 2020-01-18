@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -17,8 +19,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
@@ -478,8 +478,8 @@ public class RIDataUploaderTest {
         // coverage data to be mined properly.
         Assert.assertEquals(2, boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed(), 0);
 
-        // assignment of business account id verifies that the coverage mapping is working
-        Assert.assertEquals(11, boughtInfo.getBusinessAccountId());
+        // verify that account ID is assigned based on target default account
+        Assert.assertEquals(12, boughtInfo.getBusinessAccountId());
 
         Assert.assertEquals("RI display name", boughtInfo.getDisplayName());
         Assert.assertEquals("orderID-1", boughtInfo.getReservationOrderId());
