@@ -243,7 +243,7 @@ public enum EntitySettingSpecs {
      * conversion from kubernetes millicores to MHz.
      */
     VCPURequestUtilization("vcpuRequestUtilization", "VCPU Request Utilization",
-            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
             numeric(0f, 100f, 99.99f), true),
 
