@@ -120,7 +120,6 @@ public class ConsistentScalingHelperTest {
         long[][] membership = {
             {1L, 1L, 2L},  // Group-1: VM oid 1, 2
             {2L, 3L, 4L},   // Group-2: VM oid 3, 4
-            {3L, 5L},  // only one element in the group, so we do not create a scaling group
             {4L, 6L, 7L}  // No leader candidates, so do not create a scaling group
         };
         ConsistentScalingHelper csh = createConsistentScalingHelper(membership);
@@ -128,10 +127,6 @@ public class ConsistentScalingHelperTest {
         TopologyEntityDTO te1 = topology.get(1L);
         Assert.assertFalse(csh.getScalingGroup(te1, true).isPresent());
         Assert.assertTrue(csh.getScalingGroup(te1, false).isPresent());
-
-        // Sole member of scaling group, so no group should be created
-        TopologyEntityDTO te5 = topology.get(5L);
-        Assert.assertFalse(csh.getScalingGroup(te5, false).isPresent());
     }
 
     private ConsistentScalingHelper createConsistentScalingHelper(long[][] membership) {

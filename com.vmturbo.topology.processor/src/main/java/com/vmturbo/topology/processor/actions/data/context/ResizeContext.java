@@ -83,6 +83,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
         // by sending correct increments to the market. (OM-16571)
         actionItemBuilder.setNewComm(commodityForResizeAction(commodityType,
             resizeInfo.getNewCapacity(), resizeInfo));
+        // Indicate whether this resize is related to a scaling group
+        if (resizeInfo.hasScalingGroupId()) {
+            actionItemBuilder.setConsistentScalingCompliance(true);
+        }
 
         return builders;
     }

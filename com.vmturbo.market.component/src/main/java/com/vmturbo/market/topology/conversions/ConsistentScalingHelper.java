@@ -92,9 +92,8 @@ public class ConsistentScalingHelper {
         // Get scaling group membership information
         List<EntitySettingGroup> entitySettingGroups =
             fetchConsistentScalingSettings(settingPolicyService)
-                // Consistent scaling is meaningless on groups with less than two members, so don't
-                // create them.
-                .filter(esg -> esg.getEntityOidsList().size() > 1)
+                // Skip empty scaling groups.
+                .filter(esg -> esg.getEntityOidsList().size() > 0)
                 .collect(Collectors.toList());
 
         for (EntitySettingGroup esg : entitySettingGroups) {
