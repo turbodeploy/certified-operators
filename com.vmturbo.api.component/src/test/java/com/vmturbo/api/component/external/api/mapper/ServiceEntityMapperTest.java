@@ -6,7 +6,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -21,14 +20,18 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.springframework.context.annotation.Bean;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -74,7 +77,6 @@ public class ServiceEntityMapperTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
     private Cache<Long, Float> priceCache;
-    private Clock clock;
 
     @Before
     public void setup() {
@@ -90,13 +92,24 @@ public class ServiceEntityMapperTest {
             .build();
         when(targetCache.getTargetInfo(TARGET_ID)).thenReturn(Optional.of(thinTargetInfo));
         priceCache = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.MINUTES).build();
-        clock = Clock.systemUTC();
+    }
+
+    @Bean
+    public SupplyChainServiceBlockingStub supplyChainRpcService() {
+        return SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                .withInterceptors(jwtClientInterceptor());
+    }
+
+    @Bean
+    public JwtClientInterceptor jwtClientInterceptor() {
+        return new JwtClientInterceptor();
     }
 
     @Test
     public void testApiToServiceEntity() {
         final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        supplyChainRpcService());
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -199,7 +212,8 @@ public class ServiceEntityMapperTest {
     @Test
     public void testToServiceEntityApiDTO() throws Exception {
         final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        supplyChainRpcService());
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -252,7 +266,8 @@ public class ServiceEntityMapperTest {
     @Test
     public void testToServiceEntityApiDTOWithEmptyDisplayName() {
         final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        supplyChainRpcService());
 
         final String displayName = "";
         final long oid = 152L;
