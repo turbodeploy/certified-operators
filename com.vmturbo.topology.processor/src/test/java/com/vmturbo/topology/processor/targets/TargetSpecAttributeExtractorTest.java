@@ -22,8 +22,8 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  */
 public class TargetSpecAttributeExtractorTest {
 
-    public static final String PROBE_ID_NAME = "probeId";
-    public static final long PROBE_ID = 666;
+    public static final String PROBE_TYPE_IDENTIFIER = "probeType";
+    public static final String PROBE_TYPE_NAME = "myProbeType";
     public static final String ADDR_NAME = "address";
     public static final String ADDR = "1.2.3.4";
 
@@ -36,15 +36,15 @@ public class TargetSpecAttributeExtractorTest {
     @Test
     public void testExtractAttributes() {
         // arrange
-        ProbeInfo probe = ProbeInfo.newBuilder().setProbeType("probeType").setProbeCategory("probeCategory")
+        ProbeInfo probe = ProbeInfo.newBuilder().setProbeType(PROBE_TYPE_NAME).setProbeCategory("probeCategory")
                 .addTargetIdentifierField(ADDR_NAME).build();
         TargetSpec testItem = TargetSpec.newBuilder()
-                .setProbeId(PROBE_ID)
-                .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(ADDR))
-                .build();
+            .setProbeId(1L)
+            .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(ADDR))
+            .build();
         // a workflow has two identifying attributes:  name and targetId
         IdentityMatchingAttribute nameAttr = new IdentityMatchingAttribute(
-                PROBE_ID_NAME, Long.toString(PROBE_ID));
+            PROBE_TYPE_IDENTIFIER, PROBE_TYPE_NAME);
         IdentityMatchingAttribute targetAttr = new IdentityMatchingAttribute(ADDR_NAME, ADDR);
         TargetSpecAttributeExtractor extractorToTest = new TargetSpecAttributeExtractor(probeStore);
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probe));
