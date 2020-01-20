@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -461,6 +462,41 @@ public class TopologyEntityUtils {
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
             .addAllCommoditySoldList(commSoldList.build())
             .setEntityType(entityType));
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommSoldCommBoughtWithHistoricalValues(
+            long oid, HistoricalValues historicalUsedSold1, HistoricalValues historicalPeakSold1,
+            HistoricalValues historicalUsedSold2, HistoricalValues historicalPeakSold2,
+            long providerOid1, HistoricalValues historicalUsedBought1, HistoricalValues historicalPeakBought1,
+            long providerOid2, HistoricalValues historicalUsedBought2, HistoricalValues historicalPeakBought2) {
+        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM.getNumber()).setKey("").build())
+            .setHistoricalUsed(historicalUsedSold1)
+            .setHistoricalPeak(historicalPeakSold1)
+            .build());
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU.getNumber()).setKey("").build())
+            .setHistoricalUsed(historicalUsedSold2)
+            .setHistoricalPeak(historicalPeakSold2)
+            .build());
+
+        final ImmutableList.Builder<CommoditiesBoughtFromProvider> commBoughtList = ImmutableList.builder();
+        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid1)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM.getNumber()).setKey("").build())
+                .setHistoricalUsed(historicalUsedBought1)
+                .setHistoricalPeak(historicalPeakBought1)).build());
+        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid2)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
+                .setHistoricalUsed(historicalUsedBought2)
+                .setHistoricalPeak(historicalPeakBought2)).build());
+
+        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+            .addAllCommoditySoldList(commSoldList.build())
+            .addAllCommoditiesBoughtFromProviders(commBoughtList.build())
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
     }
 
     static TopologyGraph<TopologyEntity> createGraph(CommodityDTO.CommodityType commType,

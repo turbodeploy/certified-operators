@@ -347,7 +347,8 @@ public class PlanTopologyScopeEditor {
         Map<Long, TopologyEntity.Builder> scopingResult = new HashMap<>();
         // return the subset of the original TraderTOs that correspond to the scoped topology
         scopedTopologyOIDs.stream().forEach(oid -> scopingResult.put(oid,
-                TopologyEntity.newBuilder(topology.getEntity(oid).get().getTopologyEntityDtoBuilder())));
+                TopologyEntity.newBuilder(topology.getEntity(oid).get().getTopologyEntityDtoBuilder())
+                    .setClonedFromEntityOid(topology.getEntity(oid).get().getClonedFromEntityOid())));
         logger.info("Completed scoping stage for on-prem topology .....");
         return new TopologyGraphCreator<>(scopingResult).build();
     }

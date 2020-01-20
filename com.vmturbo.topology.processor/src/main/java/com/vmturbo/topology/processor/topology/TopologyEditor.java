@@ -253,7 +253,8 @@ public class TopologyEditor {
                     if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                         clone.getAnalysisSettingsBuilder().setShopTogether(true);
                     }
-                    topology.put(clone.getOid(), TopologyEntity.newBuilder(clone));
+                    topology.put(clone.getOid(),
+                        TopologyEntity.newBuilder(clone).setClonedFromEntityOid(oid));
                 }
             }
         });
