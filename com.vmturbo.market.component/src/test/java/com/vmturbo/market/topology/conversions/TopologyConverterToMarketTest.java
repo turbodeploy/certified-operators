@@ -1495,4 +1495,36 @@ public class TopologyConverterToMarketTest {
         assertEquals(1, trader.getCommoditiesSoldCount());
         assertEquals(5, trader.getCommoditiesSold(0).getNumConsumers());
     }
+    /**
+     * The intent of this test is to ensure that Containers that are hosted by ContainerPods are
+     * marked not movable.
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testConvertContainer() throws IOException {
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+            messageFromJsonFile("protobuf/messages/vm-3.dto.json"),
+            messageFromJsonFile("protobuf/messages/pod-1.dto.json"),
+            messageFromJsonFile("protobuf/messages/container-1.dto.json"),
+            messageFromJsonFile("protobuf/messages/container-2.dto.json"))
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory)
+            .convertToMarket(topologyDTOs);
+        // Container 1 and 2's SLs are movable.  Container 1 is hosted by a VM, so it should
+        // be movable.  Container 2 is hosted by a container pod, so it should not be movable.
+        assertEquals(4, traderTOs.size());
+        for (TraderTO traderTO : traderTOs) {
+            if (traderTO.getOid() == 73305182227091L) {
+                // container-1 is movable
+                assertTrue(traderTO.getShoppingLists(0).getMovable());
+            } else if (traderTO.getOid() == 73305182227092L) {
+                // container-2 is not movable
+                assertFalse(traderTO.getShoppingLists(0).getMovable());
+            }
+        }
+    }
 }
