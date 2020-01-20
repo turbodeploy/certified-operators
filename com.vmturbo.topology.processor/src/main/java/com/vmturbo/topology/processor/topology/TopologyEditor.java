@@ -252,6 +252,11 @@ public class TopologyEditor {
                     // Set shop together true for added VMs
                     if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                         clone.getAnalysisSettingsBuilder().setShopTogether(true);
+                    } else if (clone.getEntityType() == EntityType.CONTAINER_VALUE ||
+                            clone.getEntityType() == EntityType.CONTAINER_POD_VALUE) {
+                        // If we are adding containers or container pods, then do not immediately
+                        // suspend them.  They were added to the plan via config and need to remain.
+                        clone.getAnalysisSettingsBuilder().setSuspendable(false);
                     }
                     topology.put(clone.getOid(), TopologyEntity.newBuilder(clone));
                 }
