@@ -517,7 +517,7 @@ public class CommunicationConfig {
     public ServiceEntityMapper serviceEntityMapper() {
         // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
         // to introduce a circular dependency.
-        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), clock());
+        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), supplyChainRpcService());
     }
 
     /**
@@ -538,16 +538,6 @@ public class CommunicationConfig {
     @Bean
     public BusinessAccountMapper businessAccountMapper() {
         return new BusinessAccountMapper(thinTargetCache(), supplementaryDataFactory());
-    }
-
-    /**
-     * Shared clock to be used by all beans in the api component.
-     *
-     * @return The {@link Clock}.
-     */
-    @Bean
-    public Clock clock() {
-        return Clock.systemUTC();
     }
 
     @Bean
