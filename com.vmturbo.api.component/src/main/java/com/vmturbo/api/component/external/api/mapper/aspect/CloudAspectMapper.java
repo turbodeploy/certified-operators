@@ -187,7 +187,13 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                     .stream()
                     .reduce(Double::sum)
                     .orElse(0D);
-            final float percentageCovered = (float)couponsUsed * 100 / couponCapacity;
+
+            float percentageCovered;
+            if (couponsUsed == 0) {
+                percentageCovered = 0f;
+            } else {
+                percentageCovered = (float)couponsUsed * 100 / couponCapacity;
+            }
 
             aspect.setRiCoveragePercentage(percentageCovered);
             final StatApiDTO riCoverageStatsDto = createRiCoverageStatsDto((float)couponsUsed,
