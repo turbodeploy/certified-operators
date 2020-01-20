@@ -447,7 +447,6 @@ public class MarketStatsAccumulatorTest {
 
         //case when volume entity has no origin
 
-
         entityMap.put(volumeId, volumeEntityBuilder.build());
         final Optional<String> extractedKey1 =
             marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
@@ -493,9 +492,25 @@ public class MarketStatsAccumulatorTest {
         assertTrue(extractedKey4.isPresent());
         assertThat(extractedKey4.get(), is("volume-name - vendor-id"));
 
-        // case when volume has multiple vendor IDs
+        // case when volume's vendor ID is the same as its display name
 
         final TopologyEntityDTO volumeEntity5 = volumeEntityBuilder
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putAllDiscoveredTargetData(ImmutableMap.of(
+                        1L, PerTargetEntityInformation.newBuilder()
+                            .setVendorId("volume-name").build()
+                    ))))
+            .build();
+        entityMap.put(volumeId, volumeEntity5);
+        final Optional<String> extractedKey5 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey5.isPresent());
+        assertThat(extractedKey5.get(), is("volume-name"));
+
+        // case when volume has multiple vendor IDs
+
+        final TopologyEntityDTO volumeEntity6 = volumeEntityBuilder
             .setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                     .putAllDiscoveredTargetData(ImmutableMap.of(
@@ -505,12 +520,30 @@ public class MarketStatsAccumulatorTest {
                             .setVendorId("vendor-id-2").build())
                     )))
             .build();
-        entityMap.put(volumeId, volumeEntity5);
-        final Optional<String> extractedKey5 =
+        entityMap.put(volumeId, volumeEntity6);
+        final Optional<String> extractedKey6 =
             marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
-        assertTrue(extractedKey5.isPresent());
-        assertTrue(extractedKey5.get().equals("volume-name - vendor-id-1, vendor-id-2") ||
-            extractedKey5.get().equals("volume-name - vendor-id-2, vendor-id-1"));
+        assertTrue(extractedKey6.isPresent());
+        assertTrue(extractedKey6.get().equals("volume-name - vendor-id-1, vendor-id-2") ||
+            extractedKey6.get().equals("volume-name - vendor-id-2, vendor-id-1"));
+
+        // case when volume has multiple vendor IDs, one of which is its name
+
+        final TopologyEntityDTO volumeEntity7 = volumeEntityBuilder
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putAllDiscoveredTargetData(ImmutableMap.of(
+                        1L, PerTargetEntityInformation.newBuilder()
+                            .setVendorId("vendor-id-1").build(),
+                        2L, PerTargetEntityInformation.newBuilder()
+                            .setVendorId("volume-name").build())
+                    )))
+            .build();
+        entityMap.put(volumeId, volumeEntity7);
+        final Optional<String> extractedKey7 =
+            marketStatsAccumulator.extractVolumeKey(buyerEntity, commoditiesBought, entityMap);
+        assertTrue(extractedKey7.isPresent());
+        assertThat(extractedKey7.get(), is("volume-name - vendor-id-1"));
     }
 
     private InsertSetMoreStep createMockInsertQuery(Table table) {

@@ -675,6 +675,7 @@ public class MarketStatsAccumulator {
                 final String vendorIds = volumeEntity.getOrigin().getDiscoveryOrigin()
                     .getDiscoveredTargetDataMap().values().stream()
                     .map(PerTargetEntityInformation::getVendorId)
+                    .filter(vendorId -> !vendorId.equals(volumeEntity.getDisplayName()))
                     .collect(Collectors.joining(", "));
                 return Optional.of(volumeEntity.getDisplayName() +
                     (vendorIds.isEmpty() ? "" : " - " + vendorIds));

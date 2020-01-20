@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -244,9 +245,8 @@ public class StatsQueryScopeExpander {
         if (shouldConnectedVmBeSeparatelyAdded(scope, relatedTypes)) {
             // case where VM oids need to be added separately to the scope, i.e. for Volume commodity queries
             final Set<Long> connectedVmOids = findConnectedVmOids(immediateOidsInScope);
-            immediateOidsInScope.addAll(connectedVmOids);
             expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
-                immediateOidsInScope);
+                Sets.union(immediateOidsInScope, connectedVmOids));
         } else if (!relatedTypes.isEmpty()) {
             // We replace the proxy entities after first finding related type entities, so that the
             // supply chain search for related entities has the correct starting point (the original
@@ -258,9 +258,9 @@ public class StatsQueryScopeExpander {
                         .collect(Collectors.toList())));
             } catch (OperationFailedException ex) {
                 logger.error("The operation to get the expanded entities associated with list of " +
-                        "OIDs `%`, with types `%` failed. Going with unexpanded entities.",
-                    immediateOidsInScope.stream().map(String::valueOf).collect(Collectors.joining(",")),
-                    relatedTypes.stream().map(UIEntityType::apiStr).collect(Collectors.joining(",")), ex);
+                        "OIDs {}, with types {} failed. Going with unexpanded entities.",
+                    immediateOidsInScope.stream().map(String::valueOf).collect(Collectors.joining(", ")),
+                    relatedTypes.stream().map(UIEntityType::apiStr).collect(Collectors.joining(", ")), ex);
                 expandedOidsInScope = immediateOidsInScope;
             }
         } else {
@@ -305,13 +305,10 @@ public class StatsQueryScopeExpander {
     private Set<Long> findConnectedVmOids(@Nonnull final Set<Long> volumeOids) {
         final TraversalFilter vmFrom = SearchProtoUtil.traverseToType(
             TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE.apiStr());
-        final TraversalFilter vmTo = SearchProtoUtil.traverseToType(
-            TraversalDirection.CONNECTED_TO, UIEntityType.VIRTUAL_MACHINE.apiStr());
         final PropertyFilter startFilter = SearchProtoUtil.idFilter(volumeOids);
 
         final SearchParameters searchParams = SearchProtoUtil.makeSearchParameters(startFilter)
             .addSearchFilter(SearchProtoUtil.searchFilterTraversal(vmFrom))
-            .addSearchFilter(SearchProtoUtil.searchFilterTraversal(vmTo))
             .build();
         return repositoryApi.newSearchRequest(searchParams).getOids();
     }
