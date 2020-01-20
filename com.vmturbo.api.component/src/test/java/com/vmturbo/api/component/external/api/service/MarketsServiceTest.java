@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -106,7 +107,6 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
@@ -156,9 +156,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -196,6 +194,8 @@ public class MarketsServiceTest {
     private TestConfig testConfig;
     @Autowired
     private WebApplicationContext wac;
+
+    private GrpcTestServer testServer;
 
     private MockMvc mockMvc;
     private static final Gson GSON = new Gson();
@@ -742,8 +742,7 @@ public class MarketsServiceTest {
         @Bean
         public ServiceEntityMapper serviceEntityMapper() {
             return new ServiceEntityMapper(thinTargetCache(),
-                            CostServiceGrpc.newBlockingStub(grpcTestServer().getChannel()),
-                            supplyChainRpcService());
+                            CostServiceGrpc.newBlockingStub(grpcTestServer().getChannel()), Clock.systemUTC());
         }
 
         @Bean
@@ -879,17 +878,6 @@ public class MarketsServiceTest {
         @Bean
         public ActionsServiceBlockingStub actionsRpcService() {
             return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public SupplyChainServiceBlockingStub supplyChainRpcService() {
-            return SupplyChainServiceGrpc.newBlockingStub(grpcTestServer().getChannel())
-                    .withInterceptors(jwtClientInterceptor());
-        }
-
-        @Bean
-        public JwtClientInterceptor jwtClientInterceptor() {
-            return new JwtClientInterceptor();
         }
 
         /**

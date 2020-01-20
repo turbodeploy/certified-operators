@@ -1,43 +1,36 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.Clock;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
+
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -57,23 +50,20 @@ public class ServiceEntityMapper {
 
     private final ThinTargetCache thinTargetCache;
     private final CostServiceBlockingStub costServiceBlockingStub;
-    private final SupplyChainServiceBlockingStub supplyChainBlockingStub;
+    private final Clock clock;
 
     /**
      * Creates {@link ServiceEntityMapper} instance.
-     *
-     * @param thinTargetCache a cache for simple target information
+     *  @param thinTargetCache a cache for simple target information
      * @param costServiceBlockingStub service which will provide cost information by
      *                 entities.
-     * @param supplyChainBlockingStub service used to get the supply chain information
-     *                 for one or more entities.
+     * @param clock provides time values used to do external API requests.
      */
     public ServiceEntityMapper(@Nonnull final ThinTargetCache thinTargetCache,
-                               @Nonnull CostServiceBlockingStub costServiceBlockingStub,
-                               @Nonnull SupplyChainServiceBlockingStub supplyChainBlockingStub) {
+                    @Nonnull CostServiceBlockingStub costServiceBlockingStub, @Nonnull Clock clock) {
         this.thinTargetCache = thinTargetCache;
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
-        this.supplyChainBlockingStub = Objects.requireNonNull(supplyChainBlockingStub);
+        this.clock = Objects.requireNonNull(clock);
     }
 
 
@@ -134,82 +124,83 @@ public class ServiceEntityMapper {
      */
     @Nonnull
     public ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull ApiPartialEntity apiEntity) {
-        return toServiceEntityApiDTO(Collections.singletonList(apiEntity)).get(apiEntity.getOid());
-    }
-
-    /**
-     * Converts the input collection of {@link ApiPartialEntity} instances into a map containing
-     * {@link ServiceEntityApiDTO} values. The map keys are the corresponding OIDs of the entity DTOs.
-     *
-     * @param apiEntities The input collection of {@link ApiPartialEntity} that will be converted into DTOs.
-     * @return The result map containing OID-to-EntityDTO entries.
-     */
-    public Map<Long, ServiceEntityApiDTO> toServiceEntityApiDTO(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
-        Map<Long, ServiceEntityApiDTO> resultMap = new HashMap<>(apiEntities.size());
-
-        Set<Long> costPriceEntities = new HashSet<>();
-        Set<Long> numberOfVmEntities = new HashSet<>();
-        for (ApiPartialEntity entity : apiEntities) {
-            if (shouldGetNumberOfVms(entity)) {
-                numberOfVmEntities.add(entity.getOid());
-            }
-
-            if (shouldGetCostPrice(entity)) {
-                costPriceEntities.add(entity.getOid());
-            }
+        // basic information
+        final ServiceEntityApiDTO result = ServiceEntityMapper.toBasicEntity(apiEntity);
+        if (apiEntity.hasEntityState()) {
+            result.setState(UIEntityState.fromEntityState(apiEntity.getEntityState()).apiStr());
+        }
+        if (apiEntity.hasEnvironmentType()) {
+            EnvironmentTypeMapper
+                .fromXLToApi(apiEntity.getEnvironmentType())
+                .ifPresent(result::setEnvironmentType);
         }
 
-        Map<Long, Integer> numVmsPerEntity = computeNrOfVmsPerEntity(numberOfVmEntities);
-        Map<Long, Double> costPriceByEntity = computeCostPriceByEntity(costPriceEntities);
+        setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
 
-        apiEntities.forEach(apiEntity -> {
-            // basic information
-            final ServiceEntityApiDTO result = ServiceEntityMapper.toBasicEntity(apiEntity);
-            if (apiEntity.hasEntityState()) {
-                result.setState(UIEntityState.fromEntityState(apiEntity.getEntityState()).apiStr());
-            }
-            if (apiEntity.hasEnvironmentType()) {
-                EnvironmentTypeMapper
-                    .fromXLToApi(apiEntity.getEnvironmentType())
-                    .ifPresent(result::setEnvironmentType);
-            }
+        //tags
+        result.setTags(
+            apiEntity.getTags().getTagsMap().entrySet().stream()
+                .collect(
+                    Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
 
-            setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
-
-            //tags
-            result.setTags(
-                apiEntity.getTags().getTagsMap().entrySet().stream()
-                    .collect(
-                        Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
-
-            Optional.ofNullable(numVmsPerEntity.get(apiEntity.getOid()))
-                .ifPresent(result::setNumRelatedVMs);
-
-            // template name
-            final Optional<RelatedEntity> primaryProvider = apiEntity.getProvidersList().stream()
-                .filter(provider -> provider.hasDisplayName() &&
-                    TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
-                        provider.getEntityType()))
-                .findAny();
-            final Optional<RelatedEntity> backupPrimary = apiEntity.getConnectedToList().stream()
-                .filter(connected -> connected.hasDisplayName() &&
-                    TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
-                        connected.getEntityType()))
-                .findAny();
-            backupPrimary.map(primaryProvider::orElse).ifPresent(provider -> {
-                final TemplateApiDTO template = new TemplateApiDTO();
-                template.setUuid(Long.toString(provider.getOid()));
-                template.setPrice(Optional.ofNullable(costPriceByEntity.get(apiEntity.getOid()))
-                    .map(Double::floatValue)
-                    .orElse(0.0f));
-                template.setDisplayName(provider.getDisplayName());
-                result.setTemplate(template);
-            });
-
-            resultMap.put(apiEntity.getOid(), result);
+        // template name
+        final Optional<RelatedEntity> primaryProvider = apiEntity.getProvidersList().stream()
+            .filter(provider -> provider.hasDisplayName() &&
+                TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
+                    provider.getEntityType()))
+            .findAny();
+        final Optional<RelatedEntity> backupPrimary = apiEntity.getConnectedToList().stream()
+            .filter(connected -> connected.hasDisplayName() &&
+                TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
+                    connected.getEntityType()))
+            .findAny();
+        backupPrimary.map(primaryProvider::orElse).ifPresent(provider -> {
+            final TemplateApiDTO template = new TemplateApiDTO();
+            template.setUuid(Long.toString(provider.getOid()));
+            template.setPrice(getPrice(apiEntity.getOid()));
+            template.setDisplayName(provider.getDisplayName());
+            result.setTemplate(template);
         });
 
-        return resultMap;
+        return result;
+    }
+
+    private float getPrice(final long oid) {
+        try {
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            final float result = requestPrice(oid);
+            logger.trace("Price '{}' received for '{}' in '{}' ms.", () -> result, () -> oid,
+                            () -> stopwatch.elapsed(TimeUnit.MILLISECONDS));
+            return result;
+        } catch (StatusRuntimeException ex) {
+            logger.warn("Cannot get price for '{}' entity", oid, ex);
+        }
+        return 0F;
+    }
+
+    private float requestPrice(long entityUuid) {
+        final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
+        final GetCloudCostStatsRequest cloudCostStatsRequest =
+                GetCloudCostStatsRequest.newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(entityFilter).build()).build();
+        final GetCloudCostStatsResponse response =
+                        costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
+        return (float)response.getCloudStatRecordList().stream()
+                        .map(record -> record.getStatRecordsList().stream()
+                                        .filter(s -> TEMPLATE_PRICE_CATEGORIES
+                                                        .contains(s.getCategory()))
+                                        .collect(Collectors.toList())).flatMap(Collection::stream)
+                        .mapToDouble(s -> s.getValues().getAvg()).sum();
+    }
+
+    @Nonnull
+    private TargetApiDTO createTargetApiDto(@Nonnull final ThinTargetInfo thinTargetInfo) {
+        final TargetApiDTO apiDTO = new TargetApiDTO();
+        apiDTO.setType(thinTargetInfo.probeInfo().type());
+        apiDTO.setUuid(Long.toString(thinTargetInfo.oid()));
+        apiDTO.setDisplayName(thinTargetInfo.displayName());
+        apiDTO.setCategory(thinTargetInfo.probeInfo().category());
+        return apiDTO;
     }
 
     /**
@@ -313,83 +304,6 @@ public class ServiceEntityMapper {
                                        target2id -> target2id.getValue().getVendorId(),
                                        (d1, d2) -> d1)));
         }
-    }
-
-    @Nonnull
-    private TargetApiDTO createTargetApiDto(@Nonnull final ThinTargetInfo thinTargetInfo) {
-        final TargetApiDTO apiDTO = new TargetApiDTO();
-        apiDTO.setType(thinTargetInfo.probeInfo().type());
-        apiDTO.setUuid(Long.toString(thinTargetInfo.oid()));
-        apiDTO.setDisplayName(thinTargetInfo.displayName());
-        apiDTO.setCategory(thinTargetInfo.probeInfo().category());
-        return apiDTO;
-    }
-
-    private Map<Long, Double> computeCostPriceByEntity(Set<Long> costPriceEntities) {
-        if (costPriceEntities.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        // Do a multi-get to the cost service.
-        final EntityFilter entityFilter = EntityFilter.newBuilder()
-            .addAllEntityId(costPriceEntities)
-            .build();
-        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
-                    .addAllCostCategory(TEMPLATE_PRICE_CATEGORIES))
-                .setEntityFilter(entityFilter))
-            .build();
-        final GetCloudCostStatsResponse response =
-            costServiceBlockingStub.getCloudCostStats(request);
-        return response.getCloudStatRecordList().stream()
-            .flatMap(record -> record.getStatRecordsList().stream())
-            .collect(Collectors.groupingBy(StatRecord::getAssociatedEntityId,
-                    Collectors.summingDouble(record -> record.getValues().getAvg())));
-    }
-
-    private Map<Long, Integer> computeNrOfVmsPerEntity(Set<Long> numberOfVmEntities) {
-        if (numberOfVmEntities.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        Map<Long, Integer> result = new HashMap<>(numberOfVmEntities.size());
-
-        GetMultiSupplyChainsRequest.Builder builder = GetMultiSupplyChainsRequest.newBuilder();
-        numberOfVmEntities.forEach(oid -> {
-            builder.addSeeds(SupplyChainSeed.newBuilder()
-                .setSeedOid(oid)
-                .setScope(SupplyChainScope.newBuilder()
-                    .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(UIEntityType.VIRTUAL_MACHINE.apiStr())));
-        });
-        supplyChainBlockingStub.getMultiSupplyChains(builder.build()).forEachRemaining(response -> {
-            result.put(response.getSeedOid(),
-                response.getSupplyChain().getSupplyChainNodesList().stream()
-                    .filter(node -> node.getEntityType().equals(UIEntityType.VIRTUAL_MACHINE.apiStr()))
-                    .map(RepositoryDTOUtil::getMemberCount)
-                    .findFirst().orElse(0));
-        });
-
-        return result;
-    }
-
-    private boolean shouldGetNumberOfVms(@Nonnull final ApiPartialEntity entity) {
-        return entity.getEntityType() == UIEntityType.REGION.typeNumber() ||
-            entity.getEntityType() == UIEntityType.AVAILABILITY_ZONE.typeNumber();
-    }
-
-    private boolean shouldGetCostPrice(@Nonnull final ApiPartialEntity entity) {
-        return getTemplateProvider(entity).isPresent();
-    }
-
-    private static Optional<RelatedEntity> getTemplateProvider(final ApiPartialEntity entity) {
-        return Stream.concat(entity.getProvidersList().stream(), entity.getConnectedToList().stream())
-            .filter(connected -> connected.hasDisplayName() &&
-                TopologyDTOUtil.isPrimaryTierEntityType(entity.getEntityType(),
-                    connected.getEntityType()))
-            .findFirst();
-
     }
 
 }

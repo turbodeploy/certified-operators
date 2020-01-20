@@ -171,6 +171,8 @@ public class MarketsService implements IMarketsService {
 
     private final StatsService statsService;
 
+    private final StatsMapper statsMapper;
+
     private final PaginationMapper paginationMapper;
 
     private final UINotificationChannel uiNotificationChannel;
@@ -179,7 +181,13 @@ public class MarketsService implements IMarketsService {
 
     private final MergePolicyHandler mergePolicyHandler;
 
+    private final UserSessionContext userSessionContext;
+
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
+
+    private final EntitySeverityServiceBlockingStub entitySeverity;
+
+    private final StatsHistoryServiceBlockingStub statsHistory;
 
     private final RepositoryApi repositoryApi;
 
@@ -197,6 +205,14 @@ public class MarketsService implements IMarketsService {
      * For fetching plan entities and their related stats.
      */
     private final PlanEntityStatsFetcher planEntityStatsFetcher;
+
+    // Exclude request for price index for commodities of real market not saved in DB
+    private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(
+        EntityType.NETWORK_VALUE,
+        EntityType.INTERNET_VALUE,
+        EntityType.VIRTUAL_VOLUME_VALUE,
+        EntityType.HYPERVISOR_SERVER_VALUE
+    );
 
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
@@ -237,10 +253,14 @@ public class MarketsService implements IMarketsService {
         this.uiNotificationChannel = Objects.requireNonNull(uiNotificationChannel);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
+        this.statsMapper = Objects.requireNonNull(statsMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
+        this.entitySeverity = Objects.requireNonNull(entitySeverity);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+        this.statsHistory = Objects.requireNonNull(statsHistory);
         this.statsService = Objects.requireNonNull(statsService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
