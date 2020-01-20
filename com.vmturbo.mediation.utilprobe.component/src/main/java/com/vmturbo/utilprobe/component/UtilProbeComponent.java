@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,8 @@ class UtilProbeComponent extends MediationComponentMain {
     private String kvStoreRetryIntervalMillis;
     @Value("${probe-directory:probe-jars}")
     private File probeDirectory;
+    @Value("${rediscoveryIntervalSeconds:600}")
+    private String rediscoveryIntervalSeconds;
 
     @Autowired
     private ConsulManagementService consulManagementService;
@@ -90,7 +93,9 @@ class UtilProbeComponent extends MediationComponentMain {
                 probeClassContext,
                 accountValuesConverter,
                 probeDirectory,
-                ProbeProperties.DEFAULT_REDISCOVERY_INTERVAL_IN_SEC,
+                NumberUtils.isParsable(rediscoveryIntervalSeconds) ?
+                    Integer.parseInt(rediscoveryIntervalSeconds) :
+                    ProbeProperties.DEFAULT_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.DEFAULT_INCREMENTAL_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.MINIMUM_PERFORMANCE_REDISCOVERY_INTERVAL_IN_SEC,
                 ProbeProperties.DEFAULT_PROBE_TIMEOUT_SEC,
