@@ -13,14 +13,20 @@
 	  "oid": 100001,
           "name": "template1",
           "family": "family1",
-          "onDemandCost": {
-            "compute": 100.0,
-            "license": 20.0
-          },
-          "discountedCost": {
-            "compute": 10.0,
-            "license": 2.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 100.0,
+              "license": 20.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 10.0,
+              "license": 2.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 3
         }
       ],

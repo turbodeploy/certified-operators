@@ -66,6 +66,14 @@ public class SMATemplate {
      */
     private Map<Long, SMACost> discountedCosts = new HashMap<>();
 
+    public Map<Long, SMACost> getDiscountedCosts() {
+        return discountedCosts;
+    }
+
+    public Map<Long, SMACost> getOnDemandCosts() {
+        return onDemandCosts;
+    }
+
     /**
      * Constructor of the SMATemplate.
      *

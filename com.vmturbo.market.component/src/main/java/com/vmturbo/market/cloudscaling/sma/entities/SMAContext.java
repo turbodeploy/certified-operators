@@ -73,7 +73,7 @@ public class SMAContext {
     }
 
     @Nonnull
-     Tenancy getTenancy() {
+    public Tenancy getTenancy() {
         return tenancy;
     }
 

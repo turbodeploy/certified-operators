@@ -13,84 +13,120 @@
           "oid": 100001,
           "name": "t3.nano",
           "family": "t3",
-          "onDemandCost": {
-            "compute": 1.0,
-            "license": 0.0
-          },
-          "discountedCost": {
-            "compute": 0.0,
-            "license": 0.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 1.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 1
         },
         {
           "oid": 100002,
           "name": "t3.micro",
           "family": "t3",
-          "onDemandCost": {
-            "compute": 2.0,
-            "license": 0.0
-          },
-          "discountedCost": {
-            "compute": 0.0,
-            "license": 0.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 2.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 2
         },
         {
           "oid": 100003,
           "name": "t3.small",
           "family": "t3",
-          "onDemandCost": {
-            "compute": 3.0,
-            "license": 0.0
-          },
-          "discountedCost": {
-            "compute": 0.0,
-            "license": 0.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 3.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 4
         },
         {
           "oid": 100004,
           "name": "t3a.nano",
           "family": "t3a",
-          "onDemandCost": {
-            "compute": 1.1,
-            "license": 0.0
-          },
-          "discountedCost": {
-            "compute": 0.0,
-            "license": 0.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 1.1,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 1
         },
         {
           "oid": 100005,
           "name": "t3a.micro",
           "family": "t3a",
-          "onDemandCost": {
-            "compute": 2.1,
-            "license": 0.0
-          },
-          "discountedCost": {
-            "compute": 0.0,
-            "license": 0.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 2.1,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 2
         },
         {
           "oid": 100006,
           "name": "t3a.small",
           "family": "t3a",
-          "onDemandCost": {
-            "compute": 3.1,
-            "license": 0.0
-          },
-          "discountedCost": {
-            "compute": 0.0,
-            "license": 0.0
-          },
+          "onDemandCost": [
+            {
+              "compute": 3.1,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10
+            }
+          ],
           "coupons": 4
         }
       ],
