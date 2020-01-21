@@ -5,6 +5,7 @@ import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.Res
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Storage;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -233,22 +234,30 @@ public class TemplateMapper {
      */
     private List<StatApiDTO> convertFieldToStat(@Nonnull List<TemplateField> fields,
                                                 @Nonnull Map<String, TemplateSpecField> templateSpecFieldMap) {
-        return fields.stream()
+        final Set<String> missingFields = new HashSet<>();
+        final List<StatApiDTO> statApiDTOs = fields.stream()
+            .filter(field -> {
+                if (!templateSpecFieldMap.containsKey(field.getName())) {
+                    missingFields.add(field.getName());
+                    return false;
+                }
+                return true;
+            })
             .map(field -> {
                 StatApiDTO statApiDTO = new StatApiDTO();
                 statApiDTO.setName(field.getName());
-                Optional<TemplateSpecField> templateSpecField =
-                    Optional.ofNullable(templateSpecFieldMap.get(field.getName()));
-                if (!templateSpecField.isPresent()) {
-                    throw new RuntimeException("Can not find match template spec field: " + field.getName());
-                }
-                final Float divisor = templateSpecField.get().hasDivisor() ?
-                    Float.valueOf(templateSpecField.get().getDivisor()) : ONE;
+                TemplateSpecField templateSpecField = templateSpecFieldMap.get(field.getName());
+                final float divisor = templateSpecField.hasDivisor() ?
+                    templateSpecField.getDivisor() : ONE;
                 statApiDTO.setValue(Float.parseFloat(field.getValue()) / divisor);
-                Optional.ofNullable(templateSpecField.get().getUnits())
-                    .ifPresent(units -> statApiDTO.setUnits(units));
+                Optional.ofNullable(templateSpecField.getUnits())
+                    .ifPresent(statApiDTO::setUnits);
                 return statApiDTO;
             }).collect(Collectors.toList());
+        if (!missingFields.isEmpty()) {
+            logger.warn("Can not find match template spec field: " + missingFields);
+        }
+        return statApiDTOs;
     }
 
     private void setBasicApiInputDTOProperty(@Nonnull TemplateInfo.Builder templateInfo,
