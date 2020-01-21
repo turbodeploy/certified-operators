@@ -882,7 +882,14 @@ public class OperationManagerTest {
 
         operationManager.notifyActionResult(action, result);
         OperationTestUtilities.waitForAction(operationManager, action);
-        // Notified once for start, once for complete
+
+        // Wait until we receive notification of the failure
+        OperationTestUtilities.waitForEvent(operationListener, listener ->
+            listener.getLastNotifiedStatus()
+                .map(status -> status == Status.FAILED)
+                .orElse(false));
+
+        // We should have received two notifications - once for start, once for complete
         Mockito.verify(operationListener, times(2)).notifyOperationState(action);
     }
 
