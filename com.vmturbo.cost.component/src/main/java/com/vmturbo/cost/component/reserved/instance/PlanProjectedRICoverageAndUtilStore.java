@@ -116,32 +116,42 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
     /**
      * Update projected RI coverage based on plan analysis result.
      *
-     * @param topoInfo
-     * @param entityRICoverage
+     * @param projectedTopologyId the projected topology ID.
+     * @param topoInfo   contains the plan id
+     * @param entityRICoverage the RI coverage
      */
     public void updateProjectedRICoverageTableForPlan(@Nonnull final long projectedTopologyId,
                                                       @Nonnull final TopologyInfo topoInfo,
                                                       @Nonnull final List<EntityReservedInstanceCoverage>
                                                       entityRICoverage) {
         synchronized(newLock) {
+            long planId = topoInfo.getTopologyContextId();
             if (!projectedTopologyAvailable.containsKey(projectedTopologyId)) {
                 // the projected topology is not ready in repository yet,
                 // cached the entityRICoverage until onProjectedTopologyAvailable
+                logger.debug("Add projected topology {} in plan {} to cache",
+                    projectedTopologyId, planId);
                 cachedRICoverage.put(projectedTopologyId, new Param(topoInfo, entityRICoverage));
                 return;
             } else if (!projectedTopologyAvailable.get(projectedTopologyId)) {
-                // projected topology uploading in repository is failed
-                logger.error("Abort ri coverage data persistence for plan {}",
-                             topoInfo.getTopologyContextId());
+                // projected topology uploading in repository 'is failed'
+                logger.error("Abort RI coverage data persistence for projected topology {} in plan {}",
+                    projectedTopologyId, planId);
                 projectedTopologyAvailable.remove(projectedTopologyId);
+                // clear the cache, because aborted.
+                cachedRICoverage.remove(projectedTopologyId);
                 return;
             } else {
                 logger.info("Projected topology {} for plan {} is ready", projectedTopologyId,
-                            topoInfo.getTopologyContextId());
+                    planId);
                 projectedTopologyAvailable.remove(projectedTopologyId);
             }
+            logger.info("The projected topology {} in plan {} is written to repository",
+                projectedTopologyId, planId);
+            insertRecordsToTable(projectedTopologyId, topoInfo, entityRICoverage);
+            // clear the cache, because the data is written.
+            cachedRICoverage.remove(projectedTopologyId);
         }
-        insertRecordsToTable(projectedTopologyId, topoInfo, entityRICoverage);
     }
 
     /**
@@ -367,22 +377,26 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
     }
 
     @Override
-    public void onProjectedTopologyAvailable(long projectedTopologyId, long topologyContextId) {
+    public void onProjectedTopologyAvailable(long projectedTopologyId, long planId) {
         final TopologyInfo topoInfo;
         final List<EntityReservedInstanceCoverage> coverage;
         synchronized(newLock) {
             if (!cachedRICoverage.containsKey(projectedTopologyId)) {
                 projectedTopologyAvailable.put(projectedTopologyId, true);
-                logger.info("The projected topology {} is available in repository", projectedTopologyId);
+                logger.info("The projected topology {} in plan {} is available from repository",
+                    projectedTopologyId, planId);
                 return;
             } else {
                 // if updateProjectedRICoverageTableForPlan is already being triggered and cached
                 // we can remove it in the cachedRICoverage and trigger insertRecordsToTable
                 topoInfo = cachedRICoverage.get(projectedTopologyId).getTopologyInfo();
                 coverage = cachedRICoverage.get(projectedTopologyId).getCoverage();
-                cachedRICoverage.remove(projectedTopologyId);
             }
+            logger.info("The projected topology {} in plan {} written to repository from cache",
+                projectedTopologyId, planId);
             insertRecordsToTable(projectedTopologyId, topoInfo, coverage);
+            // clear the cache because the data is written.
+            cachedRICoverage.remove(projectedTopologyId);
         }
     }
 
