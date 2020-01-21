@@ -28,6 +28,8 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -92,6 +94,41 @@ import com.vmturbo.platform.common.dto.CommonDTO;
  * A factory class for various {@link SupplychainFetcher}s.
  */
 public class SupplyChainFetcherFactory {
+    /**
+     * Sometimes we need to expand aggregators to some of their aggregated
+     * entities. In the case of cloud, we need to be able to expand aggregators
+     * such as region, zone, and business account to aggregated entities whose
+     * type belongs in this set.
+     */
+    private static final Set<UIEntityType> SCOPE_EXPANSION_TYPES_FOR_CLOUD = ImmutableSet.of(
+        UIEntityType.APPLICATION,
+        UIEntityType.APPLICATION_SERVER,
+        UIEntityType.BUSINESS_APPLICATION,
+        UIEntityType.CONTAINER,
+        UIEntityType.CONTAINER_POD,
+        UIEntityType.DATABASE,
+        UIEntityType.DATABASE_SERVER,
+        UIEntityType.DATABASE_SERVER_TIER,
+        UIEntityType.DATABASE_TIER,
+        UIEntityType.LOAD_BALANCER,
+        UIEntityType.STORAGE,
+        UIEntityType.VIRTUAL_APPLICATION,
+        UIEntityType.VIRTUAL_MACHINE,
+        UIEntityType.VIRTUAL_VOLUME);
+    /**
+     * This maps aggregator entity types (such as region or datacenter), to
+     * the set of types of the entities that we will get after their expansion.
+     * For example, when we expand datacenters, we want to fetch all aggregated
+     * PMs. When we expand VDCs, we want to fetch all related VMs. When we
+     * expand cloud aggregators, we want to get entities of all the types in
+     * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
+     */
+    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+        UIEntityType.DATACENTER, Collections.singleton(UIEntityType.PHYSICAL_MACHINE),
+        UIEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.VIRTUAL_DATACENTER, Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -108,7 +145,8 @@ public class SupplyChainFetcherFactory {
     private final long realtimeTopologyContextId;
 
     public SupplyChainFetcherFactory(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-            @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceBlockingStub, @Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceBlockingStub,
+            @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander,
             CostServiceBlockingStub costServiceBlockingStub, final long realtimeTopologyContextId) {
         this.supplyChainRpcService = supplyChainService;
@@ -163,26 +201,18 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Replace specific types of ServiceEntities with "constituents". For example, a DataCenter SE
-     * is replaced by the PhysicalMachine SE's related to that DataCenter.
-     *<p>
-     * ServiceEntities of other types not to be expanded are copied to the output result set.
-     *<p>
-     * See 6.x method SupplyChainUtils.getUuidsFromScopesByRelatedType() which uses the
-     * marker interface EntitiesProvider to determine which Service Entities to expand.
-     *<p>
-     * Errors fetching the supply chain are logged and ignored - the input OID will be copied
-     * to the output in case of an error or missing relatedEntityType info in the supply chain.
-     *<p>
-     * First, it will fetch entities which need to expand, then check if any input entity oid
-     * belongs to those entities. Because if input entity set is large, it will cost a lot time to
-     * fetch huge entity from Repository. Instead, if first fetch those entities which need to expand
-     * , the amount will be much less than the input entity set size since right now only DataCenter
-     * could expand.
+     * Expand aggregator entities according to the map {@link #ENTITY_TYPES_TO_EXPAND}.
      *
-     * @param entityOidsToExpand a set of ServiceEntity OIDs to examine
-     * @return a set of ServiceEntity OIDs with types that should be expanded replaced by the
-     * "constituent" ServiceEntity OIDs as computed by the supply chain.
+     * <p>The method takes a set of entity oids. It expands each entity whose type
+     * is in the key set of {@link #ENTITY_TYPES_TO_EXPAND} to the aggregated entities
+     * of the corresponding type. It will leave all other entities unchanged. For
+     * example, if the input set of oids contains the oids of a datacenter and a VM,
+     * the result will contain the oids of the VM and all the PMs aggregated by
+     * the datacenter.</p>
+     *
+     * @param entityOidsToExpand the input set of ServiceEntity oids
+     * @return the input set with oids of aggregating entities substituted by their
+     *         expansions
      */
     public Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand) {
         // Early return if the input is empty, to prevent making
@@ -191,7 +221,7 @@ public class SupplyChainFetcherFactory {
             return Collections.emptySet();
         }
 
-        final Set<String> entityTypeString = UIEntityType.ENTITY_TYPES_TO_EXPAND.keySet().stream()
+        final Set<String> entityTypeString = ENTITY_TYPES_TO_EXPAND.keySet().stream()
             .map(UIEntityType::apiStr)
             .collect(Collectors.toSet());
         final Set<Long> expandedEntityOids = Sets.newHashSet();
@@ -212,7 +242,7 @@ public class SupplyChainFetcherFactory {
                 if (expandServiceEntities.containsKey(oidToExpand)) {
                     final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
                     final List<String> relatedEntityTypes =
-                        UIEntityType.ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType()))
+                        ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType()))
                             .stream()
                             .map(UIEntityType::apiStr)
                             .collect(Collectors.toList());

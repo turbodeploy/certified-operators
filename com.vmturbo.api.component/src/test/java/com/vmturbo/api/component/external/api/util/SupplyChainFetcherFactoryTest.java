@@ -864,6 +864,8 @@ public class SupplyChainFetcherFactoryTest {
      *  DB with oid 7
      *  Volume with oid 8
      * 2: is a VM (no expansion needed)
+     * 10: is a VDC (expansion needed)
+     *   VM with oid 11
      */
     @Test
     public void testExpandGroupingServiceEntities() {
@@ -875,10 +877,14 @@ public class SupplyChainFetcherFactoryTest {
             .setOid(1L)
             .setEntityType(UIEntityType.AVAILABILITY_ZONE.typeNumber())
             .build();
+        MinimalEntity vdcMinimalEntity = MinimalEntity.newBuilder()
+            .setOid(10L)
+            .setEntityType(UIEntityType.VIRTUAL_DATACENTER.typeNumber())
+            .build();
 
         SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.getMinimalEntities()).thenReturn(Stream.of(
-            regionMinimalEntity, zoneMinimalEntity));
+            regionMinimalEntity, zoneMinimalEntity, vdcMinimalEntity));
 
         when(repositoryApiBackend.newSearchRequest(any()))
             .thenReturn(searchRequest);
@@ -887,6 +893,7 @@ public class SupplyChainFetcherFactoryTest {
         when(groupExpander.expandUuids(Sets.newHashSet("0"))).thenReturn(Sets.newHashSet(0L));
         when(groupExpander.expandUuids(Sets.newHashSet("1"))).thenReturn(Sets.newHashSet(1L));
         when(groupExpander.expandUuids(Sets.newHashSet("2"))).thenReturn(Sets.newHashSet(2L));
+        when(groupExpander.expandUuids(Sets.newHashSet("10"))).thenReturn(Sets.newHashSet(10L));
 
         Map<Long, GetSupplyChainResponse> responseMap = ImmutableMap.of(
             0L, GetSupplyChainResponse.newBuilder()
@@ -932,12 +939,22 @@ public class SupplyChainFetcherFactoryTest {
                             .build())
                         .build())
                     .build())
+                .build(),
+            10L,  GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                                .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
+                                .putMembersByState(0, MemberList.newBuilder()
+                                        .addMemberOids(11L)
+                                        .build())
+                                .build())
+                        .build())
                 .build());
         when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
             responseMap.get(invocationOnMock.getArgumentAt(0, GetSupplyChainRequest.class).getScope().getStartingEntityOid(0)));
 
-        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Arrays.asList(0L, 1L, 2L));
-        Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L)), actual);
+        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Arrays.asList(0L, 1L, 2L, 10L));
+        Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L, 11L)), actual);
     }
 
     /**
