@@ -330,6 +330,7 @@
                 <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
@@ -658,6 +659,13 @@
             <id>mediation-appinsights</id>
             <modules>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-customdata</id>
+            <modules>
+                <module>../com.vmturbo.mediation.custom.data.component</module>
             </modules>
         </profile>
 
@@ -1023,6 +1031,7 @@
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>

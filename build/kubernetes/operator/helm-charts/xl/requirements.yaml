@@ -221,6 +221,10 @@ dependencies:
     repository: file://../probes/mediation-compellent
     version: 0.1.0
     condition: compellent.enabled
+  - name: mediation-customdata
+    repository: file://../probes/mediation-customdata
+    version: 0.1.0
+    condition: customdata.enabled
   - name: mediation-dynatrace
     repository: file://../probes/mediation-dynatrace
     version: 0.1.0

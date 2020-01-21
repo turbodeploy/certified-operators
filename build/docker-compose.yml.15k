@@ -449,6 +449,13 @@ services:
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
+#  mediation-customdata:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-customdata-prod
+#    mem_limit: 512M
+#    depends_on: *clustermgrdep
+#
 #  mediation-dynatrace:
 #    extends:
 #      file: prod-services.yml
