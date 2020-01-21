@@ -16,6 +16,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -265,20 +266,26 @@ public class MarketRunner {
                     // Send projected entity costs. We only send them for the real time topology.
                     final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
                                                                analysis.getProjectedCosts().get();
-                    serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
-                                                         analysis.getProjectedTopologyId().get(),
-                                                         Collections2.transform(projectedCosts
-                                                                         .values(),
-                                                            CostJournal::toEntityCostProto));
+
+                    if (!CollectionUtils.isEmpty(projectedCosts)) {
+                        serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
+                                analysis.getProjectedTopologyId().get(),
+                                Collections2.transform(projectedCosts
+                                                .values(),
+                                        CostJournal::toEntityCostProto));
+                    }
+
                     // EntityRICoverage is already a protobuf object so
                     // we can directly send values of map in the message.
                     final Map<Long, EntityReservedInstanceCoverage> projectedCoverage =
                                                           analysis.getProjectedEntityRiCoverage()
                                                                           .get();
-                    serverApi.notifyProjectedEntityRiCoverage(analysis.getTopologyInfo(),
-                                                              analysis.getProjectedTopologyId()
-                                                                              .get(),
-                                                              projectedCoverage.values());
+                    if (!CollectionUtils.isEmpty(projectedCoverage)) {
+                        serverApi.notifyProjectedEntityRiCoverage(analysis.getTopologyInfo(),
+                                analysis.getProjectedTopologyId()
+                                        .get(),
+                                projectedCoverage.values());
+                    }
                 }
             } else if (analysis.getState() == AnalysisState.FAILED) {
                 // Send notification of Analysis FAILURE
