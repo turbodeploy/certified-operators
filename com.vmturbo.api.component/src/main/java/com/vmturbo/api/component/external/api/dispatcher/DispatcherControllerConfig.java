@@ -18,16 +18,13 @@ import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
 import com.vmturbo.api.controller.BusinessUnitsController;
-import com.vmturbo.api.controller.DeploymentProfilesController;
 import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.LicensesController;
-import com.vmturbo.api.controller.LogsController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.controller.NotificationsController;
 import com.vmturbo.api.controller.PoliciesController;
-import com.vmturbo.api.controller.ReportsController;
 import com.vmturbo.api.controller.ReservationsController;
 import com.vmturbo.api.controller.ReservedInstancesController;
 import com.vmturbo.api.controller.RolesController;
@@ -44,9 +41,9 @@ import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
-import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.external.controller.ProbesController;
 import com.vmturbo.api.external.controller.SAMLController;
+import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.validators.TemplatesValidator;
 
 /**
@@ -95,11 +92,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public DeploymentProfilesController deploymentProfilesController() {
-        return new DeploymentProfilesController();
-    }
-
-    @Bean
     public EntitiesController entitiesController() {
         return new EntitiesController();
     }
@@ -112,11 +104,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public GroupsController groupsController() {
         return new GroupsController();
-    }
-
-    @Bean
-    public LogsController logsController() {
-        return new LogsController();
     }
 
     @Bean
@@ -137,11 +124,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public PoliciesController policiesController() {
         return new PoliciesController();
-    }
-
-    @Bean
-    public ReportsController reportsController() {
-        return new ReportsController();
     }
 
     @Bean
