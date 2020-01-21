@@ -134,7 +134,11 @@ public class ComputeTierConverter implements TierConverter {
                             .build();
             UpdatingFunctionTO couponUf = UpdatingFunctionTO.newBuilder().setIgnoreConsumption(
                     IgnoreConsumption.newBuilder().build()).build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, couponUf));
+            final int slots = computeTier.getAnalysisSettings().getSlots();
+            List<CommoditySoldTO> soldTOs =
+                    commodityConverter.createCommoditySoldTO(commType, capacity, used, couponUf, slots);
+            checkAndReportMultipleSpecsWaring(soldTOs, commType);
+            commoditiesSold.add(soldTOs.get(0));
 
             // TODO: sell all TenancyAccess commodities
             // VMs buy a specific tenancy and computeTiers need to sell all tenancies
@@ -161,30 +165,44 @@ public class ComputeTierConverter implements TierConverter {
                     .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                     .setKey(computeTier.getTypeSpecificInfo().getComputeTier().getFamily())
                     .build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
-                    emptyUf));
+            commoditiesSold.addAll(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf, 1));            checkAndReportMultipleSpecsWaring(soldTOs, commType);
+            commoditiesSold.add(soldTOs.get(0));
             commType = CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                     .setKey(computeTier.getDisplayName())
                     .build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
-                    emptyUf));
+            commoditiesSold.addAll(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf,1 ));
+            checkAndReportMultipleSpecsWaring(soldTOs, commType);
+            commoditiesSold.add(soldTOs.get(0));
             for (TopologyEntityDTO region : regions) {
                 commType = CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                         // using regionName as the key for the region specific templateAccessSold
                         .setKey(region.getDisplayName())
                         .build();
-                commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf));
+                commoditiesSold.addAll(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf, 1));
+                checkAndReportMultipleSpecsWaring(soldTOs, commType);
+                commoditiesSold.add(soldTOs.get(0));
             }
         }
         // Add template exclusion commodities sold
         commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(computeTier.getOid()).stream()
             .map(ct -> commodityConverter.createCommoditySoldTO(
-                ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
+                ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf, 1))
+                .flatMap(List::stream)
             .collect(Collectors.toList()));
         return commoditiesSold;
     }
+
+    protected void checkAndReportMultipleSpecsWaring(final List<CommoditySoldTO> soldTOs,
+                                                   final CommodityType commType) {
+        if (soldTOs.size() > 1) {
+            logger.warn("Unexpected multiple sold commodities for {}", commType);
+        }
+    }
+
 
     /**
      * Create the region commodities to be sold by compute market tier.

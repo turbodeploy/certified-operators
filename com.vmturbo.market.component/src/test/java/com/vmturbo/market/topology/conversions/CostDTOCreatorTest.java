@@ -17,6 +17,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+
+import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -131,10 +133,10 @@ public class CostDTOCreatorTest {
                 .setBaseType(NETSPEC_BASE_TYPE)
                 .setType(NETSPEC_TYPE)
                 .build();
-        Mockito.doReturn(ioCommSpecTO).when(converter)
-                .commoditySpecification(ioTpCommType);
-        Mockito.doReturn(netCommSpecTO).when(converter)
-                .commoditySpecification(netTpCommType);
+        Mockito.doReturn(ImmutableList.of(ioCommSpecTO)).when(converter)
+                .commoditySpecification(ioTpCommType,1);
+        Mockito.doReturn(ImmutableList.of(netCommSpecTO)).when(converter)
+                .commoditySpecification(netTpCommType, 1);
         AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
         DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.STANDARD,
                 DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4).build();

@@ -1,5 +1,8 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.market.topology.TopologyConversionConstants.TIMESLOT_COMMODITIES;
+
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -12,11 +15,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Table;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -24,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -55,6 +60,7 @@ public class CommodityConverter {
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     private final ConversionErrorCounts conversionErrorCounts;
     private final ConsistentScalingHelper consistentScalingHelper;
+    private TimeSlotCommodityConverter timeSlotCommodityConverter;
 
     CommodityConverter(@Nonnull final NumericIDAllocator commodityTypeAllocator,
                        @Nonnull final Map<String, CommodityType> commoditySpecMap,
@@ -70,6 +76,7 @@ public class CommodityConverter {
         this.numConsumersOfSoldCommTable = numConsumersOfSoldCommTable;
         this.conversionErrorCounts = conversionErrorCounts;
         this.consistentScalingHelper = consistentScalingHelper;
+        timeSlotCommodityConverter = new TimeSlotCommodityConverter(commodityTypeAllocator, commoditySpecMap);
     }
 
     /**
@@ -83,26 +90,27 @@ public class CommodityConverter {
     public Collection<CommoditySoldTO> commoditiesSoldList(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
-        List<CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
+        final List<CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
                 .filter(commSold -> commSold.getActive())
                 .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
                 .filter(commSold -> includeGuaranteedBuyer
                         || !MarketAnalysisUtils.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
                         || !MarketAnalysisUtils.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
                 .map(commoditySoldDTO -> createCommonCommoditySoldTO(commoditySoldDTO, topologyDTO))
+                .flatMap(List::stream)
                 .collect(Collectors.toList());
         return list;
     }
 
     /**
-     * Creates a {@link CommoditySoldTO} from the {@link TopologyDTO.CommoditySoldDTO}.
+     * Creates a list of {@link CommoditySoldTO} from the {@link TopologyDTO.CommoditySoldDTO}.
      *
      * @param topologyCommSold the source {@link CommoditySoldDTO}
      * @param dto the {@link TopologyEntityDTO} selling the commSold
-     * @return a {@link CommoditySoldTO}
+     * @return a list of {@link CommoditySoldTO}
      */
     @Nonnull
-    CommodityDTOs.CommoditySoldTO createCommonCommoditySoldTO(
+    List<CommodityDTOs.CommoditySoldTO> createCommonCommoditySoldTO(
         @Nonnull final CommoditySoldDTO topologyCommSold,
         @Nonnull TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
@@ -219,31 +227,43 @@ public class CommodityConverter {
                                   topologyCommSold.hasHistoricalPeak()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
-        final Builder soldCommBuilder = CommoditySoldTO.newBuilder();
-        soldCommBuilder.setPeakQuantity(peak)
-                .setCapacity(capacity)
-                .setQuantity(used)
-                // Warning: we are down casting from double to float.
-                // Market has to change this field to double
-                .setMaxQuantity(maxQuantityFloat)
-                .setSettings(economyCommSoldSettings)
-                .setSpecification(commoditySpecification(commodityType))
-                .setThin(topologyCommSold.getIsThin())
-                .setNumConsumers(numConsumers)
-                .build();
-        // Set the historical quantity for the onPrem
-        // right sizing only if the percentile value is set.
-        if (topologyCommSold.hasHistoricalUsed()
-                && topologyCommSold.getHistoricalUsed().hasPercentile()) {
-            logger.debug("Using percentile {} for {} in {}",
-                    topologyCommSold.getHistoricalUsed().getPercentile(),
-                    topologyCommSold.getCommodityType().getType(),
-                    dto.getDisplayName());
-            soldCommBuilder.setHistoricalQuantity((float)(topologyCommSold.getCapacity()
-                            * topologyCommSold.getScalingFactor()
-                            * topologyCommSold.getHistoricalUsed().getPercentile()));
+
+        int slots = dto.getAnalysisSettings().getSlots();
+        final List<CommoditySpecificationTO> commoditySpecs =
+                commoditySpecification(commodityType, slots);
+        List<CommodityDTOs.CommoditySoldTO> soldCommodityTOs = new ArrayList<>();
+        /**
+         * For the pool commodities in VDI, we expect the sold usage to be zero.
+         * We will therefore set the same 0 value for all commodityTOs.
+         */
+        for (CommoditySpecificationTO commoditySpec : commoditySpecs) {
+            final Builder soldCommBuilder = CommoditySoldTO.newBuilder();
+            soldCommBuilder.setPeakQuantity(peak)
+                    .setCapacity(capacity)
+                    .setQuantity(used)
+                    // Warning: we are down casting from double to float.
+                    // Market has to change this field to double
+                    .setMaxQuantity(maxQuantityFloat)
+                    .setSettings(economyCommSoldSettings)
+                    .setSpecification(commoditySpec)
+                    .setThin(topologyCommSold.getIsThin())
+                    .setNumConsumers(numConsumers)
+                    .build();
+            // Set the historical quantity for the onPrem
+            // right sizing only if the percentile value is set.
+            if (topologyCommSold.hasHistoricalUsed()
+                    && topologyCommSold.getHistoricalUsed().hasPercentile()) {
+                logger.debug("Using percentile {} for {} in {}",
+                        topologyCommSold.getHistoricalUsed().getPercentile(),
+                        topologyCommSold.getCommodityType().getType(),
+                        dto.getDisplayName());
+                soldCommBuilder.setHistoricalQuantity((float) (topologyCommSold.getCapacity()
+                        * topologyCommSold.getScalingFactor()
+                        * topologyCommSold.getHistoricalUsed().getPercentile()));
+            }
+            soldCommodityTOs.add(soldCommBuilder.build());
         }
-        return soldCommBuilder.build();
+        return soldCommodityTOs;
     }
 
 
@@ -258,10 +278,10 @@ public class CommodityConverter {
      * @return a {@link CommoditySoldTO}
      */
     @Nonnull
-    public CommodityDTOs.CommoditySoldTO createCommoditySoldTO(
+    public List<CommodityDTOs.CommoditySoldTO> createCommoditySoldTO(
             @Nonnull CommodityType commodityType,
             float capacity,
-            float used, @Nonnull UpdatingFunctionTO uf) {
+            float used, @Nonnull UpdatingFunctionTO uf, int slots) {
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
@@ -269,17 +289,21 @@ public class CommodityConverter {
                         .setPriceFunction(priceFunction(commodityType, 1.0f))
                         .setUpdateFunction(uf)
                         .build();
-
-        return CommodityDTOs.CommoditySoldTO.newBuilder()
-                .setPeakQuantity(0)
-                .setCapacity(capacity)
-                .setQuantity(used)
-                // Warning: we are down casting from double to float.
-                // Market has to change this field to double
-                .setSettings(economyCommSoldSettings)
-                .setSpecification(commoditySpecification(commodityType))
-                .setThin(false)
-                .build();
+        final List<CommoditySpecificationTO> commoditySpecs = commoditySpecification(commodityType, slots);
+        List<CommodityDTOs.CommoditySoldTO> soldCommodityTOs = new ArrayList<>();
+        for (CommoditySpecificationTO commoditySpec : commoditySpecs) {
+            soldCommodityTOs.add(CommodityDTOs.CommoditySoldTO.newBuilder()
+                    .setPeakQuantity(0)
+                    .setCapacity(capacity)
+                    .setQuantity(used)
+                    // Warning: we are down casting from double to float.
+                    // Market has to change this field to double
+                    .setSettings(economyCommSoldSettings)
+                    .setSpecification(commoditySpec)
+                    .setThin(false)
+                    .build());
+        }
+        return soldCommodityTOs;
     }
 
     /**
@@ -307,8 +331,17 @@ public class CommodityConverter {
      * @return the {@link CommoditySpecificationTO} for the {@link CommodityType}
      */
     @Nonnull
-    public CommodityDTOs.CommoditySpecificationTO commoditySpecification(
-            @Nonnull final CommodityType topologyCommodity) {
+    public List<CommodityDTOs.CommoditySpecificationTO> commoditySpecification(
+            @Nonnull final CommodityType topologyCommodity,
+            int numberOfSlots) {
+        //@Nonnull final DtoType commDto,
+        //@Nullable Function<DtoType, HistoricalValues> histExtractor) {
+
+        List<CommodityDTOs.CommoditySpecificationTO> specs = new ArrayList<>();
+        if (TIMESLOT_COMMODITIES.contains(topologyCommodity)) {
+            return timeSlotCommodityConverter.commoditySpecification(topologyCommodity,
+                    numberOfSlots);
+        }
         final CommodityDTOs.CommoditySpecificationTO economyCommodity =
                 CommodityDTOs.CommoditySpecificationTO.newBuilder()
                         .setType(toMarketCommodityId(topologyCommodity))
@@ -318,7 +351,7 @@ public class CommodityConverter {
                                 .contains(topologyCommodity.getType()))
                         .build();
         commoditySpecMap.put(getKeyFromCommoditySpecification(economyCommodity), topologyCommodity);
-        return economyCommodity;
+        return ImmutableList.of(economyCommodity);
     }
 
     /**
@@ -328,9 +361,9 @@ public class CommodityConverter {
      */
     private String getKeyFromCommoditySpecification(
             @Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
-        return String.valueOf(economyCommodity.getType()) +
+        return (economyCommodity.getType()) +
                     TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR +
-                    String.valueOf(economyCommodity.getBaseType());
+                    (economyCommodity.getBaseType());
     }
 
     /**
@@ -523,7 +556,7 @@ public class CommodityConverter {
      *          and the used extractor is not passed.
      */
     @Nullable
-    public static Float getHistoricalUsedOrPeak(final CommodityBoughtDTO commDto,
+    public static Double[] getHistoricalUsedOrPeak(final CommodityBoughtDTO commDto,
                                                 @Nullable Function<CommodityBoughtDTO, Double> usedExtractor,
                                                 @Nullable Function<CommodityBoughtDTO, HistoricalValues> historicalExtractor ) {
         if (historicalExtractor != null) {
@@ -532,13 +565,18 @@ public class CommodityConverter {
                 float value = (float)hv.getPercentile();
                 logger.debug("Using percentile value {} for recalculating resize capacity for {}",
                         value, commDto.getCommodityType().getType());
+                return new Double[]{Double.valueOf(value)};
+            } else if (hv.getTimeSlotCount() > 1) {
+                Double[] value = (Double[])hv.getTimeSlotList().toArray();
+                logger.debug("Using hist Utilization value {} for recalculating resize capacity for {}",
+                        value, commDto.getCommodityType().getType());
                 return value;
             } else if (hv.hasHistUtilization()) {
                 // if not then hist utilization which is the historical used value.
                 float value = (float)hv.getHistUtilization();
                 logger.debug("Using hist Utilization value {} for recalculating resize capacity for {}",
                         value, commDto.getCommodityType().getType());
-                return value;
+                return new Double[]{Double.valueOf(value)};
             }
         }
         // otherwise take real-time 'used'
@@ -547,7 +585,7 @@ public class CommodityConverter {
             float value = usedExtractor.apply(commDto).floatValue();
             logger.debug("Using current used value {} for recalculating resize capacity for {}",
                     value, commDto.getCommodityType().getType());
-            return value;
+            return new Double[]{Double.valueOf(value)};
         } else {
             return null;
         }

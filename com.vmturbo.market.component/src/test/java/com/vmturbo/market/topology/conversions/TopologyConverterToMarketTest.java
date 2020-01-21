@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -1074,7 +1075,8 @@ public class TopologyConverterToMarketTest {
                     ccd,
                     CommodityIndex.newFactory(), tierExcluderFactory,
                     consistentScalingHelperFactory);
-        return converter.getResizedCapacity(vmEntityDTO, commBought, PROVIDER_ID);
+        final Double[][] resizedCapacitites = converter.getResizedCapacity(vmEntityDTO, commBought, PROVIDER_ID);
+        return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
 
     /**
@@ -1307,8 +1309,9 @@ public class TopologyConverterToMarketTest {
         Mockito.when(marketTier.getTier()).thenReturn(computeTier);
         Mockito.when(cloudTopologyConverter.getMarketTier(PROVIDER_ID)).thenReturn(marketTier);
 
-        return converter.getResizedCapacity(topologyEntityDTO, commodityBoughtDTO,
+        final Double[][] resizedCapacitites = converter.getResizedCapacity(topologyEntityDTO, commodityBoughtDTO,
                 PROVIDER_ID);
+        return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
 
     /*

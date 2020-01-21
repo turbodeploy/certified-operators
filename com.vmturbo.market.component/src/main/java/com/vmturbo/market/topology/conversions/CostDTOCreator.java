@@ -22,6 +22,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Comput
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
@@ -314,29 +315,45 @@ public class CostDTOCreator {
                             tier.getDisplayName(), region.getDisplayName());
                     return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
                 }
+                final int numberOfSlots = tier.getAnalysisSettings().getSlots();
                 tier.getCommoditySoldListList().forEach(c -> {
                     CommodityType commType = c.getCommodityType();
+                    final List<CommoditySpecificationTO> commSpecs =
+                            commodityConverter.commoditySpecification(commType, 1);
+                    if (commSpecs.size() > 1) {
+                        logger.warn("Multiple commodity specs obtained for {}", numberOfSlots);
+                    }
                     // populates the min and max capacity for a given commodity
                     if (c.hasMaxAmountForConsumer() && c.hasMinAmountForConsumer()) {
+
                         storageDTO.addStorageResourceLimitation(StorageTierCostDTO
                                 .StorageResourceLimitation.newBuilder()
-                                .setResourceType(commodityConverter.commoditySpecification(commType))
+                                .setResourceType(commSpecs.get(0))
                                 .setMaxCapacity(c.getMaxAmountForConsumer())
                                 .setMinCapacity(c.getMinAmountForConsumer())
                                 .build());
                     }
                     // populates the ratio dependency between max this commodity and its base commodity
                     if (c.hasRatioDependency()) {
+                        final List<CommoditySpecificationTO> baseCommSpecs =
+                                commodityConverter.commoditySpecification(c.getRatioDependency().getBaseCommodity(), numberOfSlots);
+                        if (baseCommSpecs.size() > 1) {
+                            logger.warn("Multiple commodity specs obtained for {}", commType);
+                        }
                         storageDTO.addStorageResourceDependency(StorageTierCostDTO
                                 .StorageResourceDependency.newBuilder()
-                                .setBaseResourceType(commodityConverter
-                                        .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
-                                .setDependentResourceType(commodityConverter.commoditySpecification(commType))
+                                .setBaseResourceType(baseCommSpecs.get(0))
+                                .setDependentResourceType(commSpecs.get(0))
                                 .setRatio(c.getRatioDependency().getRatio())
                                 .build());
                     }
+                    final List<CommoditySpecificationTO> dependentCommSpecs =
+                            commodityConverter.commoditySpecification(commType, numberOfSlots);
+                    if (dependentCommSpecs.size() > 1) {
+                        logger.warn("Multiple commodity specs obtained for {}", commType);
+                    }
                     if (!storageCostBundle.getPrices(commType).isEmpty()) {
-                        builder.setResourceType(commodityConverter.commoditySpecification(commType));
+                        builder.setResourceType(commSpecs.get(0));
                         storageCostBundle.getPrices(commType).forEach(p -> builder.addStorageTierPriceData(p));
                         storageDTO.addStorageResourceCost(builder.build());
                     }
@@ -382,13 +399,24 @@ public class CostDTOCreator {
                     List<CommoditySoldDTO> ioThruPut =
                             typeToCommodities.get(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE);
 
+                    int slots = tier.getAnalysisSettings().getSlots();
                     if (netThruPut.size() == 1 && ioThruPut.size() == 1) {
+                        final CommodityType netType = netThruPut.get(0).getCommodityType();
+                        final List<CommoditySpecificationTO> netThruPutSpecs =
+                                commodityConverter.commoditySpecification(netType, slots);
+                        if (netThruPutSpecs.size() > 1) {
+                            logger.warn("Multiple specs obtained for {}", netType);
+                        }
+                        final CommodityType ioType = ioThruPut.get(0).getCommodityType();
+                        final List<CommoditySpecificationTO> ioThruPutSpecs =
+                                commodityConverter.commoditySpecification(ioType, slots);
+                        if (ioThruPutSpecs.size() > 1) {
+                            logger.warn("Multiple specs obtained for {}", ioType);
+                        }
                         ComputeResourceDependency.Builder dependency =
                                 ComputeResourceDependency.newBuilder();
-                        dependency.setBaseResourceType(commodityConverter.commoditySpecification(
-                                netThruPut.get(0).getCommodityType()))
-                                .setDependentResourceType(commodityConverter.commoditySpecification(
-                                        ioThruPut.get(0).getCommodityType()));
+                        dependency.setBaseResourceType(netThruPutSpecs.get(0))
+                                .setDependentResourceType(ioThruPutSpecs.get(0));
                         return Optional.of(dependency.build());
                     } else {
                         logger.warn("Expected one commodity each of IOThroughput" +

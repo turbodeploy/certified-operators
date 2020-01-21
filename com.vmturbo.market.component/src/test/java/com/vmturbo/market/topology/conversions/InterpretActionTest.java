@@ -183,9 +183,10 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory);
-        CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
+        List<CommodityDTOs.CommoditySpecificationTO> cs = converter.getCommodityConverter()
+                .commoditySpecification(CommodityType.newBuilder()
                 .setKey("Seg")
-                .setType(11).build());
+                .setType(11).build(), 1);
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
@@ -195,7 +196,7 @@ public class InterpretActionTest {
                         .setProvisionedSeller(-1)
                         .setModelSeller(modelSeller)
                         .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
-                                .setType(0).setBaseType(cs.getBaseType()).build())
+                                .setType(0).setBaseType(cs.get(0).getBaseType()).build())
                         .build())
                 .build();
 
@@ -413,10 +414,10 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory);
-        CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
+        List<CommodityDTOs.CommoditySpecificationTO> cs = converter.getCommodityConverter()
                 .commoditySpecification(CommodityType.newBuilder()
                     .setKey("Seg")
-                    .setType(11).build());
+                    .setType(11).build(), 1);
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
                     .setImportance(0.)
@@ -425,7 +426,7 @@ public class InterpretActionTest {
                         .setProvisionedSeller(-1)
                         .setModelSeller(modelSeller)
                         .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
-                                .setType(0).setBaseType(cs.getBaseType()).build()))
+                                .setType(0).setBaseType(cs.get(0).getBaseType()).build()))
                     .build(), projectedTopology, null, null, null).get().getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.PROVISION));
