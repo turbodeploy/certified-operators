@@ -1,6 +1,8 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -9,13 +11,15 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
-import com.vmturbo.stitching.prestitching.MergeSharedDatacentersPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
+import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
-import com.vmturbo.stitching.prestitching.SharedVirtualVolumePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.StorageVolumePreStitchingOperation;
 
 /**
@@ -59,25 +63,37 @@ public class PreStitchingOperationLibrary {
         preStitchingOperations = listBuilder.add(
                 new RemoveNonMarketEntitiesPreStitchingOperation(),
                 new SharedStoragePreStitchingOperation(),
-                new MergeSharedDatacentersPreStitchingOperation(),
+                new SharedEntityDefaultPreStitchingOperation(
+                        stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
+                                SDKProbeType.HYPERV.getProbeType(), EntityType.DATACENTER)),
                 new StorageVolumePreStitchingOperation(),
-                new SharedVirtualVolumePreStitchingOperation(),
-                new ConnectedNetworkPreStitchingOperation()
-        )
-        .build();
+                new SharedEntityDefaultPreStitchingOperation(
+                        stitchingScopeFactory -> stitchingScopeFactory.probeCategoryEntityTypeScope(
+                                ProbeCategory.STORAGE_BROWSING, EntityType.VIRTUAL_VOLUME),
+                        Collections.singletonMap("common_dto.EntityDTO.VirtualVolumeData.file",
+                                Comparator.comparing(
+                                        lhs -> ((VirtualVolumeFileDescriptor)lhs).getPath()))),
+                new ConnectedNetworkPreStitchingOperation(),
+                new SharedEntityDefaultPreStitchingOperation(
+                        stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
+                                SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType(),
+                                EntityType.BUSINESS_USER), Collections.singletonMap(
+                        "common_dto.EntityDTO.BusinessUserData.sessionData",
+                        Comparator.comparing(lhs -> ((SessionData)lhs).getVirtualMachine()))))
+                .build();
     }
 
     private static Collection<PreStitchingOperation> createCloudEntityPreStitchingOperations() {
-        List<PreStitchingOperation> operationList =
-            AWS_ENTITY_TYPES.stream()
-                .map(entityType ->
-                    new SharedCloudEntityPreStitchingOperation(SDKProbeType.AWS.getProbeType(),
-                        entityType))
+        final Collection<PreStitchingOperation> operations = AWS_ENTITY_TYPES.stream()
+                .map(entityType -> new SharedCloudEntityPreStitchingOperation(
+                        stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
+                                SDKProbeType.AWS.getProbeType(), entityType)))
                 .collect(Collectors.toList());
-        AZURE_ENTITY_TYPES.forEach(entityType -> operationList.add(
-            new SharedCloudEntityPreStitchingOperation(SDKProbeType.AZURE.getProbeType(),
-                entityType)));
-        return operationList;
+        AZURE_ENTITY_TYPES.forEach(entityType -> operations.add(
+                new SharedCloudEntityPreStitchingOperation(
+                        stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
+                                SDKProbeType.AZURE.getProbeType(), entityType))));
+        return operations;
     }
 
     /**

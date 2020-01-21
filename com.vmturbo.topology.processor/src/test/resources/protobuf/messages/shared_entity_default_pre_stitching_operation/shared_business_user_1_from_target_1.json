@@ -1,0 +1,142 @@
+{
+  "entityType": "BUSINESS_USER",
+  "id": "S-1-5-21-3110049146-4222751627-3786824931-5933",
+  "displayName": "corp.vmturbo.com\\horizon-user-57_1",
+  "commoditiesSold": [
+    {
+      "commodityType": "CPU",
+      "key": "BUSINESS_USER_SOLD_CPU_KEY",
+      "used": 123.0
+    },
+    {
+      "commodityType": "CPU",
+      "key": "BUSINESS_USER_SOLD_CPU_KEY_DIFFERENT_1",
+      "used": 456.0
+    }
+  ],
+  "commoditiesBought": [
+    {
+      "providerId": "1ccbaa36cd0962aef6ca3dd3b21452d11742c355",
+      "bought": [
+        {
+          "commodityType": "MEM",
+          "key": "BUSINESS_USER_BOUGHT_KEY",
+          "capacity": 225.0
+        },
+        {
+          "commodityType": "MEM",
+          "key": "BUSINESS_USER_BOUGHT_KEY_DIFFERENT_1"
+        },
+        {
+          "commodityType": "POOL_CPU",
+          "used": 2521.8333333333335,
+          "active": true,
+          "resizable": false
+        },
+        {
+          "commodityType": "IMAGE_MEM",
+          "used": 762662.2666666667,
+          "active": true,
+          "resizable": false,
+          "utilizationData": {
+            "point": [
+              36.366570790608726
+            ],
+            "lastPointTimestampMs": "1579600758250",
+            "intervalMs": 600000
+          }
+        },
+        {
+          "commodityType": "IMAGE_STORAGE",
+          "used": 26190.0,
+          "active": true,
+          "resizable": false,
+          "utilizationData": {
+            "point": [
+              41.106452266269066
+            ],
+            "lastPointTimestampMs": "1579600758251",
+            "intervalMs": 600000
+          }
+        },
+        {
+          "commodityType": "IMAGE_CPU",
+          "used": 2521.8333333333335,
+          "active": true,
+          "resizable": false,
+          "utilizationData": {
+            "point": [
+              96.99358974358975
+            ],
+            "lastPointTimestampMs": "1579600758250",
+            "intervalMs": 600000
+          }
+        },
+        {
+          "commodityType": "POOL_MEM",
+          "used": 2097152.0,
+          "active": true,
+          "resizable": false
+        },
+        {
+          "commodityType": "ACTIVE_SESSIONS",
+          "key": "DesktopPool::1ccbaa36cd0962aef6ca3dd3b21452d11742c355",
+          "used": 1.0,
+          "active": true,
+          "resizable": false
+        },
+        {
+          "commodityType": "POOL_STORAGE",
+          "used": 26190.0,
+          "active": true,
+          "resizable": false
+        }
+      ],
+      "providerType": "DESKTOP_POOL"
+    },
+    {
+      "providerId": "7b2ed5998e3c5b93c87b20a77f4406c710f7aad3",
+      "bought": [
+        {
+          "commodityType": "ACTIVE_SESSIONS",
+          "key": "ActiveSession::6e049ca6928df8c4ced6fb3b7c899eb653e65ccb",
+          "used": 1.0,
+          "active": false,
+          "resizable": false
+        }
+      ],
+      "providerType": "VIRTUAL_MACHINE"
+    }
+  ],
+  "entityProperties": [
+    {
+      "namespace": "DEFAULT",
+      "name": "LocalName",
+      "value": "S-1-5-21-3110049146-4222751627-3786824931-5933"
+    },
+    {
+      "namespace": "DEFAULT",
+      "name": "distinguishedName",
+      "value": "CN\u003dhorizon-user-57,OU\u003dVMware Horizon,OU\u003dTesting,OU\u003dUsers,OU\u003dDomain,DC\u003dcorp,DC\u003dvmturbo,DC\u003dcom"
+    },
+    {
+      "namespace": "DEFAULT",
+      "name": "relatedGroups",
+      "value": "[]"
+    },
+    {
+      "namespace": "DEFAULT",
+      "name": "vmStitchingKey",
+      "value": "a449a445be79e12f8267d818b63db9c4e9a8ab86"
+    }
+  ],
+  "powerState": "POWERED_ON",
+  "businessUserData": {
+    "sessionData": [
+      {
+        "virtualMachine": "7b2ed5998e3c5b93c87b20a77f4406c710f7aad3",
+        "sessionDuration": "1022329167"
+      }
+    ]
+  }
+}
