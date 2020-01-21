@@ -48,6 +48,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.springframework.context.annotation.Bean;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -76,12 +77,11 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -108,8 +108,10 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -133,7 +135,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -218,11 +219,22 @@ public class StatsServiceTest {
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
             groupServiceSpy, planServiceSpy, repositoryServiceSpy);
 
+    @Bean
+    public SupplyChainServiceBlockingStub supplyChainRpcService() {
+        return SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                .withInterceptors(jwtClientInterceptor());
+    }
+
+    @Bean
+    public JwtClientInterceptor jwtClientInterceptor() {
+        return new JwtClientInterceptor();
+    }
+
     @Before
     public void setUp() throws Exception {
         serviceEntityMapper = new ServiceEntityMapper(targetCache,
                         CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                        Clock.systemUTC());
+                        supplyChainRpcService());
         final StatsHistoryServiceBlockingStub statsServiceRpc =
             StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
@@ -269,24 +281,6 @@ public class StatsServiceTest {
 
         final SearchRequest dcReq = ApiTestUtils.mockSearchMinReq(Collections.emptyList());
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(dcReq);
-    }
-
-    private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory, float value) {
-        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
-        statRecordBuilder.setAssociatedEntityId(4l);
-        statRecordBuilder.setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
-        statRecordBuilder.setCategory(costCategory);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-
-        statValueBuilder.setAvg(value);
-        statValueBuilder.setTotal(value);
-        statValueBuilder.setMax(value);
-        statValueBuilder.setMin(value);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
-        return statRecordBuilder;
     }
 
     public StatPeriodApiInputDTO buildStatPeriodApiInputDTO(long currentDate, String startDate, String endDate, String statName) {
@@ -657,8 +651,7 @@ public class StatsServiceTest {
         when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(retDto);
 
         // Act
-        final EntityStatsPaginationResponse result =
-            statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+        statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // Assert
         verify(planServiceSpy).getPlan(planIdProto);
@@ -809,7 +802,7 @@ public class StatsServiceTest {
 
         // Act
         // request will fail with access denied because group member 2 is out of scope
-        List<EntityStatsApiDTO> stats = getStatsByUuidsQuery(statsService, inputDto);
+        getStatsByUuidsQuery(statsService, inputDto);
     }
 
     // test that a temp group request for a scoped user is translated to an entity-specific request.
@@ -915,7 +908,7 @@ public class StatsServiceTest {
         when(statsMapper.shouldNormalize(UIEntityType.DATACENTER.apiStr())).thenReturn(true);
 
         // act
-        final EntityStatsPaginationResponse response = statsService.getStatsByUuidsQuery(inputDto,
+        statsService.getStatsByUuidsQuery(inputDto,
                 new EntityStatsPaginationRequest("foo", 1, true, "order"));
 
         // Assert
@@ -1046,7 +1039,7 @@ public class StatsServiceTest {
         doReturn(getEntityStatsResponse).when(statsHistoryServiceSpy).getEntityStats(any());
 
         //WHEN
-        EntityStatsPaginationResponse response = statsService.getLiveEntityStats(statScopesApiInputDTO, paginationRequest);
+        statsService.getLiveEntityStats(statScopesApiInputDTO, paginationRequest);
 
         //THEN
         verify(paginationRequest).finalPageResponse(any(), eq(100));
@@ -1079,7 +1072,7 @@ public class StatsServiceTest {
         doReturn(getEntityStatsResponse).when(statsHistoryServiceSpy).getEntityStats(any());
 
         //WHEN
-        EntityStatsPaginationResponse response = statsService.getLiveEntityStats(statScopesApiInputDTO, paginationRequest);
+        statsService.getLiveEntityStats(statScopesApiInputDTO, paginationRequest);
 
         //THEN
         verify(paginationRequest).nextPageResponse(any(), eq("NextCursor"), eq(100));

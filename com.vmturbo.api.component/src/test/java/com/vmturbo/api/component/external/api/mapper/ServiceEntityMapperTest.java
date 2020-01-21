@@ -2,11 +2,12 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -15,20 +16,32 @@ import javax.annotation.Nonnull;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.springframework.context.annotation.Bean;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -68,13 +81,16 @@ public class ServiceEntityMapperTest {
 
     private final CostMoles.ReservedInstanceBoughtServiceMole reservedInstanceBoughtServiceMole =
                     spy(new CostMoles.ReservedInstanceBoughtServiceMole());
+
+    private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
+            spy(new SupplyChainServiceMole());
+
     /**
      * Rule to provide GRPC server and channels for GRPC services for test purposes.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
-    private Cache<Long, Float> priceCache;
-    private Clock clock;
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole, supplyChainMole);
+
 
     @Before
     public void setup() {
@@ -89,14 +105,19 @@ public class ServiceEntityMapperTest {
             .isHidden(false)
             .build();
         when(targetCache.getTargetInfo(TARGET_ID)).thenReturn(Optional.of(thinTargetInfo));
-        priceCache = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.MINUTES).build();
-        clock = Clock.systemUTC();
+    }
+
+    @Bean
+    public JwtClientInterceptor jwtClientInterceptor() {
+        return new JwtClientInterceptor();
     }
 
     @Test
     public void testApiToServiceEntity() {
         final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                            .withInterceptors(jwtClientInterceptor()));
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -199,7 +220,9 @@ public class ServiceEntityMapperTest {
     @Test
     public void testToServiceEntityApiDTO() throws Exception {
         final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                            .withInterceptors(jwtClientInterceptor()));
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -252,7 +275,9 @@ public class ServiceEntityMapperTest {
     @Test
     public void testToServiceEntityApiDTOWithEmptyDisplayName() {
         final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                            .withInterceptors(jwtClientInterceptor()));
 
         final String displayName = "";
         final long oid = 152L;
@@ -273,6 +298,52 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(
             entityType.getNumber(),
             UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
+    }
+
+    @Test
+    public void testToServiceEntityApiDTOWithVMsCount() {
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
+                CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
+                    .withInterceptors(jwtClientInterceptor()));
+
+        final String displayName = "Test Zone";
+        final String localName = "Test Zone Local Name";
+        final long zoneId = 10L;
+        final long vmId = 20L;
+
+        final ApiPartialEntity apiEntity =
+            ApiPartialEntity.newBuilder()
+                .setDisplayName(displayName)
+                .setOid(zoneId)
+                .setEntityType(EntityType.AVAILABILITY_ZONE.getNumber())
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .putDiscoveredTargetData(TARGET_ID,
+                        PerTargetEntityInformation
+                            .newBuilder()
+                            .setVendorId(localName)
+                            .build())
+                .build();
+
+        final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList
+                .of(buildMultiSupplyChainResponse(zoneId, vmId));
+        when(supplyChainMole.getMultiSupplyChains(any())).thenReturn(supplyChainResponses);
+
+        final ServiceEntityApiDTO serviceEntityApiDTO = mapper.toServiceEntityApiDTO(apiEntity);
+
+        Assert.assertEquals(1, serviceEntityApiDTO.getNumRelatedVMs().intValue());
+    }
+
+    private GetMultiSupplyChainsResponse buildMultiSupplyChainResponse(long seedId, long nodeId) {
+        return GetMultiSupplyChainsResponse.newBuilder().setSeedOid(seedId).setSupplyChain(SupplyChain
+            .newBuilder().addSupplyChainNodes(makeSupplyChainNode(nodeId))).build();
+    }
+
+    private SupplyChainNode makeSupplyChainNode(long oid) {
+        return SupplyChainNode.newBuilder().setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
+                    MemberList.newBuilder().addMemberOids(oid).build())
+            .build();
     }
 
 }
