@@ -36,10 +36,6 @@ public class SMAReservedInstance {
      */
     private final long businessAccount;
     /*
-     * Percentage of RI used to discount VMs.
-     */
-    private float utilization;
-    /*
      * Template, used to infer CSP, family and coupons.
      */
 
@@ -102,7 +98,6 @@ public class SMAReservedInstance {
      * @param oid             unique identifier
      * @param name            name of RI
      * @param businessAccount business account
-     * @param utilization     RI utilization
      * @param template        compute tier
      * @param zone            availabilty zone
      * @param count           number of RIs
@@ -111,7 +106,6 @@ public class SMAReservedInstance {
     public SMAReservedInstance(final long oid,
                                @Nonnull final String name,
                                final long businessAccount,
-                               float utilization,
                                @Nonnull final SMATemplate template,
                                final long zone,
                                final int count,
@@ -119,7 +113,6 @@ public class SMAReservedInstance {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.businessAccount = businessAccount;
-        this.utilization = utilization;
         this.template = Objects.requireNonNull(template, "template is null!");
         this.normalizedTemplate = template;
         this.zone = zone;
@@ -198,14 +191,6 @@ public class SMAReservedInstance {
     @Nonnull
     public long getBusinessAccount() {
         return businessAccount;
-    }
-
-    public float getUtilization() {
-        return utilization;
-    }
-
-    public void setUtilization(float value) {
-        utilization = value;
     }
 
     @Nonnull
@@ -353,17 +338,19 @@ public class SMAReservedInstance {
      * @return discounted coupons.
      */
     public float getRICoverage(SMAVirtualMachine vm) {
+        float riCoverage = 0;
         if (vm.getGroupSize() > 1) {
-            return riCoveragePerGroup.get(vm.getGroupName()).first
+            riCoverage = riCoveragePerGroup.get(vm.getGroupName()).first
                     / riCoveragePerGroup.get(vm.getGroupName()).second;
         } else {
             if (isSingleVMDiscounted(vm)) {
-                return vm.getCurrentRICoverage()
+                riCoverage = vm.getCurrentRICoverage()
                         / vm.getCurrentTemplate().getCoupons();
             } else {
                 return 0;
             }
         }
+        return SMAUtils.round(riCoverage);
     }
 
     /**
@@ -393,7 +380,6 @@ public class SMAReservedInstance {
                 "OID='" + oid + "'" +
                 ", name='" + name + "'" +
                 ", businessAccount='" + businessAccount + "'" +
-                ", utilization=" + utilization +
                 ", normalizedTemplate=" + normalizedTemplate +
                 ", zone='" + zone + "'" +
                 ", totalCount=" + totalCount +

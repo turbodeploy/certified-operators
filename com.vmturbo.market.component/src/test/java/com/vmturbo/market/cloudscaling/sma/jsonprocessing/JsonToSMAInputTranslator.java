@@ -269,7 +269,6 @@ public class JsonToSMAInputTranslator {
         long oid = reservedInstanceObj.get("oid").getAsLong();
         String name = reservedInstanceObj.get("name").getAsString();
         long businessAccount = reservedInstanceObj.get("businessAccount").getAsLong();
-        float utilization = reservedInstanceObj.get("utilization").getAsFloat();
         long templateOid = reservedInstanceObj.get("template").getAsLong();
         long zone = SMAUtils.NO_ZONE;
         JsonElement zoneObj = reservedInstanceObj.get("zone");
@@ -277,7 +276,7 @@ public class JsonToSMAInputTranslator {
             zone = reservedInstanceObj.get("zone").getAsLong();
         }
         int count = reservedInstanceObj.get("count").getAsInt();
-        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, name, businessAccount, utilization, oidToTemplate.get(templateOid), zone, count, context);
+        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, name, businessAccount, oidToTemplate.get(templateOid), zone, count, context);
         return reservedInstance;
     }
 

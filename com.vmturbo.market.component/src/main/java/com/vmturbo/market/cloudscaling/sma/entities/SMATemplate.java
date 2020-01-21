@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
 /**
  * SMA representation of a provide, either on-demand or discounted.
@@ -122,32 +123,12 @@ public class SMATemplate {
     }
 
     /**
-     * Given a business account ID, get the on-demand cost.
-     * @param businessAccountId business account ID
-     * @return on-demand cost
-     */
-    @Nonnull
-    public SMACost getOnDemandCost(long businessAccountId) {
-        return onDemandCosts.get(businessAccountId);
-    }
-
-    /**
      * Given a business account ID, set the on-demand cost.
      * @param businessAccountId business account ID
      * @param cost cost
      */
     public void setOnDemandCost(long businessAccountId, @Nonnull SMACost cost) {
         onDemandCosts.put(businessAccountId, Objects.requireNonNull(cost));
-    }
-
-    /**
-     * Given a business account ID, return the discounted cost.
-     * @param businessAccountId business account ID
-     * @return cost
-     */
-    @Nonnull
-    public SMACost getDiscountedCost(long businessAccountId) {
-        return discountedCosts.get(businessAccountId);
     }
 
     /**
@@ -160,36 +141,6 @@ public class SMATemplate {
     }
 
     /**
-     * Lookup the on-demand compute cost for the business account ID.
-     * @param businessAccountId business account ID
-     * @return on-demand compute cost or 0 if not found.
-     */
-    public float getOnDemandComputeCost(long businessAccountId) {
-        SMACost cost = onDemandCosts.get(businessAccountId);
-        if (cost == null) {
-            logger.warn("getOnDemandComputeCost: OID={} name={} has no discounted cost for businessAccountId={}!",
-                oid, name, businessAccountId);
-            return 0.0f;
-        }
-        return cost.getCompute();
-    }
-
-    /**
-     * Lookup the on-demand license cost for the business account.
-     * @param businessAccountId the business account ID.
-     * @return on-demand license cost or 0 if not found.
-     */
-    public float getOnDemandLicenseCost(long businessAccountId) {
-        SMACost cost = onDemandCosts.get(businessAccountId);
-        if (cost == null) {
-            logger.warn("getOnDemandLicenseCost: OID={} name={} has no discounted cost for businessAccountId={}!",
-                oid, name, businessAccountId);
-            return 0.0f;
-        }
-        return cost.getLicense();
-    }
-
-    /**
      * Lookup the on-demand total cost for the business account.
      * @param businessAccountId the business account ID.
      * @return on-demand total cost or 0 if not found.
@@ -199,40 +150,11 @@ public class SMATemplate {
         if (cost == null) {
             logger.warn("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={}!",
                 oid, name, businessAccountId);
-            return 0.0f;
+            return 0f;
         }
-        return cost.getTotal();
+        return SMAUtils.round(cost.getTotal());
     }
 
-    /**
-     * Lookup the discounted compute cost for the business account.
-     * @param businessAccountId the business account ID.
-     * @return discounted compute cost or 0 if not found.
-     */
-    public float getDiscountedComputeCost(long businessAccountId) {
-        SMACost cost = discountedCosts.get(businessAccountId);
-        if (cost == null) {
-            logger.warn("getDiscountedComputeCost: OID={} name={} has no discounted cost for businessAccountId={}!",
-                oid, name, businessAccountId);
-            return 0.0f;
-        }
-        return cost.getCompute();
-    }
-
-    /**
-     * Lookup the discounted license cost for the business account.
-     * @param businessAccountId the business account ID.
-     * @return discounted license cost or 0 if not found.
-     */
-    public float getDiscountedLicenseCost(long businessAccountId) {
-        SMACost cost = discountedCosts.get(businessAccountId);
-        if (cost == null) {
-            logger.warn("getDiscountedLicenseCost: OID={} name={} has no discounted cost for businessAccountId={}!",
-                oid, name, businessAccountId);
-            return 0.0f;
-        }
-        return cost.getLicense();
-    }
 
     /**
      * Lookup the discounted total cost for the business account.
@@ -244,9 +166,9 @@ public class SMATemplate {
         if (cost == null) {
             logger.warn("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={}!",
                 oid, name, businessAccountId);
-            return 0.0f;
+            return 0f;
         }
-        return cost.getTotal();
+        return SMAUtils.round(cost.getTotal());
     }
 
     /**
@@ -259,14 +181,15 @@ public class SMATemplate {
      * @return cost after applying discounted coupons.
      */
     public float getNetCost(long businessAccountId, float discountedCoupons) {
+        float netCost = 0f;
         if (discountedCoupons > coupons || coupons == 0) {
-            return getDiscountedTotalCost(businessAccountId);
+            netCost = getDiscountedTotalCost(businessAccountId);
         } else {
             float discountPercentage = discountedCoupons / coupons;
-            return (getDiscountedTotalCost(businessAccountId) * discountPercentage) +
+            netCost = (getDiscountedTotalCost(businessAccountId) * discountPercentage) +
                     (getOnDemandTotalCost(businessAccountId) * (1 - discountPercentage));
-
         }
+        return SMAUtils.round(netCost);
     }
 
     @Override

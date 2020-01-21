@@ -15,12 +15,12 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
@@ -42,6 +42,64 @@ public class StableMarriagePerContext {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Run the StableMarriage algorithm until it converges.
+     * The Stable marriage with have a unique solution for a given preference list as long as all
+     * the VMs are buying the same number of coupons. But when the coupons bought by the
+     * VM is not same for each RI then the order in which the RI shops determines the output.
+     * So we might have to run the algorithm multiple times for it to converge.
+     * @param inputContext the input of SMA partitioned on a per context basis.
+     * @return the matching in the inputContext.
+     */
+    public static SMAOutputContext execute(final SMAInputContext inputContext) {
+        long mismatch = 1;
+        int iterations = 0;
+        SMAInputContext modifiableInputContext = new SMAInputContext(inputContext);
+        SMAOutputContext outputContext = null;
+        while (mismatch > 0 && iterations < SMAUtils.MAX_ITERATIONS) {
+            outputContext = executeOnce(modifiableInputContext);
+            mismatch = computeMismatch(outputContext, modifiableInputContext);
+            modifiableInputContext = new SMAInputContext(modifiableInputContext, outputContext);
+            iterations++;
+        }
+        updateOutputWithActualVirtualMachines(outputContext, inputContext);
+        return outputContext;
+    }
+
+    /**
+     * Update the vm's in the outPutContext with the actual vms.
+     * @param outputContext the output context to be modified
+     * @param inputContext the unmodified inout context
+     */
+    public static void updateOutputWithActualVirtualMachines(SMAOutputContext outputContext,
+                                                             SMAInputContext inputContext) {
+        Collections.sort(inputContext.getVirtualMachines(), new SortVmByOID());
+        Collections.sort(outputContext.getMatches(), new SortMatchesByVMOID());
+        for (int i = 0; i < outputContext.getMatches().size(); i++) {
+            outputContext.getMatches().get(i)
+                    .setVirtualMachine(inputContext.getVirtualMachines().get(i));
+        }
+    }
+
+    /**
+     * Calculate the number of mismatch between the input VM and output VM. mismatch occurs if
+     * template or ri coverage change.
+     * @param outputContext the output context
+     * @param inputContext the input context
+     * @return the number of VMs whose template or ricoverage changed during the SMA.
+     */
+    public static long computeMismatch(SMAOutputContext outputContext, SMAInputContext inputContext) {
+        long mismatch = 0;
+        for (SMAMatch match : outputContext.getMatches()) {
+            SMAVirtualMachine vm = match.getVirtualMachine();
+            SMATemplate currentTemplate = vm.getCurrentTemplate();
+            SMATemplate matchTemplate = match.getTemplate();
+            if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
+                mismatch++;
+            }
+        }
+        return mismatch;
+    }
 
     /**
      * Given a inputContext, run SMA.
@@ -49,7 +107,7 @@ public class StableMarriagePerContext {
      * @param inputContext the input of SMA partitioned on a per context basis.
      * @return up date the matching in the inputContext.
      */
-    public static SMAOutputContext execute(SMAInputContext inputContext) {
+    public static SMAOutputContext executeOnce(SMAInputContext inputContext) {
 
         logger.debug("stableMarriage start");
         final Stopwatch stopWatch = Stopwatch.createStarted();
@@ -216,9 +274,8 @@ public class StableMarriagePerContext {
     }
 
     /**
-     * Given two SMAMatch, compare by virtual machine name.
+     * Given two SMAMatch, compare by virtual machine oid.
      */
-
     public static class SortMatchesByVMOID implements Comparator<SMAMatch> {
         @Override
         public int compare(SMAMatch match1, SMAMatch match2) {
@@ -227,8 +284,17 @@ public class StableMarriagePerContext {
     }
 
     /**
+     * Given two VirtualMachines, compare by virtual machine oid.
+     */
+    public static class SortVmByOID implements Comparator<SMAVirtualMachine> {
+        @Override
+        public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
+            return (vm1.getOid() - vm2.getOid() > 0) ? 1 : -1;
+        }
+    }
+
+    /**
      * Determine if all the RIs in the list are zonal or regional or mixed.
-     *
      * @param reservedInstances the list of reserved instances.
      * @return the RIs in the list are zonal or regional or mixed.
      */
@@ -517,11 +583,13 @@ public class StableMarriagePerContext {
      * @param vm                     virtual machine considering for engagement
      * @param oldEngagement          engagement the VM is already engaged to
      * @param newEngagement          current engagement considering to be engaged by VM
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @return true if newEngagement, else false, that is, VM stays engaged to oldEngagement
      */
     protected static boolean preference(SMAVirtualMachine vm,
                                         SMAMatch oldEngagement,
-                                        SMAMatch newEngagement) {
+                                        SMAMatch newEngagement,
+                                        Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         try {
             Objects.requireNonNull(vm, "VM is null");
             Objects.requireNonNull(oldEngagement, "oldEngagement is null");
@@ -532,21 +600,68 @@ public class StableMarriagePerContext {
             SMAReservedInstance newRI = newEngagement.getReservedInstance();
             SMAReservedInstance oldRI = oldEngagement.getReservedInstance();
 
-            float discountNewRI = newRI.getRICoverage(vm);
-            float discountOldRI = oldRI.getRICoverage(vm);
+            float newRiCoverage = newRI.getRICoverage(vm);
+            float oldRiCoverage = oldRI.getRICoverage(vm);
             // if vm is already covered by one of the RI prefer that RI
 
-            if (discountNewRI - discountOldRI > SMAUtils.EPSILON) {
+            if (newRiCoverage - oldRiCoverage > SMAUtils.EPSILON) {
                 return true;
             }
-            if (discountOldRI - discountNewRI > SMAUtils.EPSILON) {
+            if (oldRiCoverage - newRiCoverage > SMAUtils.EPSILON) {
                 return false;
             }
+
             // Zonal preference
             // Beyond this point, both the RIs are Regional or both are Zonal.
             final Boolean zonalPreference = zonalPreference(newRI, oldRI);
             if (zonalPreference != null) {
                 return zonalPreference;
+            }
+
+
+            SMATemplate newTemplate = newEngagement.getTemplate();
+            SMATemplate oldTemplate = oldEngagement.getTemplate();
+
+            int newAccountMoves = accountMoves(vm, newRI.getBusinessAccount(),
+                    virtualMachineGroupMap);
+            int oldAccountMoves = accountMoves(vm, oldRI.getBusinessAccount(),
+                    virtualMachineGroupMap);
+            if (newAccountMoves < oldAccountMoves) {
+                return true;
+            } else if (newAccountMoves > oldAccountMoves) {
+                return false;
+            }
+
+            // Minimize moves based on VM's current allocated template and the new and old RI
+            // template.  Beyond this point, VM's allocated template does not match either
+            // the new or current RI
+
+            int newTemplateMoves = templateMoves(vm, newTemplate, virtualMachineGroupMap);
+            int oldTemplateMoves = templateMoves(vm, oldTemplate, virtualMachineGroupMap);
+            if (newTemplateMoves < oldTemplateMoves) {
+                return true;
+            } else if (newTemplateMoves > oldTemplateMoves) {
+                return false;
+            }
+            int newFamilyMoves = familyMoves(vm, newTemplate.getFamily(), virtualMachineGroupMap);
+            int oldFamilyMoves = familyMoves(vm, oldTemplate.getFamily(), virtualMachineGroupMap);
+            if (newFamilyMoves < oldFamilyMoves) {
+                return true;
+            } else if (newFamilyMoves > oldFamilyMoves) {
+                return false;
+            }
+
+            // pick the RI which has lower ondemand cost.
+
+            float newTemplateTotalCost = newTemplate.getOnDemandTotalCost(vm.getBusinessAccount());
+            float oldTemplateTotalCost = oldTemplate.getOnDemandTotalCost(vm.getBusinessAccount());
+
+            if (SMAUtils.round(newTemplateTotalCost - oldTemplateTotalCost)
+                    > SMAUtils.EPSILON) {
+                return false;
+            } else if (SMAUtils.round(oldTemplateTotalCost - newTemplateTotalCost)
+                    > SMAUtils.EPSILON) {
+                return true;
             }
 
             // Last resort break tie with oid. t3a.large and t3.large happens
@@ -591,10 +706,13 @@ public class StableMarriagePerContext {
      *
      * @param oldEngagement          the engagement of the group leader. null if currently not engaged.
      * @param newEngagement          current engagement considering to be engaged by VM
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @return true if newEngagement is better, else false, that is, VM stays engaged to oldEngagement
      */
     public static boolean isCurrentRIBetterThanOldRI(SMAMatch oldEngagement,
-                                                     SMAMatch newEngagement) {
+                                                     SMAMatch newEngagement,
+                                                     Map<String, SMAVirtualMachineGroup>
+                                                             virtualMachineGroupMap) {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
         float costImprovement = costImprovement(virtualMachine.getBusinessAccount(),
                 (float)newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
@@ -603,9 +721,11 @@ public class StableMarriagePerContext {
                         0 : (float)oldEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 (oldEngagement == null) ?
                         virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate());
+        costImprovement = SMAUtils.round(costImprovement);
         if (oldEngagement == null && costImprovement <
-                (0.1 * virtualMachine.getGroupSize() *
-                    virtualMachine.getNaturalTemplate().getOnDemandTotalCost(virtualMachine.getBusinessAccount()))) {
+                (SMAUtils.IMPROVEMENT_FACTOR * virtualMachine.getGroupSize() *
+                    virtualMachine.getNaturalTemplate()
+                            .getOnDemandTotalCost(virtualMachine.getBusinessAccount()))) {
             return false;
         }
         if (costImprovement < -1.0 * SMAUtils.EPSILON) {
@@ -616,7 +736,8 @@ public class StableMarriagePerContext {
             if (oldEngagement == null) {
                 return false;
             } else {
-                return preference(virtualMachine, oldEngagement, newEngagement);
+                return preference(virtualMachine, oldEngagement,
+                        newEngagement, virtualMachineGroupMap);
             }
         }
     }
@@ -703,7 +824,7 @@ public class StableMarriagePerContext {
                 SMAMatch newEngagement = new SMAMatch(currentVM, destinationTemplate,
                         currentRI, discountedCoupons);
                 Boolean isCurrentRIBetter = isCurrentRIBetterThanOldRI(oldEngagement,
-                        newEngagement);
+                        newEngagement, virtualMachineGroupMap);
                 statistics.incrementPreferenceCalls();
                 if (isCurrentRIBetter) {
                     if (oldEngagement == null) {
@@ -842,10 +963,8 @@ public class StableMarriagePerContext {
             float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;
             float netSavingVm2PerCoupon = netSavingVm2 / couponsVm2;
 
-            netSavingVm1PerCoupon = (float)Math.round(netSavingVm1PerCoupon *
-                    SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
-            netSavingVm2PerCoupon = (float)Math.round(netSavingVm2PerCoupon *
-                    SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
+            netSavingVm1PerCoupon = SMAUtils.round(netSavingVm1PerCoupon);
+            netSavingVm2PerCoupon = SMAUtils.round(netSavingVm2PerCoupon);
 
             // Pick VM with higher savings per coupon.
             if ((netSavingVm1PerCoupon - netSavingVm2PerCoupon) > SMAUtils.EPSILON) {
@@ -861,7 +980,6 @@ public class StableMarriagePerContext {
             if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
                 return 1;
             }
-
             // pick VM with higher RI coverage.
             float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
             float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
@@ -874,33 +992,47 @@ public class StableMarriagePerContext {
                 return 1;
             }
 
+            int vm1AccountMoves = accountMoves(vm1, reservedInstance.getBusinessAccount(),
+                    virtualMachineGroupMap);
+            int vm2AccountMoves = accountMoves(vm2, reservedInstance.getBusinessAccount(),
+                    virtualMachineGroupMap);
+            if (vm1AccountMoves < vm2AccountMoves) {
+                return -1;
+            } else if (vm1AccountMoves > vm2AccountMoves) {
+                return 1;
+            }
+
             // pick vm with lesser moves
             if (!reservedInstance.isIsf()) {
-                int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate());
-                int vm2TemplateMoves = templateMoves(vm2, reservedInstance.getNormalizedTemplate());
+                int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate(),
+                        virtualMachineGroupMap);
+                int vm2TemplateMoves = templateMoves(vm2, reservedInstance.getNormalizedTemplate(),
+                        virtualMachineGroupMap);
                 if (vm1TemplateMoves < vm2TemplateMoves) {
                     return -1;
                 } else if (vm1TemplateMoves > vm2TemplateMoves) {
                     return 1;
-            }
+                }
             } else {
-                int vm1TemplateMoves = templateMoves(vm1, vm1.getMinCostProviderPerFamily(riFamily));
-                int vm2TemplateMoves = templateMoves(vm2, vm2.getMinCostProviderPerFamily(riFamily));
+                int vm1TemplateMoves = templateMoves(vm1, vm1.getMinCostProviderPerFamily(riFamily),
+                        virtualMachineGroupMap);
+                int vm2TemplateMoves = templateMoves(vm2, vm2.getMinCostProviderPerFamily(riFamily),
+                        virtualMachineGroupMap);
                 if (vm1TemplateMoves < vm2TemplateMoves) {
                     return -1;
                 } else if (vm1TemplateMoves > vm2TemplateMoves) {
                     return 1;
                 }
             }
+
             // pick vm in the same family
-            int vm1FamilyMoves = familyMoves(vm1, riFamily);
-            int vm2FamilyMoves = familyMoves(vm2, riFamily);
+            int vm1FamilyMoves = familyMoves(vm1, riFamily, virtualMachineGroupMap);
+            int vm2FamilyMoves = familyMoves(vm2, riFamily, virtualMachineGroupMap);
             if (vm1FamilyMoves < vm2FamilyMoves) {
                 return -1;
             } else if (vm1FamilyMoves > vm2FamilyMoves) {
                 return 1;
             }
-
 
             //return breakTie(vm1, vm2);
             // We could break tie yet. Last resort is to use oid.
@@ -908,49 +1040,6 @@ public class StableMarriagePerContext {
                 return -1;
             } else {
                 return 1;
-            }
-        }
-
-        /**
-         * the number of moves required for the vm/vmGroup to change to the new template.
-         *
-         * @param vm                  the VM of interest
-         * @param template            new  template
-         * @return move count
-         */
-        int templateMoves(final SMAVirtualMachine vm,
-                                         final SMATemplate template) {
-            int moves = 0;
-            if (vm.getGroupSize() > 1) {
-                for (SMAVirtualMachine member : virtualMachineGroupMap
-                        .get(vm.getGroupName()).getVirtualMachines()) {
-                    moves += member.getCurrentTemplate().equals(template) ? 0 : 1;
-                }
-                return moves;
-            } else {
-                return vm.getCurrentTemplate().equals(template) ? 0 : 1;
-            }
-        }
-
-
-        /**
-         * the number of family change for the vm/vmGroup to change to the new template.
-         *
-         * @param vm                  the VM of interest
-         * @param family            new  template family
-         * @return move count
-         */
-        int familyMoves(final SMAVirtualMachine vm,
-                                       final String family) {
-            int moves = 0;
-            if (vm.getGroupSize() > 1) {
-                for (SMAVirtualMachine member : virtualMachineGroupMap
-                        .get(vm.getGroupName()).getVirtualMachines()) {
-                    moves += member.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
-                }
-                return moves;
-            } else {
-                return vm.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
             }
         }
 
@@ -968,7 +1057,7 @@ public class StableMarriagePerContext {
             SMATemplate riTemplate = reservedInstance.getNormalizedTemplate();
             float netSavingvm = 0;
             for (SMAVirtualMachine member : vmList) {
-                float onDemandCostvm = member.getNaturalTemplate().getOnDemandTotalCost(vm.getBusinessAccount());
+                float onDemandCostvm = member.getNaturalTemplate().getNetCost(vm.getBusinessAccount(), 0);
                 /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
                  *  t2.large need 10 coupons. But we have only 6 coupons.
                  *  riTemplate.getFamily() returns t2.
@@ -991,6 +1080,77 @@ public class StableMarriagePerContext {
             }
             return netSavingvm;
 
+        }
+    }
+
+    /**
+     * the number of moves required for the vm to change to the new template.
+     *
+     * @param vm                  the VM of interest
+     * @param template            new  template
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
+     * @return move count
+     */
+    private static int templateMoves(final SMAVirtualMachine vm,
+                                     final SMATemplate template,
+                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+        int moves = 0;
+        if (vm.getGroupSize() > 1) {
+            for (SMAVirtualMachine member : virtualMachineGroupMap
+                    .get(vm.getGroupName()).getVirtualMachines()) {
+                moves += member.getCurrentTemplate().equals(template) ? 0 : 1;
+            }
+            return moves;
+        } else {
+            return vm.getCurrentTemplate().equals(template) ? 0 : 1;
+        }
+    }
+
+    /**
+     * the number of VMs that have different business account than the RI.
+     *
+     * @param vm                  the VM of interest
+     * @param businessAccount     business account of the RI
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
+     * @return move count
+     */
+    private static int accountMoves(final SMAVirtualMachine vm,
+                                     final long businessAccount,
+                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+        int moves = 0;
+        if (vm.getGroupSize() > 1) {
+            for (SMAVirtualMachine member : virtualMachineGroupMap
+                    .get(vm.getGroupName()).getVirtualMachines()) {
+                moves += (member.getBusinessAccount() == businessAccount) ? 0 : 1;
+            }
+            return moves;
+        } else {
+            return (vm.getBusinessAccount() == businessAccount) ? 0 : 1;
+        }
+    }
+
+
+    /**
+     * the number of family change for the vm to change to the new template.
+     *
+     * @param vm                  the VM of interest
+     * @param family              family of new template
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
+     * @return move count
+     */
+    private static int familyMoves(final SMAVirtualMachine vm,
+                                   final String family,
+                                   Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+        // Minimize moves: check family equality
+        int moves = 0;
+        if (vm.getGroupSize() > 1) {
+            for (SMAVirtualMachine member : virtualMachineGroupMap
+                    .get(vm.getGroupName()).getVirtualMachines()) {
+                moves += member.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
+            }
+            return moves;
+        } else {
+            return vm.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
         }
     }
 

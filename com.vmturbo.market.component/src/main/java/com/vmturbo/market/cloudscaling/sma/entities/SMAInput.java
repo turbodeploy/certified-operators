@@ -735,7 +735,6 @@ public class SMAInput {
         zoneId = (zoneId == 0 ? SMAUtils.NO_ZONE : zoneId);
         int count = riBoughtInfo.getNumBought();
         ReservedInstanceBoughtCost boughtCost = riBoughtInfo.getReservedInstanceBoughtCost();
-        float utilization = computeRIUtilization(riBoughtInfo.getReservedInstanceBoughtCoupons());
 
         ReservedInstanceSpec riSpec = data.getReservedInstanceSpec();
         long oid = riSpec.getId();
@@ -774,7 +773,6 @@ public class SMAInput {
          SMAReservedInstance ri = new SMAReservedInstance(oid,
             name,
             businessAccountId,
-            utilization,
             template,
             zoneId,
             count,
@@ -782,11 +780,11 @@ public class SMAInput {
         if (ri == null) {
             logger.info("processReservedInstance: regionId={} template={} new SMA_RI FAILED: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={} utilization={} rate RI={} on-demand={}",
                 regionId, templateName, oid, name, businessAccountId, templateName, zoneId, osType.name(),
-                tenancy.name(), count, utilization, riRate);
+                tenancy.name(), count, riRate);
         } else {
             logger.info("processReservedInstance: regionId={} template={} SMARI: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={} utilization={} rate RI={} on-demand={}",
                 regionId, templateName, oid, name, businessAccountId, templateName, zoneId, osType.name(),
-                tenancy.name(), count, utilization, riRate);
+                tenancy.name(), count, riRate);
             updateRegionToReservedInstance(regionToReservedInstances, regionId, ri);
             Set<SMAReservedInstance> smaRIs = smaContextToRIs.get(context);
             if (smaRIs == null) {
@@ -898,12 +896,6 @@ public class SMAInput {
             }
         }
         return masterAccountId;
-    }
-
-    private float computeRIUtilization(ReservedInstanceBoughtCoupons boughtCoupons) {
-        int numberOfCoupons = boughtCoupons.getNumberOfCoupons();
-        double numberOfCouponsUsed = boughtCoupons.getNumberOfCouponsUsed();
-        return (float)(numberOfCouponsUsed / (float)numberOfCoupons);
     }
 
     /**

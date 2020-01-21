@@ -17,7 +17,7 @@ public class SMAMatch {
     /**
      * VirtualMachine.
      */
-    private final SMAVirtualMachine virtualMachine;
+    private SMAVirtualMachine virtualMachine;
 
     /**
      * Template.
@@ -59,6 +59,10 @@ public class SMAMatch {
     @Nonnull
     public SMATemplate getTemplate() {
         return template;
+    }
+
+    public void setVirtualMachine(final SMAVirtualMachine virtualMachine) {
+        this.virtualMachine = virtualMachine;
     }
 
     /**

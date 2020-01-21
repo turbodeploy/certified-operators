@@ -131,7 +131,6 @@ public class SMAUtilsTest {
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
                         oldRI.getName(),
                         oldRI.getBusinessAccount(),
-                        oldRI.getUtilization(),
                         oldRI.getTemplate(),
                         oldRI.getZone(),
                         oldRI.getCount(),
@@ -217,7 +216,7 @@ public class SMAUtilsTest {
                 // number of coupons are a power of 2.
                 int numberOfCoupons = (int)Math.pow(2.0, i);
                 // on-demand cost is a function of number of coupons.
-                SMACost onDemandCost = new SMACost((numberOfCoupons * familyCouponCost), 0);
+                SMACost onDemandCost = new SMACost(SMAUtils.round((float)numberOfCoupons * familyCouponCost), 0);
                 // only dealing with AWS, discounted cost is 0.
                 // ??? discounted cost is RI cost.  This should refer to license component
                 SMACost discountedCost = new SMACost(0, 0);
@@ -306,7 +305,6 @@ public class SMAUtilsTest {
                     "ri" + riOid,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE +
                             (i % (nReservedInstances / SMATestConstants.BUSINESS_ACCOUNT_BASE)),
-                    0,
                     smaTemplate,
                     SMATestConstants.ZONE_BASE,
                     1,
@@ -370,7 +368,6 @@ public class SMAUtilsTest {
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
                         oldRI.getName(),
                         oldRI.getBusinessAccount(),
-                        oldRI.getUtilization(),
                         oldRI.getTemplate(),
                         oldRI.getZone(),
                         oldRI.getCount(),
@@ -389,8 +386,14 @@ public class SMAUtilsTest {
                 SMATemplate currentTemplate = vm.getCurrentTemplate();
                 SMATemplate matchTemplate = match.getTemplate();
                 if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
-                    System.out.println(String.format("testStability mismatch VM=%s: currentTemplate=%s != matchTemplate=%s coverage=%s discount=%s",
-                            vm.getName(), currentTemplate.getName(), matchTemplate.getName(), vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
+                    System.out.println(String.format("testStability mismatch VM=%s: " +
+                                    "currentTemplate=%s % != matchTemplate=%s " +
+                                    "%scoverage=%s discount=%s",
+                            vm.getName(), currentTemplate.getName(),
+                            currentTemplate.getOnDemandTotalCost(vm.getBusinessAccount()),
+                            matchTemplate.getName(),
+                            matchTemplate.getOnDemandTotalCost(vm.getBusinessAccount()),
+                            vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
                     newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
@@ -499,11 +502,9 @@ public class SMAUtilsTest {
 
         for (int i = 0; i < nReservedInstances; i++) {
             long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + i;
-            float utilization = rand.nextFloat();
             long zone = (typeOfRIs == TypeOfRIs.REGIONAL ? SMAUtils.NO_ZONE : SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
             SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid, "ri" + riOid,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount),
-                    utilization,
                     smaTemplates.get(rand.nextInt(nTemplates)),
                     zone,
                     1,  // count
@@ -636,7 +637,6 @@ public class SMAUtilsTest {
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
                         oldRI.getName(),
                         oldRI.getBusinessAccount(),
-                        oldRI.getUtilization(),
                         oldRI.getTemplate(),
                         oldRI.getZone(),
                         oldRI.getCount(),
@@ -737,7 +737,6 @@ public class SMAUtilsTest {
                 Long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + (i * (asgSize + 1)) + j;
                 SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid, "ri_" + riOid + "_" + j,
                         businessAccount,
-                        0,
                         riTemplate,
                         zone,
                         1,  // count

@@ -1,7 +1,9 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -48,6 +50,85 @@ public class SMAInputContext {
         this.reservedInstances = reservedInstances;
         this.templates = Objects.requireNonNull(templates, "templates is null!");
     }
+
+    /**
+     * Create a new input context based on the current input Context.
+     *
+     * @param inputContext current input context
+     */
+    public SMAInputContext(@Nonnull final SMAInputContext inputContext) {
+        this.context = inputContext.getContext();
+        this.templates = inputContext.getTemplates();
+        List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
+        for (SMAVirtualMachine oldVM : inputContext.getVirtualMachines()) {
+            SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
+                    oldVM.getName(),
+                    oldVM.getGroupName(),
+                    oldVM.getBusinessAccount(),
+                    oldVM.getCurrentTemplate(),
+                    oldVM.getProviders(),
+                    oldVM.getCurrentRICoverage(),
+                    oldVM.getZone());
+            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
+            newVirtualMachines.add(smaVirtualMachine);
+        }
+        this.virtualMachines = newVirtualMachines;
+        List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
+        List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
+        for (int i = 0; i < inputContext.getReservedInstances().size(); i++) {
+            SMAReservedInstance oldRI = oldReservedInstances.get(i);
+            SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                    oldRI.getName(),
+                    oldRI.getBusinessAccount(),
+                    oldRI.getTemplate(),
+                    oldRI.getZone(),
+                    oldRI.getCount(),
+                    context);
+            newReservedInstances.add(newRI);
+        }
+        this.reservedInstances = newReservedInstances;
+    }
+
+    /**
+     * Create a new input context from the current input context. The current template and
+     * the RI utilization of the VM is updated based on the outputContext.
+     *
+     * @param inputContext  the current input context.
+     * @param outputContext the current output context.
+     */
+    public SMAInputContext(@Nonnull final SMAInputContext inputContext,
+                           @Nonnull final SMAOutputContext outputContext) {
+        this.context = inputContext.getContext();
+        this.templates = inputContext.getTemplates();
+        List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
+        for (SMAMatch smaMatch : outputContext.getMatches()) {
+            SMAVirtualMachine oldVM = smaMatch.getVirtualMachine();
+            SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
+                    oldVM.getName(),
+                    oldVM.getGroupName(),
+                    oldVM.getBusinessAccount(),
+                    smaMatch.getTemplate(),
+                    oldVM.getProviders(),
+                    (float)smaMatch.getDiscountedCoupons(),
+                    oldVM.getZone());
+            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
+            newVirtualMachines.add(smaVirtualMachine);
+        }
+        this.virtualMachines = newVirtualMachines;
+        List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
+        for (SMAReservedInstance oldRI : inputContext.getReservedInstances()) {
+            SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                    oldRI.getName(),
+                    oldRI.getBusinessAccount(),
+                    oldRI.getTemplate(),
+                    oldRI.getZone(),
+                    oldRI.getCount(),
+                    context);
+            newReservedInstances.add(newRI);
+        }
+        this.reservedInstances = newReservedInstances;
+    }
+
 
     @Nonnull
     public SMAContext getContext() {

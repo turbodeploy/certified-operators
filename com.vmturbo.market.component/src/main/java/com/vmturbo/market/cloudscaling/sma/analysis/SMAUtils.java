@@ -26,9 +26,27 @@ public class SMAUtils {
      */
     public static final double EPSILON = 1e-20;
     /**
+     * Improvement factor for a vm to be discounted by an RI.
+     */
+    public static final double IMPROVEMENT_FACTOR = 0.01f;
+    /**
      * ROUNDING to trim floating point for comparison.
      */
     public static final float ROUNDING = 100000f;
+    /**
+     * maximum iterations to run for the SMA to converge.
+     */
+    public static final int MAX_ITERATIONS = 5;
+
+    /**
+     * Round the float to a fixed number of decimal places determined by ROUNDING.
+     * @param input the float to be rounded.
+     * @return float rounded to a fixed number of decimals.
+     */
+    public static float round(float input) {
+        return (float)Math.round(input *
+                SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
+    }
     /**
      * Set of Linux OS. Used to determine if the RI is ISF.
      */

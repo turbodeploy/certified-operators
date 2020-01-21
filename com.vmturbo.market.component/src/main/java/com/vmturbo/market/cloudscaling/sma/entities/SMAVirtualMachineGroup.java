@@ -42,7 +42,7 @@ public class SMAVirtualMachineGroup {
                                   List<SMAVirtualMachine> virtualMachines) {
         this.name = Objects.requireNonNull(groupName, "groupName is null!");
         this.virtualMachines = virtualMachines;
-        Collections.sort(getVirtualMachines(), new SortByVMOID());
+        Collections.sort(getVirtualMachines(), new SortByRiCoverageAndVmOID());
         // The first vm is set as groupLeader.
         this.groupLeader = getVirtualMachines().get(0);
         this.groupLeader.setGroupSize(getVirtualMachines().size());
@@ -113,7 +113,7 @@ public class SMAVirtualMachineGroup {
     /**
      *  Comparator to compare vms by OID.
      */
-    public static class SortByVMOID implements Comparator<SMAVirtualMachine> {
+    public static class SortByRiCoverageAndVmOID implements Comparator<SMAVirtualMachine> {
         /**
          * given two VMs compare them by RI converage and then by oid.
          * @param vm1 first VM
