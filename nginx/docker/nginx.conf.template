@@ -136,15 +136,15 @@ http {
 
         #### Following rules are intended to support the following URLS:
         #### * API methods:
-        ####     /api/v2/<method>  (PREFERRED)
+        ####     /api/v3/<method>  (PREFERRED)
         ####     /api/<method>
         #### * Swagger-UI:
-        ####     /apidoc/v2/index.html, /apidoc/v2/, /apidoc/v2  (PREFERRED)
+        ####     /apidoc/v3/index.html, /apidoc/v3/, /apidoc/v3  (PREFERRED)
         ####     /apidoc/index.html, /apidoc/, /apidoc
         ####     /swagger/external/index.html, /swagger/external/, /swagger/external
         ####     /swagger/index.html, /swagger/, /swagger
         #### * Swagger File as JSON (replace ".json" with ".yaml" to get YAML version)
-        ####     /apidoc/v2/swagger.json  (PREFERRED)
+        ####     /apidoc/v3/swagger.json  (PREFERRED)
         ####     /apidoc/swagger.json, /swagger/external/swagger.json, /swagger/swagger.json
         ####
         #### Note: the preferred paths lay a foundation for an evolving, versioned API, with
@@ -153,19 +153,19 @@ http {
         ####
         #### Internal API component paths to which the above should be mapped:
         #### * Swagge-UI URLs: /swagger/external/{index.html, swagger.json, swagger.yaml}
-        #### * API URLs: /api/v2/<method> or /api/<method> (no rewrites required)
+        #### * API URLs: /api/v3/<method> or /api/<method> (no rewrites required)
 
         # swagger-ui paths without trailing slash do 302 redirect to add the slash
-        rewrite ^/(apidoc(/v2)?)$ $scheme://$host/$1/ redirect;
+        rewrite ^/(apidoc(/v3)?)$ $scheme://$host/$1/ redirect;
         rewrite ^/(swagger(/external)?)$ $scheme://$host/$1/ redirect;
 
         # swagger-ui paths without index.html get it added on (internal, no redirect)
-        rewrite ^(/apidoc(/v2)?)/$ $1/index.html;
+        rewrite ^(/apidoc(/v3)?)/$ $1/index.html;
         rewrite ^(/swagger(/external)?)/$ $1/index.html;
 
         # all swagger-ui paths (including requests for swagger.json or swagger.yaml)
         # are routed to /swagger/external
-        rewrite ^/apidoc(/v2)?(.+)$ /swagger/external$2;
+        rewrite ^/apidoc(/v3)?(.+)$ /swagger/external$2;
         rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
 
         # proxying default paths

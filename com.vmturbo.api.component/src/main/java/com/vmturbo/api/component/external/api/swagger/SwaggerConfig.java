@@ -16,7 +16,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
  * http://{host}/vmturbo/apidoc/swagger-ui.html to avoid conflict with the REST API for the Component.
  *
  * The API definition for the Shared REST API is created within the Spring child context defined in
- * ExternalApiConfig. This context has two URL roots:  /vmturbo/rest (old) and /vmturbo/api/v2 (preferred).
+ * ExternalApiConfig. This context has two URL roots:  /vmturbo/rest (old) and /api/v3 (preferred).
  *
  * Note that Swagger-ui requires several resources be located in a fixed address, e.g. "/configuration/ui".
  **/

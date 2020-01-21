@@ -51,7 +51,7 @@
         </base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
         <env.svn.revision>${env.SVN_REVISION}</env.svn.revision>
-        <api.version>v2</api.version>
+        <api.version>v3</api.version>
         <branding.key.default>vmturbo</branding.key.default>
         <rebrand>${branding.key.default}</rebrand>
         <branding.key>${rebrand}</branding.key>
@@ -121,7 +121,7 @@
                                     <schemes>
                                         <scheme>https</scheme>
                                     </schemes>
-                                    <basePath>/api/v2</basePath>
+                                    <basePath>/api/v3</basePath>
                                     <locations>
                                         <location>com.vmturbo.api.controller</location>
                                         <location>com.vmturbo.api.external.controller</location>

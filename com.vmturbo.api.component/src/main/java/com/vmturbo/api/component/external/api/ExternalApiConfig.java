@@ -5,6 +5,8 @@ import java.util.List;
 
 import javax.servlet.ServletContext;
 
+import com.google.common.collect.ImmutableList;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,8 +17,6 @@ import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.service.MarketsService;
 import com.vmturbo.components.common.LoggingFilter;
@@ -59,8 +59,8 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
             // This is the base currently used in the new UX.
             "/vmturbo/rest/*",
             // This is the versioned name of the REST API, and should be preferred going forward
-            // It is aligned with the V1 API in OpsManager, which has a base URL of /api/v1
-            "/api/v2/*",
+            // It is aligned with the V2 API in OpsManager, which has a base URL of /api/v2
+            "/api/v3/*",
             // for SAML filters, see ApiSecurityConfig#samlFilter
             "/vmturbo/saml/*",
             // We are also supporting /api as of OM-32218

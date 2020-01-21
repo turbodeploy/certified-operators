@@ -10,7 +10,7 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
  * Configure security for the REST API Dispatcher here.
  * This specifies permissions required:
  * <ul>
- *   <li>/api/v2/** - API - no authentication
+ *   <li>/api/v3/** - API - no authentication
  * </ul>
  */
 @Configuration
