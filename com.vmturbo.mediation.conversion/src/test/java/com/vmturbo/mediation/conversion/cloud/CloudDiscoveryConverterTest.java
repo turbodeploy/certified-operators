@@ -16,6 +16,8 @@ import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
@@ -30,7 +32,7 @@ public class CloudDiscoveryConverterTest {
 
     /**
      * Test that when a volume entity is generated from a VM's ephemeral storage, its storage
-     * amount capacity is derived from the VM's profile.
+     * amount capacity is derived from the VM's profile. Also that its state is always Attached.
      */
     @Test
     public void testEphemeralVolumeSize() {
@@ -59,8 +61,9 @@ public class CloudDiscoveryConverterTest {
 
         final List<Builder> result = converter.getNewEntitiesGroupedByType().get(EntityType.VIRTUAL_VOLUME);
         assertEquals(1, result.size());
-        assertTrue(result.get(0).getVirtualVolumeData().getIsEphemeral());
-        assertEquals(vmProfileSize, result.get(0).getVirtualVolumeData().getStorageAmountCapacity(),
-            DELTA);
+        final VirtualVolumeData resultData = result.get(0).getVirtualVolumeData();
+        assertTrue(resultData.getIsEphemeral());
+        assertEquals(vmProfileSize, resultData.getStorageAmountCapacity(), DELTA);
+        assertEquals(AttachmentState.ATTACHED, resultData.getAttachmentState());
     }
 }

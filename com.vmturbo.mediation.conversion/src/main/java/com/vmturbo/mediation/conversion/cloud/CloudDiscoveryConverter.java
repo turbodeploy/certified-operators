@@ -25,6 +25,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
@@ -223,6 +224,7 @@ public class CloudDiscoveryConverter {
                         volume.setMonitored(false);
                         volume.getVirtualVolumeDataBuilder().setIsEphemeral(true);
                         volume.getVirtualVolumeDataBuilder().setStorageAmountCapacity(diskSize);
+                        volume.getVirtualVolumeDataBuilder().setAttachmentState(AttachmentState.ATTACHED);
                     });
                 }
             }
