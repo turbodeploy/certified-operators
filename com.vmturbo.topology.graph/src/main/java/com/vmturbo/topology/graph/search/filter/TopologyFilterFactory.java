@@ -212,7 +212,7 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
                     // If the target state resolves to "UNKNOWN" but "UNKNOWN" wasn't what the user
                     // explicitly wanted, we throw an exception to avoid weird behaviour.
-                    if (targetState == UIEntityState.UNKNOWN &&
+                    if (targetState == UIEntityState.UNKNOWN && regex &&
                         !StringUtils.equalsIgnoreCase(UIEntityState.UNKNOWN.apiStr(),
                             SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex())))
                     {

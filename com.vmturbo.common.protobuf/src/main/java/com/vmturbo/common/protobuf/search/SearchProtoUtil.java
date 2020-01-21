@@ -175,7 +175,7 @@ public class SearchProtoUtil {
      */
     public static String stripFullRegex(String regex) {
         //check that we are stripping a leading ^ and a trailing $
-        if (regex.charAt(0) == '^' && regex.charAt(regex.length() - 1) == '$') {
+        if (!regex.isEmpty() && regex.charAt(0) == '^' && regex.charAt(regex.length() - 1) == '$') {
             return regex.substring(1, regex.length() - 1);
         }
         return regex;

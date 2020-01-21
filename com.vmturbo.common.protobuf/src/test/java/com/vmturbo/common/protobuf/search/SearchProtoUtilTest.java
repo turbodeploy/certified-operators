@@ -174,5 +174,6 @@ public class SearchProtoUtilTest {
     public void testStripFullRegex() {
         assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("^ACTIVE$"));
         assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("ACTIVE"));
+        assertEquals("", SearchProtoUtil.stripFullRegex(""));
     }
 }
