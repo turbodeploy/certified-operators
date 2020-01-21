@@ -111,6 +111,8 @@
         "targetBand",
         "usedIncrement_VCPU",
         "usedIncrement_VMEM",
+        "usedIncrement_Container_VCPU",
+        "usedIncrement_Container_VMEM",
         "usedIncrement_VStorage",
         "usedIncrement_StAmt",
         "excludedTemplatesOids",

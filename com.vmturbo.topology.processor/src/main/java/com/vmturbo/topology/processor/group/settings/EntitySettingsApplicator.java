@@ -20,6 +20,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -135,9 +136,13 @@ public class EntitySettingsApplicator {
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
-                new ResizeIncrementApplicator(EntitySettingSpecs.VcpuIncrement,
+                new ResizeIncrementApplicator(EntitySettingSpecs.VmVcpuIncrement,
                         CommodityType.VCPU),
-                new ResizeIncrementApplicator(EntitySettingSpecs.VmemIncrement,
+                new ResizeIncrementApplicator(EntitySettingSpecs.VmVmemIncrement,
+                        CommodityType.VMEM),
+                new ResizeIncrementApplicator(EntitySettingSpecs.ContainerVcpuIncrement,
+                        CommodityType.VCPU),
+                new ResizeIncrementApplicator(EntitySettingSpecs.ContainerVmemIncrement,
                         CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VstorageIncrement,
                         CommodityType.VSTORAGE),
@@ -644,6 +649,13 @@ public class EntitySettingsApplicator {
      */
     @ThreadSafe
     private static class ResizeIncrementApplicator extends SingleSettingApplicator {
+        // Entity types for which this setting is valid
+        private static final ImmutableSet<Integer> applicableEntityTypes =
+            ImmutableSet.of(
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                EntityType.CONTAINER_VALUE,
+                EntityType.STORAGE_VALUE
+            );
 
         private final CommodityType commodityType;
 
@@ -666,8 +678,7 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
-            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE ||
-                    entity.getEntityType() == EntityType.STORAGE_VALUE) {
+            if (applicableEntityTypes.contains(entity.getEntityType())) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
                 entity.getCommoditySoldListBuilderList().stream()
                     .filter(commodity -> commodity.getCommodityType().getType() ==
@@ -693,7 +704,7 @@ public class EntitySettingsApplicator {
                         // we don't resize. It still leaves some scope of resize in case provider is large enough.
                         // To prevent that set resizeable false if vStorage increment is set to default value.
                         if (commodityType.getNumber() == CommodityType.VSTORAGE_VALUE
-                                && setting.getNumericSettingValue().getValue() == getDefualtVStorageIncrement()) {
+                                && setting.getNumericSettingValue().getValue() == getDefaultVStorageIncrement()) {
                             commodityBuilder.setIsResizeable(false);
                         }
 
@@ -703,7 +714,7 @@ public class EntitySettingsApplicator {
             }
         }
 
-        private float getDefualtVStorageIncrement() {
+        private float getDefaultVStorageIncrement() {
             return EntitySettingSpecs.VstorageIncrement
                     .getSettingSpec()
                     .getNumericSettingValueType()

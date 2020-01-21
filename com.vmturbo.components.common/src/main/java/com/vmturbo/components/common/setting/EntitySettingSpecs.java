@@ -431,20 +431,36 @@ public enum EntitySettingSpecs {
             numeric(1f, 2000f, 100f), true),
 
     /**
-     * Virtual CPU Increment.
+     * Virtual CPU Increment for virtual machines.
      */
-    VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
+    VmVcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
-     * Virtual Memory Increment.
+     * Virtual Memory Increment for virtual machines.
      */
-    VmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
+    VmVmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
+
+    /**
+     * Virtual CPU Increment for containers.
+     */
+    ContainerVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU [MHz]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
+            numeric(0.0f, 1000000.0f, 100.0f), true),
+
+    /**
+     * Virtual Memory Increment for containers.
+     */
+    ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem [MB]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
+            numeric(0.0f, 1000000.0f, 64.0f), true),
 
     /**
      * Virtual Storage Increment.
