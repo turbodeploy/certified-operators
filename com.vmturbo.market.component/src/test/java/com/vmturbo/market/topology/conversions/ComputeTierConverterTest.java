@@ -8,7 +8,6 @@ import static org.mockito.Mockito.mock;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,7 +27,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 
-
 /**
  * Unit tests for ComputeTierConverter.
  */
@@ -43,7 +41,7 @@ public class ComputeTierConverterTest {
     @Before
     public void setUp() {
         IdentityGenerator.initPrefix(0);
-        commodityConverter = new CommodityConverter(new NumericIDAllocator(), new HashMap<>(),
+        commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class));
         final TopologyInfo info = TopologyInfo.newBuilder().build();

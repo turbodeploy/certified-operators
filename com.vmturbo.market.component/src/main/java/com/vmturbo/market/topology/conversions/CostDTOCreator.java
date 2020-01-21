@@ -1,11 +1,10 @@
 package com.vmturbo.market.topology.conversions;
 
 import io.jsonwebtoken.lang.Collections;
-import java.util.ArrayList;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,6 +27,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Comput
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
@@ -130,12 +130,13 @@ public class CostDTOCreator {
                                         region.getDisplayName(), licenseCommodity.getKey());
                             }
                         }
+                        CommoditySpecificationTO spec = commodityConverter
+                                .commoditySpecification(licenseCommodity);
                         computeTierDTOBuilder
                                 .addCostTupleList(CostTuple.newBuilder()
                                         .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                         .setRegionId(region.getOid())
-                                        .setLicenseCommodityType(commodityConverter
-                                                .toMarketCommodityId(licenseCommodity))
+                                        .setLicenseCommodityType(spec.getType())
                                         .setPrice(price));
                     }
                 }
@@ -228,17 +229,21 @@ public class CostDTOCreator {
                                     licenseId, tier.getDisplayName(), region.getDisplayName());
                         }
                     }
+                    CommoditySpecificationTO spec = commodityConverter
+                            .commoditySpecification(licenseCommodity);
                     dbTierDTOBuilder
-                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(), commodityConverter
-                                    .toMarketCommodityId(licenseCommodity), price, region.getOid()));
+                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(),
+                                    spec.getType(), price, region.getOid()));
                 }
                 // price when license isn't available
+                CommoditySpecificationTO spec = commodityConverter
+                        .commoditySpecification(dataCenterAccessCommodity.get());
                 dbTierDTOBuilder
                         .addCostTupleList(CostTuple.newBuilder()
                                 .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                 .setLicenseCommodityType(-1)
                                 .setRegionId(dataCenterAccessCommodity.isPresent() ?
-                                        commodityConverter.toMarketCommodityId(dataCenterAccessCommodity.get()) : null)
+                                        spec.getType() : null)
                                 .setPrice(Double.POSITIVE_INFINITY));
 
             }
@@ -327,7 +332,7 @@ public class CostDTOCreator {
                     .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
                             && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riKey.getOs())))
                     .map(CommoditySoldDTO::getCommodityType).findFirst();
-            builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.toMarketCommodityId(osComm.get()) : 0);
+            builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.commoditySpecification(osComm.get()).getType() : 0);
             if (templatePrice.isPresent()) {
                 builder.setPrice(templatePrice.get().getHourlyPrice() * riCostDeprecationFactor);
             }
@@ -348,7 +353,7 @@ public class CostDTOCreator {
                         .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
                                 && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riPrice.getOsType())))
                         .map(CommoditySoldDTO::getCommodityType).findFirst();
-                builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.toMarketCommodityId(osComm.get()) : 0);
+                builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.commoditySpecification(osComm.get()).getType() : 0);
                 costTuples.add(builder.build());
             }
         }

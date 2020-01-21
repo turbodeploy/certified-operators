@@ -171,8 +171,9 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                                                   RiDiscountedMarketTier ri) {
         return computeTier.getCommoditySoldListList().stream()
                 .filter(c -> shouldSellCommodity(c, ri))
-                .map(c -> commodityConverter.createCommonCommoditySoldTO(c, computeTier
+                .map(c -> commodityConverter.createCommonCommoditySoldTOList(c, computeTier
                 ))
+                .flatMap(List::stream)
                 .collect(Collectors.toList());
     }
 

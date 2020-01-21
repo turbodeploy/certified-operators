@@ -107,7 +107,7 @@ public class ReservedInstanceConverterTest {
         IdentityGenerator.initPrefix(0);
         final TopologyInfo info = TopologyInfo.newBuilder().build();
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
-                new HashMap<>(), false, new BiCliquer(), HashBasedTable.create(),
+                false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class));
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter,
                 marketPriceTable);

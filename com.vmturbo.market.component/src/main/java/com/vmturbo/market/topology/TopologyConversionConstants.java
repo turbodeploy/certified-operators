@@ -86,4 +86,12 @@ public class TopologyConversionConstants {
     public static final double RESIZE_MAX_WEIGHT = 0.9f;
     public static final double RESIZE_PEAK_WEIGHT = 0.0f;
     public static final float FLOAT_COMPARISON_DELTA = 0.0001f;
+
+    /**
+     * These are the commodities for which utlizations are analysed at multiple time slots.
+     */
+    public static final Set<Integer> TIMESLOT_COMMODITIES =
+            ImmutableSet.of(CommodityType.POOL_CPU_VALUE,
+                    CommodityType.POOL_MEM_VALUE,
+                    CommodityType.POOL_STORAGE_VALUE);
 }

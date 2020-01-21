@@ -105,6 +105,7 @@ public class TopologyConverterToMarketTest {
                     .setPlanProjectType(PlanProjectType.USER))
             .build();
     private static final long PROVIDER_ID = 1;
+    private static final double DELTA = 0.001d;
 
     private double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
 
@@ -413,10 +414,10 @@ public class TopologyConverterToMarketTest {
         converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         assertEquals(topologyCommodity1, converter.getCommodityConverter()
-                .economyToTopologyCommodity(economyCommodity1).orElseThrow(() ->
+                .marketToTopologyCommodity(economyCommodity1).orElseThrow(() ->
                         new RuntimeException("cannot convert commodity1")));
         assertEquals(topologyCommodity2, converter.getCommodityConverter()
-                .economyToTopologyCommodity(economyCommodity2).orElseThrow(() ->
+                .marketToTopologyCommodity(economyCommodity2).orElseThrow(() ->
                         new RuntimeException("cannot convert commodity2")));
     }
 
@@ -1078,7 +1079,8 @@ public class TopologyConverterToMarketTest {
                     ccd,
                     CommodityIndex.newFactory(), tierExcluderFactory,
                     consistentScalingHelperFactory);
-        return converter.getResizedCapacity(vmEntityDTO, commBought, PROVIDER_ID);
+        final float[][] resizedCapacitites = converter.getResizedCapacity(vmEntityDTO, commBought, PROVIDER_ID);
+        return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
 
     /**
@@ -1351,8 +1353,9 @@ public class TopologyConverterToMarketTest {
         Mockito.when(marketTier.getTier()).thenReturn(computeTier);
         Mockito.when(cloudTopologyConverter.getMarketTier(PROVIDER_ID)).thenReturn(marketTier);
 
-        return converter.getResizedCapacity(topologyEntityDTO, commodityBoughtDTO,
+        final float[][] resizedCapacitites = converter.getResizedCapacity(topologyEntityDTO, commodityBoughtDTO,
                 PROVIDER_ID);
+        return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
 
     /*
@@ -1496,6 +1499,65 @@ public class TopologyConverterToMarketTest {
         TraderTO trader = traderTOs.stream().filter(traderTO -> traderTO.getOid() == 100L).findFirst().get();
         assertEquals(1, trader.getCommoditiesSoldCount());
         assertEquals(5, trader.getCommoditiesSold(0).getNumConsumers());
+    }
+
+    /**
+     * Tests creation of multiple bought commodity TOs as in case of
+     * Pool commodities that are time slot based.
+     */
+    @Test
+    public void testCreateAndValidateCommBoughtTO() {
+
+        double[] used = {50d, 60d, 65d};
+        double[] peak = {55d, 65d, 75d};
+        HistoricalValues historicalValues = HistoricalValues.newBuilder()
+                .addTimeSlot(used[0])
+                .addTimeSlot(used[1])
+                .addTimeSlot(used[2])
+                .build();
+        HistoricalValues historicalPeak = HistoricalValues.newBuilder()
+                .addTimeSlot(peak[0])
+                .addTimeSlot(peak[1])
+                .addTimeSlot(peak[2])
+                .build();
+        CommodityBoughtDTO boughtCommodityDTO = createBoughtCommodity(historicalValues, historicalPeak,
+                CommodityDTO.CommodityType.POOL_CPU);
+
+        TopologyEntityDTO user = entity(EntityType.BUSINESS_USER_VALUE,
+                10, EntityState.POWERED_ON, Collections.emptyList(), Collections.emptyList());
+
+        user.toBuilder().addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setMovable(true)
+                .setProviderId(1005L)
+                .addCommodityBought(boughtCommodityDTO)
+                .build()).build();
+
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
+
+        final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(user, boughtCommodityDTO, 1005L, Optional.empty());
+        assertEquals(3, boughtTOs.size());
+        int index = 0;
+        for (CommodityBoughtTO to : boughtTOs) {
+            assertEquals(used[index], to.getQuantity(), DELTA);
+            assertEquals(peak[index], to.getPeakQuantity(), DELTA);
+            index++;
+        }
+    }
+
+    private CommodityBoughtDTO createBoughtCommodity(HistoricalValues histUsed, HistoricalValues histPeak,
+                                                     CommodityDTO.CommodityType commodityType) {
+        final CommodityBoughtDTO.Builder builder =
+                CommodityBoughtDTO.newBuilder()
+                        .setHistoricalUsed(histUsed)
+                        .setHistoricalPeak(histPeak)
+                        .setCommodityType(
+                                CommodityType.newBuilder()
+                                        .setType(commodityType.getNumber())
+                                        .build());
+        return builder.build();
     }
     /**
      * The intent of this test is to ensure that Containers that are hosted by ContainerPods are
