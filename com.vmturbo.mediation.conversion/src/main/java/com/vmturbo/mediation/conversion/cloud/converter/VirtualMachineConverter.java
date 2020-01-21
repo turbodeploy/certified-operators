@@ -249,7 +249,7 @@ public class VirtualMachineConverter implements IEntityConverter {
             String diskType = vmProfileDTO.getInstanceDiskType().toString();
             String storageTierId = converter.getStorageTierId(diskType);
             for (int i = 0; i < numInstanceStores; i++) {
-                String vId = converter.createEphemeralVolumeId(i, zone, diskType);
+                String vId = converter.createEphemeralVolumeId(entity.getId(), i, zone, diskType );
                 Builder volume = converter.getNewEntityBuilder(vId);
                 addLayeredOver(entity, vId);
                 addLayeredOver(volume, zone);
