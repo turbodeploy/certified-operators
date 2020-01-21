@@ -26,7 +26,6 @@ import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -78,7 +77,6 @@ public class ReservedInstanceMapper {
         ReservedInstanceApiDTO reservedInstanceApiDTO = new ReservedInstanceApiDTO();
         final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
                 reservedInstanceBought.getReservedInstanceBoughtInfo();
-        // TODO: Also set master account of RI.
         reservedInstanceApiDTO.setLocation(createLocationBaseApi(reservedInstanceBoughtInfo, reservedInstanceSpec,
                 serviceEntityApiDTOMap));
         final BaseApiDTO templateBaseDTO = createTemplateBaseApi(reservedInstanceSpec
@@ -87,12 +85,14 @@ public class ReservedInstanceMapper {
         reservedInstanceApiDTO.setDisplayName(reservedInstanceBoughtInfo.getDisplayName());
         reservedInstanceApiDTO.setUuid(String.valueOf(reservedInstanceBought.getId()));
         reservedInstanceApiDTO.setClassName(RESERVED_INSTANCE);
-        reservedInstanceApiDTO.setAccountId(String.valueOf(reservedInstanceBoughtInfo.getBusinessAccountId()));
 
-        final ServiceEntityApiDTO businessAccount = serviceEntityApiDTOMap.get(
-            reservedInstanceBoughtInfo.getBusinessAccountId());
-        if (businessAccount != null) {
-            reservedInstanceApiDTO.setAccountDisplayName(businessAccount.getDisplayName());
+        if (reservedInstanceBoughtInfo.hasBusinessAccountId()) {
+            final long accountId = reservedInstanceBoughtInfo.getBusinessAccountId();
+            reservedInstanceApiDTO.setAccountId(String.valueOf(accountId));
+            final ServiceEntityApiDTO businessAccount = serviceEntityApiDTOMap.get(accountId);
+            if (businessAccount != null) {
+                reservedInstanceApiDTO.setAccountDisplayName(businessAccount.getDisplayName());
+            }
         }
 
         reservedInstanceApiDTO.setPayment(convertPaymentToApiDTO(
@@ -249,21 +249,6 @@ public class ReservedInstanceMapper {
         statsDto.setCapacity(capacityDto);
         statsDto.setUnits(units);
         return statsDto;
-    }
-
-    /**
-     * Get the total hourly cost for the reserved instance bought.
-     *
-     * @param reservedInstanceBoughtInfo a {@link ReservedInstanceBoughtInfo}.
-     * @param reservedInstanceSpec a {@link ReservedInstanceSpec}.
-     * @return the total hourly cost.
-     */
-    private double getTotalHourlyCost(@Nonnull final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo,
-                                      @Nonnull final ReservedInstanceSpec reservedInstanceSpec) {
-
-        final ReservedInstanceBoughtCost riBoughtCost = reservedInstanceBoughtInfo.getReservedInstanceBoughtCost();
-        return (riBoughtCost.getFixedCost().getAmount()) + riBoughtCost.getUsageCostPerHour().getAmount() +
-                riBoughtCost.getRecurringCostPerHour().getAmount();
     }
 
     /**

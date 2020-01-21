@@ -46,6 +46,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * RICostDataUploader collects Account expense data and Reserved Instance coverage and purchases
@@ -285,13 +286,7 @@ public class RICostDataUploader {
                     ReservedInstanceBought.Builder riBought = ReservedInstanceBought.newBuilder()
                             .setId(riStitchingEntity.getOid()) // using the oid from TP for this upload
                             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                                    // we are defaulting the business account owner to the fallback
-                                    // account for this probe. This *should* get overwritten by an
-                                    // actual owner when we process coverage information later.
-                                    // However, not all RI's are accounted for in the coverage info,
-                                    // so this helps ensure assignment of a plausible owner for
-                                    // those cases.
-                                    .setBusinessAccountId(cloudEntitiesMap.getFallbackAccountOid(riStitchingEntity.getTargetId()))
+                                    .setBusinessAccountId(getOwnerAccountOid(riStitchingEntity, cloudEntitiesMap))
                                     .setProbeReservedInstanceId(riStitchingEntity.getLocalId())
                                     .setStartTime(riData.getStartTime())
                                     .setNumBought(riData.getInstanceCount())
@@ -347,14 +342,30 @@ public class RICostDataUploader {
         // add the extracted data to the cost component data object.
         // create the RISpec objects, setting the spec ids to indices in the spec info list.
         List<ReservedInstanceSpec> riSpecs = new ArrayList<>(riSpecInfoToInternalId.size());
-        riSpecInfoToInternalId.forEach((spec,id) -> {
+        riSpecInfoToInternalId.forEach((spec, id) ->
             riSpecs.add(ReservedInstanceSpec.newBuilder()
                     .setId(id)
                     .setReservedInstanceSpecInfo(spec)
-                    .build());
-        });
+                    .build())
+        );
         riCostComponentData.riSpecs = riSpecs;
         riCostComponentData.riBoughtByLocalId = riBoughtByLocalId;
+    }
+
+    private static long getOwnerAccountOid(
+            @Nonnull TopologyStitchingEntity riStitchingEntity,
+            @Nonnull CloudEntitiesMap cloudEntitiesMap) {
+        final ReservedInstanceData riData = riStitchingEntity.getEntityBuilder()
+                .getReservedInstanceData();
+        // If purchasing account is set in RI data (Azure EA case) then get it from there
+        if (riData.hasPurchasingAccountId()) {
+            final Long accountId = cloudEntitiesMap.get(riData.getPurchasingAccountId());
+            if (accountId != null) {
+                return accountId;
+            }
+        }
+        // Otherwise use fallback target account
+        return cloudEntitiesMap.getFallbackAccountOid(riStitchingEntity.getTargetId());
     }
 
     /**

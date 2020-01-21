@@ -307,6 +307,7 @@ public class RIDataUploaderTest {
                                         .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                         .setPlatform(Platform.LINUX)
                                         .setRelatedProfileId("aws::VMPROFILE::t2.nano")
+                                        .setPurchasingAccountId("account-1")
                                         .addAppliedScopes("account-1")
                                         .addAppliedScopes("account-2")
                                         .setReservationOrderId("orderID-1")
@@ -478,8 +479,8 @@ public class RIDataUploaderTest {
         // coverage data to be mined properly.
         Assert.assertEquals(2, boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed(), 0);
 
-        // verify that account ID is assigned based on target default account
-        Assert.assertEquals(12, boughtInfo.getBusinessAccountId());
+        // verify that account ID is read from purchasingAccountId property
+        Assert.assertEquals(11, boughtInfo.getBusinessAccountId());
 
         Assert.assertEquals("RI display name", boughtInfo.getDisplayName());
         Assert.assertEquals("orderID-1", boughtInfo.getReservationOrderId());
@@ -491,6 +492,13 @@ public class RIDataUploaderTest {
 
         Assert.assertTrue(riData.riSpecs.stream()
                 .anyMatch(spec -> spec.getReservedInstanceSpecInfo().getPlatformFlexible()));
+
+        // verify that account ID for the second spec is assigned based on target default account
+        final long accountId2 = riData.riBoughtByLocalId
+                .get("aws::ca-central-1::RI::921378bc-5142-44c5-84d6-d4569ea26b00")
+                .getReservedInstanceBoughtInfo()
+                .getBusinessAccountId();
+        Assert.assertEquals(12, accountId2);
     }
 
     public static class TestCostService extends RIAndExpenseUploadServiceImplBase {
