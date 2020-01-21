@@ -123,8 +123,7 @@ public class PlanStatsAggregator {
      */
     private void countTypes(Collection<TopologyEntityDTO> chunk) {
         chunk.stream()
-            // Suspended entities should not appear in the counts
-            .filter(dto -> dto.getEntityState() != EntityState.SUSPENDED)
+            // Do not filter here! All filtering should be done in shouldCountEntity
             .map(TopologyEntityDTO::getEntityType)
             .forEach(this::increment);
 
@@ -203,9 +202,13 @@ public class PlanStatsAggregator {
      * @return true, if this entity should be included in the stats.
      */
     private boolean shouldCountEntity(TopologyEntityDTO entity) {
-        return !(isProcessingSourceTopologyStats
-                && entity.hasOrigin()
-                && entity.getOrigin().hasPlanScenarioOrigin());
+        // Suspended entities should not appear in the counts
+        boolean entitySuspended = entity.getEntityState() == EntityState.SUSPENDED;
+        // Only filter scenario additions from the SOURCE topology
+        final boolean scenarioAddition = isProcessingSourceTopologyStats
+            && entity.hasOrigin()
+            && entity.getOrigin().hasPlanScenarioOrigin();
+        return !scenarioAddition && !entitySuspended;
     }
 
     /**

@@ -55,9 +55,10 @@ public class PlanStatsAggregatorTest {
         final TopologyEntityDTO vm1 = vm(10, EntityState.POWERED_ON);
         final TopologyEntityDTO vm2 = vm(20, EntityState.POWERED_ON);
         final TopologyEntityDTO suspendedVm = vm(25, EntityState.SUSPENDED);
-        final TopologyEntityDTO pm1 = pm(30, CPU_MIN);
-        final TopologyEntityDTO pm2 = pm(40, CPU_MAX);
-        final TopologyEntityDTO pm3 = pm(50, CPU_MID);
+        final TopologyEntityDTO pm1 = pm(30, CPU_MIN, EntityState.POWERED_ON);
+        final TopologyEntityDTO pm2 = pm(40, CPU_MAX, EntityState.POWERED_ON);
+        final TopologyEntityDTO pm3 = pm(50, CPU_MID, EntityState.POWERED_ON);
+        final TopologyEntityDTO suspendedPm = pm(60, CPU_MAX, EntityState.SUSPENDED);
         final TopologyEntityDTO containerPod1 = containerPod(60);
 
         final TopologyInfo topologyOrganizer = TopologyInfo.newBuilder()
@@ -68,7 +69,7 @@ public class PlanStatsAggregatorTest {
         aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));
-        aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1));
+        aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1, suspendedPm));
         records = aggregator.statsRecords();
     }
 
@@ -172,11 +173,12 @@ public class PlanStatsAggregatorTest {
                     .build();
     }
 
-    private static TopologyEntityDTO pm(long oid, double cpuUsed) {
+    private static TopologyEntityDTO pm(long oid, double cpuUsed, EntityState state) {
         return TopologyEntityDTO.newBuilder()
                     .setOid(oid)
                     .setDisplayName("PM-" + oid)
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setEntityState(state)
                     .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(PhysicalMachineInfo.newBuilder().setNumCpus(6)))
                     .addCommoditySoldList(cpu(cpuUsed)).build();
     }
