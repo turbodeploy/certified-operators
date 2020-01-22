@@ -142,11 +142,11 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 cachedRICoverage.remove(projectedTopologyId);
                 return;
             } else {
-                logger.info("Projected topology {} for plan {} is ready", projectedTopologyId,
+                logger.debug("Projected topology {} for plan {} is ready", projectedTopologyId,
                     planId);
                 projectedTopologyAvailable.remove(projectedTopologyId);
             }
-            logger.info("The projected topology {} in plan {} is written to repository",
+            logger.debug("The projected topology {} in plan {} is written to repository",
                 projectedTopologyId, planId);
             insertRecordsToTable(projectedTopologyId, topoInfo, entityRICoverage);
             // clear the cache, because the data is written.
@@ -383,7 +383,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         synchronized(newLock) {
             if (!cachedRICoverage.containsKey(projectedTopologyId)) {
                 projectedTopologyAvailable.put(projectedTopologyId, true);
-                logger.info("The projected topology {} in plan {} is available from repository",
+                logger.debug("The projected topology {} in plan {} is available from repository",
                     projectedTopologyId, planId);
                 return;
             } else {
@@ -392,7 +392,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 topoInfo = cachedRICoverage.get(projectedTopologyId).getTopologyInfo();
                 coverage = cachedRICoverage.get(projectedTopologyId).getCoverage();
             }
-            logger.info("The projected topology {} in plan {} written to repository from cache",
+            logger.debug("The projected topology {} in plan {} written to repository from cache",
                 projectedTopologyId, planId);
             insertRecordsToTable(projectedTopologyId, topoInfo, coverage);
             // clear the cache because the data is written.
