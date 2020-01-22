@@ -1,7 +1,7 @@
 package com.vmturbo.topology.graph.supplychain;
 
-import java.util.List;
 import java.util.Queue;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -65,7 +65,7 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // this will add the containing zone or region
                 // and the owning account to the frontier.
             // for the new traversal state introduced in the frontier,
-            // the traversal mode becomes INCLUDED_BY
+            // the traversal mode becomes AGGREGATED_BY
                 // This ensures that further traversal from the
                 // entities newly added to the frontier will only continue
                 // in the same direction.
@@ -73,26 +73,17 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // the next step will add the region that owns the zone
                 // but it will not add any other VMs that are contained
                 // in the zone.
-            for (E e : getFilteredIncludingEntities(entity, traversalMode)) {
-                frontier.add(new TraversalState(e.getOid(), TraversalMode.INCLUDED_BY, newDepth));
-            }
+            getFilteredAggregators(entity, traversalMode).forEach(e ->
+                frontier.add(new TraversalState(e.getOid(), TraversalMode.AGGREGATED_BY, newDepth)));
 
-            // if the traversal mode is INCLUDED_BY,
+            // if the traversal mode is AGGREGATED_BY,
             // then nothing else should be added to the frontier
                 // For example, if the current entity is a zone and
                 // we have already added to the frontier the region
-                // that owns it. If the traversal mode is INCLUDED_BY,
+                // that owns it. If the traversal mode is AGGREGATED_BY,
                 // we shouldn't add anything else.
-            if (traversalMode == TraversalMode.INCLUDED_BY) {
+            if (traversalMode == TraversalMode.AGGREGATED_BY) {
                 return;
-            }
-
-            // always include normal connections
-            // traversal mode remains the same
-                // For example, if a VM is included in the traversal,
-                // so is any volume connected to it.
-            for (E e : getFilteredAssociatedEntities(entity, traversalMode)) {
-                frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth));
             }
 
             // traverse the inclusion chain inwards
@@ -108,9 +99,8 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // we will treat them as parts of the seed (traversal direction
                 // will be START), which will in turn bring consuming
                 // applications, anything higher the supply chain, etc.
-            for (E e : getFilteredIncludedEntities(entity, traversalMode)) {
-                frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth));
-            }
+            getFilteredAggregatedEntities(entity, traversalMode).forEach(e ->
+                frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
 
             // downward traversal of the supply chain
                 // For example, from VMs to PMs.
@@ -120,9 +110,8 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // should also be included in the conditional.
             if (traversalMode == TraversalMode.CONSUMES
                     || traversalMode == TraversalMode.START) {
-                for (E e : getFilteredProviders(entity, traversalMode)) {
-                    frontier.add(new TraversalState(e.getOid(), TraversalMode.CONSUMES, newDepth));
-                }
+                getFilteredProviders(entity, traversalMode).forEach(e ->
+                    frontier.add(new TraversalState(e.getOid(), TraversalMode.CONSUMES, newDepth)));
             }
 
             // upward traversal of the supply chain
@@ -136,9 +125,8 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // from traversal modes START and PRODUCES,
                 // we start/continue our upward traversal
                 // of the supply chain
-                for (E e : getFilteredConsumers(entity, traversalMode)) {
-                    frontier.add(new TraversalState(e.getOid(), TraversalMode.PRODUCES, newDepth));
-                }
+                getFilteredConsumers(entity, traversalMode).forEach(e ->
+                    frontier.add(new TraversalState(e.getOid(), TraversalMode.PRODUCES, newDepth)));
             }
         }
 
@@ -146,32 +134,38 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
          * Convenience method that allows filtering of consumers of an entity
          * when overriding this class. Examples of consumers include:
          * VMs consume from PMs, apps consume from VMs, storage consumes from
-         * disk arrays etc.
+         * disk arrays etc. Inbound "normal" connections are also included,
+         * e.g., VMs are treated as consumers of volumes and volumes are treated
+         * as consumers of storage and storage tiers.
          *
          * @param entity the entity
          * @param traversalMode the traversal mode
          * @return consumers of this entity to be considered
          *         in the next traversal
          */
-        protected List<E> getFilteredConsumers(@Nonnull E entity,
-                                               @Nonnull TraversalMode traversalMode) {
-            return entity.getConsumers();
+        protected Stream<E> getFilteredConsumers(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            return Stream.concat(entity.getConsumers().stream(),
+                                 entity.getInboundAssociatedEntities().stream());
         }
 
         /**
          * Convenience method that allows filtering of providers of an entity
          * when overriding this class. Examples of providers include:
          * PMs provide to VMs, VMs provide to apps, disk arrays provide to
-         * storage etc.
+         * storage etc. Outbound "normal" connections are also included,
+         * e.g., volumes are treated as providers of VMs and storage (tiers)
+         * are treated as providers of volumes.
          *
          * @param entity the entity
          * @param traversalMode the traversal mode
          * @return providers of this entity to be considered
          *         in the next traversal
          */
-        protected List<E> getFilteredProviders(@Nonnull E entity,
-                                               @Nonnull TraversalMode traversalMode) {
-            return entity.getProviders();
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            return Stream.concat(entity.getProviders().stream(),
+                                 entity.getOutboundAssociatedEntities().stream());
         }
 
         /**
@@ -186,9 +180,9 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
          * @return aggregators and owner of this entity to be considered
          *         in the next traversal
          */
-        protected List<E> getFilteredIncludingEntities(@Nonnull E entity,
-                                                       @Nonnull TraversalMode traversalMode) {
-            return entity.getOwnersOrAggregators();
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            return entity.getAggregatorsAndOwner().stream();
         }
 
         /**
@@ -203,25 +197,9 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
          * @return aggregated and owned entities of this entity to be considered
          *         in the next traversal
          */
-        protected List<E> getFilteredIncludedEntities(@Nonnull E entity,
-                                                      @Nonnull TraversalMode traversalMode) {
-            return entity.getOwnedOrAggregatedEntities();
-        }
-
-        /**
-         * Convenience method that allows filtering of "normal" outbound connections
-         * of an entity when overriding this class. Examples of such connections
-         * are: VMs are connected to virtual volumes. Virtual volumes are connected
-         * to storage and to storage tiers. Compute tiers are connected to storage tiers.
-         *
-         * @param entity the entity
-         * @param traversalMode the traversal mode
-         * @return normal outbound connections of this entity to be considered
-         *         in the next traversal
-         */
-        protected List<E> getFilteredAssociatedEntities(@Nonnull E entity,
-                                                        @Nonnull TraversalMode traversalMode) {
-            return entity.getOutboundAssociatedEntities();
+        protected Stream<E> getFilteredAggregatedEntities(@Nonnull E entity,
+                                                          @Nonnull TraversalMode traversalMode) {
+            return entity.getAggregatedAndOwnedEntities().stream();
         }
     }
 }

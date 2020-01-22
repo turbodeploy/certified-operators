@@ -129,7 +129,7 @@ public class PlanTopologyScopeEditor {
         final List<TopologyEntity> workloadsAndZones =
             TopologyGraphEntity.applyTransitively(graph.getEntities(seedIds)
                                                        .collect(Collectors.toList()),
-                                                  TopologyEntity::getOwnedOrAggregatedEntities)
+                                                  TopologyEntity::getAggregatedAndOwnedEntities)
                 .stream()
                 .filter(e -> !TopologyDTOUtil.isTierEntityType(e.getEntityType()))
                 .distinct()
@@ -172,7 +172,7 @@ public class PlanTopologyScopeEditor {
         //   - the account owning this workload and the account owning that account
         final Set<TopologyEntity> cloudConsumers =
             TopologyGraphEntity.applyTransitively(workLoadsZonesAndConsumers,
-                                                  TopologyEntity::getOwnersOrAggregators)
+                                                  TopologyEntity::getAggregatorsAndOwner)
                 .stream()
                 .collect(Collectors.toSet());
 
