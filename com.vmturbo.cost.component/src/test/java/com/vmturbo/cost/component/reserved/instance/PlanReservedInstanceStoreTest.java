@@ -21,6 +21,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -43,6 +44,7 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 @TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanReservedInstanceStoreTest {
     private static final long PLAN_ID = 12345L;
+    private static final double DELTA = 0.01;
 
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(123L)
@@ -80,6 +82,8 @@ public class PlanReservedInstanceStoreTest {
 
     private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
     private DSLContext dsl;
 
     /**
@@ -94,7 +98,8 @@ public class PlanReservedInstanceStoreTest {
         flyway.clean();
         flyway.migrate();
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
-        planReservedInstanceStore = new PlanReservedInstanceStore(dsl, new IdentityProvider(0));
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
+        planReservedInstanceStore = new PlanReservedInstanceStore(dsl, new IdentityProvider(0), reservedInstanceCostCalculator);
         insertDefaultReservedInstanceSpec();
         final List<ReservedInstanceBought> reservedInstanceBoughtInfos =
                         Arrays.asList(ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_1).build(),
@@ -151,6 +156,17 @@ public class PlanReservedInstanceStoreTest {
         Assert.assertEquals(2, rowsCount);
         final List<PlanReservedInstanceBoughtRecord> records = dsl.selectFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT).fetch();
         Assert.assertTrue(records.isEmpty());
+    }
+
+    /**
+     * Tests get plan RI aggregated costs.
+     */
+    @Test
+    public void testGetReservedInstanceAggregatedCosts() {
+        final Cost.ReservedInstanceCostStat stats = planReservedInstanceStore.getPlanReservedInstanceAggregatedCosts(PLAN_ID);
+        Assert.assertEquals(300, stats.getFixedCost(), DELTA);
+        Assert.assertEquals(7.5, stats.getRecurringCost(), DELTA);
+        Assert.assertEquals(7.517, stats.getAmortizedCost(), DELTA);
     }
 
     private void insertDefaultReservedInstanceSpec() {

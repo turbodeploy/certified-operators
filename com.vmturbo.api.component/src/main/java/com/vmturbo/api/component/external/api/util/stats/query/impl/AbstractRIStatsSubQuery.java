@@ -12,8 +12,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
@@ -23,6 +25,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -35,14 +38,18 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                                     StringConstants.RI_COST);
 
     private final RepositoryApi repositoryApi;
+    private final BuyRiScopeHandler buyRiScopeHandler;
 
     /**
      * Creates {@link AbstractRIStatsSubQuery} instance.
      *
      * @param repositoryApi repository API.
+     * @param buyRiScopeHandler buy RI scope handler.
      */
-    public AbstractRIStatsSubQuery(@Nonnull RepositoryApi repositoryApi) {
+    public AbstractRIStatsSubQuery(@Nonnull RepositoryApi repositoryApi,
+                    @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.buyRiScopeHandler = Objects.requireNonNull(buyRiScopeHandler);
     }
 
     @Override
@@ -50,10 +57,30 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         return SubQuerySupportedStats.some(context.findStats(SUPPORTED_STATS));
     }
 
+    /**
+     * Get repository API.
+     *
+     * @return {@link RepositoryApi}
+     */
     public RepositoryApi getRepositoryApi() {
         return repositoryApi;
     }
 
+    /**
+     * Get buy RI scope handler.
+     *
+     * @return {@link BuyRiScopeHandler}
+     */
+    public BuyRiScopeHandler getBuyRiScopeHandler() {
+        return buyRiScopeHandler;
+    }
+
+    /**
+     * Merge stats by date.
+     *
+     * @param snapshots list of stats to merge.
+     * @return list of merged {@link StatSnapshotApiDTO}.
+     */
     protected static List<StatSnapshotApiDTO> mergeStatsByDate(List<StatSnapshotApiDTO> snapshots) {
         return snapshots.stream()
                         .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
@@ -116,4 +143,34 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         statsDto.setFilters(filterList);
         return statsDto;
     }
+
+    /**
+     * Create list of snapshots with RI cost stats.
+     *
+     * @param rICostStats list of RI cost stat.
+     * @return list of {@link StatSnapshotApiDTO}.
+     */
+    protected static List<StatSnapshotApiDTO> convertRICostStatsToSnapshots(List<ReservedInstanceCostStat> rICostStats) {
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
+
+        for (ReservedInstanceCostStat stat : rICostStats) {
+            final StatApiDTO statApiDTO = new StatApiDTO();
+            statApiDTO.setName(StringConstants.RI_COST);
+            statApiDTO.setUnits(StringConstants.DOLLARS_PER_HOUR);
+            final float totalCost = (float)stat.getAmortizedCost();
+            final StatValueApiDTO statsValueDto = new StatValueApiDTO();
+            statsValueDto.setAvg(totalCost);
+            statsValueDto.setMax(totalCost);
+            statsValueDto.setMin(totalCost);
+            statsValueDto.setTotal(totalCost);
+            statApiDTO.setValues(statsValueDto);
+            statApiDTO.setCapacity(statsValueDto);
+            final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+            statSnapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
+            statSnapshotApiDTO.setDate(DateTimeUtil.toString(stat.getSnapshotTime()));
+            statSnapshotApiDTOS.add(statSnapshotApiDTO);
+        }
+        return statSnapshotApiDTOS;
+    }
+
 }

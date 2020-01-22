@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -19,11 +18,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Record3;
@@ -49,26 +45,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
  * comes from Topology Processor. And it use "probeReservedInstanceId" to tell if the latest reserved instance
  * is same with current existing reserved instance record or not.
  */
-public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
-
-    private static final Logger logger = LogManager.getLogger();
-
-    private final IdentityProvider identityProvider;
-
-    private final DSLContext dsl;
-
-    // A temporary column name used for query reserved instance count map.
-    private static final String RI_SUM_COUNT = "ri_sum_count";
-
-    private static final String RI_AMORTIZED_SUM = "ri_amortized_sum";
-
+public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore implements ReservedInstanceCostStore {
     private final Flux<ReservedInstanceBoughtChangeType> updateEventFlux;
-
-    private final ReservedInstanceCostCalculator reservedInstanceCostCalculator;
-
-    private static final String RI_RECURRING_COST_SUM = "ri_recurring_cost_sum";
-
-    private static final String RI_FIXED_COST_SUM = "ri_fixed_cost_sum";
 
     private static final String RI_AMORTIZED_COST = "ri_amortized_cost";
 
@@ -91,25 +69,11 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
     public ReservedInstanceBoughtStore(@Nonnull final DSLContext dsl,
                                        @Nonnull final IdentityProvider identityProvider,
                     @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator) {
-        this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.dsl = Objects.requireNonNull(dsl);
-        this.reservedInstanceCostCalculator = reservedInstanceCostCalculator;
+        super(dsl, identityProvider, reservedInstanceCostCalculator);
         // create a flux that a listener can subscribe to group store update events on.
         updateEventFlux = Flux.create(emitter -> updateEventEmitter = emitter);
         // start publishing immediately w/o waiting for a consumer to signal demand.
         updateEventFlux.publish().connect();
-    }
-
-    /**
-     * Only used for JUnit tests.
-     */
-    @VisibleForTesting
-    ReservedInstanceBoughtStore() {
-        this.identityProvider = null;
-        this.dsl = null;
-        this.reservedInstanceCostCalculator = null;
-        // create a flux that a listener can subscribe to group store update events on.
-        updateEventFlux = null;
     }
 
     /**
@@ -120,7 +84,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      */
     public List<ReservedInstanceBought> getReservedInstanceBoughtByFilter(
             @Nonnull final ReservedInstanceBoughtFilter filter) {
-        return getReservedInstanceBoughtByFilterWithContext(dsl, filter);
+        return getReservedInstanceBoughtByFilterWithContext(getDsl(), filter);
     }
 
     public List<ReservedInstanceBought> getReservedInstanceBoughtByFilterWithContext(
@@ -140,7 +104,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      */
     public Map<Long, Long> getReservedInstanceCountMap(@Nonnull final ReservedInstanceBoughtFilter filter) {
         final Map<Long, Long> retMap = new HashMap<>();
-        dsl.select(RESERVED_INSTANCE_SPEC.TIER_ID,
+        getDsl().select(RESERVED_INSTANCE_SPEC.TIER_ID,
             (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
             .from(RESERVED_INSTANCE_BOUGHT)
             .join(RESERVED_INSTANCE_SPEC)
@@ -155,27 +119,19 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
     @Override
     public Cost.ReservedInstanceCostStat getReservedInstanceAggregatedCosts(@Nonnull ReservedInstanceCostFilter filter) {
         final Result<Record3<BigDecimal, BigDecimal, BigDecimal>> riAggregatedCostResult =
-                        dsl.select(sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_AMORTIZED_COST_HOURLY.mul(RESERVED_INSTANCE_BOUGHT.COUNT))
-                                                        .as(RI_AMORTIZED_SUM),
-                                        sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_RECURRING_COST_HOURLY.mul(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_RECURRING_COST_SUM),
-                                        sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_FIXED_COST.mul(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_FIXED_COST_SUM)).from(RESERVED_INSTANCE_BOUGHT)
-                                        .join(RESERVED_INSTANCE_SPEC)
-                                        .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
-                                                        .eq(RESERVED_INSTANCE_SPEC.ID))
-                                        .where(filter.generateConditions()).fetch();
+                        getDsl().select(sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_AMORTIZED_COST_HOURLY.mul(RESERVED_INSTANCE_BOUGHT.COUNT))
+                                                       .as(RI_AMORTIZED_SUM),
+                                   sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_RECURRING_COST_HOURLY.mul(RESERVED_INSTANCE_BOUGHT.COUNT))
+                                                       .as(RI_RECURRING_SUM),
+                                   sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_FIXED_COST.mul(RESERVED_INSTANCE_BOUGHT.COUNT))
+                                                       .as(RI_FIXED_SUM))
+                            .from(RESERVED_INSTANCE_BOUGHT)
+                            .join(RESERVED_INSTANCE_SPEC)
+                                .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
+                            .where(filter.generateConditions())
+                            .fetch();
 
-        final Cost.ReservedInstanceCostStat reservedInstanceCostStat = Cost.ReservedInstanceCostStat.newBuilder()
-                        .setAmortizedCost(riAggregatedCostResult
-                                        .getValues(RI_AMORTIZED_SUM, Double.class).stream().filter(s -> s != null)
-                                        .findFirst().orElse(0D))
-                        .setRecurringCost(
-                                        riAggregatedCostResult.getValues(RI_RECURRING_COST_SUM,
-                                                        Double.class).stream().filter(s -> s != null).findFirst()
-                                                        .orElse(0D))
-                        .setFixedCost(riAggregatedCostResult
-                                        .getValues(RI_FIXED_COST_SUM, Double.class).stream().filter(s -> s != null)
-                                        .findFirst().orElse(0D))
-                        .setSnapshotTime(now()).build();
+        final Cost.ReservedInstanceCostStat reservedInstanceCostStat = convertToRICostStat(riAggregatedCostResult);
         return reservedInstanceCostStat;
     }
 
@@ -188,7 +144,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      */
     public List<Cost.ReservedInstanceCostStat> getReservedInstanceCostStats(@Nonnull ReservedInstanceCostFilter filter) {
         final Result<Record4<Long, Double, Double, Double>> riCostResult =
-                        dsl.select(RESERVED_INSTANCE_BOUGHT.ID,
+                        getDsl().select(RESERVED_INSTANCE_BOUGHT.ID,
                                         RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_AMORTIZED_COST_HOURLY
                                                         .mul(RESERVED_INSTANCE_BOUGHT.COUNT)
                                                         .as(RI_AMORTIZED_COST),
@@ -250,7 +206,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      */
     public Map<Long, Long> getReservedInstanceCountByRISpecIdMap(ReservedInstanceBoughtFilter filter) {
         final SelectJoinStep<Record2<ReservedInstanceBoughtInfo, BigDecimal>> from =
-                dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
+                getDsl().select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
                 (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
                 .from(RESERVED_INSTANCE_BOUGHT);
 
@@ -280,7 +236,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
 
     public void updateReservedInstanceBought(
             @Nonnull final List<ReservedInstanceBoughtInfo> newReservedInstances) {
-        updateReservedInstanceBought(dsl, newReservedInstances);
+        updateReservedInstanceBought(getDsl(), newReservedInstances);
     }
 
     /**
@@ -297,7 +253,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
     public void updateReservedInstanceBought(
             @Nonnull final DSLContext context,
             @Nonnull final List<ReservedInstanceBoughtInfo> newReservedInstances) {
-        logger.info("Updating reserved instance bought...");
+        getLogger().info("Updating reserved instance bought...");
         final List<ReservedInstanceBoughtRecord> existingReservedInstances =
                 internalGet(context, ReservedInstanceBoughtFilter.newBuilder()
                         .build());
@@ -325,7 +281,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
                         .map(existingRIsProbeKeyToRecord::get)
                         .collect(Collectors.toSet());
         final Map<String, Double> probeRIIDToAmortizedCost =
-                reservedInstanceCostCalculator.calculateReservedInstanceAmortizedCost(newReservedInstances);
+                getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(newReservedInstances);
 
         internalInsert(context, reservedInstanceToAdd, probeRIIDToAmortizedCost);
         internalUpdate(context, reservedInstanceUpdates, existingRIsProbeKeyToRecord, probeRIIDToAmortizedCost);
@@ -335,11 +291,11 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
         if (reservedInstanceToAdd.size() > 0 || reservedInstanceToRemove.size() > 0) {
             updateEventEmitter.next(ReservedInstanceBoughtChangeType.UPDATED);
         }
-        logger.info("Finished updating reserved instance bought.");
+        getLogger().info("Finished updating reserved instance bought.");
     }
 
     @Nonnull
-    private List<ReservedInstanceBoughtInfo> unsetNumberOfCouponsUsed(@Nonnull List<ReservedInstanceBoughtInfo> newReservedInstances) {
+    private static List<ReservedInstanceBoughtInfo> unsetNumberOfCouponsUsed(@Nonnull List<ReservedInstanceBoughtInfo> newReservedInstances) {
         return newReservedInstances.stream().map(ReservedInstanceBoughtInfo::toBuilder)
                         .peek(riInfoBuilder -> riInfoBuilder.getReservedInstanceBoughtCouponsBuilder()
                                         .setNumberOfCouponsUsed(0D))
@@ -402,7 +358,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      * @param context DSL context.
      * @param reservedInstanceToRemove set of ReservedInstanceBoughtRecord to be removed.
      */
-    private void internalDelete(@Nonnull final DSLContext context,
+    private static void internalDelete(@Nonnull final DSLContext context,
                                 @Nonnull final Set<ReservedInstanceBoughtRecord> reservedInstanceToRemove) {
         context.batchDelete(reservedInstanceToRemove).execute();
     }
@@ -414,7 +370,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      * @param filter {@link ReservedInstanceBoughtFilter} contains all filter condition.
      * @return a list of matched {@link ReservedInstanceBoughtRecord}.
      */
-    private List<ReservedInstanceBoughtRecord> internalGet(
+    private static List<ReservedInstanceBoughtRecord> internalGet(
             @Nonnull final DSLContext context,
             @Nonnull final ReservedInstanceBoughtFilter filter) {
         if (filter.isJoinWithSpecTable()) {
@@ -432,7 +388,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
         }
     }
 
-    private ReservedInstanceBoughtInfo addDerivedCostRIBoughtInfo(
+    private static ReservedInstanceBoughtInfo addDerivedCostRIBoughtInfo(
             @Nonnull ReservedInstanceBoughtInfo riBoughtInfo,
             @Nullable Double amortizedCost) {
 
@@ -460,12 +416,12 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
             @Nonnull final ReservedInstanceBoughtInfo reservedInstanceInfo,
             @Nullable final Double amortizedCost) {
         if (amortizedCost == null) {
-            logger.debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
+            getLogger().debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
                             reservedInstanceInfo.getProbeReservedInstanceId());
         }
 
         return context.newRecord(RESERVED_INSTANCE_BOUGHT, new ReservedInstanceBoughtRecord(
-                identityProvider.next(),
+                getIdentityProvider().next(),
                 reservedInstanceInfo.getBusinessAccountId(),
                 reservedInstanceInfo.getProbeReservedInstanceId(),
                 reservedInstanceInfo.getReservedInstanceSpec(),
@@ -490,7 +446,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
             @Nonnull final ReservedInstanceBoughtRecord reservedInstanceRecord,
             @Nullable final Double amortizedCost) {
         if (amortizedCost == null) {
-            logger.debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
+            getLogger().debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
                             reservedInstanceInfo.getProbeReservedInstanceId());
         }
         reservedInstanceRecord.setBusinessAccountId(reservedInstanceInfo.getBusinessAccountId());

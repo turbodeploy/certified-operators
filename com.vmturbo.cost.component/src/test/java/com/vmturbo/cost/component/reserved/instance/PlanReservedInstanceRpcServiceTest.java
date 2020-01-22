@@ -1,6 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.mockito.Mockito.mock;
+
+import java.time.Clock;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Assert;
@@ -10,8 +14,12 @@ import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
@@ -36,8 +44,10 @@ public class PlanReservedInstanceRpcServiceTest {
     private ReservedInstanceSpecStore reservedInstanceSpecStore =
                     Mockito.mock(ReservedInstanceSpecStore.class);
 
+    private BuyReservedInstanceStore buyReservedInstanceStore = mock(BuyReservedInstanceStore.class);
+
     private PlanReservedInstanceRpcService service = new PlanReservedInstanceRpcService(
-                    planReservedInstanceStore);
+                    planReservedInstanceStore, buyReservedInstanceStore);
 
     /**
      * Set up a test GRPC server.
@@ -57,6 +67,18 @@ public class PlanReservedInstanceRpcServiceTest {
                         .thenReturn(Collections.singletonMap(RI_NAME, RI_BOUGHT_COUNT));
         Mockito.when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(Matchers.any()))
                         .thenReturn(Collections.singletonList(createRiSpec()));
+        final Cost.ReservedInstanceCostStat riCostStat = Cost.ReservedInstanceCostStat.newBuilder().setFixedCost(90.0D)
+                        .setRecurringCost(0.20D).setAmortizedCost(0.30213D)
+                        .setSnapshotTime(Clock.systemUTC().instant().toEpochMilli()).build();
+        Mockito.when(planReservedInstanceStore.getPlanReservedInstanceAggregatedCosts(PLAN_ID))
+                        .thenReturn(riCostStat);
+
+        final Cost.ReservedInstanceCostStat riBuyCostStat = Cost.ReservedInstanceCostStat.newBuilder().setFixedCost(50.0D)
+                        .setRecurringCost(0.10D).setAmortizedCost(0.1057077626D)
+                        .setSnapshotTime(Clock.systemUTC().instant().toEpochMilli()).build();
+        Mockito.when(buyReservedInstanceStore.queryBuyReservedInstanceCostStats(Matchers.any()))
+                        .thenReturn(Collections.singletonList(riBuyCostStat));
+
     }
 
     /**
@@ -85,4 +107,51 @@ public class PlanReservedInstanceRpcServiceTest {
                         .build();
     }
 
+    /**
+     * Tests get plan reserved instance cost stats including buy RIs.
+     */
+    @Test
+    public void testGetPlanReservedInstanceCostStatsWithBuyRI() {
+        final GetPlanReservedInstanceCostStatsRequest riCostRequest =
+                        GetPlanReservedInstanceCostStatsRequest.newBuilder()
+                                        .setPlanId(PLAN_ID)
+                                        .setIncludeBuyRi(true)
+                                        .build();
+        final GetPlanReservedInstanceCostStatsResponse response = client.getPlanReservedInstanceCostStats(riCostRequest);
+        final List<ReservedInstanceCostStat> statsList = response.getStatsList();
+        Assert.assertNotNull(statsList);
+        Assert.assertEquals(2, statsList.size());
+        final ReservedInstanceCostStat currentStats = statsList.get(0);
+        Assert.assertEquals(90.0, currentStats.getFixedCost(), DELTA);
+        Assert.assertEquals(0.2, currentStats.getRecurringCost(), DELTA);
+        Assert.assertEquals(0.30213, currentStats.getAmortizedCost(), DELTA);
+        final ReservedInstanceCostStat projectedStats = statsList.get(1);
+        Assert.assertEquals(140.0, projectedStats.getFixedCost(), DELTA);
+        Assert.assertEquals(0.3, projectedStats.getRecurringCost(), DELTA);
+        Assert.assertEquals(0.4078, projectedStats.getAmortizedCost(), DELTA);
+    }
+
+    /**
+     * Tests get plan reserved instance cost stats without buy RIs.
+     */
+    @Test
+    public void testGetPlanReservedInstanceCostStatsWithoutBuyRI() {
+        final GetPlanReservedInstanceCostStatsRequest riCostRequest =
+                        GetPlanReservedInstanceCostStatsRequest.newBuilder()
+                                        .setPlanId(PLAN_ID)
+                                        .setIncludeBuyRi(false)
+                                        .build();
+        final GetPlanReservedInstanceCostStatsResponse response = client.getPlanReservedInstanceCostStats(riCostRequest);
+        final List<ReservedInstanceCostStat> statsList = response.getStatsList();
+        Assert.assertNotNull(statsList);
+        Assert.assertEquals(2, statsList.size());
+        final ReservedInstanceCostStat currentStats = statsList.get(0);
+        Assert.assertEquals(90.0, currentStats.getFixedCost(), DELTA);
+        Assert.assertEquals(0.2, currentStats.getRecurringCost(), DELTA);
+        Assert.assertEquals(0.30213, currentStats.getAmortizedCost(), DELTA);
+        final ReservedInstanceCostStat projectedStats = statsList.get(1);
+        Assert.assertEquals(90.0, projectedStats.getFixedCost(), DELTA);
+        Assert.assertEquals(0.2, projectedStats.getRecurringCost(), DELTA);
+        Assert.assertEquals(0.30213, projectedStats.getAmortizedCost(), DELTA);
+    }
 }

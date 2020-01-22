@@ -752,6 +752,18 @@ message GetPlanReservedInstanceBoughtRequest {
     optional int64 planId = 1;
 }
 
+// A request to get RI cost stats for both current and projected RIs.
+message GetPlanReservedInstanceCostStatsRequest {
+    optional int64 planId = 1;
+    // if include buyRI = true - add ri Buy recommendation data to projected snapshot.
+    optional bool include_buy_ri = 2 [default = false];
+}
+
+// A response with RIs cost stats.
+message GetPlanReservedInstanceCostStatsResponse {
+    repeated ReservedInstanceCostStat stats = 1;
+}
+
 // A request to get reserved instance specs
 message GetReservedInstanceSpecByIdsRequest {
     // A list of reserved instance specs id need to retrieve.
@@ -1170,8 +1182,13 @@ service PlanReservedInstanceService {
     rpc GetPlanReservedInstanceBoughtCountByTemplateType(GetPlanReservedInstanceBoughtCountRequest) returns
     (GetPlanReservedInstanceBoughtCountByTemplateResponse);
 
+    // Delete plan reserved instance stats
     rpc DeletePlanReservedInstanceStats(DeletePlanReservedInstanceStatsRequest) returns
     (DeletePlanReservedInstanceStatsResponse);
+
+    // Get plan reserved instance cost stats
+    rpc GetPlanReservedInstanceCostStats(GetPlanReservedInstanceCostStatsRequest) returns
+    (GetPlanReservedInstanceCostStatsResponse);
 }
 
 // A service responsible for getting information about cost information in Cloud.

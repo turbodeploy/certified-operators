@@ -10,10 +10,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -57,7 +57,6 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
     private final RIStatsMapper riStatsMapper;
     private final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService;
-    private final BuyRiScopeHandler buyRiScopeHandler;
 
     public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                            @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
@@ -74,12 +73,11 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
                     @Nonnull final RepositoryApi repositoryApi,
                     @Nonnull final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService,
                     @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
-        super(repositoryApi);
+        super(repositoryApi, buyRiScopeHandler);
         this.riUtilizationCoverageService = riUtilizationCoverageService;
         this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
         this.reservedInstanceCostService = reservedInstanceCostService;
-        this.buyRiScopeHandler = buyRiScopeHandler;
     }
 
     @Override
@@ -477,26 +475,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
         }
 
         private List<StatSnapshotApiDTO> createRICostStatApiDTO(List<ReservedInstanceCostStat> rICostStats) {
-            List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
-
-            for (ReservedInstanceCostStat stat : rICostStats) {
-                StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                StatApiDTO statApiDTO = new StatApiDTO();
-                statApiDTO.setName(StringConstants.RI_COST);
-                statApiDTO.setUnits(StringConstants.DOLLARS_PER_HOUR);
-                float totalCost = (float)stat.getAmortizedCost();
-                StatValueApiDTO statsValueDto = new StatValueApiDTO();
-                statsValueDto.setAvg(totalCost);
-                statsValueDto.setMax(totalCost);
-                statsValueDto.setMin(totalCost);
-                statsValueDto.setTotal(totalCost);
-                statApiDTO.setValues(statsValueDto);
-                statApiDTO.setCapacity(statsValueDto);
-                statSnapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
-                statSnapshotApiDTO.setDate(DateTimeUtil.toString(stat.getSnapshotTime()));
-                statSnapshotApiDTOS.add(statSnapshotApiDTO);
-            }
-            return statSnapshotApiDTOS;
+            return convertRICostStatsToSnapshots(rICostStats);
         }
     }
 }

@@ -695,7 +695,8 @@ public class ServiceConfig {
         final PlanRIStatsSubQuery planRIStatsQuery =
                 new PlanRIStatsSubQuery(
                         communicationConfig.repositoryApi(),
-                        communicationConfig.planReservedInstanceServiceBlockingStub());
+                        communicationConfig.planReservedInstanceServiceBlockingStub(),
+                        mapperConfig.buyRiScopeHandler());
         statsQueryExecutor().addSubquery(planRIStatsQuery);
         return planRIStatsQuery;
     }
