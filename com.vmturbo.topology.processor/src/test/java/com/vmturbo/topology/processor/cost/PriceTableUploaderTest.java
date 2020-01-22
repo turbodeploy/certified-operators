@@ -41,6 +41,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -166,10 +167,13 @@ public class PriceTableUploaderTest {
                         .setRelatedRegion(REGION_ENTITY_BUILDER)
                         .addDatabasePriceTable(DatabasePriceTableByTierEntry.newBuilder()
                                 .setRelatedDatabaseTier(DB_TIER_BUILDER)
-                                .setDatabaseTierPriceList(DatabaseTierPriceList.newBuilder()
+                                .addDatabaseTierPriceList(DatabaseTierPriceList.newBuilder()
+                                        .setDeploymentType(CloudCostDTO.DeploymentType.SINGLE_AZ)
                                         .setBasePrice(DatabaseTierConfigPrice.newBuilder()
                                                 .setDbEdition(DatabaseEdition.ENTERPRISE)
                                                 .setDbEngine(DatabaseEngine.ORACLE)
+                                                .setDbDeploymentType(CloudCostDTO.DeploymentType.SINGLE_AZ)
+                                                .setDbLicenseModel(CloudCostDTO.LicenseModel.LICENSE_INCLUDED)
                                                 .addPrices(Price.newBuilder()
                                                         .setPriceAmount(CurrencyAmount.newBuilder()
                                                                 .setAmount(2.0)))))))
@@ -182,7 +186,8 @@ public class PriceTableUploaderTest {
         OnDemandPriceTable onDemandTable = priceTable.getOnDemandPriceByRegionIdMap().get(INDEX_ONE);
         long dbId = cloudOidByLocalId.get(DB_TIER_ONE);
         Assert.assertTrue(onDemandTable.containsDbPricesByInstanceId(dbId));
-        DatabaseTierPriceList dbPriceList = onDemandTable.getDbPricesByInstanceIdMap().get(dbId);
+        DatabaseTierPriceList dbPriceList = onDemandTable.getDbPricesByInstanceIdMap().get(dbId)
+            .getDbPricesByDeploymentTypeOrDefault(CloudCostDTO.DeploymentType.SINGLE_AZ.getNumber(), null);
         Assert.assertEquals(DatabaseEdition.ENTERPRISE, dbPriceList.getBasePrice().getDbEdition());
         Assert.assertEquals(2.0,dbPriceList.getBasePrice().getPrices(0).getPriceAmount().getAmount(),0);
     }

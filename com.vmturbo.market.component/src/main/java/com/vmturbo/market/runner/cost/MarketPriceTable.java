@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
+import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -207,46 +208,76 @@ public class MarketPriceTable {
             return priceBuilder.build();
         }
 
-        DatabaseTierPriceList dbTierPrices = regionPriceTable.getDbPricesByInstanceIdMap().get(tierId);
-        if (dbTierPrices == null) {
+        DbTierOnDemandPriceTable dbTierPriceTable =
+            regionPriceTable.getDbPricesByInstanceIdMap().get(tierId);
+        if (dbTierPriceTable == null) {
             logger.warn("Price list not found for tier {} in region {}'s price table." +
                 " Cost data might not have been uploaded, or the tier is not available in the region.",
                 tierId, regionId);
             return priceBuilder.build();
         }
 
-        final DatabaseEdition dbEdition = dbTierPrices.getBasePrice().getDbEdition();
-        final DatabaseEngine dbEngine = dbTierPrices.getBasePrice().getDbEngine();
-        final DeploymentType deploymentType = dbTierPrices.getBasePrice().getDbDeploymentType();
-        final LicenseModel licenseModel = dbTierPrices.getBasePrice().getDbLicenseModel();
+        List<DatabaseTierPriceList> dbTierPriceLists = new ArrayList<>();
+
+        if (dbTierPriceTable.hasOnDemandPricesNoDeploymentType()) {
+            dbTierPriceLists.add(dbTierPriceTable.getOnDemandPricesNoDeploymentType());
+        }
+
+        dbTierPriceLists.addAll(dbTierPriceTable.getDbPricesByDeploymentTypeMap().values());
+
+        for (DatabaseTierPriceList dbTierPrices : dbTierPriceLists) {
+            addDbTierPricesToPriceTable(dbTierPrices, tierId, accountPricingData, priceBuilder);
+        }
+
+
+        return priceBuilder.build();
+    }
+
+    private void addDbTierPricesToPriceTable(DatabaseTierPriceList dbTierPrices, long tierId,
+                                             AccountPricingData accountPricingData,
+                                             DatabasePriceBundle.Builder priceBuilder) {
+        final DatabaseTierConfigPrice dbTierBasePrice = dbTierPrices.getBasePrice();
+        final DatabaseEdition dbEdition = dbTierBasePrice.getDbEdition();
+        final DatabaseEngine dbEngine = dbTierBasePrice.getDbEngine();
+        final DeploymentType deploymentType = dbTierPrices.hasDeploymentType() ?
+            dbTierPrices.getDeploymentType() : null;
+        final LicenseModel licenseModel = dbTierBasePrice.hasDbLicenseModel() ?
+            dbTierBasePrice.getDbLicenseModel() : null;
+        if (dbTierBasePrice.getPricesList().size() == 0) {
+            logger.error("The base template for DB does not have any price. Ignoring DB tier `{}`.",
+                tierId);
+            return;
+        }
         final double baseHourlyPrice =
-                dbTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
+            dbTierBasePrice.getPricesList().get(0).getPriceAmount().getAmount();
         DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
-            // Add the base configuration price.
+        // Add the base configuration price.
         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine,
-                    dbEdition,
-                    deploymentType,
-                    licenseModel,
-                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
+            dbEdition,
+            deploymentType,
+            licenseModel,
+            baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
 
         for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
+
             if (dbTierConfigPrice.getPricesList().size() == 0) {
                 logger.warn("There is no price associated with "
                     + dbTierConfigPrice.getDbEngine() + ":"
                     + dbTierConfigPrice.getDbEdition() + ":"
-                    + dbTierConfigPrice.getDbDeploymentType() + ":"
-                    + dbTierConfigPrice.getDbLicenseModel());
+                    + deploymentType + ":"
+                    + (dbTierConfigPrice.hasDbLicenseModel() ?
+                    dbTierConfigPrice.getDbLicenseModel() : null));
                 continue;
             }
             priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(),
                 dbTierConfigPrice.getDbEngine(),
                 dbTierConfigPrice.getDbEdition(),
-                dbTierConfigPrice.getDbDeploymentType(),
-                dbTierConfigPrice.getDbLicenseModel(),
+                deploymentType,
+                dbTierConfigPrice.hasDbLicenseModel() ?
+                    dbTierConfigPrice.getDbLicenseModel() : null,
                 (baseHourlyPrice + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
-                                * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
+                    * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
         }
-        return priceBuilder.build();
     }
 
     @Nullable
@@ -576,10 +607,10 @@ public class MarketPriceTable {
             private Builder() {}
 
             @Nonnull
-            public Builder addPrice(final long accountId, final DatabaseEngine dbEngine,
-                    final DatabaseEdition dbEdition,
-                    final DeploymentType depType,
-                    final LicenseModel licenseModel,
+            public Builder addPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
+                    @Nonnull final DatabaseEdition dbEdition,
+                    @Nullable final DeploymentType depType,
+                    @Nullable final LicenseModel licenseModel,
                     final double hourlyPrice) {
                 // TODO (roman, September 25) - Replace with CostTuple
                 priceBuilder.add(new DatabasePrice(accountId, dbEngine, dbEdition,
@@ -608,10 +639,10 @@ public class MarketPriceTable {
             private final double hourlyPrice;
 
             public DatabasePrice(final long accountId,
-                                final DatabaseEngine dbEngine,
-                                final DatabaseEdition dbEdition,
-                                final DeploymentType depType,
-                                final LicenseModel licenseModel,
+                                @Nonnull final DatabaseEngine dbEngine,
+                                @Nonnull final DatabaseEdition dbEdition,
+                                @Nullable final DeploymentType depType,
+                                @Nullable final LicenseModel licenseModel,
                                 final double hourlyPrice) {
                 this.accountId = accountId;
                 this.dbEngine = dbEngine;
@@ -669,7 +700,7 @@ public class MarketPriceTable {
                 return (DB_ENGINE_MAP.get(this.getDbEngine()) != null ? DB_ENGINE_MAP.get(this.getDbEngine()) : "null") + ":" +
                         (DB_EDITION_MAP.get(this.getDbEdition()) != null ? DB_EDITION_MAP.get(this.getDbEdition()) : "null") + ":" +
                         // we filter out all the multi-az deploymentTypes in the cost-probe. We will not find any cost for a license containing multi-az.
-                        (DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) != null ? DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) : "null") + ":";
+                        ((this.getDeploymentType() != null && DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) != null) ? DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) : "null") + ":";
             }
         }
     }

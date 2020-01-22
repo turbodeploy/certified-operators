@@ -46,6 +46,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -423,8 +424,7 @@ public class PriceTableUploader implements Diagnosable {
                     cloudEntitiesMap,
                     entry -> entry.getRelatedDatabaseTier().getId(),
                     oid -> onDemandPricesBuilder.containsDbPricesByInstanceId(oid),
-                    (oid, entry) -> onDemandPricesBuilder.putDbPricesByInstanceId(oid,
-                            entry.getDatabaseTierPriceList()),
+                    (oid, pricesForTier) -> dbOnDemandPriceTableAdder(oid, pricesForTier, onDemandPricesBuilder),
                     missingTiers);
 
             // add Storage prices
@@ -458,6 +458,24 @@ public class PriceTableUploader implements Diagnosable {
         priceTableBuilder.addAllReservedLicensePrices(sourcePriceTable.getReservedLicensePriceTableList());
 
         return priceTableBuilder.build();
+    }
+
+    private void dbOnDemandPriceTableAdder(Long oid,
+                                           OnDemandPriceTableByRegionEntry.DatabasePriceTableByTierEntry pricesForTier,
+                                           OnDemandPriceTable.Builder onDemandPricesBuilder) {
+        Pricing.DbTierOnDemandPriceTable.Builder dbPriceTableBuilder =
+            Pricing.DbTierOnDemandPriceTable.newBuilder();
+
+        pricesForTier.getDatabaseTierPriceListList().forEach(priceList -> {
+            if (priceList.hasDeploymentType()) {
+                dbPriceTableBuilder.putDbPricesByDeploymentType(
+                    priceList.getDeploymentType().getNumber(), priceList);
+            } else {
+                dbPriceTableBuilder.setOnDemandPricesNoDeploymentType(priceList);
+            }
+        });
+
+        onDemandPricesBuilder.putDbPricesByInstanceId(oid, dbPriceTableBuilder.build());
     }
 
     /**

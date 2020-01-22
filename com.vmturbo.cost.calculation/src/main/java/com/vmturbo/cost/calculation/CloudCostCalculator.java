@@ -24,6 +24,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -41,6 +42,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
@@ -570,9 +572,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final long regionId = context.getRegionid();
                 final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
                 if (onDemandPriceTable.isPresent()) {
-                    final DatabaseTierPriceList dbPriceList =
-                            onDemandPriceTable.get().getDbPricesByInstanceIdMap()
-                                    .get(entityInfoExtractor.getId(databaseTier));
+                    final DatabaseTierPriceList dbPriceList = getDbPriceList(databaseConfig,
+                        onDemandPriceTable.get(), entityInfoExtractor.getId(databaseTier));
                     if (dbPriceList != null) {
                         recordDatabaseCost(dbPriceList, context.getCostJournal(), databaseTier, databaseConfig);
                     }
@@ -582,6 +583,24 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 }
             });
         });
+    }
+
+    @Nullable
+    private DatabaseTierPriceList getDbPriceList(DatabaseConfig databaseConfig,
+                                                 OnDemandPriceTable onDemandPriceTable,
+                                                 long tierId) {
+        DbTierOnDemandPriceTable priceTable =
+            onDemandPriceTable.getDbPricesByInstanceIdMap().get(tierId);
+        Optional<CloudCostDTO.DeploymentType> deploymentType =
+            databaseConfig.getDeploymentType();
+
+        if (deploymentType.isPresent()) {
+            return priceTable.getDbPricesByDeploymentTypeOrDefault(deploymentType.get().getNumber(),
+                null);
+        } else {
+            return priceTable.hasOnDemandPricesNoDeploymentType() ?
+                priceTable.getOnDemandPricesNoDeploymentType() : null;
+        }
     }
 
     /**

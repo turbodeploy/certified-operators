@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing;
+import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -432,7 +433,7 @@ public class CloudCostCalculatorTest {
                 .setType(EntityType.DATABASE_VALUE)
                 .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
                     DatabaseEdition.ENTERPRISE,
-                    DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
+                    DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
@@ -468,7 +469,7 @@ public class CloudCostCalculatorTest {
             .setType(EntityType.DATABASE_SERVER_VALUE)
             .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
                 DatabaseEdition.ENTERPRISE,
-                DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
+                DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
             .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
@@ -640,25 +641,40 @@ public class CloudCostCalculatorTest {
                             * CostProtoUtil.HOURS_IN_MONTH))
                         .build())
                     .build())
-                .putDbPricesByInstanceId(DB_TIER_ID, DatabaseTierPriceList.newBuilder()
-                    .setBasePrice(DatabaseTierConfigPrice.newBuilder()
+                .putDbPricesByInstanceId(DB_TIER_ID,
+                    DbTierOnDemandPriceTable.newBuilder()
+                        .putDbPricesByDeploymentType(DeploymentType.SINGLE_AZ.getNumber(),
+                            DatabaseTierPriceList.newBuilder()
+                                .setBasePrice(DatabaseTierConfigPrice.newBuilder()
+                                    .setDbEdition(DatabaseEdition.NONE)
+                                    .setDbEngine(DatabaseEngine.MARIADB)
+                                    .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                                    .setDbLicenseModel(LicenseModel.NO_LICENSE_REQUIRED)
+                                    .addPrices(price(Unit.HOURS, BASE_PRICE)))
+                                .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
+                                    .setDbEdition(DatabaseEdition.ENTERPRISE)
+                                    .setDbEngine(DatabaseEngine.MYSQL)
+                                    .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                                    .setDbLicenseModel(LicenseModel.LICENSE_INCLUDED)
+                                    .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
+                                .build())
+                        .build())
+                .putDbPricesByInstanceId(DB_SERVER_TIER_ID, DbTierOnDemandPriceTable.newBuilder()
+                    .putDbPricesByDeploymentType(DeploymentType.SINGLE_AZ.getNumber(),
+                        DatabaseTierPriceList.newBuilder()
+                        .setBasePrice(DatabaseTierConfigPrice.newBuilder()
                             .setDbEdition(DatabaseEdition.NONE)
                             .setDbEngine(DatabaseEngine.MARIADB)
+                            .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                            .setDbLicenseModel(LicenseModel.NO_LICENSE_REQUIRED)
                             .addPrices(price(Unit.HOURS, BASE_PRICE)))
-                    .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
+                        .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
                             .setDbEdition(DatabaseEdition.ENTERPRISE)
                             .setDbEngine(DatabaseEngine.MYSQL)
+                            .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                            .setDbLicenseModel(LicenseModel.LICENSE_INCLUDED)
                             .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
-                    .build())
-                .putDbPricesByInstanceId(DB_SERVER_TIER_ID, DatabaseTierPriceList.newBuilder()
-                    .setBasePrice(DatabaseTierConfigPrice.newBuilder()
-                        .setDbEdition(DatabaseEdition.NONE)
-                        .setDbEngine(DatabaseEngine.MARIADB)
-                        .addPrices(price(Unit.HOURS, BASE_PRICE)))
-                    .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
-                        .setDbEdition(DatabaseEdition.ENTERPRISE)
-                        .setDbEngine(DatabaseEngine.MYSQL)
-                        .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
+                        .build())
                     .build())
                 .putComputePricesByTierId(COMPUTE_TIER_ID, ComputeTierPriceList.newBuilder()
                     .setBasePrice(ComputeTierConfigPrice.newBuilder()
