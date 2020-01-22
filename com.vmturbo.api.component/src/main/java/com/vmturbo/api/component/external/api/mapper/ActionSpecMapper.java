@@ -1305,7 +1305,10 @@ public class ActionSpecMapper {
         actionApiDTO.setCurrentEntity(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
         actionApiDTO.setActionType(ActionType.DELETE);
-
+        long deletedSizeinKB = deleteExplanation.getSizeKb();
+        if (deletedSizeinKB > 0) {
+            actionApiDTO.setCurrentValue(Math.round(deletedSizeinKB / Units.NUM_OF_KB_IN_MB) + "MB");
+        }
         // set the virtualDisks field on ActionApiDTO, only one VirtualDiskApiDTO should be set,
         // since there is only one file (on-prem) or volume (cloud) associated with DELETE action
         if (delete.hasFilePath()) {
