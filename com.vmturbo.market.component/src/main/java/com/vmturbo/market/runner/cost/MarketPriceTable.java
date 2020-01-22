@@ -172,8 +172,8 @@ public class MarketPriceTable {
                         // license price that should be added to the base price
                         final LicensePriceTuple licensePrice = accountPricingData.getLicensePriceForOS(osType,
                             computeTierConfig.getNumCores(), computeTierPrices);
-                        final double totalLicensePrice = licensePrice.getImplicitLicensePrice() * discount
-                            + licensePrice.getExplicitLicensePrice();
+                        final double totalLicensePrice = licensePrice.getImplicitOnDemandLicensePrice() * discount
+                            + licensePrice.getExplicitOnDemandLicensePrice();
                         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
                             basePriceWithDiscount + totalLicensePrice, osType == baseOsType);
                     });

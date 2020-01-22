@@ -511,6 +511,9 @@ enum CostCategory {
     // Represents the spot instance cost associated with an entity.
     SPOT = 5;
 
+    // Represents the license costs associated with the RI coverage of a workload
+    RESERVED_LICENSE = 6;
+
 }
 
 // The cost source represents the source of the cost in the cost category. For example the on Demand Compute cost

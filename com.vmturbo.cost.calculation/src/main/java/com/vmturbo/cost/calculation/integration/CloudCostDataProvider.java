@@ -248,48 +248,73 @@ public interface CloudCostDataProvider {
         /**
          * a calculated license price
          */
-        private double implicitLicensePrice;
+        private double implicitOnDemandLicensePrice;
 
         /**
          * a catalog license price
          */
-        private double explicitLicensePrice;
+        private double explicitOnDemandLicensePrice;
+
+        /**
+         * License price portion coming from the RI coverage.
+         */
+        private double reservedInstanceLicensePrice;
 
         public LicensePriceTuple() {
-            implicitLicensePrice = NO_LICENSE_PRICE;
-            explicitLicensePrice = NO_LICENSE_PRICE;
+            implicitOnDemandLicensePrice = NO_LICENSE_PRICE;
+            explicitOnDemandLicensePrice = NO_LICENSE_PRICE;
+            reservedInstanceLicensePrice = NO_LICENSE_PRICE;
         }
 
         /**
          * Get the implicit license price
          * @return the implicit license price of the tier
          */
-        public double getImplicitLicensePrice() {
-            return implicitLicensePrice;
+        public double getImplicitOnDemandLicensePrice() {
+            return implicitOnDemandLicensePrice;
         }
 
         /**
          * Get the explicit license price
          * @return the explicit license price of the tier
          */
-        public double getExplicitLicensePrice() {
-            return explicitLicensePrice;
+        public double getExplicitOnDemandLicensePrice() {
+            return explicitOnDemandLicensePrice;
+        }
+
+        /**
+         * Get the reserved instance license price.
+         *
+         * @return A double representing the reserved instance license price.
+         */
+        public double getReservedInstanceLicensePrice() {
+            return reservedInstanceLicensePrice;
         }
 
         /**
          * Set the implicit license price
          * @param implicitPrice the implicit license price (template specific)
          */
-        public void setImplicitLicensePrice(double implicitPrice) {
-            implicitLicensePrice = implicitPrice;
+        public void setImplicitOnDemandLicensePrice(double implicitPrice) {
+            implicitOnDemandLicensePrice = implicitPrice;
         }
 
         /**
-         * Set the explicit license price
+         * Set the explicit license price.
+         *
          * @param explicitPrice the explicit license price (based on number of cores)
          */
-        public void setExplicitLicensePrice(double explicitPrice) {
-            explicitLicensePrice = explicitPrice;
+        public void setExplicitOnDemandLicensePrice(double explicitPrice) {
+            explicitOnDemandLicensePrice = explicitPrice;
+        }
+
+        /**
+         * Set the license price of the RI coverage associated with the VM.
+         *
+         * @param reservedLicensePrice The reserved instance license price.
+         */
+        public void setReservedInstanceLicensePrice(double reservedLicensePrice) {
+            reservedInstanceLicensePrice = reservedLicensePrice;
         }
     }
 }

@@ -143,6 +143,8 @@ public class CloudCostCalculatorTest {
 
     private static final double DELTA = 0.0001;
 
+    private static Price price = Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder().setAmount(0)).build();
+
     /**
      * Test a simple on-demand calculation (no RI, no discount) for a VM.
      */
@@ -162,7 +164,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
             mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(computeTier, price)).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
             .thenReturn(riApplicator);
@@ -207,7 +209,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -242,8 +244,9 @@ public class CloudCostCalculatorTest {
         final TestEntityClass spotVm = createVmTestEntity(DEFAULT_VM_ID, OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final CostJournal<TestEntityClass> spotJournal = cloudCostCalculator.calculateCost(spotVm);
+        // Spot costs do not have any portion covered by RI's.
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT).getValue(),
-            is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
+            is(BASE_PRICE * 1));
         // No adjustment and license costs for spot instances
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
 
@@ -272,7 +275,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -314,7 +317,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(0.0));
+        when(riApplicator.recordRICoverage(computeTier, price)).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -514,7 +517,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(0.0));
+        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);

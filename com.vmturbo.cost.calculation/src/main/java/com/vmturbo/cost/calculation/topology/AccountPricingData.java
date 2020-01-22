@@ -117,6 +117,14 @@ public class AccountPricingData {
                 .min(Comparator.comparing(LicensePrice::getNumberOfCores)));
     }
 
+    private Optional<LicensePrice> getReservedLicensePrice(OSType os, int numCores) {
+        List<LicensePrice> prices = reservedLicensePrices.get(os);
+        if (prices == null) {
+            return Optional.empty();
+        }
+        return prices.stream().filter(s -> s.getNumberOfCores() == numCores).findFirst();
+    }
+
     /**
      * Return the license price that matches the OS for a specific template.
      *
@@ -163,8 +171,8 @@ public class AccountPricingData {
         // calculate the implicit price by getting the price adjustment of the current OS.
         // if not present, get the price adjustment for the base OS.
         // the current OS is the same as the base OS, no need to add explicit price
-        if (os != computePriceList.getBasePrice().getGuestOsType()) {
-            licensePrice.setImplicitLicensePrice(
+        if (computePriceList.getBasePrice() != null && os != computePriceList.getBasePrice().getGuestOsType()) {
+            licensePrice.setImplicitOnDemandLicensePrice(
                     getOsPriceAdjustment(os, computePriceList)
                             .map(computeTierConfigPrice -> computeTierConfigPrice.getPricesList()
                                     .get(0).getPriceAmount().getAmount())
@@ -181,8 +189,11 @@ public class AccountPricingData {
         // add the price of the license itself as the explicit price
         getExplicitLicensePrice(os, numOfCores)
                 .ifPresent(licenseExplicitPrice -> licensePrice
-                        .setExplicitLicensePrice(licenseExplicitPrice.getPrice()
+                        .setExplicitOnDemandLicensePrice(licenseExplicitPrice.getPrice()
                                 .getPriceAmount().getAmount()));
+        getReservedLicensePrice(os, numOfCores)
+                .ifPresent(reservedLicensePrice -> licensePrice
+                        .setReservedInstanceLicensePrice(reservedLicensePrice.getPrice().getPriceAmount().getAmount()));
 
         return licensePrice;
     }

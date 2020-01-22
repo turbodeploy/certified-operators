@@ -259,17 +259,19 @@ public class CloudCostDataProviderTest {
     public void testNoLicensePrice() {
         LicensePriceTuple licensePriceTuple = cloudCostDataAWS.getAccountPricingData(AWS_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.LINUX,
             NUM_OF_CORES, getComputePriceList(cloudCostDataAWS, AWS_COMPUTE_TIER_ID, AWS_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(),
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(),
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
+        assertThat(licensePriceTuple.getReservedInstanceLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
 
         licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.WINDOWS_BYOL,
             NUM_OF_CORES, getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(),
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(),
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
+        assertThat(licensePriceTuple.getReservedInstanceLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
     }
 
     /**
@@ -280,21 +282,22 @@ public class CloudCostDataProviderTest {
         LicensePriceTuple licensePriceTuple = cloudCostDataAWS.getAccountPricingData(AWS_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(
             OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES,
             getComputePriceList(cloudCostDataAWS, AWS_COMPUTE_TIER_ID, AWS_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(),
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(),
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
 
         licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES,
             getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(),
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
 
         licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.WINDOWS_SERVER, NUM_OF_CORES,
                         getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
+        assertThat(licensePriceTuple.getReservedInstanceLicensePrice(), equalTo(WINDOWS_SERVER_LICENSE_PRICE));
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
     }
 
     /**
@@ -304,9 +307,9 @@ public class CloudCostDataProviderTest {
     public void testOnlyExplicitLicensePrice() {
         LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.RHEL,
             NUM_OF_CORES, getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(),
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(), equalTo(RHEL_LICENSE_PRICE));
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(), equalTo(RHEL_LICENSE_PRICE));
     }
 
     /**
@@ -317,8 +320,8 @@ public class CloudCostDataProviderTest {
         LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(
             OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES,
             getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
-        assertThat(licensePriceTuple.getImplicitLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
-        assertThat(licensePriceTuple.getExplicitLicensePrice(),
+        assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(WINDOWS_SQL_WEB_LICENSE_PRICE));
     }
 }

@@ -399,37 +399,36 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
             // Calculate on-demand prices for entities that have a compute config.
             cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
-
-                // Apply the reserved instance coverage, and return the percent of the entity's compute that's
-                // covered by reserved instances.
-                final TraxNumber riComputeCoveragePercent = reservedInstanceApplicator.recordRICoverage(computeTier);
-                Preconditions.checkArgument(
-                    riComputeCoveragePercent.getValue() >= 0.0 && riComputeCoveragePercent.getValue() <= 1.0);
                 final long regionId = context.getRegionid();
                 final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
                 if (!onDemandPriceTable.isPresent()) {
                     logger.warn("calculateVirtualMachineCost: Global price table has no entry for region {}." +
                                     "  This means there is some inconsistency between the topology and pricing data.",
                             regionId);
-                }
-                if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
-                    recordVMSpotInstanceCost(computeTier, riComputeCoveragePercent, journal, context);
-                } else if (isBillable(entity) && onDemandPriceTable.isPresent()) {
+                } else {
                     final ComputeTierPriceList computePriceList = onDemandPriceTable.get()
                             .getComputePricesByTierIdMap()
                             .get(entityInfoExtractor.getId(computeTier));
-                    if (computePriceList != null) {
+                    LicensePriceTuple licensePrice = null;
+                    if (computePriceList != null && isBillable(entity) && computeConfig.getBillingType() != VMBillingType.BIDDING) {
+                        licensePrice = accountPricingData.getLicensePriceForOS(computeConfig.getOs(),
+                                computeConfig.getNumCores(), computePriceList);
                         final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
                         // For compute tiers, we're working with "hourly" costs, and the amount
                         // of "compute" bought from the tier is 1 unit. Note: This cost is purely
                         // on demand and does not include any RI related costs.
                         TraxNumber traxNumber = trax(1, "full on demand");
                         recordOnDemandVmCost(journal, traxNumber, basePrice, computeTier);
-                        recordVMLicenseCost(journal, computeTier, computeConfig,
-                                computePriceList, traxNumber, accountPricingData);
+                        recordOnDemandVMLicenseCost(journal, computeTier, computeConfig, traxNumber, licensePrice);
+                    } else if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
+                        recordVMSpotInstanceCost(computeTier, journal, context);
                     }
-                }
-                if (onDemandPriceTable.isPresent()) {
+                    Price price = Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(licensePrice != null ? licensePrice.getReservedInstanceLicensePrice() : 0).build())
+                            .build();
+                    // Apply the reserved instance coverage, and return the percent of the entity's compute that's
+                    // covered by reserved instances.
+                    reservedInstanceApplicator.recordRICoverage(computeTier, price);
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
             });
@@ -443,32 +442,26 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * @param computeTier              Compute Tier that we are calculating.
      * @param unitsBought              Amount of units bought.
      * @param computeConfig            Compute configuration of a the computeTier.
-     * @param computePriceList         List that contains all the prices.
-     * @param accountPricingData       The account specific pricing data.
+     * @param licensePrice             The license price tuple.
      */
-    private void recordVMLicenseCost(CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
-                                     ComputeConfig computeConfig,
-                                     ComputeTierPriceList computePriceList, TraxNumber unitsBought,
-                                     AccountPricingData accountPricingData) {
+    private void recordOnDemandVMLicenseCost(CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
+                                             ComputeConfig computeConfig, TraxNumber unitsBought,
+                                             LicensePriceTuple licensePrice) {
+        // The units bought for both implicit and explicit license prices will be 1.
         if (computeConfig.getLicenseModel() == LicenseModel.LICENSE_INCLUDED) {
-            LicensePriceTuple licensePrice = accountPricingData.getLicensePriceForOS(computeConfig.getOs(),
-                    computeConfig.getNumCores(), computePriceList);
-
-            // Recording any price adjustments from the license base price.
-            if (licensePrice.getImplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+            if (licensePrice.getImplicitOnDemandLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
                         Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(licensePrice.getImplicitLicensePrice()).build())
+                                .setAmount(licensePrice.getImplicitOnDemandLicensePrice()).build())
                                 .build(), unitsBought);
             }
 
             // Recording the license price according to os and number of cores (used for explicit cases).
-            // Here the "unitsBought" is 1.0 since the RI discount does not apply on explicit price.
-            if (licensePrice.getExplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
+            if (licensePrice.getExplicitOnDemandLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
                         Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(licensePrice.getExplicitLicensePrice()).build())
-                                .build(), trax(1.0, "explicit license"));
+                                .setAmount(licensePrice.getExplicitOnDemandLicensePrice()).build())
+                                .build(), trax(unitsBought.getValue(), "explicit license"));
             }
         } else {
             // The VM is "Bring Your Own License" - set the license price to 0.
@@ -539,18 +532,17 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * Record vm prices for spot instance/low priority vms and add it to the compute cost journal.
      *
      * @param computeTier              Compute Tier that we are calculating.
-     * @param riComputeCoveragePercent RI to calculate the coverage.
      * @param journal                  Journal used to add the costs to.
      * @param context                  The account pricing calculation context
      */
-    private void recordVMSpotInstanceCost(ENTITY_CLASS computeTier, TraxNumber riComputeCoveragePercent,
+    private void recordVMSpotInstanceCost(ENTITY_CLASS computeTier,
                                           CostJournal.Builder<ENTITY_CLASS> journal,
                                           CostCalculationContext context) {
         final Optional<SpotInstancePriceTable> spotPriceTable = context.getSpotInstancePriceTable();
         if (spotPriceTable.isPresent()) {
             Price spotPrice = spotPriceTable.get().getSpotPriceByInstanceIdMap()
                     .get(entityInfoExtractor.getId(computeTier));
-            final TraxNumber unitsBought = riComputeCoveragePercent.subtractFrom(1.0).compute("units bought at spot price");
+            final TraxNumber unitsBought = trax(1, "units bought at spot price");
             journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
                     spotPrice, unitsBought);
         }

@@ -44,6 +44,8 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TraxContext;
@@ -107,6 +109,10 @@ public class ReservedInstanceApplicatorTest {
                             .setTermYears(1)))
             .build();
 
+    // Mock Price which is easier to work with
+    private static final Price price = Price.newBuilder().setUnit(Unit.HOURS)
+            .setPriceAmount(CurrencyAmount.newBuilder().setAmount(10)).build();
+
     /**
      * Setup trax configuration.
      */
@@ -163,7 +169,7 @@ public class ReservedInstanceApplicatorTest {
 
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
-        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier);
+        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier, price);
         assertThat(coveredPercentage.getValue(), closeTo(0.5, 0.0001));
 
         // 10 + 10 + (3650 / (1 * 365 * 24)) = 30 <- hourly cost per instance
@@ -192,7 +198,7 @@ public class ReservedInstanceApplicatorTest {
 
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
-        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier);
+        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier, price);
         assertThat(coveredPercentage.getValue(), is(FULL_COVERAGE_PERCENTAGE));
 
         final ArgumentCaptor<TraxNumber> amountCaptor = ArgumentCaptor.forClass(TraxNumber.class);
@@ -218,7 +224,7 @@ public class ReservedInstanceApplicatorTest {
                 .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
-        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier);
+        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier, price);
         assertThat(coveredPercentage.getValue(), is(NO_COVERAGE_PERCENTAGE));
         verify(costJournal, never()).recordRiCost(any(), any(), any());
     }
@@ -238,7 +244,7 @@ public class ReservedInstanceApplicatorTest {
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
 
-        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier);
+        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier, price);
         assertThat(coveredPercentage.getValue(), is(NO_COVERAGE_PERCENTAGE));
         verify(costJournal, never()).recordRiCost(any(), any(), any());
     }
@@ -259,7 +265,7 @@ public class ReservedInstanceApplicatorTest {
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.empty());
-        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier);
+        TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier, price);
         assertThat(coveredPercentage.getValue(), is(NO_COVERAGE_PERCENTAGE));
         verify(costJournal, never()).recordRiCost(any(), any(), any());
     }
@@ -288,7 +294,7 @@ public class ReservedInstanceApplicatorTest {
 
         when(discountApplicator.getDiscountPercentage(0L)).thenReturn(trax(0));
 
-        applicator.recordRICoverage(computeTier);
+        applicator.recordRICoverage(computeTier, price);
         CostJournal<TestEntityClass> journal = journalBuilder.build();
         journal.getCategories();
         TraxNumber totalCostIncludingRI = journal.getHourlyCostForCategory(CostCategory.RI_COMPUTE);

@@ -255,8 +255,8 @@ public class MarketPriceTableTest {
     private LicensePriceTuple createLicensePriceTuple(
         double implicitPrice, double explicitPrice) {
         LicensePriceTuple licensePriceTuple = Mockito.mock(LicensePriceTuple.class);
-        Mockito.when(licensePriceTuple.getImplicitLicensePrice()).thenReturn(implicitPrice);
-        Mockito.when(licensePriceTuple.getExplicitLicensePrice()).thenReturn(explicitPrice);
+        Mockito.when(licensePriceTuple.getImplicitOnDemandLicensePrice()).thenReturn(implicitPrice);
+        Mockito.when(licensePriceTuple.getExplicitOnDemandLicensePrice()).thenReturn(explicitPrice);
         return licensePriceTuple;
     }
 

@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
 
@@ -80,29 +82,32 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      *
      * @param computeTier The compute tier from which the entity is buying. This signifies the
      *                    compute demand of the entity.
+     * @param price The price associated with the license cost of the Reserved Instance coverage of the entity.
      * @return The percentage of the entity's compute demand that's covered by reserved instances.
      *         This should be a number between 0 and 1.
      */
-    public TraxNumber recordRICoverage(@Nonnull final ENTITY_CLASS computeTier) {
+    public TraxNumber recordRICoverage(@Nonnull final ENTITY_CLASS computeTier,
+                                       @Nullable final Price price) {
         final long entityId = entityInfoExtractor.getId(journal.getEntity());
         return Optional.ofNullable(topologyRICoverage.get(entityId))
             .map(entityRiCoverage -> {
                 final TraxNumber totalRequired = trax(entityInfoExtractor.getComputeTierConfig(computeTier)
                     .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
                     .getNumCoupons(), "coupons required");
-
                 final TraxNumber coverageByRIInventory = recordRICoverageEntries(
                         entityId,
                         totalRequired,
                         entityRiCoverage.getCouponsCoveredByRiMap(),
                         cloudCostData::getExistingRiBoughtData,
-                        false);
+                        false,
+                        price);
                 final TraxNumber coverageByBuyRIs = recordRICoverageEntries(
                         entityId,
                         totalRequired,
                         entityRiCoverage.getCouponsCoveredByBuyRiMap(),
                         cloudCostData::getBuyRIData,
-                        true);
+                        true,
+                        price);
                 final TraxNumber totalCovered = coverageByRIInventory.plus(coverageByBuyRIs).compute();
 
                 if (totalCovered.getValue() == totalRequired.getValue()) {
@@ -123,7 +128,8 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                                                @Nonnull TraxNumber totalCoverageCapacity,
                                                @Nonnull Map<Long, Double> riCoverageEntries,
                                                @Nonnull Function<Long, Optional<ReservedInstanceData>> riDataResolver,
-                                               boolean isBuyRI) {
+                                               boolean isBuyRI,
+                                               @Nonnull Price price) {
 
         TraxNumber totalCovered = trax(0);
         for (Map.Entry<Long, Double> riCoverageEntry : riCoverageEntries.entrySet()) {
@@ -150,11 +156,12 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 if (isBuyRI) {
                     journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
                     journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, coveragePercentage);
+                    journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData, coveragePercentage, price, true);
                 } else {
                     final TraxNumber riBoughtPercentage =
                             calculateRiBoughtPercentage(entityOid, coveredCoupons, riData);
                     journal.recordRiCost(riData, coveredCoupons, calculateEffectiveHourlyCost(riBoughtPercentage, riData));
-
+                    journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData, coveragePercentage, price, false);
                     journal.recordRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
                     journal.recordRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, coveragePercentage);
                 }
