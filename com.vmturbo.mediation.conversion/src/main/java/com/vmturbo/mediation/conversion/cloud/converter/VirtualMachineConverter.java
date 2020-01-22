@@ -254,6 +254,7 @@ public class VirtualMachineConverter implements IEntityConverter {
                 addLayeredOver(entity, vId);
                 addLayeredOver(volume, zone);
                 addLayeredOver(volume, storageTierId);
+                converter.ownedByBusinessAccount(vId);
             }
         }
     }
