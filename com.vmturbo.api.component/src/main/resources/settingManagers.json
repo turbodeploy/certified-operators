@@ -76,6 +76,7 @@
       "settings": [
         "activateActionWorkflow",
         "moveActionWorkflow",
+        "moveActionWorkflowWithNativeAsDefault",
         "provisionActionWorkflow",
         "resizeActionWorkflow",
         "suspendActionWorkflow",
@@ -130,6 +131,7 @@
         "minObservationPeriodVirtualMachine",
         "maxObservationPeriodBusinessUser",
         "maxObservationPeriodVirtualMachine",
+        "maxObservationPeriodDesktopPool",
         "resizeTargetUtilizationNetThroughput",
         "resizeTargetUtilizationIoThroughput",
         "resizeTargetUtilizationImageCPU",
@@ -147,7 +149,8 @@
         "poolCpuUtilizationThreshold",
         "poolMemoryUtilizationThreshold",
         "poolStorageUtilizationThreshold",
-        "viewPodActiveSessionCapacity"
+        "viewPodActiveSessionCapacity",
+        "dailyObservationWindowDesktopPool"
       ]
     },
     "storagesettingsmanager": {

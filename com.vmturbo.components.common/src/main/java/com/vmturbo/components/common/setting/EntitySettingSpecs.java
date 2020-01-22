@@ -350,6 +350,15 @@ public enum EntitySettingSpecs {
             numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
+     * Max observation period for desktop pool. Used for timeslot feature.
+     */
+    MaxObservationPeriodDesktopPool("maxObservationPeriodDesktopPool",
+                                     SettingConstants.MAX_OBSERVATION_PERIOD,
+                                     Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+                                     SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DESKTOP_POOL),
+                                     numeric(3, 30, 7), true),
+
+    /**
      * Resize target Utilization for Image CPU.
      */
     ResizeTargetUtilizationImageCPU("resizeTargetUtilizationImageCPU",
@@ -538,14 +547,23 @@ public enum EntitySettingSpecs {
 
     /**
      * Automation Policy for the Move Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a resize action is generated and executed.
+     * Orchestration workflow to invoke when a move action is generated and executed.
      */
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
+                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
+
+    /**
+     * Same as {@link #MoveActionWorkflow} but with different default value.
+     */
+    MoveActionWorkflowWithNativeAsDefault("moveActionWorkflowWithNativeAsDefault", "Move Workflow",
+                       Collections.singletonList(CategoryPathConstants.AUTOMATION),
+                       SettingTiebreaker.SMALLER,
+                       EnumSet.of(EntityType.BUSINESS_USER),
+                       string("false"), true),
 
     /**
      * Automation Policy for the Move Workflow pre workflow. The value is the name of an
@@ -862,7 +880,7 @@ public enum EntitySettingSpecs {
                      Collections.singletonList(CategoryPathConstants.ACTIONSCRIPT),
                      SettingTiebreaker.SMALLER,
                      EnumSet.of(EntityType.BUSINESS_USER),
-                     string(), true),
+                     string("false"), true),
 
     /**
      * Indicates whether to enforce consistent resizing on a group.  Applies to: VM, Container
@@ -916,7 +934,19 @@ public enum EntitySettingSpecs {
     ViewPodActiveSessionsCapacity("viewPodActiveSessionCapacity", "Active Sessions Capacity",
                           Collections.emptyList(), SettingTiebreaker.SMALLER,
                           EnumSet.of(EntityType.VIEW_POD),
-                          numeric(0f, 10000f, 8000f), true);
+                          numeric(0f, 10000f, 8000f), true),
+
+    /**
+     * Count of observation window per day for desktop pools. Used for "timeslot" feature.
+     */
+    DailyObservationWindowDesktopPool("dailyObservationWindowDesktopPool",
+                                      "Daily Observation Windows",
+                                      Collections.emptyList(),
+                                      SettingTiebreaker.SMALLER,
+                                      EnumSet.of(EntityType.DESKTOP_POOL),
+                                      new EnumSettingDataType<>(DailyObservationWindowsCount.THREE,
+                                                                DailyObservationWindowsCount.class),
+                                      true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(

@@ -95,6 +95,24 @@
           ]
         }
       },
+      "maxObservationPeriodDesktopPool": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "More Elastic",
+            "Recommended",
+            "Less Elastic",
+            "Last 30 Days",
+            "Last 7 Days",
+            "Last 3 Days"
+          ],
+          "customStepValues": [
+            30,
+            7,
+            3
+          ]
+        }
+      },
       "maxObservationPeriodVirtualMachine": {
         "range": {
           "step": 1,

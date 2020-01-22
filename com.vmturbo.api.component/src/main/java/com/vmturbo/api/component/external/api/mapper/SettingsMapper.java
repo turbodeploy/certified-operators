@@ -92,6 +92,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingReque
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
@@ -214,10 +215,7 @@ public class SettingsMapper {
      * {@link com.vmturbo.common.protobuf.action.ActionDTOUtil#upperUnderScoreToMixedSpaces} to
      * convert the enum to a beautiful string. we want to show "RHEL" rather than "Rhel" in UI.
      */
-    private static final Map<String, String> SETTING_ENUM_NAME_TO_LABEL = ImmutableMap.of(
-            OperatingSystem.RHEL.name(), "RHEL",
-            OperatingSystem.SLES.name(), "SLES"
-    );
+    private static final Map<String, String> SETTING_ENUM_NAME_TO_LABEL = getSettingEnumNameToLabel();
 
     public SettingsMapper(@Nonnull final SettingServiceBlockingStub settingService,
                           @Nonnull final GroupServiceBlockingStub groupService,
@@ -675,6 +673,17 @@ public class SettingsMapper {
                 schedule.getId(), schedule.getDisplayName(), e);
         }
         return scheduleApiDTO;
+    }
+
+    private static Map<String, String> getSettingEnumNameToLabel() {
+        final ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        builder.put(OperatingSystem.RHEL.name(), "RHEL");
+        builder.put(OperatingSystem.SLES.name(), "SLES");
+        // In VDI, we want to show all this values as "{DIGIT} windows per day" in UI
+        for (DailyObservationWindowsCount value : DailyObservationWindowsCount.values()) {
+            builder.put(value.name(), value.toString());
+        }
+        return builder.build();
     }
 
     /**
