@@ -11,7 +11,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
 /**
  *
@@ -34,7 +33,7 @@ public interface CloudProviderConversionContext {
      * @return StorageTier corresponding to the storage
      */
     @Nonnull
-    default String getStorageTier(@Nonnull EntityDTOOrBuilder storageDTO) {
+    default String getStorageTier(@Nonnull EntityDTO.Builder storageDTO) {
         return storageDTO.getStorageData().getStorageTier();
     }
 

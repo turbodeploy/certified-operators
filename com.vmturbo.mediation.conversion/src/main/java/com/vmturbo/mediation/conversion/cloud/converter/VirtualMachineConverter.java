@@ -40,7 +40,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 public class VirtualMachineConverter implements IEntityConverter {
 
     // set of access commodity types that should be removed from bought commodities list
-    private static final Set<CommodityType> ACCESS_COMMODITY_TYPES_TO_REMOVE = ImmutableSet.of(
+    private static Set<CommodityType> ACCESS_COMMODITY_TYPES_TO_REMOVE = ImmutableSet.of(
             CommodityType.DSPM_ACCESS,
             CommodityType.DATACENTER,
             CommodityType.DATASTORE,
@@ -48,7 +48,7 @@ public class VirtualMachineConverter implements IEntityConverter {
     );
 
     // set of commodities that the active field should be cleared (set back to true by default)
-    public static final Set<CommodityType> COMMODITIES_TO_CLEAR_ACTIVE = ImmutableSet.of(
+    public static Set<CommodityType> COMMODITIES_TO_CLEAR_ACTIVE = ImmutableSet.of(
             CommodityType.MEM_PROVISIONED,
             CommodityType.CPU_PROVISIONED
     );
@@ -80,7 +80,7 @@ public class VirtualMachineConverter implements IEntityConverter {
      * @return true if conversion successful
      */
     @Override
-    public boolean convert(@Nonnull Builder entity, @Nonnull CloudDiscoveryConverter converter) {
+    public boolean convert(@Nonnull EntityDTO.Builder entity, @Nonnull CloudDiscoveryConverter converter) {
         // if the VM doesn't have profileId, then it's a fake VM created for hosting
         // DatabaseServer in AWS. flag this entity for removal
         if (!entity.hasProfileId()) {
@@ -176,7 +176,7 @@ public class VirtualMachineConverter implements IEntityConverter {
                     }
 
                     // connect volume to storage tier
-                    Builder volume = converter.getNewEntityBuilder(svId);
+                    EntityDTO.Builder volume = converter.getNewEntityBuilder(svId);
                     if (!volume.getLayeredOverList().contains(storageTierId)) {
                         volume.addLayeredOver(storageTierId);
                     }
@@ -245,22 +245,16 @@ public class VirtualMachineConverter implements IEntityConverter {
                                          final String zone,
                                          final CloudDiscoveryConverter converter) {
         if (entity.hasVirtualMachineData()) {
-            int numInstanceStores = entity.getVirtualMachineData().getNumEphemeralStorages();
-            String diskType = vmProfileDTO.getInstanceDiskType().toString();
-            String storageTierId = converter.getStorageTierId(diskType);
-            for (int i = 0; i < numInstanceStores; i++) {
-                String vId = converter.createEphemeralVolumeId(i, zone, diskType);
-                Builder volume = converter.getNewEntityBuilder(vId);
-                addLayeredOver(entity, vId);
-                addLayeredOver(volume, zone);
-                addLayeredOver(volume, storageTierId);
-            }
-        }
-    }
-
-    private static void addLayeredOver(final Builder entity, final String layeredOver) {
-        if (!entity.getLayeredOverList().contains(layeredOver)) {
-            entity.addLayeredOver(layeredOver);
+                int numInstanceStores = entity.getVirtualMachineData().getNumEphemeralStorages();
+                String diskType = vmProfileDTO.getInstanceDiskType().toString();
+                String storageId = converter.getStorageTierId(diskType);
+                for (int i = 0; i < numInstanceStores; i++) {
+                    String vId = converter.createEphemeralVolumeId(i, zone, diskType );
+                    EntityDTO.Builder volume = converter.getNewEntityBuilder(vId);
+                    entity.addLayeredOver(vId);
+                    volume.addLayeredOver(zone);
+                    volume.addLayeredOver(storageId);
+                }
         }
     }
 }

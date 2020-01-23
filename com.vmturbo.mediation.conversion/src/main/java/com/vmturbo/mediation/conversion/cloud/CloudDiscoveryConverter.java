@@ -11,8 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,7 +21,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
@@ -51,7 +50,7 @@ public class CloudDiscoveryConverter {
 
     private Map<String, EntityDTO> rawEntityDTOsById = new HashMap<>();
 
-    private Map<String, EntityDTO.Builder> newEntityBuildersById = new HashMap<>();
+    protected Map<String, EntityDTO.Builder> newEntityBuildersById = new HashMap<>();
 
     private Map<String, EntityProfileDTO> profileDTOsById = new HashMap<>();
 
@@ -64,12 +63,12 @@ public class CloudDiscoveryConverter {
 
     private final DiscoveryResponse.Builder discoveryResponseBuilder;
 
-    private final CloudProviderConversionContext conversionContext;
+    protected final CloudProviderConversionContext conversionContext;
 
     /**
      * Suffix appended to the ephemeral volume id.
      */
-    private static final String EPHEMERAL = "_Ephemeral";
+    public static final String EPHEMERAL = "_Ephemeral";
 
     public CloudDiscoveryConverter(@Nonnull DiscoveryResponse discoveryResponse,
                      @Nonnull CloudProviderConversionContext conversionContext) {
@@ -165,21 +164,22 @@ public class CloudDiscoveryConverter {
      */
     private void createStorageTier(@Nonnull EntityDTO storageDTO) {
         // we got one -- create a storage tier based on it's storage data
-        if (storageDTO.hasStorageData()) {
-            final String storageTier = conversionContext.getStorageTier(storageDTO);
-            createStorageTier(storageTier);
+        if (!storageDTO.hasStorageData()) {
+            return;
         }
-    }
 
-    private void createStorageTier(@Nonnull final String storageTierName) {
-        final String storageTierId = conversionContext.getStorageTierId(storageTierName);
+        final String storageTier = conversionContext.getStorageTier(storageDTO.toBuilder());
+        final String storageTierId = conversionContext.getStorageTierId(storageTier);
         // create new StorageTier if not existing
         newEntityBuildersById.computeIfAbsent(storageTierId, k -> {
+            // create the entity for it.
+            EntityDTO.Builder stBuilder = EntityDTO.newBuilder();
+            stBuilder.setId(storageTierId);
+            stBuilder.setDisplayName(storageTier);
+            stBuilder.setEntityType(EntityType.STORAGE_TIER);
+            // add to set
             allStorageTierIds.add(storageTierId);
-            return EntityDTO.newBuilder()
-                    .setEntityType(EntityType.STORAGE_TIER)
-                    .setId(storageTierId)
-                    .setDisplayName(storageTierName);
+            return stBuilder;
         });
     }
 
@@ -206,31 +206,26 @@ public class CloudDiscoveryConverter {
         // Create volumes for each instance store attached to a VM.
         if (entityDTO.hasVirtualMachineData()) {
             int numInstanceStores = entityDTO.getVirtualMachineData().getNumEphemeralStorages();
-            final EntityProfileDTO profileDTO = profileDTOsById.get(entityDTO.getProfileId());
+            EntityProfileDTO profileDTO = this.profileDTOsById.get(entityDTO.getProfileId());
             if (profileDTO != null && profileDTO.hasVmProfileDTO()) {
-                final String zoneId = entityDTO.getCommoditiesBoughtList().stream()
-                        .filter(c -> c.getProviderType() == EntityType.PHYSICAL_MACHINE)
-                        .map(CommodityBought::getProviderId)
-                        .findAny().orElse(null);
-                if (zoneId == null) {
-                    return;
-                }
                 final String diskType = profileDTO.getVmProfileDTO().getInstanceDiskType().toString();
                 final int diskSize = profileDTO.getVmProfileDTO().getInstanceDiskSize();
-                for (int index = 0; index < numInstanceStores; index++) {
-                    final String id = createEphemeralVolumeId(index, zoneId, diskType);
-                    newEntityBuildersById.computeIfAbsent(id, k -> EntityDTO.newBuilder()
-                            .setEntityType(EntityType.VIRTUAL_VOLUME)
-                            .setId(id)
-                            .setDisplayName(id)
-                            .setMonitored(false)
-                            .setVirtualVolumeData(VirtualVolumeData.newBuilder()
-                                    .setIsEphemeral(true)
-                                    .setStorageAmountCapacity(diskSize)
-                                    .setAttachmentState(AttachmentState.ATTACHED)));
-
-                    // Create Storage Tier if it doesn't exist
-                    createStorageTier(diskType);
+                final Optional<String> zone = entityDTO.getCommoditiesBoughtList().stream()
+                        .filter(c -> c.getProviderType() == EntityType.PHYSICAL_MACHINE)
+                        .map(c -> c.getProviderId())
+                        .findAny();
+                for (int i = 0; i < numInstanceStores; i++) {
+                    final int index = i;
+                    zone.ifPresent(zoneId -> {
+                        final String id = createEphemeralVolumeId(index, zoneId, diskType);
+                        final Builder volume = newEntityBuildersById.computeIfAbsent(id, k ->
+                                EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_VOLUME).setId(id));
+                        volume.setDisplayName(id);
+                        volume.setMonitored(false);
+                        volume.getVirtualVolumeDataBuilder().setIsEphemeral(true);
+                        volume.getVirtualVolumeDataBuilder().setStorageAmountCapacity(diskSize);
+                        volume.getVirtualVolumeDataBuilder().setAttachmentState(AttachmentState.ATTACHED);
+                    });
                 }
             }
         }
@@ -331,6 +326,7 @@ public class CloudDiscoveryConverter {
      *             DATABASE        -> DATABASE_TIER
      *
      * @param entityProfileDTO the EntityProfileDTO which needs to be converted to ComputeTier
+     * @return ComputeTier EntityDTO created from the given profile dto
      */
     @VisibleForTesting
     void createEntityDTOFromProfile(EntityProfileDTO entityProfileDTO) {
