@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.components.common.stats;
 
 import static org.junit.Assert.assertEquals;
 

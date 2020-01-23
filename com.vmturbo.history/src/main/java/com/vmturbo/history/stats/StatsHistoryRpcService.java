@@ -92,6 +92,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;

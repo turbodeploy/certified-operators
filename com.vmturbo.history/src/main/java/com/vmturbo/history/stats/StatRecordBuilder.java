@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 

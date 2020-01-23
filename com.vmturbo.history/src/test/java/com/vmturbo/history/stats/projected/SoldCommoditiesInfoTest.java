@@ -4,11 +4,10 @@ import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.CO
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-
-import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
 
@@ -21,8 +20,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 

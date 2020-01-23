@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
