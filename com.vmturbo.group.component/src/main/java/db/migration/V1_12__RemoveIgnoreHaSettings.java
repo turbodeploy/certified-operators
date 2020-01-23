@@ -34,7 +34,7 @@ public class V1_12__RemoveIgnoreHaSettings implements JdbcMigration, MigrationCh
         try {
             connection.setAutoCommit(false);
             final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data FROM group_component.setting_policy");
+                .executeQuery("SELECT id, setting_policy_data FROM setting_policy");
             while (rs.next()) {
                 final long oid = rs.getLong("id");
                 final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
@@ -47,7 +47,7 @@ public class V1_12__RemoveIgnoreHaSettings implements JdbcMigration, MigrationCh
                 settingPolicyInfo =
                     settingPolicyInfo.toBuilder().clearSettings().addAllSettings(filteredSettings).build();
                 final PreparedStatement stmt = connection.prepareStatement(
-                    "UPDATE group_component.setting_policy SET setting_policy_data=? WHERE id=?");
+                    "UPDATE setting_policy SET setting_policy_data=? WHERE id=?");
                 stmt.setBytes(1, settingPolicyInfo.toByteArray());
                 stmt.setLong(2, oid);
                 stmt.addBatch();
