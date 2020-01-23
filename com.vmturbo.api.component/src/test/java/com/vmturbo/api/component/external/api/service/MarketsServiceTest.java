@@ -767,7 +767,8 @@ public class MarketsServiceTest {
                     Mockito.mock(SettingsManagerMapping.class),
                     Mockito.mock(SettingsMapper.class),
                     policiesService(),
-                    groupRpcService(), groupMapper());
+                    groupRpcService(), groupMapper(),
+                    Mockito.mock(UuidMapper.class));
         }
 
         @Bean

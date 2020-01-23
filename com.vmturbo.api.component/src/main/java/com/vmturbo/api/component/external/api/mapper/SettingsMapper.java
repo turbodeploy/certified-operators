@@ -915,19 +915,20 @@ public class SettingsMapper {
     }
 
     /**
-     * Map a set of {@link SettingApiDTO}s to their associated {@link Setting} objects.
-     * The input DTO's should have values.
+     * Bulk converts list of {@link SettingApiDTO} to {@link Setting}s.
+     * <p> Maps {@link SettingApiDTO}s to all required {@link Setting} objects that
+     * will be required to create setting overrides</p>
      *
      * @param apiDtos The collection of {@link SettingApiDTO}s to map.
      * @return The {@link Setting} objects, arranged by setting name (UUID in API terms). Any
      *         settings that could not be mapped will not be present.
      */
     @Nonnull
-    public Map<SettingApiDtoKey, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
+    public Map<SettingValueEntityTypeKey, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
         final Map<String, List<SettingApiDTO>> settingOverrides = apiDtos.stream()
                 .collect(Collectors.groupingBy(SettingApiDTO::getUuid));
 
-        final ImmutableMap.Builder<SettingApiDtoKey, Setting> retChanges = ImmutableMap.builder();
+        final Map<SettingValueEntityTypeKey, Setting> retChanges = new HashMap<>();
         // We need to look up the setting specs to know how to apply setting overrides.
         settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
                 .addAllSettingSpecName(settingOverrides.keySet())
@@ -938,7 +939,8 @@ public class SettingsMapper {
                     final List<SettingApiDTO> dtos = settingOverrides.get(settingSpec.getName());
                     dtos.stream().forEach(dto -> {
                         try {
-                            retChanges.put(getSettingApiDtoKey(dto), toProtoSetting(dto, settingSpec));
+                            retChanges.putIfAbsent(getSettingValueEntityTypeKey(dto),
+                                        toProtoSetting(dto, settingSpec));
                         } catch (RuntimeException e) {
                             // Catch and log any runtime exceptions to isolate the failure to that
                             // particular misbehaving setting.
@@ -948,34 +950,39 @@ public class SettingsMapper {
                     });
 
                 });
-        return retChanges.build();
+        return retChanges;
     }
 
     /**
-     * Used to generate immurtable key for {@link SettingApiDTO}.
+     * Used to generate immutable key for {@link SettingApiDTO}.
      */
     @Value.Immutable
-    public interface SettingApiDtoKey {
+    public interface SettingValueEntityTypeKey {
         //SettingApiDtoUuid
         String settingUUID();
 
         //SettingApiDto entityType mapped to UIEntityType
         UIEntityType entityType();
+
+        /**
+         * {@link SettingApiDTO} value as string.
+         */
+        String settingValue();
     }
 
     /**
-     * Gets {@link SettingApiDtoKey} from {@link SettingApiDTO}.
+     * Gets {@link SettingValueEntityTypeKey} from {@link SettingApiDTO}.
      *
-     * @param dto to used to build SettingApiDtoKey
+     * @param dto to used to build SettingValueEntityTypeKey
      * @return key created from settingApiDto
      */
-    public static SettingApiDtoKey getSettingApiDtoKey(SettingApiDTO dto) {
-        return ImmutableSettingApiDtoKey.builder()
+    public static SettingValueEntityTypeKey getSettingValueEntityTypeKey(SettingApiDTO dto) {
+        return ImmutableSettingValueEntityTypeKey.builder()
                 .entityType(UIEntityType.fromString(dto.getEntityType()))
                 .settingUUID(dto.getUuid())
+                .settingValue(SettingsMapper.inputValueToString(dto).orElse(""))
                 .build();
     }
-
 
     /**
      * Injects a String value into a {@link Setting.Builder}. The injector is responsible for

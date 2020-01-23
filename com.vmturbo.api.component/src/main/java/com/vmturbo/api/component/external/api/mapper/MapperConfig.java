@@ -167,7 +167,8 @@ public class MapperConfig {
                 settingsMapper(),
                 serviceConfig.policiesService(),
                 communicationConfig.groupRpcService(),
-                groupMapper());
+                groupMapper(),
+                uuidMapper());
     }
 
     @Bean

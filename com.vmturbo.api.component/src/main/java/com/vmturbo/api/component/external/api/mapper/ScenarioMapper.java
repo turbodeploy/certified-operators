@@ -24,16 +24,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.BooleanUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -41,9 +35,16 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -65,6 +66,7 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -185,13 +187,16 @@ public class ScenarioMapper {
 
     private final GroupMapper groupMapper;
 
+    private final UuidMapper uuidMapper;
+
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingsMapper settingsMapper,
                           @Nonnull final PoliciesService policiesService,
                           @Nonnull final GroupServiceBlockingStub groupRpcService,
-                          @Nonnull final GroupMapper groupMapper) {
+                          @Nonnull final GroupMapper groupMapper,
+                          @Nonnull final UuidMapper uuidMapper) {
 
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.policiesService = Objects.requireNonNull(policiesService);
@@ -200,6 +205,7 @@ public class ScenarioMapper {
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.groupMapper = Objects.requireNonNull(groupMapper);
+        this.uuidMapper = Objects.requireNonNull(uuidMapper);
     }
 
     /**
@@ -208,12 +214,14 @@ public class ScenarioMapper {
      * @param name The name of the scenario.
      * @param dto The DTO to be converted.
      * @return The ScenarioInfo equivalent of the input DTO.
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     *          required to map the UUID to an {@link UuidMapper.ApiId} fails
      * @throws InvalidOperationException e.g in case if alleviate pressure plan, if we don't get
      *         cluster information.
      */
     @Nonnull
     public ScenarioInfo toScenarioInfo(final String name,
-                                       @Nonnull final ScenarioApiDTO dto) throws InvalidOperationException {
+                                       @Nonnull final ScenarioApiDTO dto) throws OperationFailedException, InvalidOperationException {
         final ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
@@ -661,19 +669,22 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private List<ScenarioChange> buildSettingChanges(@Nullable final List<SettingApiDTO<String>> settingsList) {
+    @VisibleForTesting
+    List<ScenarioChange> buildSettingChanges(@Nullable final List<SettingApiDTO<String>> settingsList) throws
+            OperationFailedException {
         if (CollectionUtils.isEmpty(settingsList)) {
             return Collections.emptyList();
         }
         // First we convert them back to "real" settings.
         final List<SettingApiDTO> convertedSettingOverrides =
             settingsManagerMapping.convertFromPlanSetting(settingsList);
-        final Map<SettingsMapper.SettingApiDtoKey, Setting> settingProtoOverrides =
+        final Map<SettingValueEntityTypeKey, Setting> settingProtoOverrides =
                 settingsMapper.toProtoSettings(convertedSettingOverrides);
 
         final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
-        convertedSettingOverrides.forEach(apiDto -> {
-            Setting protoSetting = settingProtoOverrides.get(SettingsMapper.getSettingApiDtoKey(apiDto));
+
+        for (SettingApiDTO<String> apiDto : settingsList) {
+            Setting protoSetting = settingProtoOverrides.get(SettingsMapper.getSettingValueEntityTypeKey(apiDto));
             if (protoSetting == null) {
                 String dtoDescription;
                 try {
@@ -689,17 +700,22 @@ public class ScenarioMapper {
                     settingOverride.setEntityType(
                             UIEntityType.fromStringToSdkType(apiDto.getEntityType()));
                 }
+
+                if (apiDto.getSourceGroupUuid() != null) {
+                    settingOverride.setGroupOid(uuidMapper.fromUuid(apiDto.getSourceGroupUuid()).oid());
+                }
+
                 retChanges.add(ScenarioChange.newBuilder()
                         .setSettingOverride(settingOverride)
                         .build());
             }
-        });
+        }
 
         return retChanges.build();
     }
 
     @Nonnull
-    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges) {
+    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges) throws OperationFailedException {
         if (configChanges == null) {
             return Collections.emptyList();
         }
@@ -707,6 +723,7 @@ public class ScenarioMapper {
         final ImmutableList.Builder<ScenarioChange> scenarioChanges = ImmutableList.builder();
 
         scenarioChanges.addAll(buildSettingChanges(configChanges.getAutomationSettingList()));
+
         if (!CollectionUtils.isEmpty(configChanges.getRemoveConstraintList())) {
             scenarioChanges.add(buildPlanChanges(configChanges));
         }
@@ -1094,11 +1111,11 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes, ScenarioChangeMappingContext mappingContext) {
+    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes, @Nonnull final ScenarioChangeMappingContext mappingContext) {
         final List<SettingApiDTO<String>> settingChanges = changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
-                .flatMap(override -> createApiSettingFromOverride(override).stream())
+                .flatMap(override -> createApiSettingFromOverride(override, mappingContext).stream())
                 .collect(Collectors.toList());
 
         final List<PlanChanges> allPlanChanges = changes.stream()
@@ -1158,24 +1175,36 @@ public class ScenarioMapper {
         return constraintApiDTO;
     }
 
+    @VisibleForTesting
     @Nonnull
-    private Collection<SettingApiDTO<String>> createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
+    protected Collection<SettingApiDTO<String>> createApiSettingFromOverride(
+            @Nonnull final SettingOverride settingOverride,
+            @Nonnull final ScenarioChangeMappingContext mappingContext) throws IllegalStateException {
         final SettingApiDTOPossibilities possibilities =
                 settingsMapper.toSettingApiDto(settingOverride.getSetting());
 
-        if (settingOverride.hasEntityType()) {
-            final String entityType = UIEntityType.fromType(settingOverride.getEntityType()).apiStr();
-            if (possibilities.getSettingForEntityType(entityType).isPresent()) {
-                return Collections.singletonList(possibilities.getSettingForEntityType(entityType).get());
-            } else {
-                logger.warn("Entity type " + entityType +
-                    " not supported by the setting " +
-                    settingOverride.getSetting().getSettingSpecName() + " being overriden.");
-                return Collections.emptyList();
-            }
-        } else {
+        if (settingOverride.hasEntityType() && settingOverride.hasGroupOid()) {
+            new IllegalStateException("Not Supported: SettingOverride with groupOid but no entityType");
+        }
+
+        if (!settingOverride.hasEntityType()) {
             return possibilities.getAll();
         }
+
+        final String entityType = UIEntityType.fromType(settingOverride.getEntityType()).apiStr();
+
+        SettingApiDTO<String> settingSpec = possibilities.getSettingForEntityType(entityType)
+                .orElseThrow(() -> new IllegalStateException("Entity type " + entityType +
+                        " not supported by the setting " +
+                        settingOverride.getSetting().getSettingSpecName() + " being overriden."));
+
+        if (settingOverride.hasGroupOid()) {
+            BaseApiDTO target = mappingContext.dtoForId(settingOverride.getGroupOid());
+            settingSpec.setSourceGroupUuid(target.getUuid());
+            settingSpec.setSourceGroupName(target.getDisplayName());
+        }
+
+        return Collections.singletonList(settingSpec);
     }
 
     @Nonnull
