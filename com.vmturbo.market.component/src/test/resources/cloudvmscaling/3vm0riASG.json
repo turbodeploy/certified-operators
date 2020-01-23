@@ -2,7 +2,6 @@
   "Contexts": [
     {
       "context": {
-        "csp": "AWS",
         "os": "LINUX",
         "region": 31,
         "billingAccount": 1,

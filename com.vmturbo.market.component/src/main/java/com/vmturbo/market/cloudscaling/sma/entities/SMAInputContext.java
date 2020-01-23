@@ -3,7 +3,6 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -78,12 +77,13 @@ public class SMAInputContext {
         for (int i = 0; i < inputContext.getReservedInstances().size(); i++) {
             SMAReservedInstance oldRI = oldReservedInstances.get(i);
             SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                    oldRI.getRiKeyOid(),
                     oldRI.getName(),
                     oldRI.getBusinessAccount(),
                     oldRI.getTemplate(),
                     oldRI.getZone(),
                     oldRI.getCount(),
-                    context);
+                    oldRI.isIsf());
             newReservedInstances.add(newRI);
         }
         this.reservedInstances = newReservedInstances;
@@ -117,13 +117,15 @@ public class SMAInputContext {
         this.virtualMachines = newVirtualMachines;
         List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
         for (SMAReservedInstance oldRI : inputContext.getReservedInstances()) {
-            SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+            SMAReservedInstance newRI = new SMAReservedInstance(
+                    oldRI.getOid(),
+                    oldRI.getRiKeyOid(),
                     oldRI.getName(),
                     oldRI.getBusinessAccount(),
                     oldRI.getTemplate(),
                     oldRI.getZone(),
                     oldRI.getCount(),
-                    context);
+                    oldRI.isIsf());
             newReservedInstances.add(newRI);
         }
         this.reservedInstances = newReservedInstances;

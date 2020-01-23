@@ -2,7 +2,6 @@
   "Contexts": [
     {
       "context": {
-        "csp": AZURE,
         "os": LINUX,
         "region": sydney,
         "billingAccount": biac1,
@@ -96,7 +95,8 @@
           "businessAccount": 10,
           "utilization": 0,
           "template": t3a.nano,
-          "count": 5
+          "count": 5,
+          "isf": true
         }
       ],
       "Matching": [

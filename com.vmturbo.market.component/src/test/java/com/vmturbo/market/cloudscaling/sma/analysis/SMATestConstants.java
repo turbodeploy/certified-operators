@@ -34,6 +34,10 @@ public class SMATestConstants {
      */
     public static final long RESERVED_INSTANCE_BASE = 1000000L;
     /**
+     * base for reserved instance oid.
+     */
+    public static final long RESERVED_INSTANCE_KEY_BASE = 3000000L;
+    /**
      * base for virtual machine oid.
      */
     public static final long VIRTUAL_MACHINE_BASE = 2000000L;

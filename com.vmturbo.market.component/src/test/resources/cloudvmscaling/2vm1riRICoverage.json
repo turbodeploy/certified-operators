@@ -2,7 +2,6 @@
   "Contexts": [
     {
       "context": {
-        "csp": AWS,
         "os": LINUX,
         "region": sydney,
         "billingAccount": biac1,
@@ -80,7 +79,8 @@
           "utilization": 0,
           "zone": 1a,
           "template": template3,
-          "count": 1
+          "count": 1,
+          "isf": false
         }
       ],
       "Matching": [

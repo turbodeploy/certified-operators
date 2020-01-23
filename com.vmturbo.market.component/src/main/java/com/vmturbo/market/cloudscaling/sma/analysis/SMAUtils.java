@@ -2,7 +2,6 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import java.util.EnumSet;
 
-import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
@@ -69,7 +68,7 @@ public class SMAUtils {
     /**
      * Placeholder for invalid SMAContext.
      */
-    public static final SMAContext BOGUS_CONTEXT = new SMAContext(SMACSP.UNKNOWN, OSType.UNKNOWN_OS,
+    public static final SMAContext BOGUS_CONTEXT = new SMAContext(OSType.UNKNOWN_OS,
         -1, -1, Tenancy.DEDICATED);
 
     /**

@@ -2,7 +2,6 @@
   "Contexts": [
     {
       "context": {
-        "csp": "AWS",
         "os": "LINUX",
         "region": 31,
         "billingAccount": 1,
@@ -86,7 +85,8 @@
           "utilization": 0,
           "zone": 21,
           "template": 100003,
-          "count": 1
+          "count": 1,
+          "isf": false
         }
       ],
       "Matching": [

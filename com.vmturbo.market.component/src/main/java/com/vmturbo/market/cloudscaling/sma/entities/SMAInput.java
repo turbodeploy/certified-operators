@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,7 +26,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -43,6 +43,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
+import com.vmturbo.market.topology.conversions.ReservedInstanceKey;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -127,6 +128,10 @@ public class SMAInput {
         Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs = new HashMap<>();
         Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs = new HashMap<>();
         Map<SMAContext, Set<SMATemplate>> smaContextToTemplates = new HashMap<>();
+
+        SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator =
+                new SMAReservedInstanceKeyIDGenerator();
+
         // Set of VMs, needed to update VMs after SMATemplates are created.
         Set<SMAVirtualMachine> vms = new HashSet<>();
         /*
@@ -195,7 +200,8 @@ public class SMAInput {
         for (ReservedInstanceData data : cloudCostData.getAllRiBought()) {
             numberRIs++;
             if (processReservedInstance(data, cloudTopology, computeTierToContextToTemplateMap,
-                regionToOsTypeToContext, smaContextToRIs, regionToReservedInstances)) {
+                regionToOsTypeToContext, smaContextToRIs,
+                    regionToReservedInstances, reservedInstanceKeyIDGenerator)) {
                 numberRIsCreated++;
             }
         }
@@ -294,14 +300,13 @@ public class SMAInput {
         /*
          * create Context
          */
-        // TODO: find CSP
-        SMACSP csp = SMACSP.AWS;
+
         long regionId = getVMRegionId(oid, cloudTopology);
         long businessAccountId = getBusinessAccountId(oid, cloudTopology, "VM");
         long masterAccountId = getMasterAccountId(businessAccountId, cloudTopology, "VM");
-        logger.info("processVirtualMachine: new SMAContext csp={} osType={} region={} masterAccount={} account={} tenancy={}",
-            csp, osType, regionId, masterAccountId, businessAccountId, tenancy);
-        SMAContext context = new SMAContext(csp, osType, regionId, masterAccountId, tenancy);
+        logger.info("processVirtualMachine: new SMAContext osType={} region={} masterAccount={} account={} tenancy={}",
+            osType, regionId, masterAccountId, businessAccountId, tenancy);
+        SMAContext context = new SMAContext(osType, regionId, masterAccountId, tenancy);
 
         float currentRICoverage = computeRiCoverage(entity, cloudTopology, cloudCostData);
         Set<Long> accounts = contextToBusinessAccountIds.get(context);
@@ -330,8 +335,8 @@ public class SMAInput {
             logger.error("processVirtualMachine: createSMAVirtualMachine failed for VM ID={}", vm.getOid());
             return;
         } else {
-            logger.debug("processVirtualMachine: region={} new SMAVirtualMachine: csp={} osType={} region={} masterAccount={} tenancy={}",
-                regionId, csp, osType, regionId, masterAccountId, tenancy);
+            logger.debug("processVirtualMachine: region={} new SMAVirtualMachine: osType={} region={} masterAccount={} tenancy={}",
+                regionId, osType, regionId, masterAccountId, tenancy);
         }
         updateRegionToVirtualMachines(regionToVirtualMachines, regionId, vm);
         vms.add(vm);
@@ -547,8 +552,6 @@ public class SMAInput {
                                        Map<Long, Set<SMATemplate>> regionIdToTemplates,
                                        MarketPriceTable marketPriceTable
     ) {
-        // TODO: figure out what is the CSP from
-        SMACSP csp = SMACSP.AWS;
         long oid = computeTier.getOid();
         String name = computeTier.getDisplayName();
         if (computeTier.getEntityType() != EntityType.COMPUTE_TIER_VALUE) {
@@ -592,10 +595,6 @@ public class SMAInput {
                 oid, name, regionId, osType.name());
 
             for (SMAContext context: contexts) {
-                if (context.getCsp() != csp) {
-                    logger.debug("processComputeTier: csp={} != context.csp={} for {}",
-                        csp.name(), context.getCsp().name(), context);
-                }
                 Set<SMATemplate> templates = smaContextToTemplates.get(context);
                 if (templates == null) {
                     templates = new HashSet<>();
@@ -715,6 +714,7 @@ public class SMAInput {
      * @param regionToOsTypeToContext  map from regionID to OSType to context.
      * @param smaContextToRIs map from context to set of RIs, to be updated
      * @param regionToReservedInstances map from context to set of RIs, to be updated
+     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @return true if RI is created
      */
     private boolean processReservedInstance(ReservedInstanceData data,
@@ -722,10 +722,8 @@ public class SMAInput {
                                             Table<Long, SMAContext, SMATemplate> templateMap,
                                             Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext,
                                             Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
-                                            Map<Long, Set<SMAReservedInstance>> regionToReservedInstances
-    ) {
-        // TODO: figure out correct CSP.
-        SMACSP csp = SMACSP.AWS;
+                                            Map<Long, Set<SMAReservedInstance>> regionToReservedInstances,
+                                            SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
         ReservedInstanceBought riBought = data.getReservedInstanceBought();
         ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
         long businessAccountId = riBoughtInfo.getBusinessAccountId();
@@ -737,7 +735,7 @@ public class SMAInput {
         ReservedInstanceBoughtCost boughtCost = riBoughtInfo.getReservedInstanceBoughtCost();
 
         ReservedInstanceSpec riSpec = data.getReservedInstanceSpec();
-        long oid = riSpec.getId();
+        long riID = riBought.getId();
         ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
         // Can't find template until after processComputeTier
 
@@ -750,40 +748,43 @@ public class SMAInput {
         OSType  osType = OSType.valueOf(osTypeName);
         long regionId = riSpecInfo.getRegionId();
 
-        boolean found = contextExists(regionToOsTypeToContext, csp, masterAccountId, regionId, osType, tenancy);
+        boolean found = contextExists(regionToOsTypeToContext, masterAccountId, regionId, osType, tenancy);
         if (found == false) {
-            logger.info("no context CSP={} billingAccountId={} regionId={} OSType={} Tenancy={} for RI name={}",
-                csp.name(), masterAccountId, regionId, osType.name(), tenancy.name(), name);
+            logger.info("no context billingAccountId={} regionId={} OSType={} Tenancy={} for RI name={}",
+                 masterAccountId, regionId, osType.name(), tenancy.name(), name);
             return false;
         }
 
-        SMAContext context = new SMAContext(csp, osType, regionId, masterAccountId, tenancy);
+        SMAContext context = new SMAContext(osType, regionId, masterAccountId, tenancy);
         long templateId = riSpecInfo.getTierId();
         SMATemplate template = templateMap.get(templateId, context);
         if (template == null) {
             // should be ERROR
             logger.debug("processReservedInstance: can't find template with ID={} in templateMap for RI ID={} name={}",
-                    templateId, oid, name);
+                    templateId, riID, name);
             template = SMAUtils.BOGUS_TEMPLATE;
         }
+        ReservedInstanceKey reservedInstanceKey = new ReservedInstanceKey(data,
+                template.getFamily());
+        long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey);
         String templateName = template.getName();
-        logger.debug("processReservedInstance: ID={} name={} template={} new SMAcontext: csp={} osType={} regionId={} masterAccountId={} tenancy={}",
-            oid, name, templateName, csp, osType, regionId, masterAccountId, tenancy);
-
-         SMAReservedInstance ri = new SMAReservedInstance(oid,
+        logger.debug("processReservedInstance: ID={} name={} template={} new SMAcontext: osType={} regionId={} masterAccountId={} tenancy={}",
+            riKeyId, name, templateName, osType, regionId, masterAccountId, tenancy);
+        SMAReservedInstance ri = new SMAReservedInstance(riID,
+            riKeyId,
             name,
             businessAccountId,
             template,
             zoneId,
             count,
-            context);
+            riSpecInfo.getSizeFlexible());
         if (ri == null) {
             logger.info("processReservedInstance: regionId={} template={} new SMA_RI FAILED: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={} utilization={} rate RI={} on-demand={}",
-                regionId, templateName, oid, name, businessAccountId, templateName, zoneId, osType.name(),
+                regionId, templateName, riID, name, businessAccountId, templateName, zoneId, osType.name(),
                 tenancy.name(), count, riRate);
         } else {
             logger.info("processReservedInstance: regionId={} template={} SMARI: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={} utilization={} rate RI={} on-demand={}",
-                regionId, templateName, oid, name, businessAccountId, templateName, zoneId, osType.name(),
+                regionId, templateName, riID, name, businessAccountId, templateName, zoneId, osType.name(),
                 tenancy.name(), count, riRate);
             updateRegionToReservedInstance(regionToReservedInstances, regionId, ri);
             Set<SMAReservedInstance> smaRIs = smaContextToRIs.get(context);
@@ -799,14 +800,13 @@ public class SMAInput {
     /**
      * Determine if there exists a context for csp, masterAccountId, regionId, osType and Tenancy.
      * @param regionToOsTypeToContext Table containing contexts.
-     * @param csp cloud service provider
      * @param masterAccountId master (billing) accountID
      * @param regionId region ID
      * @param osType OS
      * @param tenancy Tenancy
      * @return true if exists.
      */
-    private boolean contextExists(Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext, SMACSP csp,
+    private boolean contextExists(Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext,
                                   long masterAccountId, long regionId, OSType osType, Tenancy tenancy) {
         Set<SMAContext> contexts = regionToOsTypeToContext.get(regionId, osType);
         if (contexts == null) {
@@ -815,8 +815,7 @@ public class SMAInput {
         boolean found = false;
         // verify  exists a context with CSP, billing account and tenancy.
         for (SMAContext context : contexts) {
-            if (context.getCsp() == csp &&
-                context.getTenancy() == tenancy &&
+            if (context.getTenancy() == tenancy &&
                 context.getBillingAccountId() == masterAccountId
             ) {
                 found = true;
@@ -1069,6 +1068,7 @@ public class SMAInput {
         }
     }
 
+
     public List<SMAInputContext> getContexts() {
         return inputContexts;
     }
@@ -1078,5 +1078,34 @@ public class SMAInput {
         return "SMAInput{" +
             "inputContexts=" + inputContexts.size() +
             '}';
+    }
+
+    /**
+     * This class is to generate unique IDs for ReservedInstanceKey.
+     */
+    class SMAReservedInstanceKeyIDGenerator {
+        //map from ReservedInstanceKey to riKeyID
+        private Map<ReservedInstanceKey, Long> riKeyToOid = new HashMap();
+        //index for ID generator
+        private AtomicLong riKeyIndex = new AtomicLong(0);
+
+        /**
+         * Create a unique id for the given ReservedInstanceKey. If id is already generated
+         * then return it.
+         *
+         * @param key ReservedInstanceKey we are trying to find the key id for.
+         * @return the id corresponding to the ReservedInstanceKey key.
+         */
+        public long lookUpRIKey(ReservedInstanceKey key) {
+            Long oid = riKeyToOid.get(key);
+            if (oid != null) {
+                return oid;
+            } else {
+                oid = riKeyIndex.getAndIncrement();
+                riKeyToOid.put(key, oid);
+                return oid;
+            }
+        }
+
     }
 }

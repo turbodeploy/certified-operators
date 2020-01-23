@@ -19,8 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Stopwatch;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
 
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
@@ -340,8 +338,7 @@ public class StableMarriagePerContext {
      */
     public static void normalizeReservedInstances(List<SMAReservedInstance> reservedInstances,
                                                   Map<String, List<SMATemplate>> familyNameToTemplates) {
-        Set<Long> businessAccounts = reservedInstances.stream().map(SMAReservedInstance::getBusinessAccount).collect(Collectors.toSet());
-        Table<Long, String, SMATemplate> businessAccountToFamilyToSmallestTemplate = HashBasedTable.create();
+        Map<String, SMATemplate> familyNameToSmallestTemplate = new HashMap<>();
         for (Map.Entry<String, List<SMATemplate>> entry : familyNameToTemplates.entrySet()) {
             String familyName = entry.getKey();
             List<SMATemplate> templatesInFamily = entry.getValue();
@@ -351,21 +348,20 @@ public class StableMarriagePerContext {
                     smallestTemplateInFamily = template;
                 }
             }
-            for (long account : businessAccounts) {
-                businessAccountToFamilyToSmallestTemplate.put(account, familyName, smallestTemplateInFamily);
-            }
+            familyNameToSmallestTemplate.put(familyName, smallestTemplateInFamily);
+
         }
         for (SMAReservedInstance reservedInstance : reservedInstances) {
-            reservedInstance.normalizeTemplate(businessAccountToFamilyToSmallestTemplate.row(reservedInstance.getBusinessAccount()));
+            reservedInstance.normalizeTemplate(familyNameToSmallestTemplate
+                    .get(reservedInstance.getTemplate().getFamily()));
         }
 
-        Map<SMAReservedInstanceKey, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
-
+        Map<Long, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
         for (SMAReservedInstance ri : reservedInstances) {
-            SMAReservedInstanceKey riContext = new SMAReservedInstanceKey(ri);
-            List<SMAReservedInstance> instances = distinctRIs.get(riContext);
+            Long riKeyOid = ri.getRiKeyOid();
+            List<SMAReservedInstance> instances = distinctRIs.get(riKeyOid);
             if (instances == null) {
-                distinctRIs.put(riContext, new ArrayList<>(Arrays.asList(ri)));
+                distinctRIs.put(riKeyOid, new ArrayList<>(Arrays.asList(ri)));
 
             } else {
                 instances.add(ri);
@@ -1151,48 +1147,6 @@ public class StableMarriagePerContext {
             return moves;
         } else {
             return vm.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
-        }
-    }
-
-    /**
-     * Class to define the context for a RI, and used to combine similar RIs.
-     */
-    public static class SMAReservedInstanceKey {
-        // the least cost template in the family for ISF RI's
-        private final SMATemplate normalizedTemplate;
-        private final long zone;
-        private final long businessAccount;
-
-        /**
-         * Constructor given an RI, construct its context.
-         * @param ri the parent reserved instance.
-         */
-        public SMAReservedInstanceKey(final SMAReservedInstance ri) {
-            this.normalizedTemplate = ri.getNormalizedTemplate();
-            this.zone = ri.getZone();
-            this.businessAccount = ri.getBusinessAccount();
-        }
-
-        /*
-         * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
-         * If the RIs are regional, then zone == NO_ZONE.
-         */
-        @Override
-        public int hashCode() {
-            return Objects.hash(normalizedTemplate.getOid(), zone, businessAccount);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            final SMAReservedInstanceKey that = (SMAReservedInstanceKey)obj;
-            return normalizedTemplate.getOid() == that.normalizedTemplate.getOid() &&
-                    zone == that.zone && businessAccount == that.businessAccount;
         }
     }
 }

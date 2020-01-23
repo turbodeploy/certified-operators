@@ -2,7 +2,6 @@
   "Contexts": [
     {
       "context": {
-        "csp": "AWS",
         "os": "LINUX",
         "region": 31,
         "billingAccount": 1,
@@ -108,11 +107,13 @@
       "ReservedInstances": [
         {
 	  "oid": 1000001,
+          "keyOid":3000001,
           "name": "RI1",
           "businessAccount": 10,
           "utilization": 0,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": true
         }
       ],
       "Matching": [

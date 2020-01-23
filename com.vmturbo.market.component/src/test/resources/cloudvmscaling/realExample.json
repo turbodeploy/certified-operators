@@ -2,7 +2,6 @@
   "Contexts": [
     {
       "context": {
-        "csp": "AWS",
         "os": "LINUX",
         "region": 31,
         "billingAccount": 1,
@@ -249,57 +248,69 @@
       "ReservedInstances": [
         {
           "oid": 1000001,
+          "keyOid":3000001,
           "name": "RI1",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 2
+          "count": 2,
+          "isf": false
         },
         {
           "oid": 1000004,
+          "keyOid":3000004,
           "name": "RI4",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100012,
-          "count": 2
+          "count": 2,
+          "isf": false
         },
         {
           "oid": 1000005,
+          "keyOid":3000005,
           "name": "RI5",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100003,
-          "count": 2
+          "count": 2,
+          "isf": false
         },
         {
           "oid": 1000002,
+          "keyOid":3000002,
           "name": "RI2",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100011,
-          "count": 2
+          "count": 2,
+          "isf": false
         },
         {
           "oid": 1000003,
+          "keyOid":3000003,
           "name": "RI3",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100002,
-          "count": 2
+          "count": 2,
+          "isf": false
         },
         {
           "oid": 1000006,
+          "keyOid":3000006,
           "name": "RI6",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100013,
-          "count": 2
+          "count": 2,
+          "isf": false
         }
       ]
     }

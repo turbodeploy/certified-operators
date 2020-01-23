@@ -20,7 +20,6 @@ import com.google.gson.JsonParser;
 
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -86,7 +85,6 @@ public class JsonToSMAInputTranslator {
                 SMAInputContext smaInputContext = smaInput.getContexts().get(contextIndex);
                 br.write("\t\t\t\"context\": {\n");
                 SMAContext smaContext = smaInputContext.getContext();
-                br.write("\t\t\t\t\"csp\": \"" + smaContext.getCsp().name() + "\",\n");
                 br.write("\t\t\t\t\"os\": \"" + smaContext.getOs().name() + "\",\n");
                 br.write("\t\t\t\t\"region\": " + smaContext.getRegionId() + ",\n");
                 br.write("\t\t\t\t\"billingAccount\": " + smaContext.getBillingAccountId() + ",\n");
@@ -156,6 +154,9 @@ public class JsonToSMAInputTranslator {
                     br.write("\n");
                     br.write("\t\t\t\t\t],\n");
                     br.write("\t\t\t\t\t\"zone\": " + smaVirtualMachine.getZone() + ",\n");
+                    if (!smaVirtualMachine.getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
+                        br.write("\t\t\t\t\t\"groupName\": " + smaVirtualMachine.getGroupName() + ",\n");
+                    }
                     br.write("\t\t\t\t\t\"currentRICoverage\": " + Math.round(smaVirtualMachine.getCurrentRICoverage()) + ",\n");
                     br.write("\t\t\t\t\t\"currentTemplate\": " + smaVirtualMachine.getCurrentTemplate().getOid() + "\n");
 
@@ -170,12 +171,14 @@ public class JsonToSMAInputTranslator {
                 for (SMAReservedInstance smaReservedInstance : smaInputContext.getReservedInstances()) {
                     br.write("\t\t\t\t{\n");
                     br.write("\t\t\t\t\t\"oid\": " + smaReservedInstance.getOid() + ",\n");
+                    br.write("\t\t\t\t\t\"keyOid\": " + smaReservedInstance.getRiKeyOid() + ",\n");
                     br.write("\t\t\t\t\t\"name\": \"" + smaReservedInstance.getName() + "\",\n");
                     br.write("\t\t\t\t\t\"businessAccount\": " + smaReservedInstance.getBusinessAccount() + ",\n");
                     br.write("\t\t\t\t\t\"utilization\": " + "0,\n");
                     br.write("\t\t\t\t\t\"zone\": " + smaReservedInstance.getZone() + ",\n");
                     br.write("\t\t\t\t\t\"template\": " + smaReservedInstance.getTemplate().getOid() + ",\n");
-                    br.write("\t\t\t\t\t\"count\": " + smaReservedInstance.getCount() + "\n");
+                    br.write("\t\t\t\t\t\"count\": " + smaReservedInstance.getCount() + ",\n");
+                    br.write("\t\t\t\t\t\"isf\": " + smaReservedInstance.isIsf() + "\n");
                     if (smaReservedInstance != smaInputContext.getReservedInstances().get(smaInputContext.getReservedInstances().size() - 1)) {
                         br.write("\t\t\t\t},\n");
                     }
@@ -267,16 +270,19 @@ public class JsonToSMAInputTranslator {
     private SMAReservedInstance parseReservedInstance(JsonObject reservedInstanceObj,
                                                       Map<Long, SMATemplate> oidToTemplate, SMAContext context) {
         long oid = reservedInstanceObj.get("oid").getAsLong();
+        long keyOid = reservedInstanceObj.get("keyOid").getAsLong();
         String name = reservedInstanceObj.get("name").getAsString();
         long businessAccount = reservedInstanceObj.get("businessAccount").getAsLong();
         long templateOid = reservedInstanceObj.get("template").getAsLong();
+        boolean isf = reservedInstanceObj.get("isf").getAsBoolean();
         long zone = SMAUtils.NO_ZONE;
         JsonElement zoneObj = reservedInstanceObj.get("zone");
         if (zoneObj != null) {
             zone = reservedInstanceObj.get("zone").getAsLong();
         }
         int count = reservedInstanceObj.get("count").getAsInt();
-        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, name, businessAccount, oidToTemplate.get(templateOid), zone, count, context);
+        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, keyOid, name, businessAccount,
+                oidToTemplate.get(templateOid), zone, count, isf);
         return reservedInstance;
     }
 
@@ -347,12 +353,11 @@ public class JsonToSMAInputTranslator {
     }
 
     private SMAContext parseContext(JsonObject contextObj) {
-        SMACSP csp = SMACSP.valueOf(contextObj.get("csp").getAsString());
         OSType os = OSType.valueOf(contextObj.get("os").getAsString());
         long region = contextObj.get("region").getAsLong();
         long billingAccount = contextObj.get("billingAccount").getAsLong();
         Tenancy tenancy = Tenancy.valueOf(contextObj.get("tenancy").getAsString());
-        SMAContext context = new SMAContext(csp, os, region, billingAccount, tenancy);
+        SMAContext context = new SMAContext(os, region, billingAccount, tenancy);
         return context;
     }
 

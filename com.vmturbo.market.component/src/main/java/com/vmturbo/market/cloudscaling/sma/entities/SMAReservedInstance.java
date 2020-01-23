@@ -12,11 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.tuple.MutablePair;
-
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Stable marriage algorithm representation of an RI.
@@ -24,13 +21,20 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 public class SMAReservedInstance {
     /*
-     * unique identifier
+     * identifier of RIBought. Unique identifier.
      */
     private final long oid;
+    /*
+     * identifier of riKey. it is generated from the ReservedInstanceSpec and
+     * ReservedInstanceBought DTOs to identify the attributes
+     * that allow RIs to be aggregated without violating scoping rules.
+     */
+    private final long riKeyOid;
     /*
      * name of RI
      */
     private final String name;
+
     /*
      * BusinessAccount, subaccount of billing account.
      */
@@ -95,22 +99,25 @@ public class SMAReservedInstance {
     /**
      * SMA Reserved Instance.
      *
-     * @param oid             unique identifier
+     * @param oid             oid of ri bought.
+     * @param riKeyOid        generated keyid for ReservedInstanceKey
      * @param name            name of RI
      * @param businessAccount business account
      * @param template        compute tier
      * @param zone            availabilty zone
      * @param count           number of RIs
-     * @param context         context
+     * @param isf             true if RI is instance size flexible
      */
     public SMAReservedInstance(final long oid,
+                               final long riKeyOid,
                                @Nonnull final String name,
                                final long businessAccount,
                                @Nonnull final SMATemplate template,
                                final long zone,
                                final int count,
-                               @Nonnull final SMAContext context) {
+                               @Nonnull final boolean isf) {
         this.oid = oid;
+        this.riKeyOid = riKeyOid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.businessAccount = businessAccount;
         this.template = Objects.requireNonNull(template, "template is null!");
@@ -118,8 +125,7 @@ public class SMAReservedInstance {
         this.zone = zone;
         this.totalCount = count;
         this.count = count;
-        Objects.requireNonNull(context, "context is null!");
-        this.isf = computeInstanceSizeFlexible(context);
+        this.isf = isf;
         couponToBestVM = new HashMap<>();
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
@@ -134,21 +140,8 @@ public class SMAReservedInstance {
         this.lastDiscountedVM = lastDiscountedVM;
     }
 
-    /**
-     * Finds if an Reserved Instance is InstanceSizeFlexible based on context.
-     *
-     * @param context the context the Reserved Instance belongs to.
-     * @return true if the Reserved Instance is InstanceSizeFlexible
-     */
-    public boolean computeInstanceSizeFlexible(SMAContext context) {
-        if (context.getCsp() == SMACSP.AZURE ||
-                (context.getCsp() == SMACSP.AWS &&
-                        context.getTenancy() == Tenancy.DEFAULT &&
-                        SMAUtils.LINUX_OS.contains(context.getOs()) &&
-                        zone == SMAUtils.NO_ZONE)) {
-            return true;
-        }
-        return false;
+    public long getOid() {
+        return oid;
     }
 
     public boolean isIsf() {
@@ -167,8 +160,8 @@ public class SMAReservedInstance {
     }
 
     @Nonnull
-    public long getOid() {
-        return oid;
+    public long getRiKeyOid() {
+        return riKeyOid;
     }
 
     @Nonnull
@@ -217,14 +210,12 @@ public class SMAReservedInstance {
     /**
      * Normalize the RI to the cheapest template in the family for ISF RIs.
      *
-     * @param familyNameToCheapestTemplate map from family to the cheapest template in the family
+     * @param newTemplate new normalized template.
      */
 
-    public void normalizeTemplate(Map<String, SMATemplate> familyNameToCheapestTemplate) {
+    public void normalizeTemplate(SMATemplate newTemplate) {
         if (isIsf()) {
             SMATemplate oldTemplate = getNormalizedTemplate();
-            SMATemplate newTemplate = familyNameToCheapestTemplate
-                    .get(getNormalizedTemplate().getFamily());
             float countMultiplier = (float)oldTemplate.getCoupons() / (float)newTemplate.getCoupons();
             setTotalCount(getCount() * countMultiplier);
             setNormalizedTemplate(newTemplate);
@@ -374,25 +365,14 @@ public class SMAReservedInstance {
         return false;
     }
 
-    @Override
-    public String toString() {
-        return "SMAReservedInstance{" +
-                "OID='" + oid + "'" +
-                ", name='" + name + "'" +
-                ", businessAccount='" + businessAccount + "'" +
-                ", normalizedTemplate=" + normalizedTemplate +
-                ", zone='" + zone + "'" +
-                ", totalCount=" + totalCount +
-                '}';
-    }
 
-    /*
-     * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
-     * If the RIs are regional, then zone == NO_ZONE.
+    /**
+     * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
+     * @return hash code based on oid
      */
     @Override
     public int hashCode() {
-       return Objects.hash(oid, name, businessAccount, template.getOid(), zone, count);
+        return Objects.hash(oid);
     }
 
     /**
@@ -400,20 +380,35 @@ public class SMAReservedInstance {
      * multiple RI's to discount a single VM in case of ISF. Multiple RI to discount multiple VMs in case
      * of ASG.
      */
+
+    /**
+     * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
+     * @param obj the other RI
+     * @return true if the RI's are equivalent.
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-         if (obj == null || getClass() != obj.getClass()) {
-             return false;
-         }
-         final SMAReservedInstance that = (SMAReservedInstance)obj;
-         return oid == that.oid &&
-             name.equals(that.name) &&
-             businessAccount == that.businessAccount &&
-             template.getOid() == that.template.getOid() &&
-             zone == that.zone &&
-             count == that.count;
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        final SMAReservedInstance that = (SMAReservedInstance)obj;
+        return oid == that.oid;
+    }
+
+    @Override
+    public String toString() {
+        return "SMAReservedInstance{" +
+                "OID='" + oid + "'" +
+                ", keyOID='" + riKeyOid + "'" +
+                ", name='" + name + "'" +
+                ", businessAccount='" + businessAccount + "'" +
+                ", normalizedTemplate=" + normalizedTemplate +
+                ", zone='" + zone + "'" +
+                ", totalCount=" + totalCount +
+                ", isf=" + isf +
+                '}';
     }
 }
