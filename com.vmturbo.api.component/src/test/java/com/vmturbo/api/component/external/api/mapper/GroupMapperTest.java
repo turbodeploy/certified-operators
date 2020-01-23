@@ -471,6 +471,10 @@ public class GroupMapperTest {
                         .setExpressionType(expType).setExpressionValue(expValue).build();
     }
 
+    /**
+     * Test that the VM group criteria by clusters name is converted to SearchParameters correctly.
+     * @throws OperationFailedException any error happens
+     */
     @Test
     public void testVmsByClusterNameToSearchParameters() throws OperationFailedException {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
@@ -480,13 +484,24 @@ public class GroupMapperTest {
                                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters param = parameters.get(0);
-        // verify that the Cluster Membership Filter was created
+
+        // verify that the starting filter is PM
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
+
+        // 2 search filters after starting filter
+        assertEquals(2, param.getSearchFilterCount());
+
+        // 1. first one is Cluster Membership Filter, verify that it was created
         assertTrue(param.getSearchFilter(0).hasGroupMembershipFilter());
         final GroupMembershipFilter clusterMembershipFilter =
                         param.getSearchFilter(0).getGroupMembershipFilter();
         // verify that we are looking for clusters with name FOO
         assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
                         .getStringFilter().getStringPropertyRegex());
+
+        // 2. second one is traversal filter (produces) used to traverse to vm
+        assertEquals(param.getSearchFilter(1), SearchProtoUtil.searchFilterTraversal(
+                SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, EntityType.VIRTUAL_MACHINE)));
 
         // test conversion from GroupApiDTO back to FilterApiDTO
         groupDto.setDisplayName("TestGroupDto");
