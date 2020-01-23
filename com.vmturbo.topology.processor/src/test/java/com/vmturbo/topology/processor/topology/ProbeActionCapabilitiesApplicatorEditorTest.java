@@ -123,7 +123,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     }
 
     /**
-     * Verify movable is enabled for Virtual Machine when no action capability for VM is provided
+     * Verify movable is not set for Virtual Machine when no action capability for VM is provided
      * by the probe.
      *
      * <p>Scenario:
@@ -150,10 +150,12 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
 
         validateCommodityMovable(graph,
-                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-                CommoditiesBoughtFromProvider::getMovable);
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
+                    getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                    builder -> !builder.hasMovable());
+                    //CommoditiesBoughtFromProvider::hasMovable);
+        assertEquals(0, movableEditSummary.getMovableToTrueCounter());
         assertEquals(0, movableEditSummary.getMovableToFalseCounter());
+
     }
 
     /**
@@ -236,9 +238,41 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      * <p>Scenario:
      *   Target: Kubernetes:
      *     APPLICATION: PROVISION -> NOT_EXECUTABLE
-     *     CONTAINER: SUSPEND -> NOT_EXECUTABLE
      *   Entities:
      *     Application (id: 1)
+     *
+     * <p>Result: Cloneable and suspendable are enabled for Application and Container (When
+     *   action capabilities are either not set, or set to NOT_EXECUTABLE for an entity type by the
+     *   probe, the action will be enabled for market analysis)
+     */
+    @Test
+    public void testEditNotExecutableForApplicationsAreTreatedAsEnabledForAnalysis() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.APPLICATION,
+                        ActionType.PROVISION, ActionCapability.NOT_EXECUTABLE,
+                        ActionType.SUSPEND, ActionCapability.NOT_EXECUTABLE,
+                        "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.RESPONSE_TIME.getNumber(),
+                EntityType.APPLICATION_VALUE, 2L));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.APPLICATION_VALUE,
+                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+        assertEquals(1, editorSummary.getCloneableToTrueCounter());
+        assertEquals(1, editorSummary.getSuspendableToTrueCounter());
+    }
+
+    /**
+     * Verify not executable action capabilities are treated as enabled for analysis.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes:
+     *     CONTAINER: SUSPEND -> NOT_EXECUTABLE
+     *     CONTAINER: PROVISION -> NOT_EXECUTABLE
+     *   Entities:
      *     Container (id: 2)
      *
      * <p>Result: Cloneable and suspendable are enabled for both Application and Container (When
@@ -246,26 +280,47 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      *   probe, the action will be enabled for market analysis)
      */
     @Test
-    public void testEditNotExecutableAreTreatedAsEnabledForAnalysis() {
+    public void testEditNotExecutableForContainersAreTreatedAsEnabledForAnalysis() {
         when(target.getProbeInfo())
-                .thenReturn(getProbeInfo(EntityType.APPLICATION, ActionType.PROVISION,
-                        EntityType.CONTAINER, ActionType.SUSPEND,
+                .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.PROVISION,
+                        ActionCapability.NOT_EXECUTABLE, ActionType.SUSPEND,
                         ActionCapability.NOT_EXECUTABLE, "Kubernetes"));
         final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.RESPONSE_TIME.getNumber(),
-                EntityType.APPLICATION_VALUE, 2L));
         topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
                 EntityType.CONTAINER_VALUE, 3L));
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
-        verifyAnalysisSettingProperty(graph, EntityType.APPLICATION_VALUE,
-                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
         verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_VALUE,
                 AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
-        assertEquals(2, editorSummary.getCloneableToTrueCounter());
-        assertEquals(2, editorSummary.getSuspendableToTrueCounter());
+        assertEquals(1, editorSummary.getCloneableToTrueCounter());
+        assertEquals(1, editorSummary.getSuspendableToTrueCounter());
+    }
+
+    /**
+     * Verify that the provision and suspend settings in a container pod
+     * are not impacted if the policy is not specified at the entity or at the probe level.
+     */
+    @Test
+    public void testUnsetActionsForContainerPodsAreUnsetForAnalysis() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER_POD,
+                        ActionType.RESIZE, ActionCapability.NOT_EXECUTABLE,
+                        ActionType.MOVE, ActionCapability.NOT_EXECUTABLE,
+                        "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
+                EntityType.CONTAINER_POD_VALUE, 3L));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_POD_VALUE,
+                analysisSettingsBuilder -> !analysisSettingsBuilder.hasCloneable(),
+                analysisSettingsBuilder -> !analysisSettingsBuilder.hasSuspendable());
+        assertEquals(0, editorSummary.getCloneableToTrueCounter());
+        assertEquals(0, editorSummary.getSuspendableToTrueCounter());
     }
 
     /**
@@ -312,8 +367,8 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      * <p>Scenario:
      *   Target 1: Kubernetes (has proper action capability set)
      *     CONTAINER: MOVE -> NOT_SUPPORTED
-     *   Target 2: VCenter (does not have proper action capability set)
-     *     VIRTUAL_MACHINE: MOVE -> NOT_SUPPORTED
+     *   Target 2: VCenter (does not have proper action capability set for VIRTAUL_MACHINE)
+     *     VIRTUAL_MACHINE: MOVE -> not specified
      *   Entities:
      *     Container (id: 1), discovered by Kubernetes target
      *     VirtualMachine (id: 2), discovered by both Kubernetes and VCenter target
@@ -337,7 +392,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         ActionCapability.NOT_SUPPORTED, "Kubernetes"));
         when(target1.getId()).thenReturn(13L);
         when(target2.getProbeInfo())
-                .thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE, ActionType.MOVE,
+                .thenReturn(getProbeInfo(EntityType.VIRTUAL_DATACENTER, ActionType.MOVE,
                         ActionCapability.NOT_SUPPORTED, "VCenter"));
         when(target2.getId()).thenReturn(14L);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
@@ -356,11 +411,11 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                 builder -> !builder.hasMovable());
         validateCommodityMovable(graph,
                 getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-                builder -> builder.hasMovable() && builder.getMovable());
+                builder -> !builder.hasMovable());
         validateCommodityMovable(graph,
                 getTopologyEntityPredicate(EntityType.CONTAINER_VALUE),
                 builder -> builder.hasMovable() && !builder.getMovable());
-        assertEquals(1, editorSummary.getMovableToTrueCounter());
+        assertEquals(0, editorSummary.getMovableToTrueCounter());
         assertEquals(1, editorSummary.getMovableToFalseCounter());
     }
 
@@ -376,6 +431,20 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         });
     }
 
+//    private void verifyUnsetAnalysisSetting(final TopologyGraph<TopologyEntity> graph, final int entityTypeValue,
+//                                               final Predicate<AnalysisSettings> hasCloneablePredicate,
+//                                               final Predicate<AnalysisSettings> hasSuspendablePredicate) {
+//        graph.entities().filter(getTopologyEntityPredicate(entityTypeValue)).forEach(entity -> {
+//            final AnalysisSettings settings = entity
+//                    .getTopologyEntityDtoBuilder()
+//                    .getAnalysisSettings();
+//
+//
+//            assertTrue(!hasCloneablePredicate.test(settings));
+//            assertTrue(!hasSuspendablePredicate.test(settings));
+//        });
+//    }
+
     private void validateCommodityMovable(final TopologyGraph<TopologyEntity> graph,
                                           final Predicate<TopologyEntity> predicate,
                                           final Predicate<CommoditiesBoughtFromProvider> movable) {
@@ -387,6 +456,18 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         .stream()
                         .allMatch(movable)));
     }
+
+//    private void validateCommodityNotMovable(final TopologyGraph<TopologyEntity> graph,
+//                                          final Predicate<TopologyEntity> predicate,
+//                                          final Predicate<CommoditiesBoughtFromProvider> hasMovable) {
+//        assertTrue(graph.entities().anyMatch(predicate));
+//        graph.entities().filter(predicate).forEach(entity ->
+//                assertTrue(entity
+//                        .getTopologyEntityDtoBuilder()
+//                        .getCommoditiesBoughtFromProvidersList()
+//                        .stream()
+//                        .noneMatch(hasMovable)));
+//    }
 
     private void validateSpecificCommodityMovable(final TopologyGraph<TopologyEntity> graph,
                                                   final Predicate<TopologyEntity> predicate,
