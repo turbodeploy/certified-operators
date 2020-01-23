@@ -520,6 +520,36 @@ public class GroupMapperTest {
     }
 
     /**
+     * Test that the PM group criteria by clusters name is converted to SearchParameters correctly.
+     * @throws OperationFailedException any error happens
+     */
+    @Test
+    public void testPMsByClusterNameToSearchParameters() throws OperationFailedException {
+        GroupApiDTO groupDto = groupApiDTO(AND, UIEntityType.PHYSICAL_MACHINE.apiStr(),
+                filterDTO(EntityFilterMapper.EQUAL, FOO, "pmsByClusterName"));
+        List<SearchParameters> parameters =
+                entityFilterMapper.convertToSearchParameters(
+                        groupDto.getCriteriaList(), groupDto.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters param = parameters.get(0);
+
+        // verify that the starting filter is PM
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE),
+                param.getStartingFilter());
+
+        // 1 search filters after starting filter
+        assertEquals(1, param.getSearchFilterCount());
+
+        // verify that Cluster Membership Filter was created
+        assertTrue(param.getSearchFilter(0).hasGroupMembershipFilter());
+        final GroupMembershipFilter clusterMembershipFilter =
+                param.getSearchFilter(0).getGroupMembershipFilter();
+        // verify that we are looking for clusters with name FOO
+        assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
+                .getStringFilter().getStringPropertyRegex());
+    }
+
+    /**
      * Tests converting of searchParameters of GroupInfo to filterApiDto.
      */
     @Test

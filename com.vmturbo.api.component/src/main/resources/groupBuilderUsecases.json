@@ -34,7 +34,7 @@
     "PhysicalMachine" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"},
-            {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
+            {"inputType": "*", "elements": "MemberOf:Cluster:displayName", "filterCategory": "entity", "filterType": "pmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState", "loadOptions": true},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag", "loadOptions": true},
