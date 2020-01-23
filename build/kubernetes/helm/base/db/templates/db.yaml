@@ -58,7 +58,7 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
-{{ toYaml .Values.env | indent 8 -}}
+{{ toYaml .Values.env | indent 8 }}
         ports:
           - containerPort: 3306
         livenessProbe:
@@ -74,13 +74,16 @@ spec:
         securityContext:
           readOnlyRootFilesystem: true
           capabilities:
-            add:
-            - CHOWN
-            - KILL
-            - SETGID
-            - SETUID
             drop:
-            - ALL
+            - SETPCAP
+            - AUDIT_WRITE
+            - NET_RAW
+            - DAC_OVERRIDE
+            - FOWNER
+            - FSETID
+            - NET_BIND_SERVICE
+            - SYS_CHROOT
+            - SETFCAP
         volumeMounts:
         - mountPath: /var/lib/mysql
           name: mysql-data

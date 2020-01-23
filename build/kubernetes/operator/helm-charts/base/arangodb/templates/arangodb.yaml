@@ -110,7 +110,7 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
-{{ toYaml .Values.env | indent 8 -}}
+{{ toYaml .Values.env | indent 8 }}
         ports:
           - containerPort: 8529
           - containerPort: 8599
