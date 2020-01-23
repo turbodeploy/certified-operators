@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.conversion.cloud;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -41,6 +42,10 @@ public class CloudDiscoveryConverterTest {
             .thenReturn(Optional.of(EntityType.COMPUTE_TIER));
         when(mockContext.getVolumeIdFromStorageFilePath(any(), any()))
             .thenReturn(Optional.of("volumeId"));
+        final String storageTierId = "NVME_SSD";
+        when(mockContext.getStorageTierId(any()))
+            .thenReturn(storageTierId);
+
         final CloudDiscoveryConverter converter = new CloudDiscoveryConverter(
             DiscoveryResponse.getDefaultInstance(), mockContext);
 
@@ -65,5 +70,10 @@ public class CloudDiscoveryConverterTest {
         assertTrue(resultData.getIsEphemeral());
         assertEquals(vmProfileSize, resultData.getStorageAmountCapacity(), DELTA);
         assertEquals(AttachmentState.ATTACHED, resultData.getAttachmentState());
+
+        final Builder storageTier = converter.getNewEntityBuilder(storageTierId);
+        assertNotNull(storageTier);
+        assertEquals(EntityType.STORAGE_TIER, storageTier.getEntityType());
+        assertEquals(storageTierId, storageTier.getId());
     }
 }

@@ -17,6 +17,7 @@ import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -26,7 +27,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 public class AzureVolumesConversionContext extends AzureConversionContext {
 
     // for Azure Volumes we only care about converting files inside storage_data to volumes
-    private static Map<EntityType, IEntityConverter> AZURE_STORAGE_BROWSING_ENTITY_CONVERTERS =
+    private static final Map<EntityType, IEntityConverter> AZURE_STORAGE_BROWSING_ENTITY_CONVERTERS =
         ImmutableMap.of(EntityType.STORAGE,
             new AzureStorageConverter(SDKProbeType.AZURE_STORAGE_BROWSE));
 
@@ -64,12 +65,12 @@ public class AzureVolumesConversionContext extends AzureConversionContext {
     /**
      * Azure volumes probe returns the storage tier as a property called storageType in the DTO.
      *
-     * @param storageDTO {@link EntityDTO.Builder} of a storage.
-     * @return
+     * @param storageDTO {@link EntityDTOOrBuilder} of a storage.
+     * @return Storage tier name.
      */
     @Nonnull
     @Override
-    public String getStorageTier(@Nonnull final Builder storageDTO) {
+    public String getStorageTier(@Nonnull final EntityDTOOrBuilder storageDTO) {
         return storageDTO.getEntityPropertiesList().stream()
             .filter(entityProp -> entityProp.getName().equals("storageType"))
             .map(EntityProperty::getValue)
