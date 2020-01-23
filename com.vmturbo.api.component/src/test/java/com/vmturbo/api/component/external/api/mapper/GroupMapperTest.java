@@ -1489,6 +1489,115 @@ public class GroupMapperTest {
     }
 
     /**
+     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} when group
+     * has members discovered from different (on-prem and cloud) targets.
+     */
+    @Test
+    public void testGetEnvironmentAndCloudTypeForHybridGroup() {
+        final String displayName = "hybrid-group";
+        final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
+        final long oid = 123L;
+        final long uuid1 = 1L;
+        final long uuid2 = 2L;
+        final long uuid3 = 3L;
+        final long targetId1 = 2141L;
+        final long targetId2 = 9485L;
+        final long targetId3 = 9124L;
+        final long probeId1 = 111L;
+        final long probeId2 = 222L;
+        final long probeId3 = 333L;
+
+        final Grouping group = Grouping.newBuilder()
+                .setId(oid)
+                .addExpectedTypes(MemberType.newBuilder().setEntity(groupType))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(displayName)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .addAllMembers(Arrays.asList(uuid1, uuid2, uuid3))
+                                        .build())
+                                .build()))
+                .build();
+
+        final MinimalEntity entVM1 = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo1")
+                .addDiscoveringTargetIds(targetId1)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+
+        final MinimalEntity entVM2 = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo2")
+                .addDiscoveringTargetIds(targetId2)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+
+        final MinimalEntity entVM3 = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo3")
+                .addDiscoveringTargetIds(targetId2)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo1 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                        .type(SDKProbeType.AWS.getProbeType())
+                        .oid(probeId1).build())
+                .displayName("AWS")
+                .oid(targetId1)
+                .isHidden(false)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo2 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                        .type(SDKProbeType.AZURE.getProbeType())
+                        .oid(probeId2)
+                        .build())
+                .displayName("Azure")
+                .oid(targetId2)
+                .isHidden(false)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo3 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.HYPERVISOR.getCategoryInUpperCase())
+                        .type(SDKProbeType.VCENTER.getProbeType())
+                        .oid(probeId3)
+                        .build())
+                .displayName("Vcenter")
+                .oid(targetId3)
+                .isHidden(false)
+                .build();
+
+        final List<MinimalEntity> listVMs = Arrays.asList(entVM1, entVM2, entVM3);
+        final MultiEntityRequest minEntityReq = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(ImmutableSet.of(uuid1, uuid2, uuid3))
+                .entities(ImmutableSet.of(uuid1, uuid2, uuid3))
+                .build());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(minEntityReq);
+        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
+        when(targetCache.getTargetInfo(targetId2)).thenReturn(Optional.of(thinTargetInfo2));
+        when(targetCache.getTargetInfo(targetId3)).thenReturn(Optional.of(thinTargetInfo3));
+        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(Optional.of(CloudType.AWS));
+        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(Optional.of(CloudType.AZURE));
+
+        final EntityEnvironment envAndCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(
+                groupExpander.getMembersForGroup(group));
+        assertEquals(EnvironmentType.HYBRID, envAndCloudType.getEnvironmentType());
+        assertEquals(CloudType.HYBRID, envAndCloudType.getCloudType());
+    }
+
+    /**
      * Test getEnvironmentTypeForGroup returns proper type for a group of resource groups. When
      * all entities from both group have the same {@link EnvironmentType} then group also has that
      * {@link EnvironmentType}.
