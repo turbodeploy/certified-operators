@@ -368,6 +368,16 @@ public class ProjectedEntityCostStoreTest {
     }
 
     /**
+     * Tests if storeReady flag gets set after updateProjectedEntityCosts is called.
+     */
+    @Test
+    public void testReadinessOfStore() {
+        assertThat(store.isStoreReady(), is(false));
+        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        assertThat(store.isStoreReady(), is(true));
+    }
+
+    /**
      * Clean up test resources.
      */
     @After

@@ -793,7 +793,7 @@ public class CostRpcServiceTest {
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         final Map<Long, EntityCost> projectedEntityCostMap =
-                ImmutableMap.of(3L, entityCost1);
+                ImmutableMap.of(3L, entityCost);
         given(entityCostStore.getEntityCostStats(any())).willReturn(snapshotToAccountExpensesMap);
         given(projectedEntityCostStore.getProjectedStatRecords(any(EntityCostFilter.class)))
                 .willReturn(EntityCostToStatRecordConverter
@@ -802,7 +802,7 @@ public class CostRpcServiceTest {
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
         // the Projected stats will be 1 hour ahead
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost1),
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
                 TIME + TimeUnit.HOURS.toMillis(1)));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
@@ -974,14 +974,14 @@ public class CostRpcServiceTest {
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         final Map<Long, EntityCost> projectedEntityCostMap =
-                ImmutableMap.of(3L, entityCost1);
+                ImmutableMap.of(3L, entityCost);
         given(entityCostStore.getEntityCostStats(any())).willReturn(snapshotToAccountExpensesMap);
         given(projectedEntityCostStore.getProjectedStatRecords(any(EntityCostFilter.class)))
             .willReturn(EntityCostToStatRecordConverter.convertEntityToStatRecord(projectedEntityCostMap.values()));
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
         // the Projected stats will be 1 hour ahead
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost1),
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
                 TIME + TimeUnit.HOURS.toMillis(1)));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
@@ -1179,6 +1179,103 @@ public class CostRpcServiceTest {
                 .build();
 
         performAccountExpenseTests(mockObserver, request, 4L);
+    }
+
+    /**
+     * Test to check projected Entity cost is entityCost if ProjectedEntityCostStore is not ready.
+     */
+    @Test
+    public void testProjectedCostEntityCostStoreNotReady() throws DbException {
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setQueryId(0L)
+                        .setStartDate(1L)
+                        .setEndDate(1L)
+                        .setRequestProjected(true)
+                        .addGroupBy(GroupBy.COST_CATEGORY)
+                        .build()).build();
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+                mock(StreamObserver.class);
+        Set<EntityCost> entityCosts = Sets.newHashSet();
+        entityCosts.add(EntityCost.newBuilder()
+                .addComponentCost(ComponentCost.newBuilder().setCategory(CostCategory.IP)
+                        .build())
+                .setAssociatedEntityId(1)
+                .setTotalAmount(CurrencyAmount.newBuilder().setAmount(2.111).build())
+                .build());
+        // if isStoreReady is false. it will reuse entityCosts at projected time.
+        given(projectedEntityCostStore.isStoreReady()).willReturn(false);
+        final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
+        CloudCostStatRecord sampleCloudCostStats = createCloudStatRecordByGroup(Lists.newArrayList(entityCosts),
+                1L);
+        snapshotToAccountExpensesMap.put(1L,
+                sampleCloudCostStats.getStatRecordsList());
+        when(entityCostStore.getEntityCostStats(any())).thenReturn(snapshotToAccountExpensesMap);
+
+        costRpcService.getCloudCostStats(request, mockObserver);
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(sampleCloudCostStats);
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecordByGroup(Lists.newArrayList(entityCosts),
+                1 + TimeUnit.HOURS.toMillis(1)));
+
+        ArgumentCaptor<GetCloudCostStatsResponse> argumentCaptor = ArgumentCaptor.forClass(GetCloudCostStatsResponse.class);
+        verify(mockObserver).onNext(argumentCaptor .capture());
+
+        assertThat(argumentCaptor.getValue().getCloudStatRecordList().stream()
+                        .flatMap(i1 -> i1.getStatRecordsList().stream()).collect(toList()),
+                containsInAnyOrder(builder.getCloudStatRecordList()
+                        .stream().flatMap(i2 -> i2.getStatRecordsList().stream()).toArray()));
+        verify(mockObserver).onCompleted();
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
+    public void testProjectedCostEntityCostStoreReady() throws DbException {
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setQueryId(0L)
+                        .setStartDate(1L)
+                        .setEndDate(1L)
+                        .setRequestProjected(true)
+                        .addGroupBy(GroupBy.COST_CATEGORY)
+                        .build()).build();
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+                mock(StreamObserver.class);
+        Set<EntityCost> entityCosts = Sets.newHashSet();
+        entityCosts.add(EntityCost.newBuilder()
+                .addComponentCost(ComponentCost.newBuilder().setCategory(CostCategory.IP)
+                        .build())
+                .setAssociatedEntityId(1)
+                .setTotalAmount(CurrencyAmount.newBuilder().setAmount(2.111).build())
+                .build());
+        // if isStoreReady is false. it will reuse entityCosts at projected time.
+        given(projectedEntityCostStore.isStoreReady()).willReturn(true);
+        given(projectedEntityCostStore.getProjectedStatRecordsByGroup(any(), any(EntityCostFilter.class)))
+                .willReturn(Collections.emptyList());
+        final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
+        CloudCostStatRecord sampleCloudCostStats = createCloudStatRecordByGroup(Lists.newArrayList(entityCosts),
+                1L);
+        snapshotToAccountExpensesMap.put(1L,
+                sampleCloudCostStats.getStatRecordsList());
+        when(entityCostStore.getEntityCostStats(any())).thenReturn(snapshotToAccountExpensesMap);
+
+        costRpcService.getCloudCostStats(request, mockObserver);
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(sampleCloudCostStats);
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecordByGroup(Collections.emptyList(),
+                1 + TimeUnit.HOURS.toMillis(1)));
+
+        ArgumentCaptor<GetCloudCostStatsResponse> argumentCaptor = ArgumentCaptor.forClass(GetCloudCostStatsResponse.class);
+        verify(mockObserver).onNext(argumentCaptor .capture());
+
+        assertThat(argumentCaptor.getValue().getCloudStatRecordList().stream()
+                        .flatMap(i1 -> i1.getStatRecordsList().stream()).collect(toList()),
+                containsInAnyOrder(builder.getCloudStatRecordList()
+                        .stream().flatMap(i2 -> i2.getStatRecordsList().stream()).toArray()));
+        verify(mockObserver).onCompleted();
+        verify(mockObserver).onCompleted();
     }
 
     private void performAccountExpenseTests(final StreamObserver<GetCloudCostStatsResponse> mockObserver,

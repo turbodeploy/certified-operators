@@ -59,6 +59,7 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
 
     private final RepositoryClient repositoryClient;
 
+    private boolean storeReady = false;
 
     public ProjectedEntityCostStore(@Nonnull RepositoryClient repositoryClient, @Nonnull
             SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
@@ -82,6 +83,7 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
         synchronized (entityCostMapLock) {
             projectedEntityCostByEntity = Collections.unmodifiableMap(newCostsByEntity);
         }
+        storeReady = true;
     }
 
     @Nonnull
@@ -217,5 +219,14 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
             result = aggregateByGroup(groupByList, result);
         }
         return result;
+    }
+
+    /**
+     * Returns when we see an update to {@link #projectedEntityCostByEntity}.
+     *
+     * @return true if store ready.
+     */
+    public boolean isStoreReady() {
+        return storeReady;
     }
 }
