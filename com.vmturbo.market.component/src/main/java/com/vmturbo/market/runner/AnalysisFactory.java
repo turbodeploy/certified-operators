@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableList;
 
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -29,6 +28,7 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -70,7 +70,7 @@ public interface AnalysisFactory {
 
         private static final Logger logger = LogManager.getLogger();
 
-        private final GroupServiceBlockingStub groupServiceClient;
+        private final GroupMemberRetriever groupMemberRetriever;
 
         private final SettingServiceBlockingStub settingServiceClient;
 
@@ -112,7 +112,7 @@ public interface AnalysisFactory {
         // Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
         private final boolean enableSMA;
 
-        public DefaultAnalysisFactory(@Nonnull final GroupServiceBlockingStub groupServiceClient,
+        public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
                   @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
                   @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -134,7 +134,7 @@ public interface AnalysisFactory {
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
             Preconditions.checkArgument(standardQuoteFactor <= 1.0f);
 
-            this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
+            this.groupMemberRetriever = Objects.requireNonNull(groupMemberRetriever);
             this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
             this.priceTableFactory = Objects.requireNonNull(marketPriceTableFactory);
             this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
@@ -169,7 +169,7 @@ public interface AnalysisFactory {
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
-                groupServiceClient, clock,
+                groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
                 buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory);

@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter.ComputeTierDemandStatsRecord;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -43,7 +45,7 @@ public class ComputeTierDemandStatsWriterTest {
     private final AtomicLong oidProvider = new AtomicLong();
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            new DefaultTopologyEntityCloudTopologyFactory();
+            new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
 
     private final TopologyEntityDTO availabilityZone = TopologyEntityDTO.newBuilder()
             .setOid(oidProvider.incrementAndGet())
@@ -104,7 +106,7 @@ public class ComputeTierDemandStatsWriterTest {
                 generateCloudTopology(entityDTOs);
 
         final ProjectedRICoverageAndUtilStore projectedRICoverageAndUtilStore =
-                Mockito.mock(ProjectedRICoverageAndUtilStore.class);
+                mock(ProjectedRICoverageAndUtilStore.class);
         Map<Long, EntityReservedInstanceCoverage> projectedEntitiesRICoverages = new HashMap<>();
 
         Map<Long, Double> vm2Coverage = new HashMap<>();
@@ -121,7 +123,7 @@ public class ComputeTierDemandStatsWriterTest {
         Mockito.when(projectedRICoverageAndUtilStore.getAllProjectedEntitiesRICoverages())
                 .thenReturn(projectedEntitiesRICoverages);
         computeTierDemandStatsWriter = new
-                        ComputeTierDemandStatsWriter(Mockito.mock(ComputeTierDemandStatsStore.class),
+                        ComputeTierDemandStatsWriter(mock(ComputeTierDemandStatsStore.class),
                                         projectedRICoverageAndUtilStore, 0.0f);
 
         final Map<ComputeTierDemandStatsRecord, Integer> statsRecordIntegerMap =

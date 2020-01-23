@@ -3,6 +3,9 @@ package com.vmturbo.cost.calculation.topology;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
@@ -15,6 +18,8 @@ import org.junit.Test;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -26,6 +31,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -53,6 +61,7 @@ public class TopologyEntityCloudTopologyTest {
     private static final long EMPTY_DB_ID = 1013L;
     private static final long EMPTY_DB_SERVER_ID = 1014L;
     private static final long ACCOUNT_ID = 1015L;
+    private static final long BILLING_FAMILY_ID = 1016L;
 
     private static final TopologyEntityDTO AZ =
             constructTopologyEntity(AZ_ID, "this is available", EntityType.AVAILABILITY_ZONE_VALUE)
@@ -106,6 +115,7 @@ public class TopologyEntityCloudTopologyTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(EMPTY_STORAGE_TIER_ID)
                 .setEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
 
     private static final TopologyEntityDTO SERVICE =
@@ -221,13 +231,33 @@ public class TopologyEntityCloudTopologyTest {
                   COMPUTE_TIER, DATABASE_TIER, DATABASE_SERVER_TIER, STORAGE_TIER, EMPTY_STORAGE_TIER,
                   VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
 
+    private static final Stream<GroupAndMembers> BILLING_FAMILY_GROUPS =
+            Stream.of(ImmutableGroupAndMembers.builder()
+                    .group(Grouping.newBuilder()
+                            .setId(BILLING_FAMILY_ID)
+                            .build())
+                    .entities(Collections.singleton(ACCOUNT_ID))
+                    .members(Collections.singleton(ACCOUNT_ID))
+                    .build());
+
+    private static final GroupMemberRetriever groupMemberRetriever = mockGroupMemberRetriever();
+
     private static final TopologyEntityCloudTopology CLOUD_TOPOLOGY =
-            new TopologyEntityCloudTopology(TOPOLOGY_STREAM);
+            new TopologyEntityCloudTopologyFactory
+                    .DefaultTopologyEntityCloudTopologyFactory(groupMemberRetriever)
+                    .newCloudTopology(TOPOLOGY_STREAM);
+
+    private static GroupMemberRetriever mockGroupMemberRetriever() {
+        final GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
+        when(groupMemberRetriever.getGroupsWithMembers(any())).thenReturn(BILLING_FAMILY_GROUPS);
+        return groupMemberRetriever;
+    }
 
     private static Builder constructTopologyEntity(long oid, String displayName, int eType) {
         return TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setDisplayName(displayName)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .setEntityType(eType);
     }
 
@@ -346,5 +376,41 @@ public class TopologyEntityCloudTopologyTest {
         // VM with billing type as BIDDING.
         result = CLOUD_TOPOLOGY.getRICoverageCapacityForEntity(EMPTY_VM_ID);
         assertEquals(0, result);
+    }
+
+    /**
+     * Test that correct billing family group is returned for Business Account.
+     */
+    @Test
+    public void testGetBillingFamilyGroupForAccount() {
+        final Optional<GroupAndMembers> billingFamilyGroup = CLOUD_TOPOLOGY
+                .getBillingFamilyForEntity(ACCOUNT_ID);
+        Assert.assertTrue(billingFamilyGroup.isPresent());
+        final long billingFamilyId = billingFamilyGroup.map(group -> group.group().getId())
+                .orElse(-1L);
+        Assert.assertEquals(BILLING_FAMILY_ID, billingFamilyId);
+    }
+
+    /**
+     * Test that correct billing family group is returned by VM.
+     */
+    @Test
+    public void testGetBillingFamilyGroupForVM() {
+        final Optional<GroupAndMembers> billingFamilyGroup = CLOUD_TOPOLOGY
+                .getBillingFamilyForEntity(VM_ID);
+        Assert.assertTrue(billingFamilyGroup.isPresent());
+        final long billingFamilyId = billingFamilyGroup.map(group -> group.group().getId())
+                .orElse(-1L);
+        Assert.assertEquals(BILLING_FAMILY_ID, billingFamilyId);
+    }
+
+    /**
+     * Test that empty Optional is returned if ownedBy is not found for an entity.
+     */
+    @Test
+    public void testGetBillingFamilyGroupForEntityWithoutAccount() {
+        final Optional<GroupAndMembers> billingFamilyGroup = CLOUD_TOPOLOGY
+                .getBillingFamilyForEntity(DB_ID);
+        Assert.assertFalse(billingFamilyGroup.isPresent());
     }
 }

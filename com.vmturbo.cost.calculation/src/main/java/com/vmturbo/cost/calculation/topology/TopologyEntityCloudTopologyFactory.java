@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.group.api.GroupMemberRetriever;
 
 /**
  * A factory to create instances of {@link TopologyEntityCloudTopology}.
@@ -47,14 +48,28 @@ public interface TopologyEntityCloudTopologyFactory {
 
         private static final Logger logger = LogManager.getLogger();
 
+        private final GroupMemberRetriever groupMemberRetriever;
+
+        /**
+         * Creates an instance of DefaultTopologyEntityCloudTopologyFactory.
+         *
+         * @param groupMemberRetriever service end point to retrieve billing family group
+         *                             information.
+         */
+        public DefaultTopologyEntityCloudTopologyFactory(
+                final GroupMemberRetriever groupMemberRetriever) {
+            this.groupMemberRetriever = groupMemberRetriever;
+        }
+
         /**
          *  {@inheritDoc}
          */
         @Nonnull
         @Override
-        public TopologyEntityCloudTopology newCloudTopology(@Nonnull final Stream<TopologyEntityDTO> entities) {
+        public TopologyEntityCloudTopology newCloudTopology(
+                @Nonnull final Stream<TopologyEntityDTO> entities) {
             return new TopologyEntityCloudTopology(
-                    entities.filter(this::isCloudEntity));
+                    entities.filter(this::isCloudEntity), groupMemberRetriever);
         }
 
         /**
@@ -78,7 +93,7 @@ public interface TopologyEntityCloudTopologyFactory {
             } catch (InterruptedException ie) {
                 logger.error("Thread interrupted while processing topology in context " + topologyContextId, ie);
             }
-            return new TopologyEntityCloudTopology(streamBuilder.build());
+            return new TopologyEntityCloudTopology(streamBuilder.build(), groupMemberRetriever);
         }
 
         private boolean isCloudEntity(@Nonnull final TopologyEntityDTO entity) {

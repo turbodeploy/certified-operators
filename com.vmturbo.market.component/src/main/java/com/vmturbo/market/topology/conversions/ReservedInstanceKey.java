@@ -18,14 +18,11 @@ public class ReservedInstanceKey {
     private final OSType os;
     private final long regionId;
     private final long zoneId;
-    private final long accountId;
     private final String family;
     private final long riBoughtId;
     private final boolean instanceSizeFlexible;
-
-    public long getRiBoughtId() {
-        return riBoughtId;
-    }
+    private final long accountScopeId;
+    private final boolean shared;
 
     Tenancy getTenancy() {
         return tenancy;
@@ -43,20 +40,25 @@ public class ReservedInstanceKey {
         return family;
     }
 
-    long getAccount() {
-        return accountId;
+    long getAccountScopeId() {
+        return accountScopeId;
     }
 
     long getZoneId() {
         return zoneId;
     }
 
+    boolean getShared() {
+        return shared;
+    }
+
     /**
      * Constructor for ReservedInstanceKey.
      * @param riData reserved instance data
      * @param family the family name of the RI Template.
+     * @param billingFamilyId billing family id of the account to which the RI belongs.
      */
-    public ReservedInstanceKey(ReservedInstanceData riData, String family) {
+    public ReservedInstanceKey(ReservedInstanceData riData, String family, long billingFamilyId) {
         final ReservedInstanceSpecInfo riSpec =
                 riData.getReservedInstanceSpec().getReservedInstanceSpecInfo();
         final ReservedInstanceBoughtInfo riBoughtInfo = riData.getReservedInstanceBought()
@@ -66,19 +68,28 @@ public class ReservedInstanceKey {
         this.regionId = riSpec.getRegionId();
         this.family = family;
         this.zoneId = riBoughtInfo.getAvailabilityZoneId();
-        this.accountId = riBoughtInfo.getBusinessAccountId();
+        final long accountId = riBoughtInfo.getBusinessAccountId();
         this.instanceSizeFlexible = riSpec.getSizeFlexible();
         if (!instanceSizeFlexible) {
             this.riBoughtId = riData.getReservedInstanceBought().getId();
         } else {
             this.riBoughtId = -1L;
         }
+        // If the RI is shared, then it is applicable across the billing family, hence the
+        // accountScopeId is set to the billingFamilyId. Otherwise the RI is applicable only to the
+        // owning account and the accountScopeId is set to the owning account's id.
+        this.shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
+        if (shared) {
+            accountScopeId = billingFamilyId;
+        } else {
+            accountScopeId = accountId;
+        }
     }
 
     @Override
     public int hashCode() {
         if (isInstanceSizeFlexible()) {
-            return Objects.hash(tenancy, os, regionId, family, zoneId, accountId);
+            return Objects.hash(tenancy, os, regionId, family, zoneId, accountScopeId);
         } else {
             return Objects.hash(riBoughtId);
         }
@@ -106,7 +117,7 @@ public class ReservedInstanceKey {
                     this.regionId == other.regionId &&
                     this.family.equals(other.family) &&
                     this.zoneId == other.zoneId &&
-                    this.accountId == other.accountId;
+                    this.accountScopeId == other.accountScopeId;
         } else {
             return this.riBoughtId == other.riBoughtId;
         }

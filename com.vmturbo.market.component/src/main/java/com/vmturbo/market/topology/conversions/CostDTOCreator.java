@@ -2,9 +2,12 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Maps;
 
@@ -252,42 +255,73 @@ public class CostDTOCreator {
      * @param accountPricingDataByBusinessAccountOid The accountPricing to use for the specific business account.
      * @param region The region the RIDiscountedMarketTier is being created for.
      * @param computeTier The compute tier based on which the price of the RIDiscountedMarketTier is calculated.
+     * @param applicableBusinessAccounts account scope of the cbtp.
      *
      * @return The CBTP cost dto.
      */
-    CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey, Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid,
-                              TopologyEntityDTO region, TopologyEntityDTO computeTier) {
-        Optional<ComputePrice> templatePrice = Optional.empty();
-        AccountPricingData accountPricingData = accountPricingDataByBusinessAccountOid.get(reservedInstanceKey.getAccount());
-        if (accountPricingData != null) {
-            ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(computeTier, region.getOid(), accountPricingData);
-            templatePrice = priceBundle.getPrices().stream().filter(s ->s.getOsType().equals(reservedInstanceKey.getOs())).findFirst();
-        }
+    CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey,
+                              Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid,
+                              TopologyEntityDTO region, TopologyEntityDTO computeTier,
+                              final Set<Long> applicableBusinessAccounts) {
+        final Set<CostTuple> costTuples = applicableBusinessAccounts.stream()
+                .map(accountId -> createCbtpCostTuple(reservedInstanceKey,
+                        accountPricingDataByBusinessAccountOid.get(accountId), region,
+                        computeTier, accountId))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
         return CostDTO.newBuilder().setCbtpResourceBundle(
                 CbtpCostDTO.newBuilder().setCouponBaseType(
                         CommodityDTO.CommodityType
                                 .COUPON_VALUE)
+                        .addAllCostTupleList(costTuples)
                         .setDiscountPercentage(1)
-                        .setCostTuple(addLocationAndPriceInfo(CostTuple.newBuilder(), reservedInstanceKey, templatePrice))
                         .build()).build();
     }
 
     /**
      * Add the location and pricing info to the RI discounted market tier cost dto.
      *
-     * @param builder The CostDTO builder
      * @param riKey reservedInstanceKey of the RI for which the CostDTO is created.
-     * @param price The pricing of the corresponding on demand compute tier template.
+     * @param accountPricingData to look up price info for the RI.
+     * @param region to which the RI belongs.
+     * @param computeTier of the RI.
+     * @param accountId for which the costTuple is being created.
      *
      * @return The Cost DTO builder with the parameters set.
      */
-    private CostDTOs.CostDTO.CostTuple.Builder addLocationAndPriceInfo(
-            CostDTOs.CostDTO.CostTuple.Builder builder, final ReservedInstanceKey riKey, Optional<ComputePrice> price) {
-        if (price.isPresent()) {
-            builder.setPrice(price.get().getHourlyPrice() * riCostDeprecationFactor);
+    @Nullable
+    private CostDTOs.CostDTO.CostTuple createCbtpCostTuple(final ReservedInstanceKey riKey,
+                                                           final AccountPricingData
+                                                                   accountPricingData,
+                                                           final TopologyEntityDTO region,
+                                                           final TopologyEntityDTO computeTier,
+                                                           final long accountId) {
+        if (accountPricingData == null) {
+            logger.warn("Account pricing data not found for account id: {}", accountId);
+            return null;
         }
-        return riKey.getZoneId() != 0 ? builder.setZoneId(riKey.getZoneId())
-                : builder.setRegionId(riKey.getRegionId());
+        final CostTuple.Builder builder = CostTuple.newBuilder();
+        // Set deprecation factor
+        final ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(computeTier,
+                region.getOid(), accountPricingData);
+        final Optional<ComputePrice> templatePrice =
+                priceBundle.getPrices().stream().filter(s -> s.getOsType()
+                .equals(riKey.getOs())).findFirst();
+        templatePrice.ifPresent(computePrice
+                -> builder.setPrice(computePrice.getHourlyPrice() * riCostDeprecationFactor));
+
+        // Set location info
+        if (riKey.getZoneId() != 0) {
+            builder.setZoneId(riKey.getZoneId());
+        } else {
+            builder.setRegionId(riKey.getRegionId());
+        }
+
+        // Set account id (for single scope RI) or price id (for shared scope RI)
+        builder.setBusinessAccountId(riKey.getShared() ?
+                accountPricingData.getAccountPricingDataOid() : accountId);
+        return builder.build();
     }
 
     /**

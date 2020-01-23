@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -53,16 +52,20 @@ public class ReservedInstanceAggregate {
 
     // A map of the RI Bought id to the coupon usage information
     private final Map<Long, RICouponInfo> riCouponInfoMap = new HashMap<>();
-
+    // Set of business account ids to which the RIs that belong to this RI Aggregate can be applied
+    // to.
+    private final Set<Long> applicableBusinessAccounts;
     private final boolean platformFlexible;
 
     ReservedInstanceAggregate(@Nonnull final ReservedInstanceData riData,
-                                     @Nonnull final ReservedInstanceKey riKey,
-                                     @Nonnull final TopologyEntityDTO computeTier) {
+                              @Nonnull final ReservedInstanceKey riKey,
+                              @Nonnull final TopologyEntityDTO computeTier,
+                              @Nonnull final Set<Long> applicableBusinessAccounts) {
         this.riKey = Objects.requireNonNull(riKey);
         this.computeTier = Objects.requireNonNull(computeTier);
         platformFlexible = riData.getReservedInstanceSpec().getReservedInstanceSpecInfo()
                 .getPlatformFlexible();
+        this.applicableBusinessAccounts = applicableBusinessAccounts;
     }
 
     ReservedInstanceKey getRiKey() {
@@ -112,7 +115,7 @@ public class ReservedInstanceAggregate {
 
     public String getDisplayName() {
         if (riKey == null) return null;
-        return String.valueOf(riKey.getAccount()) + SEPARATOR +
+        return String.valueOf(riKey.getAccountScopeId()) + SEPARATOR +
                 riKey.getFamily() + SEPARATOR +
                 riKey.getOs() + SEPARATOR +
                 riKey.getRegionId() + SEPARATOR +
@@ -286,6 +289,9 @@ public class ReservedInstanceAggregate {
         }
     }
 
+    Set<Long> getApplicableBusinessAccount() {
+        return applicableBusinessAccounts;
+    }
 }
 
 

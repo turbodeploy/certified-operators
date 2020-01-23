@@ -3,10 +3,12 @@ package com.vmturbo.market.topology.conversions;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -15,12 +17,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -40,10 +45,14 @@ class ReservedInstanceAggregator {
     // Map of riBoughtId to ReservedInstanceData
     private final Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
 
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
+
     ReservedInstanceAggregator(@Nonnull CloudCostData cloudCostData,
-            @Nonnull Map<Long, TopologyEntityDTO> topology) {
+                               @Nonnull Map<Long, TopologyEntityDTO> topology,
+                               @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.cloudCostData = cloudCostData;
         this.topology = topology;
+        this.cloudTopology = cloudTopology;
     }
 
     /**
@@ -79,11 +88,16 @@ class ReservedInstanceAggregator {
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Double::sum));
         logger.trace("Coupons used by RI map dump: {}", () -> couponsUsedByRi);
         for (ReservedInstanceData riData : riCollection) {
-            if (riData.isValid(topology)) {
+            final long businessAccountId = riData.getReservedInstanceBought()
+                    .getReservedInstanceBoughtInfo().getBusinessAccountId();
+            final GroupAndMembers billingFamilyGroup = cloudTopology
+                    .getBillingFamilyForEntity(businessAccountId).orElse(null);
+            if (riData.isValid(topology) && billingFamilyGroup != null) {
                 final String family = topology.get(riData.getReservedInstanceSpec()
                         .getReservedInstanceSpecInfo().getTierId()).getTypeSpecificInfo()
                         .getComputeTier().getFamily();
-                final ReservedInstanceKey riKey = new ReservedInstanceKey(riData, family);
+                final ReservedInstanceKey riKey = new ReservedInstanceKey(riData, family,
+                        billingFamilyGroup.group().getId());
                 final Optional<TopologyEntityDTO> computeTier = findComputeTier(riKey, riData,
                         familyToComputeTiers);
                 if (computeTier.isPresent()) {
@@ -91,7 +105,8 @@ class ReservedInstanceAggregator {
                     riDataMap.put(riBoughtId, riData);
                     final ReservedInstanceAggregate riAggregate = riAggregates
                             .computeIfAbsent(riKey, key -> new ReservedInstanceAggregate(riData,
-                                    riKey, computeTier.get()));
+                                    riKey, computeTier.get(),
+                                    getApplicableBusinessAccounts(riData, billingFamilyGroup)));
                     final double usedCoupons = couponsUsedByRi.getOrDefault(riBoughtId, 0d);
                     logger.trace("Adding constituent RI: {} with usedCoupons: {} to RI Aggregate:" +
                                     " {}", riData::getReservedInstanceBought, () -> usedCoupons,
@@ -105,6 +120,17 @@ class ReservedInstanceAggregator {
             }
         }
         return riAggregates.values();
+    }
+
+    private Set<Long> getApplicableBusinessAccounts(final ReservedInstanceData riData,
+                                                    final GroupAndMembers billingFamilyGroup) {
+        final ReservedInstanceScopeInfo scopeInfo = riData.getReservedInstanceBought()
+                .getReservedInstanceBoughtInfo().getReservedInstanceScopeInfo();
+        if (scopeInfo.getShared()) {
+            return new HashSet<>(billingFamilyGroup.members());
+        } else {
+            return new HashSet<>(scopeInfo.getApplicableBusinessAccountIdList());
+        }
     }
 
     /**

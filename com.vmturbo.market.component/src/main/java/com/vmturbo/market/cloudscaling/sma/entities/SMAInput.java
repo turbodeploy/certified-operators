@@ -713,9 +713,12 @@ public class SMAInput {
                     computeTierOid, riBoughtId, name);
             template = SMAUtils.BOGUS_TEMPLATE;
         }
+        //TODO(kshitij: For Azure, retrieve the billing family id and pass it as the 3rd argument
+        // of the ReservedInstanceKey constructor)
         ReservedInstanceKey reservedInstanceKey = new ReservedInstanceKey(data,
-                template.getFamily());
+                template.getFamily(), -1);
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
+
         String templateName = template.getName();
         SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,
             riKeyId,

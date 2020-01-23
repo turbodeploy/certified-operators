@@ -66,6 +66,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedIn
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -190,6 +191,7 @@ public class TopologyConverter {
                              @Nonnull final ConsistentScalingHelperFactory
                                                 consistentScalingHelperFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.cloudTopology = null;
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
         this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
@@ -199,7 +201,7 @@ public class TopologyConverter {
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder);
+                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.enableSMA = false;
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
@@ -288,6 +290,8 @@ public class TopologyConverter {
     // A map of the topology entity dto id to its reserved instance coverage
     private final Map<Long, EntityReservedInstanceCoverage> projectedReservedInstanceCoverage = Maps.newHashMap();
 
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
+
     /**
      * Utility to track errors encountered during conversion.
      */
@@ -320,6 +324,7 @@ public class TopologyConverter {
      * @param commodityIndexFactory commodity index factory
      * @param tierExcluderFactory tierExcluderFactory
      * @param consistentScalingHelperFactory CSM helper factory
+     * @param cloudTopology instance to look up topology relationships
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
@@ -330,10 +335,11 @@ public class TopologyConverter {
                              CommodityConverter commodityConverter,
                              final CloudCostData cloudCostData,
                              final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                    consistentScalingHelperFactory) {
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
         this.enableSMA = enableSMA;
@@ -348,7 +354,7 @@ public class TopologyConverter {
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder);
+                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
                 cloudTc,
@@ -385,7 +391,7 @@ public class TopologyConverter {
                                      consistentScalingHelperFactory) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, false, liveMarketMoveCostFactor,
             marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, null);
     }
 
     @VisibleForTesting
@@ -401,6 +407,7 @@ public class TopologyConverter {
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.cloudTopology = null;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
         this.enableSMA = enableSMA;
@@ -410,7 +417,7 @@ public class TopologyConverter {
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
-                businessAccounts, marketPriceTable, null, tierExcluder);
+                businessAccounts, marketPriceTable, null, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
                 cloudTc,
@@ -2409,17 +2416,29 @@ public class TopologyConverter {
                     coverage.isPresent() && region != null &&
                     !coverage.get().getCouponsCoveredByRiMap().isEmpty()) {
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
-                    final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
-                    final TopologyEntityDTO computeTier =
+                final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
+                final TopologyEntityDTO computeTier =
                         entityOidToDto.get(riData.getReservedInstanceSpec()
-                            .getReservedInstanceSpecInfo().getTierId());
-                    final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
-                        computeTier.getTypeSpecificInfo().getComputeTier().getFamily());
-                    final ReservedInstanceAggregate riAggregate =
-                        new ReservedInstanceAggregate(riData, riKey, computeTier);
-                    providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
+                                .getReservedInstanceSpecInfo().getTierId());
+                final long businessAccountId = riData.getReservedInstanceBought()
+                        .getReservedInstanceBoughtInfo().getBusinessAccountId();
+                final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
+                        .getBillingFamilyForEntity(businessAccountId);
+                if (!billingFamilyGroup.isPresent()) {
+                    logger.error("Billing family group not found for RI Data: {}",
+                            riData.getReservedInstanceBought());
+                }
+                final long billingFamilyId = billingFamilyGroup.map(group ->
+                        group.group().getId()).orElse(businessAccountId);
+                final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
+                        computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
+                        billingFamilyId);
+                final ReservedInstanceAggregate riAggregate =
+                        new ReservedInstanceAggregate(riData, riKey, computeTier,
+                                Collections.emptySet());
+                providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
                         region, riAggregate));
-                    resultType = RiDiscountedMarketTier.class;
+                resultType = RiDiscountedMarketTier.class;
             } else {
                 providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
                         providerTopologyEntity));

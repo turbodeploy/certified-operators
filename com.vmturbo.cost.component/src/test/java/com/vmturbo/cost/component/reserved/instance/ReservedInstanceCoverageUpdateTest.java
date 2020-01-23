@@ -53,6 +53,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.
 import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -229,7 +230,7 @@ public class ReservedInstanceCoverageUpdateTest {
      * together, so we use a "real" topology factory for now.
      */
     private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            new DefaultTopologyEntityCloudTopologyFactory();
+            new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
 
     @Before
     public void setup() throws CommunicationException {

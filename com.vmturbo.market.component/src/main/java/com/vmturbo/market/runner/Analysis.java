@@ -33,7 +33,6 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -46,7 +45,6 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -70,6 +68,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -183,7 +182,7 @@ public class Analysis {
      */
     private final Clock clock;
 
-    private final GroupServiceBlockingStub groupServiceClient;
+    private final GroupMemberRetriever groupMemberRetriever;
 
     private final AnalysisConfig config;
 
@@ -216,7 +215,7 @@ public class Analysis {
      *
      * @param topologyInfo descriptive info about the topology - id, type, etc
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
-     * @param groupServiceClient Used to look up groups to support suspension throttling
+     * @param groupMemberRetriever used to look up group and member information
      * @param clock The clock used to time market analysis.
      * @param analysisConfig configuration for analysis
      * @param cloudTopologyFactory cloud topology factory
@@ -230,7 +229,7 @@ public class Analysis {
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                    @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                    @Nonnull final GroupMemberRetriever groupMemberRetriever,
                     @Nonnull final Clock clock,
                     @Nonnull final AnalysisConfig analysisConfig,
                     @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -250,11 +249,12 @@ public class Analysis {
             topologyInfo.getTopologyContextId() + " with topology " +
             topologyInfo.getTopologyId() + " : ";
         this.projectedTopologyId = IdentityGenerator.next();
-        this.groupServiceClient = groupServiceClient;
+        this.groupMemberRetriever = groupMemberRetriever;
         this.clock = Objects.requireNonNull(clock);
         this.config = analysisConfig;
         this.cloudTopologyFactory = cloudTopologyFactory;
-        this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
+        this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(
+                topologyDTOs.stream());
         this.wastedFilesAnalysisFactory = wastedFilesAnalysisFactory;
         this.buyRIImpactAnalysisFactory = buyRIImpactAnalysisFactory;
         this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
@@ -300,7 +300,8 @@ public class Analysis {
                 config.getQuoteFactor(), config.isEnableSMA(),
                 config.getLiveMarketMoveCostFactor(),
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
-                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
+                originalCloudTopology);
         final boolean enableThrottling = (config.getSuspensionsThrottlingConfig()
                 == SuspensionsThrottlingConfig.CLUSTER);
         DataMetricTimer processResultTime = null;
@@ -749,17 +750,17 @@ public class Analysis {
 
     protected Set<TopologyEntityDTO> getEntityDTOsInCluster(GroupType groupType) {
         Set<TopologyEntityDTO> entityDTOs = new HashSet<>();
-        groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                                        .setGroupType(groupType))
-                        .build())
-            .forEachRemaining(grp -> {
-                for (long i : GroupProtoUtil.getAllStaticMembers(grp.getDefinition())) {
-                    if (topologyDTOs.containsKey(i)) {
-                        entityDTOs.add(topologyDTOs.get(i));
+        groupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(groupType))
+                .build())
+                .forEach(groupAndMembers -> {
+                    for (long memberId : groupAndMembers.members()) {
+                        if (topologyDTOs.containsKey(memberId)) {
+                            entityDTOs.add(topologyDTOs.get(memberId));
+                        }
                     }
-                }
-            });
+                });
         return entityDTOs;
     }
 
