@@ -14,6 +14,11 @@ global:
   tolerations: []
   affinity: {}
   annotations: {}
+  # setting these to be more tolerant than the k8s defaults, since we run in some pretty resource
+  # constrained environments where the readiness probe failures don't really fix anything. We should
+  # adjust these back down when we have a horizontally-scaled environment.
+  readinessPeriodSecs: 20
+  readinessTimeoutSecs: 10
 #  externalIP: 10.233.0.3 # byo k8s DNS
 #              10.100.0.10 # eks DNS
 #              10.0.0.10 # aks DNS
