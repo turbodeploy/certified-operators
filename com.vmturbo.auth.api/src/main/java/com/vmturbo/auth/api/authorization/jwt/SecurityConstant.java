@@ -120,10 +120,10 @@ public class SecurityConstant {
      * These are predefined external groups for all the roles in XL.
      */
     public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =
-            Sets.newHashSet(new SecurityGroupDTO(ADMINISTRATOR, DEDICATED_CUSTOMER, ADMINISTRATOR),
-                    new SecurityGroupDTO(AUTOMATOR, DEDICATED_CUSTOMER, AUTOMATOR),
-                    new SecurityGroupDTO(DEPLOYER, DEDICATED_CUSTOMER, DEPLOYER),
-                    new SecurityGroupDTO(ADVISOR, DEDICATED_CUSTOMER, ADVISOR),
-                    new SecurityGroupDTO(OBSERVER, DEDICATED_CUSTOMER, OBSERVER),
-                    new SecurityGroupDTO(SITE_ADMIN, DEDICATED_CUSTOMER, SITE_ADMIN));
+            Sets.newHashSet(new SecurityGroupDTO(ADMINISTRATOR.toLowerCase(), DEDICATED_CUSTOMER, ADMINISTRATOR),
+                    new SecurityGroupDTO(AUTOMATOR.toLowerCase(), DEDICATED_CUSTOMER, AUTOMATOR),
+                    new SecurityGroupDTO(DEPLOYER.toLowerCase(), DEDICATED_CUSTOMER, DEPLOYER),
+                    new SecurityGroupDTO(ADVISOR.toLowerCase(), DEDICATED_CUSTOMER, ADVISOR),
+                    new SecurityGroupDTO(OBSERVER.toLowerCase(), DEDICATED_CUSTOMER, OBSERVER),
+                    new SecurityGroupDTO(SITE_ADMIN.toLowerCase(), DEDICATED_CUSTOMER, SITE_ADMIN));
 }

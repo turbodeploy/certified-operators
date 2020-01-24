@@ -25,6 +25,7 @@ import javax.naming.directory.SearchResult;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import org.apache.commons.collections4.map.CaseInsensitiveMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -59,9 +60,9 @@ public class SsoUtil {
     private String adSearchBase_;
 
     /**
-     * The AD or SAML groups. The {@code <Group name, SecurityGroupDTO>} mapping.
+     * The AD or SAML groups. The {@code <Group name, SecurityGroupDTO>} mapping. Group name is case insensitive.
      */
-    private final Map<String, SecurityGroupDTO> ssoGroups_ = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, SecurityGroupDTO> ssoGroups_ = Collections.synchronizedMap(new CaseInsensitiveMap<>());
 
     /**
      * The AD or SAML users that were derived from groups.
