@@ -369,39 +369,27 @@ public class SupplyChainCalculatorTest {
          * Topology:
          *   VM--
          *   |  |
-         *  PM1 | PM2
-         *  /  \| /
+         *   PM |
+         *  /  \|
          * ST1 ST2
          * Scoping on ST1 should not bring VM
-         * Scoping on VM should not bring PM2
          */
         final TopologyGraph<TestGraphEntity> graph =
             TestGraphEntity.newGraph(TestGraphEntity.newBuilder(PM_ID, UIEntityType.PHYSICAL_MACHINE)
                                             .addProviderId(ST_ID)
                                             .addProviderId(ST_ID2),
-                                     TestGraphEntity.newBuilder(PM_ID2, UIEntityType.PHYSICAL_MACHINE)
-                                            .addProviderId(ST_ID2),
                                      TestGraphEntity.newBuilder(ST_ID, UIEntityType.STORAGE),
                                      TestGraphEntity.newBuilder(ST_ID2, UIEntityType.STORAGE),
                                      TestGraphEntity.newBuilder(VM_ID, UIEntityType.VIRTUAL_MACHINE)
-                                            .addProviderId(PM_ID)
-                                            .addProviderId(ST_ID2));
-
-        // scoping on ST1
+                                            .addProviderId(PM_ID));
         final Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, ST_ID);
+
         assertThat(supplychain.keySet(), containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.typeNumber(),
                                                             UIEntityType.STORAGE.typeNumber()));
         assertEquals(Collections.singleton(PM_ID),
                      getAllNodeIds(supplychain.get(UIEntityType.PHYSICAL_MACHINE.typeNumber())));
         assertEquals(Collections.singleton(ST_ID),
                      getAllNodeIds(supplychain.get(UIEntityType.STORAGE.typeNumber())));
-
-        // scoping on VM
-        final Map<Integer, SupplyChainNode> supplychain2 = getSupplyChain(graph, VM_ID);
-        assertEquals(Collections.singleton(PM_ID),
-                     getAllNodeIds(supplychain2.get(UIEntityType.PHYSICAL_MACHINE.typeNumber())));
-        assertEquals(Collections.singleton(ST_ID2),
-                     getAllNodeIds(supplychain2.get(UIEntityType.STORAGE.typeNumber())));
     }
 
    private void commonForDCAndStorageRelationship(@Nonnull Map<Integer, SupplyChainNode> supplychain) {

@@ -205,16 +205,12 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         @Override
         protected Stream<E> getFilteredAggregators(@Nonnull E entity,
                                                    @Nonnull TraversalMode traversalMode) {
-            // when traversing up, treat PMs as aggregators of storage
+            // treat PMs as aggregators of storage
             // this is a hack that allows PMs and the DC to appear in the supply chain
             // but disallows any further traversals from the DC
-            if (traversalMode == TraversalMode.START || traversalMode == TraversalMode.PRODUCES) {
-                return Stream.concat(super.getFilteredConsumers(entity, traversalMode)
-                                .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE),
-                        super.getFilteredAggregators(entity, traversalMode));
-            } else {
-                return super.getFilteredAggregators(entity, traversalMode);
-            }
+            return Stream.concat(super.getFilteredConsumers(entity, traversalMode)
+                                    .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE),
+                                 super.getFilteredAggregators(entity, traversalMode));
         }
     }
 

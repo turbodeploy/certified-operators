@@ -2174,8 +2174,6 @@ public class TopologyConverter {
                 buyer.getDisplayName(), skippedEntities.get(providerOid).getDisplayName());
         }
         boolean isMovable = !isProviderUnknownOrFailover &&
-            // Containers cannot move off their ContainerPods
-            !(provider != null && provider.getEntityType() == EntityType.CONTAINER_POD_VALUE) &&
             (commBoughtGrouping.hasMovable()
                 ? commBoughtGrouping.getMovable()
                 : AnalysisUtil.MOVABLE_TYPES.contains(entityType));

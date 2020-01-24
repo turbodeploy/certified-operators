@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.topology;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -51,7 +50,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
@@ -75,7 +73,6 @@ public class TopologyEditorTest {
     private static final long vmId = 10;
     private static final long pmId = 20;
     private static final long stId = 30;
-    private static final long podId = 40;
     private static final double USED = 100;
     private static final double VCPU_CAPACITY = 1000;
     private static final double VMEM_CAPACITY = 1000;
@@ -92,8 +89,6 @@ public class TopologyEditorTest {
         .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
     private static final CommodityType VMEM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
-    private static final CommodityType VMPM = CommodityType.newBuilder()
-        .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).build();
 
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
@@ -170,34 +165,6 @@ public class TopologyEditorTest {
                             .setAccesses(pmId).build())
     );
 
-    // Create a test pod that is suspendable
-    private static final TopologyEntity.Builder pod = TopologyEntityUtils.topologyEntityBuilder(
-        TopologyEntityDTO.newBuilder()
-            .setOid(podId)
-            .setDisplayName("ContainerPod")
-            .setEntityType(EntityType.CONTAINER_POD_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder().setSuspendable(true).build())
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(vmId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM)
-                    .setUsed(USED).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU)
-                    .setUsed(USED).build())
-                .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VCPU)
-                .setUsed(USED)
-                .setCapacity(VCPU_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VMEM)
-                .setUsed(USED)
-                .setCapacity(VMEM_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VMPM)
-                .setUsed(1.0)
-                .setCapacity(1.0))
-    );
-
     private static final int NUM_CLONES = 5;
 
     private static final long TEMPLATE_ID = 123;
@@ -231,14 +198,6 @@ public class TopologyEditorTest {
                             .setAddTemplateId(TEMPLATE_ID)
                             .setRemoveEntityId(pmId))
                     .build();
-
-    private static final ScenarioChange ADD_POD = ScenarioChange.newBuilder()
-        .setTopologyAddition(TopologyAddition.newBuilder()
-            .setAdditionCount(NUM_CLONES)
-            .setEntityId(podId)
-            .setTargetEntityType(EntityType.CONTAINER_POD_VALUE)
-            .build())
-        .build();
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
     private long cloneId = 1000L;
@@ -772,27 +731,5 @@ public class TopologyEditorTest {
                     .map(TopologyEntityDTO::getEdit)
                     .filter(Edit::hasReplaced)
                     .count());
-    }
-    /**
-     * Test adding a container pod to a plan.
-     */
-    @Test
-    public void testTopologyAdditionPodClone() {
-        Map<Long, TopologyEntity.Builder> topology = Stream.of(pod, vm, pm)
-            .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
-        List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
-
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
-
-        List<TopologyEntity.Builder> clones = topology.values().stream()
-            .filter(entity -> entity.getOid() != pod.getOid())
-            .filter(entity -> entity.getEntityType() == pod.getEntityType())
-            .collect(Collectors.toList());
-        assertEquals(NUM_CLONES, clones.size());
-
-        // Verify that these pods are not suspendable
-        boolean foundSuspendable = clones.stream()
-            .anyMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getSuspendable());
-        assertFalse("Cloned ContainerPods must not be suspendable", foundSuspendable);
     }
 }
