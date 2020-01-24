@@ -398,8 +398,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER, EntityType.DATABASE,
-                    EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
@@ -408,8 +407,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER, EntityType.DATABASE,
-                    EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
