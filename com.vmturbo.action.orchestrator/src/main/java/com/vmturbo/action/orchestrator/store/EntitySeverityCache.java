@@ -1,18 +1,23 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +29,21 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of the
@@ -53,8 +73,43 @@ public class EntitySeverityCache {
     private final Logger logger = LogManager.getLogger();
 
     private final Map<Long, Severity> severities = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, SeverityCount> riskPropagationBreakdown = Collections.synchronizedMap(new HashMap<>());
 
     private final SeverityComparator severityComparator = new SeverityComparator();
+    private final SupplyChainServiceBlockingStub supplyChainService;
+    private final RepositoryServiceBlockingStub repositoryService;
+
+    /**
+     * There are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and Service.
+     * BusinessApp -> BusinessTxn -> Service -> ApplicationComponent -> Node
+     *                                          ApplicationServer       VirtualMachine  --> VDC ----> Host  --------
+     *                                          DatabaseServer                \    \   \             ^              \
+     *                                          Database                       \    \   \___________/                v
+     *                                                                          \    -----> Volume   ------------->  Storage
+     *                                                                           \                                   ^
+     *                                                                            ----------------------------------/
+     */
+    private static final List<String> PROPAGATED_ENTITY_TYPES = Arrays.asList(
+        UIEntityType.VIRTUAL_MACHINE.apiStr(),
+        UIEntityType.BUSINESS_APPLICATION.apiStr(),
+        UIEntityType.APPLICATION_SERVER.apiStr(),
+        UIEntityType.DATABASE_SERVER.apiStr(),
+        UIEntityType.DATABASE.apiStr(),
+        UIEntityType.DATABASE.apiStr(),
+        UIEntityType.VIRTUAL_VOLUME.apiStr(),
+        UIEntityType.STORAGE.apiStr(),
+        UIEntityType.PHYSICAL_MACHINE.apiStr());
+
+    /**
+     * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
+     * @param supplyChainService the service that provides supply chain info used in risk propagation.
+     * @param repositoryService the service that provides entities by type used as the seeds in risk propagation.
+     */
+    public EntitySeverityCache(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
+                               @Nonnull final RepositoryServiceBlockingStub repositoryService) {
+        this.supplyChainService = supplyChainService;
+        this.repositoryService = repositoryService;
+    }
 
     /**
      * Invalidate and refresh the calculated severity based on the current
@@ -68,6 +123,71 @@ public class EntitySeverityCache {
 
             visibleReadyActionViews(actionStore)
                 .forEach(this::handleActionSeverity);
+
+            riskPropagationBreakdown.clear();
+            Iterator<PartialEntityBatch> batchedBusinessAppIterator = repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .addEntityType(EntityType.BUSINESS_APPLICATION_VALUE)
+                .setReturnType(Type.MINIMAL)
+                .build());
+
+            List<SupplyChainSeed> businessAppOidSeeds = Streams.stream(batchedBusinessAppIterator)
+                .map(PartialEntityBatch::getEntitiesList)
+                .flatMap(List::stream)
+                .map(PartialEntity::getMinimal)
+                .map(MinimalEntity::getOid)
+                .map(oid -> SupplyChainSeed.newBuilder()
+                    .setSeedOid(oid)
+                    .setScope(SupplyChainScope.newBuilder()
+                        .addStartingEntityOid(oid)
+                        .addAllEntityTypesToInclude(PROPAGATED_ENTITY_TYPES)
+                        .build())
+                    .build())
+                .collect(Collectors.toList());
+
+            GetMultiSupplyChainsRequest getMultiSupplyChainsRequest = GetMultiSupplyChainsRequest.newBuilder()
+                .addAllSeeds(businessAppOidSeeds)
+                .build();
+
+            Iterator<GetMultiSupplyChainsResponse> multiSupplyChainIterator =
+                supplyChainService.getMultiSupplyChains(getMultiSupplyChainsRequest);
+
+            multiSupplyChainIterator.forEachRemaining(getMultiSupplyChainsResponse -> {
+                long businessAppOid = getMultiSupplyChainsResponse.getSeedOid();
+                SeverityCount severityCount = new SeverityCount();
+                for (SupplyChainNode node : getMultiSupplyChainsResponse.getSupplyChain().getSupplyChainNodesList()) {
+                    for (MemberList memberList : node.getMembersByStateMap().values()) {
+                        for (long entityOid : memberList.getMemberOidsList()) {
+                            Severity entitySeverity = severities.get(entityOid);
+                            if (entitySeverity == null) {
+                                entitySeverity = Severity.NORMAL;
+                            }
+                            severityCount.addSeverity(entitySeverity);
+                        }
+                    }
+                }
+                riskPropagationBreakdown.put(businessAppOid, severityCount);
+            });
+        }
+    }
+
+    /**
+     * Class that holds the counts of severities.
+     */
+    private static class SeverityCount {
+
+        private final Map<Severity, Long> severityCount = Collections.synchronizedMap(new HashMap<>());
+
+        public void addSeverity(Severity severity) {
+            long currentCount = severityCount.getOrDefault(severity, 0L);
+            severityCount.put(severity, currentCount + 1);
+        }
+
+        public Set<Entry<Severity, Long>> getSeverityCounts() {
+            return severityCount.entrySet();
+        }
+
+        public String toString() {
+            return severityCount.toString();
         }
     }
 
@@ -131,10 +251,24 @@ public class EntitySeverityCache {
      */
     @Nonnull
     public Map<Optional<Severity>, Long> getSeverityCounts(@Nonnull final List<Long> entityOids) {
+        Map<Optional<Severity>, Long> accumulatedCounts = new HashMap<>();
         synchronized (severities) {
-            return entityOids.stream()
-                .map(oid -> Optional.ofNullable(severities.get(oid)))
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            for (long oid : entityOids) {
+                SeverityCount countForOid = riskPropagationBreakdown.get(oid);
+                if (countForOid != null) {
+                    for (Entry<Severity, Long> entry : countForOid.getSeverityCounts()) {
+                        Optional<Severity> key = Optional.of(entry.getKey());
+                        long previous = accumulatedCounts.getOrDefault(key, 0L);
+                        accumulatedCounts.put(key, previous + entry.getValue());
+                    }
+                } else {
+                    Optional<Severity> key = Optional.ofNullable(severities.get(oid));
+                    long previous = accumulatedCounts.getOrDefault(key, 0L);
+                    accumulatedCounts.put(key, previous + 1);
+                }
+            }
+
+            return accumulatedCounts;
         }
     }
 

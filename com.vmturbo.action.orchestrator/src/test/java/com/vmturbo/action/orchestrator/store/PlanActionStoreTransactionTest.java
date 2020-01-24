@@ -106,7 +106,9 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackWhenErrorDuringPopulateClean() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId);
 
         // The first call does not clear because there is nothing in the store yet.
         assertTrue(actionStore.populateRecommendedActions(actionPlan));
@@ -121,7 +123,9 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackWhenErrorDuringPopulateStore() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId);
 
         // The attempt to store actions should fail.
         assertFalse(actionStore.populateRecommendedActions(actionPlan));
@@ -133,7 +137,9 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackWhenErrorDuringOverwrite() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId);
 
         // The attempt to store actions should fail.
         List<Action> actions = actionPlan.getActionList().stream()
@@ -148,7 +154,9 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackDuringClear() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId);
 
         // The first call does not clear because there is nothing in the store yet.
         assertTrue(actionStore.populateRecommendedActions(actionPlan));

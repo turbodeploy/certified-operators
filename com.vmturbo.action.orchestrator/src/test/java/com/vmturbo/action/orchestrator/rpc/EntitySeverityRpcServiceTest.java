@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -41,6 +42,10 @@ import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -49,10 +54,13 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class EntitySeverityRpcServiceTest {
     private EntitySeverityServiceBlockingStub severityServiceClient;
+    private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
+
+    private EntitySeverityCache severityCache;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
 
-    private final EntitySeverityCache severityCache = Mockito.spy(EntitySeverityCache.class);
     private final long topologyContextId = 3;
 
     private final EntitySeverityRpcService entitySeverityRpcService =
@@ -60,13 +68,19 @@ public class EntitySeverityRpcServiceTest {
                     100, 500, 5000);
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityRpcService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
+        entitySeverityRpcService,
+        supplyChainServiceMole,
+        repositoryServiceMole);
 
     @Before
     public void setup() throws IOException {
         IdentityGenerator.initPrefix(0);
 
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        severityCache = Mockito.spy(new EntitySeverityCache(
+            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel())));
     }
 
     @Test

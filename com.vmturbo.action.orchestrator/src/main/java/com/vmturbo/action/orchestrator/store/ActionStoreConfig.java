@@ -21,6 +21,8 @@ import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
@@ -115,19 +117,28 @@ public class ActionStoreConfig {
             entitySettingsCache());
     }
 
+    /**
+     * Returns the {@link ActionStoreFactory} bean.
+     *
+     * @return the {@link ActionStoreFactory} bean.
+     */
     @Bean
     public IActionStoreFactory actionStoreFactory() {
-        return new ActionStoreFactory(actionFactory(),
-            actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
-            databaseConfig.dsl(),
-            actionHistory(),
-            actionExecutionConfig.actionTargetSelector(),
-            actionExecutionConfig.targetCapabilityCache(),
-            entitySettingsCache(),
-            actionStatsConfig.actionsStatistician(),
-            actionTranslationConfig.actionTranslator(),
-            actionOrchestratorGlobalConfig.actionOrchestratorClock(),
-            userSessionConfig.userSessionContext());
+        return ActionStoreFactory.newBuilder()
+            .withActionFactory(actionFactory())
+            .withRealtimeTopologyContextId(actionOrchestratorGlobalConfig.realtimeTopologyContextId())
+            .withDatabaseDslContext(databaseConfig.dsl())
+            .withActionHistoryDao(actionHistory())
+            .withActionTargetSelector(actionExecutionConfig.actionTargetSelector())
+            .withProbeCapabilityCache(actionExecutionConfig.targetCapabilityCache())
+            .withEntitySettingsCache(entitySettingsCache())
+            .withActionsStatistician(actionStatsConfig.actionsStatistician())
+            .withActionTranslator(actionTranslationConfig.actionTranslator())
+            .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
+            .withUserSessionContext(userSessionConfig.userSessionContext())
+            .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .build();
     }
 
     @Bean
@@ -139,7 +150,9 @@ public class ActionStoreConfig {
             actionModeCalculator(),
             entitySettingsCache(),
             actionTranslationConfig.actionTranslator(),
-            realtimeTopologyContextId);
+            realtimeTopologyContextId,
+            SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
     }
 
     @Bean

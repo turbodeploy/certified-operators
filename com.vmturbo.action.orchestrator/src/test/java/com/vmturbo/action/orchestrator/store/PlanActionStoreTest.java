@@ -133,7 +133,9 @@ public class PlanActionStoreTest {
         // Clean the database and bring it up to the production configuration before running test
         flyway.clean();
         flyway.migrate();
-        actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
@@ -357,7 +359,8 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
+                null, null).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -377,13 +380,16 @@ public class PlanActionStoreTest {
 
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
-        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
+                 null, null).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially
