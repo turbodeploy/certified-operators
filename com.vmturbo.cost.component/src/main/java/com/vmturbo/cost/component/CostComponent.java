@@ -11,13 +11,17 @@ import javax.annotation.PostConstruct;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
+
+import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -26,6 +30,7 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.discount.CostConfig;
+import com.vmturbo.cost.component.flyway.V1_26__Callback;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
@@ -124,6 +129,19 @@ public class CostComponent extends BaseVmtComponent {
             .build(),
             new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
             Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
+    }
+
+    /**
+     * Define flyway callbacks to be active during migrations for cost component.
+     *
+     * @return array of callback objects
+     */
+    @Bean
+    @Primary
+    public FlywayCallback[] flywayCallbacks() {
+        return new FlywayCallback[] {
+            new V1_26__Callback()
+        };
     }
 
 
