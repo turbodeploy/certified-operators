@@ -857,6 +857,16 @@ public enum EntitySettingSpecs {
             string(), true),
 
     /**
+     * Yet another hack that described in javadoc of {@link #ProvisionActionScript}.
+     * TODO: remove this as part of fix OM-38669
+     */
+    MoveActionScript("moveActionScript", "Move",
+                     Collections.singletonList(CategoryPathConstants.ACTIONSCRIPT),
+                     SettingTiebreaker.SMALLER,
+                     EnumSet.of(EntityType.BUSINESS_USER),
+                     string(), true),
+
+    /**
      * Indicates whether to enforce consistent resizing on a group.  Applies to: VM, Container
      */
     EnableConsistentResizing("consistentResizing", "Enable Consistent Resizing",

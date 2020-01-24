@@ -8,12 +8,14 @@
 {
   "managersByUuid": {
     // temporary hack since UI requires at least one 'actionscriptmanager to process any
-    // controlmanager entries, i.e. workflows - fix is OM-38669
+    // controlmanager entries, i.e. workflows.
+    // TODO: fix is OM-38669
     "actionscriptmanager": {
       "displayName": "Action Script Settings",
       "defaultCategory": "Automation",
       "settings": [
-        "provisionActionScript"
+        "provisionActionScript",
+        "moveActionScript"
       ]
     },
     "automationmanager": {
