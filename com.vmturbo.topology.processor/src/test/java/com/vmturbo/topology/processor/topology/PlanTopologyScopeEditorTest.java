@@ -147,14 +147,14 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder pm1InDc1 = createHypervisorTopologyEntity(20001L, "pm1InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1, basketSoldByPMinDC1);
     private final TopologyEntity.Builder pm2InDc1 = createHypervisorTopologyEntity(20002L, "pm2InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1, basketSoldByPMinDC1);
     private final TopologyEntity.Builder pmInDc2 = createHypervisorTopologyEntity(20003L, "pmInDc2", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC2, basketSoldByPMinDC2);
-    private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM1DS1, basketSoldByVM1);
+    private final TopologyEntity.Builder virtualVolume = TopologyEntityUtils.connectedTopologyEntity(25001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, st1.getOid());
+    private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM1DS1, basketSoldByVM1, virtualVolume.getOid());
     private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM2DS1, basketSoldByVM1);
     private final TopologyEntity.Builder vmInDc2 = createHypervisorTopologyEntity(30003L, "vmInDc2", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC2PMDS2, basketSoldByVM2);
     private final TopologyEntity.Builder app1 = createHypervisorTopologyEntity(60001L, "app1", EntityType.APPLICATION, commBoughtByApp1, new ArrayList<>());
     private final TopologyEntity.Builder as1 = createHypervisorTopologyEntity(70001L, "as1", EntityType.APPLICATION_SERVER, commBoughtByApp1, basketSoldByAS1);
     private final TopologyEntity.Builder as2 = createHypervisorTopologyEntity(70002L, "as2", EntityType.APPLICATION_SERVER, commBoughtByApp2, basketSoldByAS2);
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, commBoughtByBA, new ArrayList<>());
-    private final TopologyEntity.Builder virtualVolume = TopologyEntityUtils.connectedTopologyEntity(90001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, vm1InDc1.getOid());
 
     private static final long VIRTUAL_VOLUME_IN_OHIO_ID = 6001L;
     private static final long VIRTUAL_VOLUME_IN_LONDON_ID = 6002L;
@@ -592,14 +592,14 @@ public class PlanTopologyScopeEditorTest {
 
         List<Grouping> groups = Arrays.asList(g);
         when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
-            .setGroupFilter(GroupFilter.newBuilder().addId(90001L))
+            .setGroupFilter(GroupFilter.newBuilder().addId(25001L))
             .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(groups);
         when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(new HashSet<>(Arrays.asList(pm1InDc1.getOid(), pm2InDc1.getOid())));
 
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
-                                .setScopeObjectOid(90001L).setDisplayName("PM cluster/dc1").build()).build();
+                                .setScopeObjectOid(25001L).setDisplayName("PM cluster/dc1").build()).build();
         // populate InvertedIndex
         InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
                 index = planTopologyScopeEditor.createInvertedIndex();
@@ -683,9 +683,17 @@ public class PlanTopologyScopeEditorTest {
                                                                          String displayName,
                                                                          EntityType entityType,
                                                                          Map<Long, List<TopologyDTO.CommodityType>> producers,
-                                                                         List<TopologyDTO.CommodityType> soldComms) {
-        return TopologyEntityUtils.topologyEntity(oid, HYPERVISOR_TARGET, 0, displayName,
+                                                                         List<TopologyDTO.CommodityType> soldComms,
+                                                                         long... connectedEntities) {
+        TopologyEntity.Builder entity = TopologyEntityUtils.topologyEntity(oid, HYPERVISOR_TARGET, 0, displayName,
                 entityType, producers, soldComms);
+        Arrays.stream(connectedEntities).forEach(e ->
+            entity.getEntityBuilder()
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(e)
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                        .build()));
+        return entity;
     }
 
     private static TopologyEntity.Builder createCloudTopologyAvailabilityZone(

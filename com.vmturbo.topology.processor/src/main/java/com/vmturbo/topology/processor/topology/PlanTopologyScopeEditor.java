@@ -273,12 +273,15 @@ public class PlanTopologyScopeEditor {
                     .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
                             !suppliersToExpand.contains(customerOid))
                     .collect(Collectors.toList());
-            // pull in inboundAssociatedEntities so as to not skip entities like vVolume that doesnt buy/sell commodities
-            entity.getInboundAssociatedEntities().stream()
-                    .map(trader -> trader.getOid())
-                    .filter(entityOid -> !scopedTopologyOIDs.contains(entityOid) &&
-                            !suppliersToExpand.contains(entityOid))
-                    .collect(Collectors.toCollection(() -> relatedEntityOids));
+            // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
+            // that doesnt buy/sell commodities
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                entity.getOutboundAssociatedEntities().stream()
+                        .map(trader -> trader.getOid())
+                        .filter(entityOid -> !scopedTopologyOIDs.contains(entityOid) &&
+                                !suppliersToExpand.contains(entityOid))
+                        .collect(Collectors.toCollection(() -> relatedEntityOids));
+            }
             if (relatedEntityOids.size() == 0) {
                 // if no customers, then "start downwards" from here
                 if (!visited.contains(traderOid)) {
@@ -300,7 +303,7 @@ public class PlanTopologyScopeEditor {
         // starting with buyersToSatisfy, expand "downwards"
         while (!buyersToSatisfy.isEmpty()) {
             long traderOid = buyersToSatisfy.remove();
-            Optional<TopologyEntity> optionalBuyer = topology.getEntity(traderOid);
+            TopologyEntity buyer = topology.getEntity(traderOid).get();
             providersExpanded.add(traderOid);
             TopologyEntity thisTrader = topology.getEntity(traderOid).get();
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
@@ -309,11 +312,15 @@ public class PlanTopologyScopeEditor {
                     .map(trader -> trader.getOid())
                     .filter(buyerOid -> !providersExpanded.contains(buyerOid))
                     .collect(Collectors.toList());
-            optionalBuyer.get().getInboundAssociatedEntities().stream()
-                    .map(trader -> trader.getOid())
-                    .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
-                            !suppliersToExpand.contains(customerOid))
-                    .collect(Collectors.toCollection(() -> sellersAndConnectionsOids));
+            // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
+            // that doesnt buy/sell commodities
+            if (buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                buyer.getOutboundAssociatedEntities().stream()
+                        .map(trader -> trader.getOid())
+                        .filter(entityOid -> !scopedTopologyOIDs.contains(entityOid) &&
+                                !suppliersToExpand.contains(entityOid))
+                        .collect(Collectors.toCollection(() -> sellersAndConnectionsOids));
+            }
             // if thisTrader is a bapp that is not a seed, bring in just the apps that we have already scoped in
             if (ENTITY_TYPES_TO_SKIP.contains(thisTrader.getEntityType())) {
                 if (!seedOids.contains(traderOid)) {
@@ -356,6 +363,9 @@ public class PlanTopologyScopeEditor {
                                @Nonnull final TopologyEntity entity) {
         Set<TopologyEntity> potentialSellers = new HashSet<>();
         entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                // vCenter PMs buy latency and iops with active=false from underlying DSs.
+                // Bring in only providers for baskets with atleast 1 active commodity
+                .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(c -> c.getActive() == true))
                 .forEach(cbp -> potentialSellers.addAll(index.getSatisfyingSellers(cbp).collect(Collectors.toList())));
         return potentialSellers;
     }
@@ -414,15 +424,17 @@ public class PlanTopologyScopeEditor {
                 .filter(s -> StringConstants.GROUP_TYPES.contains(s.getClassName()))
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .collect(Collectors.toSet());
-        groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
-            .setGroupFilter(GroupFilter.newBuilder()
-                .addAllId(groupIds))
-            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
-            .build())
-            .forEachRemaining(g -> {
-                Set<Long> groupMembers = groupResolver.resolve(g, graph);
-                seedEntityIdSet.addAll(groupMembers);
-            });
+        if (!groupIds.isEmpty()) {
+            groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+                    .setGroupFilter(GroupFilter.newBuilder()
+                            .addAllId(groupIds))
+                    .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+                    .build())
+                    .forEachRemaining(g -> {
+                        Set<Long> groupMembers = groupResolver.resolve(g, graph);
+                        seedEntityIdSet.addAll(groupMembers);
+                    });
+        }
         logger.debug("Seed entity ids : {}", seedEntityIdSet);
         Map<EntityType, Set<TopologyEntity>> seedByEntityType = graph.getEntities(seedEntityIdSet)
                 .collect(Collectors.groupingBy(entity -> EntityType.forNumber(entity.getEntityType()),

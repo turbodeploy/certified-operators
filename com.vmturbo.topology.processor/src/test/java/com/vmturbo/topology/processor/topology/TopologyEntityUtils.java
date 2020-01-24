@@ -271,7 +271,8 @@ public class TopologyEntityUtils {
                         .lastUpdatedAt(lastUpdatedTime))));
 
         for (long connectedTo : connectedToEntities) {
-            builder.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+            builder.getEntityBuilder()
+                    .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(connectedTo)
                 .setConnectionType(ConnectionType.NORMAL_CONNECTION)
                 .build());
