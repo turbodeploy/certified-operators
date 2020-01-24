@@ -180,6 +180,9 @@ message TypeSpecificInfo {
         optional int32 instance_disk_size_gb = 7;
         //disk type of Ephemeral storage
         optional common_dto.EntityDTO.InstanceDiskType instance_disk_type = 8;
+
+        //property to determine if this computeTier supports burstable CPUs.
+        optional bool burstableCPU = 9;
     }
 
 

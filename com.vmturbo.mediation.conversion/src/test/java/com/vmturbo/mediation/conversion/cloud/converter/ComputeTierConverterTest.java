@@ -2,6 +2,7 @@ package com.vmturbo.mediation.conversion.cloud.converter;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -147,5 +148,25 @@ public class ComputeTierConverterTest {
                         .thenReturn(entityProfileDto);
         converter.convert(builder, cloudDiscoveryConverter);
         assertEquals(allStorageTierIds, builder.getLayeredOverList());
+    }
+
+
+    /**
+     * Test for the instance stores burstableCPU computeTier data.
+     */
+    @Test
+    public void testBurstableCPUProfile() {
+        final String computeTierId = "c1.medium";
+        final CloudDiscoveryConverter cloudDiscoveryConverter = mock(CloudDiscoveryConverter.class);
+        when(cloudDiscoveryConverter.getProfileDTO(computeTierId))
+                .thenReturn(EntityProfileDTO.newBuilder()
+                        .setId("1122")
+                        .setEntityType(EntityType.VIRTUAL_MACHINE)
+                        .setVmProfileDTO(VMProfileDTO.newBuilder()
+                                .setBurstableCPU(true)
+                                .build()).build());
+        final EntityDTO.Builder builder = EntityDTO.newBuilder().setId(computeTierId);
+        converter.convert(builder, cloudDiscoveryConverter);
+        assertThat(builder.getComputeTierData().getBurstableCPU(), is(true));
     }
 }
