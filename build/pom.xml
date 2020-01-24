@@ -446,6 +446,7 @@
         <profile>
             <id>mediation-vcenter</id>
             <modules>
+                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
             </modules>

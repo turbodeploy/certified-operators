@@ -337,16 +337,16 @@ public class SearchService implements ISearchService {
             // if 'groupType' is specified, this MUST be a search over GROUPs
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, groupType, environmentType, scopes);
+                paginationRequest, groupType, environmentType, scopes, false);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (typesHashSet.contains(GROUP)) {
-                // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
-                // all Groups(supertype).
+                // IN Classic, this returns all Groups + Clusters. So we pass in true for
+                // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                    paginationRequest, null, environmentType, scopes);
+                    paginationRequest, null, environmentType, scopes, true);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 // TODO(OM-49616): return the proper search filters and handle the query string properly
@@ -446,7 +446,7 @@ public class SearchService implements ISearchService {
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
                 paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType(),
-                inputDTO.getScope());
+                inputDTO.getScope(), false);
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
