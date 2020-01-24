@@ -97,9 +97,6 @@
     "marketsettingsmanager": {
       "displayName": "Operational Constraints",
       "defaultCategory": "Analysis",
-      // The following market setting is removed from the settings list below,
-      // as it is an internal setting that should not be exposed by API:
-      // "vcpuRequestUtilization" OM-51575
       "settings": [
         "cpuUtilization",
         "memoryUtilization",

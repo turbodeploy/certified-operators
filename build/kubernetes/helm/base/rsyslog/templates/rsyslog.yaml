@@ -93,11 +93,11 @@ spec:
         livenessProbe:
           tcpSocket:
             port: 2514
-          {{- include "common.getLivenessThresholds" . | indent 10 }}
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           tcpSocket:
             port: 2514
-          {{- include "common.getReadinessThresholds" . | indent 10 }}
         securityContext:
           readOnlyRootFilesystem: true
           capabilities:

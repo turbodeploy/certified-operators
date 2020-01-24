@@ -66,11 +66,11 @@ spec:
         livenessProbe:
           tcpSocket:
             port: 9092
-          {{- include "common.getLivenessThresholds" . | indent 10 }}
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           tcpSocket:
             port: 9092
-          {{- include "common.getReadinessThresholds" . | indent 10 }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:

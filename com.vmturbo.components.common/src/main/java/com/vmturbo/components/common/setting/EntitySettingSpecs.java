@@ -242,9 +242,6 @@ public enum EntitySettingSpecs {
      * VCPURequest utilization threshold.
      * Setting VCPURequest utilization threshold to 0.9999 to avoid rounding errors due to
      * conversion from kubernetes millicores to MHz.
-     * This is an internal setting, which should not be modified by user. Therefore, it is
-     * hidden from API. The list of category path below is empty as there is no need to specify
-     * category grouping for this setting.
      */
     VCPURequestUtilization("vcpuRequestUtilization", "VCPU Request Utilization",
             Collections.emptyList(), SettingTiebreaker.SMALLER,

@@ -68,19 +68,3 @@ Create chart name and version as used by the chart label.
           value: {{ .Values.javaOptions }}
     {{- end }}
 {{- end }}
-
-{{ define "common.getReadinessThresholds" }}
-initialDelaySeconds: {{ coalesce .Values.readinessInitialDelaySecs .Values.global.readinessInitialDelaySecs 20 }}
-periodSeconds: {{ coalesce .Values.readinessPeriodSecs .Values.global.readinessPeriodSecs 15 }}
-timeoutSeconds: {{ coalesce .Values.readinessTimeoutSecs .Values.global.readinessTimeoutSecs 10 }}
-successThreshold: {{ coalesce .Values.readinessSuccessThreshold .Values.global.readinessSuccessThreshold 1 }}
-failureThreshold: {{ coalesce .Values.readinessFailureThreshold .Values.global.readinessFailureThreshold 5 }}
-{{ end }}
-
-{{ define "common.getLivenessThresholds" }}
-initialDelaySeconds: {{ coalesce .Values.livenessInitialDelaySecs .Values.global.livenessInitialDelaySecs 20 }}
-periodSeconds: {{ coalesce .Values.livenessPeriodSecs .Values.global.livenessPeriodSecs 60 }}
-timeoutSeconds: {{ coalesce .Values.livenessTimeoutSecs .Values.global.livenessTimeoutSecs 10 }}
-successThreshold: {{ coalesce .Values.livenessSuccessThreshold .Values.global.livenessSuccessThreshold 1 }}
-failureThreshold: {{ coalesce .Values.livenessFailureThreshold .Values.global.livenessFailureThreshold 60 }}
-{{ end }}

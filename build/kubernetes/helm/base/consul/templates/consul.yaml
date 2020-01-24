@@ -75,12 +75,12 @@ spec:
           httpGet:
             port: 8500
             path: /ui/
-          {{- include "common.getLivenessThresholds" . | indent 10 }}
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             port: 8500
             path: /ui/
-          {{- include "common.getReadinessThresholds" . | indent 10 }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
