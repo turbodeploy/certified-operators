@@ -20,7 +20,6 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -28,7 +27,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableMap;
 import com.orbitz.consul.model.kv.Value;
 
 import org.junit.Before;
@@ -85,14 +83,10 @@ public class ClusterMgrServiceTest {
     @Test
     public void getKnownComponentsTest() {
         // Arrange
-        final String c1 = "c1";
-        final String c2 = "c2";
-        when(consulServiceMock.getAllServiceInstances())
-                .thenReturn(ImmutableMap.of(c1, Collections.EMPTY_LIST, c2, Collections.EMPTY_LIST));
         // Act
         Set<String> componentTypes = clusterMgrService.getKnownComponents();
         // Assert
-        String[] expectedComponentTypes = {c1, c2};
+        String[] expectedComponentTypes = {"c1", "c2"};
         assertThat(componentTypes, containsInAnyOrder(expectedComponentTypes));
     }
 
