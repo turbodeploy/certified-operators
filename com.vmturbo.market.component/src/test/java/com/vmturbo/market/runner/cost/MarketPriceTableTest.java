@@ -14,12 +14,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -84,6 +84,8 @@ public class MarketPriceTableTest {
     private static final String RHEL = "RHEL";
     private static final String WINDOWS = "Windows";
     private static final String WINDOWS_WITH_SQL_WEB = "Windows_SQL_Web";
+    private static final boolean BURSTABLE_CPUS = true;
+    private static final boolean NOT_BURSTABLE_CPUS = !BURSTABLE_CPUS;
 
     private static final PriceTable COMPUTE_PRICE_TABLE = PriceTable.newBuilder()
         .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
@@ -264,38 +266,38 @@ public class MarketPriceTableTest {
     private void initializeAWSLicensePriceTuples(Long businessAccountId) {
         ComputeTierPriceList priceList = getComputePriceList(AWS_COMPUTE_TIER_ID);
         LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.LINUX, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.LINUX, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(emptyLicenseTuple);
         LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(windowsLicenseTuple);
         LicensePriceTuple windowsPALicenseTuple = createLicensePriceTuple(
             WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(windowsPALicenseTuple);
         LicensePriceTuple redHatPALicenseTuple = createLicensePriceTuple(RHEL_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.RHEL, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(redHatPALicenseTuple);
     }
 
     private void initializeAzureLicensePriceTuples(Long businessAccountId) {
         ComputeTierPriceList priceList = getComputePriceList(AZURE_COMPUTE_TIER_ID);
         LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.LINUX, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.LINUX, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(emptyLicenseTuple);
         LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(windowsLicenseTuple);
         LicensePriceTuple windowsSqlWebPriceTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             WINDOWS_SQL_WEB_LICENSE_PRICE);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(windowsSqlWebPriceTuple);
         LicensePriceTuple redHatLpPriceTuple = createLicensePriceTuple(0.0,
             RHEL_LICENSE_PRICE);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.RHEL, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(redHatLpPriceTuple);
     }
 

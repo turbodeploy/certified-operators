@@ -5,7 +5,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertNotEquals;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -18,16 +17,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+
+import io.grpc.Channel;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.internal.util.reflection.Whitebox;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
-import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -54,8 +53,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList.IpConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry.ComputePriceTableByTierEntry;
@@ -224,8 +223,8 @@ public class PriceTableUploaderTest {
     @Test
     public void testLicensePrices() {
         // Build a set of cost data that the license price table will be built from
-        LicensePriceByOsEntry rhelLicense = createLicensePriceByOsEntry(OSType.RHEL, 4, RHEL_LICENSE_PRICE);
-        LicensePriceByOsEntry windowsLicense = createLicensePriceByOsEntry(OSType.WINDOWS_SERVER, 4, WINDOWS_LICENSE_PRICE);
+        LicensePriceEntry rhelLicense = createLicensePriceEntry(OSType.RHEL, 4, RHEL_LICENSE_PRICE);
+        LicensePriceEntry windowsLicense = createLicensePriceEntry(OSType.WINDOWS_SERVER, 4, WINDOWS_LICENSE_PRICE);
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
                 .addOnDemandLicensePriceTable(rhelLicense).addReservedLicensePriceTable(rhelLicense)
                         .addReservedLicensePriceTable(windowsLicense)
@@ -235,27 +234,27 @@ public class PriceTableUploaderTest {
         // should have an entry for RHEL licenses
         Assert.assertEquals(1, priceTable.getOnDemandLicensePricesCount());
         Assert.assertEquals(OSType.RHEL, priceTable.getOnDemandLicensePricesList().get(0).getOsType());
-        LicensePriceByOsEntry rhelEntry = priceTable.getOnDemandLicensePricesList().get(0);
+        LicensePriceEntry rhelEntry = priceTable.getOnDemandLicensePricesList().get(0);
         Assert.assertEquals(RHEL_LICENSE_PRICE, rhelEntry.getLicensePrices(0).getPrice()
                 .getPriceAmount().getAmount(), DELTA);
         // should have 2 entries including one from Windows.
         Assert.assertEquals(2, priceTable.getReservedLicensePricesCount());
         Assert.assertEquals(OSType.WINDOWS_SERVER, priceTable.getReservedLicensePricesList().get(1).getOsType());
-        LicensePriceByOsEntry windowsEntry = priceTable.getReservedLicensePricesList().get(1);
+        LicensePriceEntry windowsEntry = priceTable.getReservedLicensePricesList().get(1);
         Assert.assertEquals(WINDOWS_LICENSE_PRICE, windowsEntry.getLicensePrices(0).getPrice()
                         .getPriceAmount().getAmount(), DELTA);
     }
 
     /**
-     * Create a {@link LicensePriceByOsEntry}.
+     * Create a {@link LicensePriceEntry}.
      *
      * @param os the {@link OSType} to create the entry for
-     * @param numOfCores numner of cores for which the license price is given
+     * @param numOfCores number of cores for which the license price is given
      * @param amount the price of the created license
-     * @return {@link LicensePriceByOsEntry}
+     * @return {@link LicensePriceEntry}
      */
-    private LicensePriceByOsEntry createLicensePriceByOsEntry(OSType os, int numOfCores, double amount) {
-        return LicensePriceByOsEntry.newBuilder()
+    private LicensePriceEntry createLicensePriceEntry(OSType os, int numOfCores, double amount) {
+        return LicensePriceEntry.newBuilder()
                 .setOsType(os)
                 .addLicensePrices(LicensePrice.newBuilder()
                         .setNumberOfCores(numOfCores)

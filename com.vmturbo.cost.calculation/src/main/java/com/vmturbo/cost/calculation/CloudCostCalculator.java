@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,6 +35,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePri
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
@@ -416,8 +416,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .get(entityInfoExtractor.getId(computeTier));
                     LicensePriceTuple licensePrice = null;
                     if (computePriceList != null && isBillable(entity) && computeConfig.getBillingType() != VMBillingType.BIDDING) {
-                        licensePrice = accountPricingData.getLicensePriceForOS(computeConfig.getOs(),
-                                computeConfig.getNumCores(), computePriceList);
+                        final boolean burstableCPU = entityInfoExtractor.getComputeTierConfig(computeTier)
+                                .map(ComputeTierConfig::isBurstableCPU)
+                                .orElse(false);
+                        licensePrice = accountPricingData.getLicensePrice(computeConfig.getOs(),
+                                computeConfig.getNumCores(), computePriceList, burstableCPU);
                         final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
                         // For compute tiers, we're working with "hourly" costs, and the amount
                         // of "compute" bought from the tier is 1 unit. Note: This cost is purely

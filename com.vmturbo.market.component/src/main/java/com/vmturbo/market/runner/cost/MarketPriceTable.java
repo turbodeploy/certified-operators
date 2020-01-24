@@ -13,12 +13,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
@@ -171,8 +171,8 @@ public class MarketPriceTable {
                     .forEach(osType -> {
                         // let cost calculation component figure out the correct
                         // license price that should be added to the base price
-                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePriceForOS(osType,
-                            computeTierConfig.getNumCores(), computeTierPrices);
+                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(osType,
+                            computeTierConfig.getNumCores(), computeTierPrices, computeTierConfig.isBurstableCPU());
                         final double totalLicensePrice = licensePrice.getImplicitOnDemandLicensePrice() * discount
                             + licensePrice.getExplicitOnDemandLicensePrice();
                         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,

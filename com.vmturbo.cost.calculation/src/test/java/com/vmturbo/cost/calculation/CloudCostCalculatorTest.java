@@ -55,8 +55,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList.IpConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
@@ -700,7 +700,7 @@ public class CloudCostCalculatorTest {
             .putSpotPriceByRegionId(REGION_ID, Pricing.SpotInstancePriceTable.newBuilder()
                 .putSpotPriceByInstanceId(COMPUTE_TIER_ID, price(Unit.HOURS, BASE_PRICE))
                 .build())
-            .addOnDemandLicensePrices(LicensePriceByOsEntry.newBuilder()
+            .addOnDemandLicensePrices(LicensePriceEntry.newBuilder()
                 .setOsType(OSType.WINDOWS_WITH_SQL_ENTERPRISE)
                 .addLicensePrices(licensePrice(1, price(Unit.HOURS, WSQL_ENTERPRISE_1)))
                 .addLicensePrices(licensePrice(2, price(Unit.HOURS, WSQL_ENTERPRISE_2)))

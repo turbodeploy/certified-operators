@@ -38,10 +38,10 @@ message PriceTable {
     map<int64, SpotInstancePriceTable> spot_price_by_region_id = 10;
 
     // A list of on-demand license prices grouped by OS type.
-    repeated common_dto.LicensePriceByOsEntry on_demand_license_prices = 20;
+    repeated common_dto.LicensePriceEntry on_demand_license_prices = 20;
 
     // A list of reserved license prices grouped by OS type.
-    repeated common_dto.LicensePriceByOsEntry reserved_license_prices = 30;
+    repeated common_dto.LicensePriceEntry reserved_license_prices = 30;
 }
 
 // PriceTableKey contains information which describes the source of price table.

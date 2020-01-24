@@ -266,9 +266,16 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          */
         private final int numCores;
 
-        public ComputeTierConfig(final int numCoupons, final int numCores) {
+        /**
+         * Determine if this compute tier support burstableCPUs.
+         * See: {@link ComputeTierInfo#getBurstableCPU()}
+         */
+        private final boolean burstableCPU;
+
+        public ComputeTierConfig(final int numCoupons, final int numCores, final boolean burstableCPU) {
             this.numCoupons = numCoupons;
             this.numCores = numCores;
+            this.burstableCPU = burstableCPU;
         }
 
         public int getNumCoupons() {
@@ -277,6 +284,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public int getNumCores() {
             return numCores;
+        }
+
+        public boolean isBurstableCPU() {
+            return burstableCPU;
         }
     }
 
