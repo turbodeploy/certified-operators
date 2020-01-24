@@ -64,11 +64,11 @@ spec:
         livenessProbe:
           tcpSocket:
             port: 3306
-          periodSeconds: 60
-          failureThreshold: 1440
+          {{- include "common.getLivenessThresholds" . | indent 10 }}
         readinessProbe:
           tcpSocket:
             port: 3306
+          {{- include "common.getReadinessThresholds" . | indent 10 }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
