@@ -221,16 +221,18 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             }
             // this will only be set non-null when we harvest a successful execution
             BatchStats batchStats = null;
+            final Future<BatchStats> future = pendingExecutions.removeFirst();
             try {
                 // wait for a prior task to complete and yield its stats. Max wait is computed
                 // from retry backoff times, with additional time to account for scheduling
                 // delays, as well as some errors that can take time to materialize (e.g. lock
                 // wait timeouts)
-                batchStats = pendingExecutions.removeFirst()
-                        .get(sumOfRetryBackoffsMsec * 5, TimeUnit.MILLISECONDS);
+                batchStats = future.get(sumOfRetryBackoffsMsec * 5, TimeUnit.MILLISECONDS);
             } catch (ExecutionException | RuntimeException e) {
                 logger.error("Batch insertion failed", e);
             } catch (TimeoutException e) {
+                // aggressively try to free up the pool thread
+                future.cancel(true);
                 logger.error("Batch insertion timed out", e);
             }
             if (batchStats != null) {

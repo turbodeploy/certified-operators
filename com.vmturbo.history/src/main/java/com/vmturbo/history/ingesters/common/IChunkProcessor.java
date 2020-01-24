@@ -39,7 +39,7 @@ public interface IChunkProcessor<T> {
      *
      * @return time limit in milliseconds, or null to use the default
      */
-    default Long getChunkTimeLimixtMsec() {
+    default Long getChunkTimeLimitMsec() {
         return null;
     }
 
@@ -85,16 +85,26 @@ public interface IChunkProcessor<T> {
 
     /**
      * Define a default disposition to be used by this chunk processor, in cases where using the
-     * processor results in an exception caught by the broadcast processor.
+     * processor results in an exception (other than timeout) caught by the broadcast processor.
      *
      * <p>The exception could be thrown by the {@link #processChunk(Collection, String)} method, or
      * it could occur while attempting to schedule a chunk processing task for execution. Both cases
      * will be handled in the same way by the broadcast processor.</p>
      *
-     * @return default chunk disposition when exceptions occur with this chunk processor
+     * @return chunk disposition when exceptions occur with this chunk processor
      */
     default ChunkDisposition getDispositionOnException() {
         return ChunkDisposition.DISCONTINUE;
+    }
+
+    /**
+     * Define a default disposition to be used by this chunk processor, in cases where the
+     * processor takes too long to process a given chunk.
+     *
+     * @return chunk disposition when a processor times out processing a chunk
+     */
+    default ChunkDisposition getDispositionOnTimeout() {
+        return ChunkDisposition.CONTINUE;
     }
 
     /**

@@ -46,9 +46,6 @@ import com.vmturbo.history.utils.MultiStageTimer.Detail;
  */
 public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, ResultT> {
 
-    // TODO put this in configuration
-    private static final long DEFAULT_CHUNK_TIME_LIMIT_MSEC = TimeUnit.SECONDS.toMillis(60);
-
     private final Logger logger;
     protected final Collection<? extends IChunkProcessorFactory<T, InfoT, StateT>> chunkProcessorFactories;
     private final ChunkedBroadcastProcessorConfig config;
@@ -259,7 +256,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     .map(Optional::get)
                     .collect(Collectors.toList());
             // separately keep track of active processors, which may shrink before we finish
-            this.activeProcessors = new ArrayList<IChunkProcessor<T>>(allProcessors);
+            this.activeProcessors = new ArrayList<>(allProcessors);
             this.infoSummary = summarizeInfo(infoT);
             // set up for a concise summary log at end of processing
             this.timer = new MultiStageTimer(logger);
@@ -401,12 +398,21 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                         // if we've been interrupted, try to stop ongoing work
                         entry.getValue().cancel(true);
                     }
-                } catch (ExecutionException | TimeoutException e) {
+                } catch (ExecutionException e) {
                     logger.error(
                             "Chunk processor {} failed to process chunk #{} of {}",
                             processor.getLabel(), chunkNo, infoSummary, e);
                     // for a failed processor, use its exception disposition as a result
                     dispositions.put(processor, processor.getDispositionOnException());
+                } catch (TimeoutException e) {
+                    // attempt to cancel the in-progress execution, and free up the thread for
+                    // another task
+                    entry.getValue().cancel(true);
+                    logger.error(
+                            "Chunk processor {} timed out processing chunk #{} of {}",
+                            processor.getLabel(), chunkNo, infoSummary);
+                    // for a failed processor, use its exception disposition as a result
+                    dispositions.put(processor, processor.getDispositionOnTimeout());
                 } catch (InterruptedException e) {
                     logger.warn(
                             "Chunk processor {} was interrupted procesing chunk #{} of {}; " +
@@ -454,9 +460,9 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
          * @param processor chunk processor
          * @return time limit in msec
          */
-        private long getChunkTimeLimit(IChunkProcessor processor) {
-            final Long limit = processor.getChunkTimeLimixtMsec();
-            return limit != null ? limit : DEFAULT_CHUNK_TIME_LIMIT_MSEC;
+        private long getChunkTimeLimit(IChunkProcessor<T> processor) {
+            final Long limit = processor.getChunkTimeLimitMsec();
+            return limit != null ? limit : config.defaultChunkTimeLimitMsec();
         }
 
         /**
@@ -505,8 +511,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
 
             return config.threadPool().submit(() -> {
                 try (AsyncTimer taskTimer = timer.async(processor.getLabel())) {
-                    final ChunkDisposition result = processor.processChunk(chunk, infoSummary);
-                    return result;
+                    return processor.processChunk(chunk, infoSummary);
                 }
             });
         }
