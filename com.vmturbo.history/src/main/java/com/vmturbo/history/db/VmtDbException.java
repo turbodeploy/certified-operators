@@ -4,6 +4,11 @@ import java.util.List;
 
 import com.google.common.collect.Lists;
 
+/**
+ * Exception related to database operations.
+ *
+ * <p>This class has facilities to analyze the exception and provide enhanced capabilities.</p>
+ */
 @SuppressWarnings("serial")
 public class VmtDbException extends Exception {//implements Iterable<VmtDbException>{
 	private static final int CONTAINTER = 0;
@@ -37,11 +42,11 @@ public class VmtDbException extends Exception {//implements Iterable<VmtDbExcept
 	public static final int MIGRATION_ERR = 1100;
 	public static final int PROPERTY_NULL = 1101;
 
-	private List<com.vmturbo.history.db.VmtDbException> contained = Lists.newArrayList();
+	private List<VmtDbException> contained = Lists.newArrayList();
 
-	public List<com.vmturbo.history.db.VmtDbException> getContained(){
-		return contained;
-	}
+    public List<VmtDbException> getContained() {
+        return contained;
+    }
 
 	public boolean container(){
 		return code==CONTAINTER;
@@ -51,15 +56,24 @@ public class VmtDbException extends Exception {//implements Iterable<VmtDbExcept
 	protected int code;
 	protected String resource; // table/view/function-name/report-template-name
 
-	public VmtDbException(List<com.vmturbo.history.db.VmtDbException> dbes) {
-		this(CONTAINTER);
-		for (com.vmturbo.history.db.VmtDbException vmtDbException : dbes) {
-			if(vmtDbException.code==CONTAINTER)
-				contained.addAll(vmtDbException.getContained());
-			else
-				contained.add(vmtDbException);
-		}
-	}
+    /**
+     * Create a new instance containing other instances.
+     *
+     * <p>If any of the contained instances is a container, its contained instances are added to
+     * this container, but not recusively.</p>
+     *
+     * @param dbes {@link VmtDbException} instances to be contained
+     */
+    public VmtDbException(List<VmtDbException> dbes) {
+        this(CONTAINTER);
+        for (VmtDbException vmtDbException : dbes) {
+            if (vmtDbException.code == CONTAINTER) {
+                contained.addAll(vmtDbException.getContained());
+            } else {
+                contained.add(vmtDbException);
+            }
+        }
+    }
 
 	public VmtDbException(int code) {
 		super(getErrMsg(code));

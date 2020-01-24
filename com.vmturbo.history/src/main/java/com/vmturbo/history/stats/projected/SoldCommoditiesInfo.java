@@ -8,22 +8,19 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -87,7 +84,7 @@ class SoldCommoditiesInfo {
      * Get the accumulated information about a particular commodity sold by a set of entities.
      *
      * @param commodityName The name of the commodity. The names are derived from
-     *           {@link CommodityTypes}. This is not ideal - we should consider using the
+     *           {@link CommodityType}. This is not ideal - we should consider using the
      *           {@link CommodityType} enum directly.
      * @param targetEntities The entities to get the information from. If empty, accumulate
      *                       information from the whole topology.

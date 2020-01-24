@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Properties;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.jooq.SQLDialect;
 import org.mockito.Mockito;
@@ -50,6 +51,9 @@ public class DbTestConfig {
         properties.setProperty("maxBatchRetryTimeoutMsec", "60000");
         // there is a USERNAME system variable in Windows
         properties.setProperty("userName", "vmtplatform");
+        properties.setProperty("executeTimeoutMsec.FORCED", "10000");
+        properties.setProperty("executeTimeoutMsec.PATIENT", "50000");
+        properties.setProperty("executeTimeoutMsec.IMMEDIATE", "1000");
 
         propertiesConfigurer.setProperties(properties);
         // take precedence over env

@@ -1,17 +1,44 @@
-/*
- * (C) Turbonomic 2019.
- */
-
 package com.vmturbo.history.db;
 
+import org.assertj.core.api.SoftAssertions;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * {@link EntityTypeTest} checks that {@link EntityType} is created and working as expected.
+ * Tests to sanity-check information in the EntityType enum.
  */
-public class EntityTypeTest {
+public class EntityTypeTest extends Assert {
+
+    /**
+     * Tables appearing in {@link EntityType#ROLLED_UP_ENTITIES} must be declared with all four
+     * varieties of entity stats table: latest, hourly, daily, monthly.
+     */
+    @Test
+    public void rolledUpTablesAreComplete() {
+        // report all violations in this test, not just the first one encountered
+        final SoftAssertions softly = new SoftAssertions();
+        EntityType.ROLLED_UP_ENTITIES.forEach(type -> {
+            softly.assertThat(type.getLatestTable())
+                .as(rollupTableDescription(type, "latest"))
+                .isNotNull();
+            softly.assertThat(type.getHourTable())
+                .as(rollupTableDescription(type, "hourly"))
+                .isNotNull();
+            softly.assertThat(type.getDayTable())
+                .as(rollupTableDescription(type, "daily"))
+                .isNotNull();
+            softly.assertThat(type.getMonthTable())
+                .as(rollupTableDescription(type, "monthly"))
+                .isNotNull();
+        });
+        softly.assertAll();
+    }
+
+    private String rollupTableDescription(final EntityType type, final String variant) {
+        return String.format("Entity type %s in ROLLED_UP_ENTITIES has a %s table",
+            type, variant);
+    }
 
     /**
      * Checks that special mapping case {@link com.vmturbo.components.common.utils.StringConstants#DATA_CENTER}
@@ -20,7 +47,7 @@ public class EntityTypeTest {
     @Test
     public void checkThatDataCenterEntityTypeMappedToPhysicalMachineTables() {
         Assert.assertThat(EntityType.get(EntityType.DATA_CENTER.getClsName()),
-                        CoreMatchers.is(EntityType.PHYSICAL_MACHINE));
+                CoreMatchers.is(EntityType.PHYSICAL_MACHINE));
     }
 
     /**
@@ -31,9 +58,9 @@ public class EntityTypeTest {
         EntityType.TABLE_TO_SPEND_ENTITY_MAP.keySet().forEach(table -> {
             final EntityType entityType = EntityType.fromTable(table);
             Assert.assertTrue(
-                            String.format("Table '%s' was associated with non-spend entity type '%s'",
-                                            table.toString(), entityType),
-                            entityType.isSpendEntity());
+                    String.format("Table '%s' was associated with non-spend entity type '%s'",
+                            table.toString(), entityType),
+                    entityType.isSpendEntity());
         });
     }
 }

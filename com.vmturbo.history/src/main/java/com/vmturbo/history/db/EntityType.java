@@ -103,14 +103,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
-import org.jooq.Table;
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Lists;
 
+import org.jooq.Table;
+
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.Tables;
 
@@ -231,9 +231,18 @@ public enum EntityType {
     private static final Map<String, EntityType> NAME_TO_ENTITY_TYPE_MAP = createNameToEntity(
                     // DC's are intentionally mapped to PM's
                     Collections.singletonMap(StringConstants.DATA_CENTER, PHYSICAL_MACHINE));
+
     private static final Collection<EntityType> ENTITIES_EXCLUDED_FROM_ROLL_UP =
-                    ImmutableSet.of(DATA_CENTER, DATACENTER, CLOUD_SERVICE, SPEND_VIRTUAL_MACHINE,
-                                    BUSINESS_APPLICATION, LOAD_BALANCER);
+                    ImmutableSet.of(
+                            BUSINESS_APPLICATION,
+                            CLOUD_SERVICE,
+                            CLUSTER,
+                            DATACENTER,
+                            DATA_CENTER,
+                            LOAD_BALANCER,
+                            RESERVED_INSTANCE,
+                            SPEND_APP,
+                            SPEND_VIRTUAL_MACHINE);
 
     public static final List<EntityType> ROLLED_UP_ENTITIES = Stream.of(EntityType.values())
                     .filter(item -> !ENTITIES_EXCLUDED_FROM_ROLL_UP.contains(item))
@@ -286,6 +295,28 @@ public enum EntityType {
 
     public Table<?> getMonthTable() {
         return monthTable;
+    }
+
+    /**
+     * Get the entity stats table for the given timeframe.
+     *
+     * @param timeFrame the desired timeframe
+     * @return the corresponding table
+     * @throws IllegalArgumentException if an unknown timeframe is provided
+     */
+    public Table<?> getTimeFrameTable(TimeFrame timeFrame) throws IllegalArgumentException {
+        switch (timeFrame) {
+            case LATEST:
+                return latestTable;
+            case HOUR:
+                return hourTable;
+            case DAY:
+                return dayTable;
+            case MONTH:
+                return monthTable;
+            default:
+                throw new IllegalArgumentException("Unknown entity stats timeframe: " + timeFrame.name());
+        }
     }
 
     public List<Table<?>> getTables() {
@@ -417,10 +448,8 @@ public enum EntityType {
     private static Set<Table<?>> getTables(Function<EntityType, ? extends Table<?>> tableSupplier,
                     Table<?>... additionalTables) {
         final Builder<Table<?>> builder = ImmutableSet.builder();
-        final Collection<Table<?>> entityTypeValues =
-                        Stream.of(EntityType.values()).map(tableSupplier).filter(Objects::nonNull)
-                                        .collect(Collectors.toSet());
-        builder.addAll(entityTypeValues);
+        Stream.of(EntityType.values()).map(tableSupplier).filter(Objects::nonNull)
+                                        .forEach(builder::add);
         builder.add(additionalTables);
         return builder.build();
     }

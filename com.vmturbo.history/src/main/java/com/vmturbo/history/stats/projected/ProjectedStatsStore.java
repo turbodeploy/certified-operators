@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.history.ingesters.live.writers.TopologyCommoditiesProcessor;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
 
@@ -160,8 +161,27 @@ public class ProjectedStatsStore {
      * @throws CommunicationException If there are issues connecting to the source of the entities.
      */
     public long updateProjectedTopology(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities)
-            throws InterruptedException, TimeoutException, CommunicationException {
-        final TopologyCommoditiesSnapshot newCommodities = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
+        throws InterruptedException, TimeoutException, CommunicationException {
+        final TopologyCommoditiesSnapshot newCommodities
+            = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
+        return updateProjectedTopology(newCommodities);
+    }
+
+    /**
+     * Overwrite the projected topology snapshot in the store with a new set of entities.
+     *
+     * <p>This method is used by {@link TopologyCommoditiesProcessor}, which processes projected
+     * live topologies. It takes a partially-built {@link TopologyCommoditiesSnapshot} in the form
+     * of a builder that is ready to build. Our priceIndexSnapshotFactory is required for the build,
+     * so we finish the build here and install the reuslting snapshot.</p>
+     * @param builder partially-built snapshot builder
+     * @return updated project topology
+     */
+    public long updateProjectedTopology(@Nonnull final TopologyCommoditiesSnapshot.Builder builder) {
+        return updateProjectedTopology(builder.build(priceIndexSnapshotFactory));
+    }
+
+    private long updateProjectedTopology(final TopologyCommoditiesSnapshot newCommodities) {
         synchronized (topologyCommoditiesLock) {
             topologyCommodities = newCommodities;
         }

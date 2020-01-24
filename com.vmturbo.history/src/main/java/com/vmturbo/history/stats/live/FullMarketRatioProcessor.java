@@ -3,9 +3,6 @@ package com.vmturbo.history.stats.live;
 import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.history.utils.HistoryStatsUtils.METRICS_FOR_RATIOS;
-import static com.vmturbo.history.utils.HistoryStatsUtils.countPerSEsMetrics;
-import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -20,12 +17,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -88,7 +85,7 @@ public class FullMarketRatioProcessor {
             .map(CommodityRequest::getCommodityName)
             .collect(Collectors.toSet());
 
-        requestedRatioProps = Sets.intersection(requestedComms, countPerSEsMetrics);
+        requestedRatioProps = Sets.intersection(requestedComms, HistoryStatsUtils.countPerSEsMetrics);
 
         final Set<String> unexpectedFilters = new HashSet<>();
 
@@ -100,7 +97,7 @@ public class FullMarketRatioProcessor {
                     .filter(propertyName -> !EXPECTED_FILTER_TYPES.contains(propertyName))
                     .forEach(unexpectedFilters::add);
 
-                return METRICS_FOR_RATIOS.getOrDefault(request.getCommodityName(),
+                return HistoryStatsUtils.METRICS_FOR_RATIOS.getOrDefault(request.getCommodityName(),
                     Collections.emptySet()).stream()
                     .map(requiredCountCommodity ->
                         // We use the ratio property request as a template for the count commodity
@@ -172,7 +169,7 @@ public class FullMarketRatioProcessor {
         results.forEach(record -> {
             final String propName = record.getValue(PROPERTY_TYPE, String.class);
             // containsValue is efficient in a BiMap.
-            final String entityTypeToCount = countSEsMetrics.inverse().get(propName);
+            final String entityTypeToCount = HistoryStatsUtils.countSEsMetrics.inverse().get(propName);
             if (entityTypeToCount != null) {
                 final Timestamp statTime = record.getValue(SNAPSHOT_TIME, Timestamp.class);
                 final Map<String, Integer> snapshotCounts =

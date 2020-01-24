@@ -8,7 +8,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;

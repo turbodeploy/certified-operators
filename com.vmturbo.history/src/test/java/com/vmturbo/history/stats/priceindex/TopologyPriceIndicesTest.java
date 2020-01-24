@@ -1,16 +1,15 @@
 package com.vmturbo.history.stats.priceindex;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -29,7 +28,7 @@ public class TopologyPriceIndicesTest {
         .build();
 
     @Test
-    public void testVisitProjectedEntities() throws VmtDbException {
+    public void testVisitProjectedEntities() throws VmtDbException, InterruptedException {
         final TopologyPriceIndices priceIndices = TopologyPriceIndices.builder(TOPOLOGY_INFO)
             .addEntity(ProjectedTopologyEntity.newBuilder()
                 .setOriginalPriceIndex(8)
@@ -74,7 +73,7 @@ public class TopologyPriceIndicesTest {
     }
 
     @Test
-    public void testVisitProjectedEntityUnsetPriceIdx() throws VmtDbException {
+    public void testVisitProjectedEntityUnsetPriceIdx() throws VmtDbException, InterruptedException {
         final TopologyPriceIndices priceIndices = TopologyPriceIndices.builder(TOPOLOGY_INFO)
             .addEntity(ProjectedTopologyEntity.newBuilder()
                 .setEntity(TopologyEntityDTO.newBuilder()

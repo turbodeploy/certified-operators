@@ -72,8 +72,10 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -96,6 +98,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.ingesters.live.writers.SystemLoadWriter;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
@@ -142,17 +145,23 @@ public class StatsHistoryRpcServiceTest {
     private GetEntityStatsResponseStreamObserver getEntityStatsResponseStreamObserver =
             new GetEntityStatsResponseStreamObserver();
 
+    private SystemLoadWriter systemLoadWriter = mock(SystemLoadWriter.class);
+
+    private RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
+            = mock(RequestBasedReader.class);
+
+    private ExecutorService threadPool = mock(ExecutorService.class);
+
     private StatsHistoryRpcService statsHistoryRpcService =
-        Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
-            mockLivestatsreader, mockPlanStatsReader,
-            mockClusterStatsReader, mockClusterStatsWriter,
-            historyDbio, mockProjectedStatsStore,
-            paginationParamsFactory,
-            statSnapshotCreatorSpy,
-            statRecordBuilderSpy,
-            systemLoadReader, 100,
-            Mockito.mock(RequestBasedReader.class),
-            Mockito.mock(ExecutorService.class)));
+            Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
+                    mockLivestatsreader, mockPlanStatsReader,
+                    mockClusterStatsReader, mockClusterStatsWriter,
+                    historyDbio, mockProjectedStatsStore,
+                    paginationParamsFactory,
+                    statSnapshotCreatorSpy,
+                    statRecordBuilderSpy,
+                    systemLoadReader, 100,
+                    percentileReader, threadPool));
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);

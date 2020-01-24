@@ -22,6 +22,10 @@ public class DBConnectionPool {
 
 	DataSource pool = null;
 
+    public static void setConnectionPoolInstance(DBConnectionPool poolInstance) {
+        DBConnectionPool.instance = poolInstance;
+    }
+
 	private Boolean isShutdown = new Boolean(true);
 
 	/**

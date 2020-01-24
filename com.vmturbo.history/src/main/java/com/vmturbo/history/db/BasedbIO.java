@@ -18,10 +18,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,10 +50,7 @@ import org.jooq.exception.InvalidResultException;
 import org.jooq.exception.MappingException;
 import org.jooq.impl.DSL;
 import org.jooq.types.ULong;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
@@ -85,7 +86,7 @@ public abstract class BasedbIO {
         /**
          * Immediate execution; the caller will handle failures.  A call with
          * this style will attempt to wait no more than
-         * {@link #RETRY_TIME_LIMIT_IMMEDIATE_MS} milliseconds before either
+         * {@link #retryTimeLimitImmediateMsec} milliseconds before either
          * succeeding or throwing an exception indicating failure.  (Because
          * of possible delays further down the stack, the maximum delay cannot
          * always be enforced.)  The {@code IMMEDIATE} style is intended to be
@@ -100,7 +101,7 @@ public abstract class BasedbIO {
         /**
          * Patient execution; the caller will handle failures.
          * A call with this style will attempt to wait no more than
-         * {@link #RETRY_TIME_LIMIT_PATIENT_MS} milliseconds before either
+         * {@link #retryTimeLimitPatientMsec} milliseconds before either
          * succeeding or throwing an exception indicating failure.  (Because
          * of possible delays further down the stack, the maximum delay cannot
          * always be enforced.)  This style of execution gives the operation
@@ -116,7 +117,7 @@ public abstract class BasedbIO {
         /**
          * Forced execution.  A call with this style will be repeated,
          * nominally indefinitely - but actually with a time limit of
-         * {@link #RETRY_TIME_LIMIT_MS}
+         * {@link #retryTimeLimitForcedMsec}
          * milliseconds before giving up and throwing an exception, which
          * should be considered fatal for the particular query.
          */
@@ -283,21 +284,24 @@ public abstract class BasedbIO {
      * try to write a row (or a group of related rows) until we decide the
      * writes will never succeed and we give up.
      */
-    protected static final double RETRY_TIME_LIMIT_MS = 6. * Units.HOUR_MS;
+    @Value("${executeTimeoutMsec.FORCED:120000}") // two minutes
+    protected long retryTimeLimitForcedMsec;
 
     /**
      * The maximum time, in milliseconds, we allow to elapse between the first
      * try to write a row (or a group of related rows) until we decide the
      * writes will never succeed and we give up for the IMMEDIATE style.
      */
-    protected static final double RETRY_TIME_LIMIT_IMMEDIATE_MS = 20. * Units.SECOND_MS;
+    @Value("${executeTimeoutMsec.IMMEDIATE:20000}") // 20 seconds
+    protected long retryTimeLimitImmediateMsec;
 
     /**
      * The maximum time, in milliseconds, we allow to elapse between the first
      * try to write a row (or a group of releted rows) until we decide the
      * writes will never succeed and we give up for the PATIENT style.
      */
-    protected static final double RETRY_TIME_LIMIT_PATIENT_MS = RETRY_TIME_LIMIT_IMMEDIATE_MS * 6.;
+    @Value("${executeTimeoutMsec.PATIENT:60000}") // one minute
+    protected long retryTimeLimitPatientMsec;
 
     /**
      * Cache for computed value of whether there is a read-only user.  Used only
@@ -307,7 +311,7 @@ public abstract class BasedbIO {
     protected static Boolean haveRoUser = null;
 
     /** Lock controlling access to {@link #haveRoUser}. */
-    protected static Object haveRoUserLock = new Object();
+    protected static final Object haveRoUserLock = new Object();
 
 
     /**
@@ -446,7 +450,57 @@ public abstract class BasedbIO {
         }
         catch (SQLException ex) {
             logger.error("Can't make DB connection transactional! " + ex);
-            throw new RuntimeException(ex);
+            safeClose(conn);
+            throw new VmtDbException(ex.getErrorCode(), ex);
+        }
+        return conn;
+    }
+
+    /**
+     * Get a new database connection, with autocommit enabled, from outside the connection pool.
+     *
+     * <p>This is primarily useful for operations that are expected to take a very long time to
+     * execute, since pooled connections are subject to the pool's internal timeout after which
+     * it abandons the connection and throws an exception to the caller.
+     * The {@link #setInternalConnectionPoolTimeoutSeconds(int)} is an option in this case, but
+     * it affects all pooled connections. This has one bad and one worse potential consequence:
+     * </p>
+     * <ul>
+     * <li><b>Bad</b>:An operation that is not expected to take very long happens while the
+     * timeout has been extended, and it gets stuck and takes much longer than it should to
+     * hit that timeout.
+     * </li>
+     * <li><b>Worse</b>:An operation that is expected to take a very long time ends up
+     * starting after the timeout has been set to its normal value (by another thread that
+     * just happens to be performing a long operation at the same time), and it times out
+     * before it has had a chance to complete.
+     * </li>
+     * </ul>
+     *
+     * @return the connection
+     * @throws SQLException if the connection cannot be allocated
+     */
+    public Connection unpooledConnection() throws SQLException {
+        return DriverManager.getConnection(getMySQLConnectionUrl(), getUserName(), getPassword());
+    }
+
+    /**
+     * Get a new database connection, with autocommit disabled, from outside the conneciton pool.
+     *
+     * @return the connection
+     * @throws SQLException if the connection cannot be allocated or autocommit cannot be disabled
+     * @see #unpooledConnection() unpooledConnection() for more details
+     */
+    public Connection unpooledTransConnection() throws SQLException {
+        final Connection conn = unpooledConnection();
+        try {
+            if (conn != null) {
+                conn.setAutoCommit(false);
+            }
+        } catch (SQLException ex) {
+            logger.error("Can't make DB connection transactional! " + ex);
+            safeClose(conn);
+            throw ex;
         }
         return conn;
     }
@@ -454,21 +508,23 @@ public abstract class BasedbIO {
     /**
      * Return a new auto-committing database connection.  The connection is set
      * to execute each statement in its own implicit transaction.
-     * <p>
-     * <emph>Caution:</emph>  "Each statement in its own transaction" is an
+     *
+     * <p>Caution: "Each statement in its own transaction" is an
      * informal statement.  The actual rules applicable for read-only
      * connections, as documented for JDBC (on which JOOQ is built) are as
-     * follows:<br>
-     * When autocommit is true the commit occurs when the statement completes.
+     * follows:</p>
+     *
+     * <p>When autocommit is true the commit occurs when the statement completes.
      * The time when the statement completes depends on the type of SQL
-     * Statement.
+     * Statement.</p>
+     *
      * <ul>
      * <li> For Select statements, the statement is complete when the associated
-     * result set is closed.
+     * result set is closed.</li>
      * <li> For CallableStatement objects or for statements that return
      * multiple results, the statement is complete when all of the associated
      * result sets have been closed, and all output parameters have been
-     * retrieved.
+     * retrieved.</li>
      * </ul>
      *
      * @return A new read-only database connection.
@@ -479,6 +535,21 @@ public abstract class BasedbIO {
         return DBConnectionPool.instance
                 .getConnection(getReadOnlyUserName(), getReadOnlyPassword());
 
+    }
+
+    /**
+     * Close a DB connection, and swallow any exception that may occur.
+     *
+     * <p>This is intended to be used when a connection-returning method fails after allocating
+     * its connection, and will throw an exception related to the actual failure.</p>
+     *
+     * @param conn connection to close
+     */
+    private void safeClose(Connection conn) {
+        try {
+            conn.close();
+        } catch (SQLException e) {
+        }
     }
 
     /**
@@ -541,9 +612,7 @@ public abstract class BasedbIO {
 
         // set a schema mapping in order to support Unit tests:
         if (mappedSchemaForTests != null) {
-            settings = new Settings()
-                .withRenderFormatted(true)
-                .withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
+            settings.withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
                     .withInput("vmtdb").withOutput(mappedSchemaForTests)));
         }
         return dialect;
@@ -1102,28 +1171,24 @@ public abstract class BasedbIO {
         java.util.Date startTime = new java.util.Date();
 
         // The time limit imposed for the overall operation
-        double timeLimit_ms;
+        long timeLimit_ms;
 
         // If non-null, the time limit imposed for the execution of an
         // individual query.  We use a (weak) approximation; we could compute
         // this limit dynamically based on the time already used.  But there
         // seems little point.  At worst, we'll end up using a total of twice
         // the time we should have.
-        Integer queryLimit_sec;
         switch (style) {
             case IMMEDIATE:
-                timeLimit_ms = RETRY_TIME_LIMIT_IMMEDIATE_MS;
-                queryLimit_sec = (int)Math.ceil(timeLimit_ms * Units.MILLI);
+                timeLimit_ms = retryTimeLimitImmediateMsec;
                 break;
 
             case PATIENT:
-                timeLimit_ms = RETRY_TIME_LIMIT_PATIENT_MS;
-                queryLimit_sec = (int)Math.ceil(timeLimit_ms * Units.MILLI);
+                timeLimit_ms = retryTimeLimitPatientMsec;
                 break;
 
             case FORCED:
-                timeLimit_ms = RETRY_TIME_LIMIT_MS;
-                queryLimit_sec = null;
+                timeLimit_ms = retryTimeLimitForcedMsec;
                 break;
 
             default:
@@ -1132,11 +1197,10 @@ public abstract class BasedbIO {
                 // compiler from complaining that the variables might not have
                 // be initialized.
                 timeLimit_ms = 0;
-                queryLimit_sec = null;
                 checkArgument(false, "Unsupported style value " + style);
         }
-
-        long deadline = (long)(System.currentTimeMillis() + timeLimit_ms);
+        Integer queryLimit_sec = (int)Math.max(1, TimeUnit.MILLISECONDS.toSeconds(timeLimit_ms));
+        long deadline = System.currentTimeMillis() + timeLimit_ms;
         int tries;
         Connection conn = null;
         Exception lastException = null;
@@ -1246,7 +1310,7 @@ public abstract class BasedbIO {
         if (style == Style.FORCED) {
             internalNotifyUser("Database write failures",
                     "Couldn't write some data to the database in " +
-                            formatElapsed((long)RETRY_TIME_LIMIT_MS)
+                            formatElapsed(retryTimeLimitForcedMsec)
                             + "; giving up on it");
             logger.fatal(message);
             throw new UnsupportedOperationException(message, lastException);
@@ -1339,11 +1403,11 @@ public abstract class BasedbIO {
     }
 
     /**
-     * Initializes VMTDB to include vmturbo db, given userid, and call SchemaUtil to
+     * Initializes VMTDB to include vmturbo db, vmtplatform userid, and call SchemaUtil to
      * initialize vmtdb schema.
      *
      * We get a DB Connection for the "root" for use in the first two steps. Then we drop that and
-     * get a connection using given username and password to initialize the schema.
+     * get a connection using "vmtplatform" and "vmtdb" to initialize the schema.
      *
      * @param clearOldDb should the old db be cleared
      * @param version what version of schema is "current" - i.e. what should we
@@ -1357,7 +1421,7 @@ public abstract class BasedbIO {
                      Optional<String> migrationLocationOverride) throws VmtDbException {
         try {
             // Test DB connection first to the schema under given user credentials.
-            DBConnectionPool.instance = null;
+            DBConnectionPool.setConnectionPoolInstance(null);
             connection().close();
             logger.info("DB connection is available to schema '{}' from user '{}'.",
                 dbName, getUserName());
@@ -1491,11 +1555,11 @@ public abstract class BasedbIO {
                     throw new UnsupportedOperationException("Unsupported SQL dialect");
                 }
 
-                DBConnectionPool.instance = new DBConnectionPool(url,
+                DBConnectionPool.setConnectionPoolInstance(new DBConnectionPool(url,
                         driverName,
                         getUserName(),
                         getPassword(),
-                        getQueryTimeoutSeconds());
+                        getQueryTimeoutSeconds()));
             }
         }
     }

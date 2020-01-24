@@ -520,7 +520,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
         // get the start and end indexes for next page stats
         final int startIndex = paginationParams.hasCursor()
-            ? Integer.valueOf(paginationParams.getCursor()) : 0;
+            ? Integer.parseInt(paginationParams.getCursor()) : 0;
         final int endIndex = Math.min(entityStatsList.size(),
             startIndex + paginationParams.getLimit());
 

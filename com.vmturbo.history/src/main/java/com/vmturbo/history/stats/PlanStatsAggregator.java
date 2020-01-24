@@ -37,42 +37,49 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
-
 /**
  * Aggregates plan topology stats by commodity type and by entity type.
- *
  */
 public class PlanStatsAggregator {
 
     private final Logger logger = LogManager.getLogger();
 
     private static final String NO_COMMODITY_PREFIX = "";
+    private final SimpleBulkLoaderFactory loaders;
+    private final HistorydbIO historydbIO;
 
     private Map<Integer, MktSnapshotsStatsRecord> commodityAggregate = Maps.newHashMap();
     private Map<Integer, Integer> commodityTypeCounts = Maps.newHashMap();
     private Map<Integer, Integer> entityTypeCounts = Maps.newHashMap();
     private Map<String, Integer> entityMetrics = Maps.newHashMap();
     private final Timestamp snapshotTimestamp;
-    private final HistorydbIO historydbIO;
     private final boolean isProcessingSourceTopologyStats;
     private final String dbCommodityPrefix;
     private final long topologyId;
     private final long topologyContextId;
 
-    public PlanStatsAggregator(
-                @Nonnull HistorydbIO historydbIO,
-                @Nonnull TopologyInfo topologyInfo,
-                boolean isProcessingSourceTopologyStats) {
+    /**
+     * Create a new instance.
+     * @param loaders                         bulk loader factory
+     * @param historydbIO                     DB methods
+     * @param topologyInfo                    topology info
+     * @param isProcessingSourceTopologyStats whether we are processing source topology stats
+     */
+    public PlanStatsAggregator(@Nonnull SimpleBulkLoaderFactory loaders,
+                               @Nonnull HistorydbIO historydbIO,
+                               @Nonnull TopologyInfo topologyInfo,
+                               boolean isProcessingSourceTopologyStats) {
         topologyId = topologyInfo.getTopologyId();
         topologyContextId = topologyInfo.getTopologyContextId();
         snapshotTimestamp = new Timestamp(topologyInfo.getCreationTime());
+        this.loaders = loaders;
         this.historydbIO = historydbIO;
-
         this.isProcessingSourceTopologyStats = isProcessingSourceTopologyStats;
         dbCommodityPrefix = isProcessingSourceTopologyStats ? StringConstants.STAT_PREFIX_CURRENT : NO_COMMODITY_PREFIX;
     }
@@ -349,10 +356,10 @@ public class PlanStatsAggregator {
 
     /**
      * Write aggregated data to the DB.
-     * @throws VmtDbException when writing to the DB fails
+     * @throws InterruptedException if interrupted
      */
-    public void writeAggregates() throws VmtDbException {
-        historydbIO.persistMarketSnapshotsStats(statsRecords());
+    public void writeAggregates() throws InterruptedException {
+        loaders.getLoader(MktSnapshotsStats.MKT_SNAPSHOTS_STATS).insertAll(statsRecords());
     }
 
     /**

@@ -141,7 +141,6 @@ defaultProperties:
         tempGroupExpirationTimeMins: 30
         dbSchemaName: group_component
     history:
-        writeTopologyChunkSize: 1000
         userName: vmtplatform
         requestHost: "%"
         dbSchemaName: vmtdb
@@ -158,14 +157,72 @@ defaultProperties:
         # note = excluded commodities are case-insensitive, but in mixed case here for readability
         # and to match exactly the values from discovery
         # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
-        # The commodities for which stats are not maintained/tracked in the DB. These are typically access commodities.
-        excludedCommodities: ApplicationCommodity CLUSTERCommodity DATACENTERCommodity DATASTORECommodity DRSSEGMENTATIONCommodity DSPMAccessCommodity NETWORKCommodity SEGMENTATIONCommodity STORAGECLUSTERCommodity VAPPAccessCommodity VDCCommodity VMPMAccessCommodity
+        # The commodities for which stats are not maintained/tracked in the DB.
+        # These are typically access commodities.
+        ingest.excludedCommodities: >-
+            ApplicationCommodity
+            CLUSTERCommodity
+            DATACENTERCommodity
+            DATASTORECommodity
+            DRSSEGMENTATIONCommodity
+            DSPMAccessCommodity
+            NETWORKCommodity
+            SEGMENTATIONCommodity
+            STORAGECLUSTERCommodity
+            VAPPAccessCommodity
+            VDCCommodity
+            VMPMAccessCommodity
         retention.updateRetentionIntervalSeconds: 10
-        statsWritersMaxPoolSize: 6
         systemLoadRecordsPerChunk: 500
         timeToWaitNetworkReadinessMs: 10
         # 5-minutes timeout to send big data through GRPC procedure calls
         grpcReadingTimeoutMs: 300000
+
+        # number of BulkInserter batch inserts that can run concurrently
+        bulk.parallelBatchInserts: 8
+        # default insert batch size
+        bulk.batchSize: 1000
+        # maximum number of retry attempts for a failed batch insert, before abandoning it as a lost batch
+        bulk.maxBatchRetries: 10
+        # backoff period before final retry attempt; backoffs for prior retries are computed from this
+        bulk.maxRetryBackoffMsec: 60000
+        # maximum number of batches that can be submitted for execution at the same time by a single writer
+        bulk.maxPendingBatches: 8
+
+        # whether to commit DB operations at chunk boundaries when processing topologies
+        ingest.perChunkCommit: false
+
+        # how long to keep processing status in topology coordinator (4 hours = 14400 seconds)
+        ingest.topologyStatusRetentionSecs: 14400
+
+        # how long a received topology can sit around waiting to be processed before the listener
+        # times out and skips the topology
+        ingest.ingestionTimeoutSecs: 1200
+
+        # how long to wait for a snapshot to become eligible for hourly rollup processing, before
+        # the associated ingestions are forced into a resolved status to permit the rollups to
+        # proceed
+        ingest.hourlyRollupTimeoutSecs: 3600
+
+        # how long we can go without repartitioning the stats tables. The longer this doesn't happen,
+        # the higher the risk of running out of space on the database server.
+        # Normally this happens as a side-effect of daily/monthly rollups, but this is here as a safety
+        # valve
+        ingest.repartitioningTimeoutSecs: 7200
+
+        # max time processing loop will wait before checking for more work
+        ingest.processingLoopMaxSleepSecs: 60
+
+        # default max time allowed for a single writer to process a single chunk
+        ingest.defaultChunkTimeLimitMsec: 60000
+
+        # timeouts for various execution "styles" used in HistorydbIO
+        # 20 seconds
+        executeTimeoutMsec.IMMEDIATE: 20000
+        # 1 minute
+        executeTimeoutMsec.PATIENT: 60000
+        # 2 minutes
+        executeTimeoutMsec.FORCED: 120000
     market:
         identityGeneratorPrefix: 2
         # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from

@@ -2,11 +2,8 @@ package com.vmturbo.history.stats.readers;
 
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
-import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
-import static com.vmturbo.history.utils.HistoryStatsUtils.countPerSEsMetrics;
-import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
+import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -32,11 +29,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.TextFormat;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
-import org.jooq.Field;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -67,6 +62,7 @@ import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
 import com.vmturbo.history.stats.live.TimeRange;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -258,7 +254,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 BasedbIO.Style.FORCED, query.get());
         // Process the records, inserting them into the right entry in the linked hashmap.
         statsRecords.forEach(record -> {
-            final String recordUuid = record.getValue((Field<String>)dField(nextPageInfo.getTable(), UUID));
+            final String recordUuid = record.getValue(getStringField(nextPageInfo.getTable(), UUID));
             final List<Record> recordListForEntity = recordsByEntityId.get(Long.parseLong(recordUuid));
             if (recordListForEntity == null) {
                 throw new IllegalStateException("Record without requested ID returned from DB query.");
@@ -348,7 +344,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 final int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
                 final List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
                 final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(entityIdChunk,
-                        statsTableByTimeFrame(entityType, timeRange.getTimeFrame()),
+                        entityType.getTimeFrameTable(timeRange.getTimeFrame()),
                         statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
@@ -395,8 +391,6 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 return Tables.MARKET_STATS_BY_DAY;
             case MONTH:
                 return Tables.MARKET_STATS_BY_MONTH;
-            case YEAR:
-                return Tables.MARKET_STATS_BY_MONTH;
             default:
                 throw new IllegalArgumentException("invalid timeframe: " + timeFrame);
         }
@@ -436,7 +430,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         List<Condition> whereConditions = new ArrayList<>();
 
         // add where clause for time range; null if the timeframe cannot be determined
-        final Condition timeRangeCondition = betweenStartEndTimestampCond(dField(table, SNAPSHOT_TIME),
+        final Condition timeRangeCondition = HistoryStatsUtils.betweenStartEndTimestampCond(getTimestampField(table, SNAPSHOT_TIME),
                 timeRange.getTimeFrame(), timeRange.getStartTime(), timeRange.getEndTime());
         if (timeRangeCondition != null) {
             whereConditions.add(timeRangeCondition);
@@ -497,8 +491,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                                @Nonnull List<Record> countStatsRecords) {
 
         // derive list of calculated metrics
-        List<String> filteredCommodityNames = Lists.newArrayList(countPerSEsMetrics);
-        filteredCommodityNames.addAll(countSEsMetrics.values());
+        List<String> filteredCommodityNames = Lists.newArrayList(HistoryStatsUtils.countPerSEsMetrics);
+        filteredCommodityNames.addAll(HistoryStatsUtils.countSEsMetrics.values());
 
         // default is to include all counted commodities
         if (commodityNames != null && !commodityNames.isEmpty()) {
@@ -513,18 +507,18 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         // initialize map of entity types -> counts
         Map<String, Integer> entityTypeCounts = new HashMap<>();
-        for (String entityTypeName : countSEsMetrics.keySet()) {
+        for (String entityTypeName : HistoryStatsUtils.countSEsMetrics.keySet()) {
             entityTypeCounts.put(entityTypeName, 0);
         }
         // count the entity types that we care about
         entityClassMap.forEach((String entityOid, String entityType) -> {
-            if (countSEsMetrics.containsKey(entityType)) {
+            if (HistoryStatsUtils.countSEsMetrics.containsKey(entityType)) {
                 entityTypeCounts.put(entityType, entityTypeCounts.get(entityType) + 1);
             }
         });
 
         // for requested calculated stat, add a db record
-        ImmutableBiMap<String, String> mapStatToEntityType = countSEsMetrics.inverse();
+        ImmutableBiMap<String, String> mapStatToEntityType = HistoryStatsUtils.countSEsMetrics.inverse();
         for (final String commodityName : filteredCommodityNames) {
             final Record countRecord;
             if (mapStatToEntityType.containsKey(commodityName)) {

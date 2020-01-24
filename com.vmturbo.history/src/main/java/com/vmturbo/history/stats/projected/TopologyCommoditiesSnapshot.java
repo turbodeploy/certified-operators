@@ -1,7 +1,6 @@
 package com.vmturbo.history.stats.projected;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -33,6 +32,7 @@ import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceInde
  * and is immutable after construction.
  */
 @Immutable
+public
 class TopologyCommoditiesSnapshot {
 
     private final SoldCommoditiesInfo soldCommoditiesInfo;
@@ -75,30 +75,16 @@ class TopologyCommoditiesSnapshot {
     private TopologyCommoditiesSnapshot(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities,
                                         @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory)
             throws InterruptedException, TimeoutException, CommunicationException {
-        final SoldCommoditiesInfo.Builder soldCommoditiesBuilder =
-                SoldCommoditiesInfo.newBuilder();
-        final BoughtCommoditiesInfo.Builder boughtCommoditiesBuilder =
-                BoughtCommoditiesInfo.newBuilder();
-        final EntityCountInfo.Builder entityCountBuilder = EntityCountInfo.newBuilder();
-        long numEntities = 0;
-
-        final Map<Long, Double> projectedPriceIndexByEntity = new HashMap<>();
+        Builder builder = new Builder();
         while (entities.hasNext()) {
-            final Collection<ProjectedTopologyEntity> nextChunk = entities.nextChunk();
-            numEntities += nextChunk.size();
-            nextChunk.forEach(entity -> {
-                entityCountBuilder.addEntity(entity.getEntity());
-                soldCommoditiesBuilder.addEntity(entity.getEntity());
-                boughtCommoditiesBuilder.addEntity(entity.getEntity());
-                projectedPriceIndexByEntity.put(entity.getEntity().getOid(), entity.getProjectedPriceIndex());
-            });
+            entities.nextChunk().forEach(builder::addProjectedEntity);
         }
-
-        this.soldCommoditiesInfo = soldCommoditiesBuilder.build();
-        this.boughtCommoditiesInfo = boughtCommoditiesBuilder.build(this.soldCommoditiesInfo);
-        this.entityCountInfo = entityCountBuilder.build();
-        this.topologySize = numEntities;
-        this.projectedPriceIndexSnapshot = priceIndexSnapshotFactory.createSnapshot(projectedPriceIndexByEntity);
+        final TopologyCommoditiesSnapshot newSnapshot = builder.build(priceIndexSnapshotFactory);
+        this.soldCommoditiesInfo = newSnapshot.soldCommoditiesInfo;
+        this.boughtCommoditiesInfo = newSnapshot.boughtCommoditiesInfo;
+        this.entityCountInfo = newSnapshot.entityCountInfo;
+        this.topologySize = newSnapshot.topologySize;
+        this.projectedPriceIndexSnapshot = newSnapshot.projectedPriceIndexSnapshot;
     }
 
     long getTopologySize() {
@@ -203,6 +189,55 @@ class TopologyCommoditiesSnapshot {
                     .ifPresent(retList::add);
 
             return retList;
+        }
+    }
+
+    /**
+     * Builder to construct a {@link TopologyCommoditiesSnapshot} entity-by-entity.
+     */
+    public static class Builder {
+        final SoldCommoditiesInfo.Builder soldCommoditiesBuilder =
+            SoldCommoditiesInfo.newBuilder();
+        final BoughtCommoditiesInfo.Builder boughtCommoditiesBuilder =
+            BoughtCommoditiesInfo.newBuilder();
+        final EntityCountInfo.Builder entityCountBuilder = EntityCountInfo.newBuilder();
+        long numEntities = 0;
+
+        final Map<Long, Double> projectedPriceIndexByEntity = new HashMap<>();
+
+        /**
+         * Incorporated an entity into the snapshot under construction.
+         *
+         * @param entity the entity to add
+         */
+        public void addProjectedEntity(ProjectedTopologyEntity entity) {
+            // add the entity to all the snapshot's internal components
+            entityCountBuilder.addEntity(entity.getEntity());
+            soldCommoditiesBuilder.addEntity(entity.getEntity());
+            boughtCommoditiesBuilder.addEntity(entity.getEntity());
+            projectedPriceIndexByEntity.put(entity.getEntity().getOid(), entity.getProjectedPriceIndex());
+            numEntities += 1;
+        }
+
+        /**
+         * Finish the build and return the new snapshot object.
+         *
+         * @param priceIndexSnapshotFactory factory to obtain a projected price index snapshot
+         * @return the newly built snapshot
+         */
+        public TopologyCommoditiesSnapshot build(PriceIndexSnapshotFactory priceIndexSnapshotFactory) {
+            SoldCommoditiesInfo soldCommoditiesInfo = soldCommoditiesBuilder.build();
+            BoughtCommoditiesInfo boughtCommoditiesInfo
+                = boughtCommoditiesBuilder.build(soldCommoditiesInfo);
+            EntityCountInfo entityCountInfo = entityCountBuilder.build();
+            ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot
+                = priceIndexSnapshotFactory.createSnapshot(projectedPriceIndexByEntity);
+            return new TopologyCommoditiesSnapshot(
+                soldCommoditiesInfo,
+                boughtCommoditiesInfo,
+                entityCountInfo,
+                projectedPriceIndexSnapshot,
+                numEntities);
         }
     }
 

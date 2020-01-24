@@ -394,15 +394,12 @@ public class ReportDBDataWriter {
                                               @Nonnull final String groupNamePrefix,
                                               @Nonnull final String uuid) throws FailedToInsertGroupException {
         try {
-            return dsl.transactionResult(configuration -> {
-                final DSLContext context = DSL.using(configuration);
-                context.insertInto(ENTITIES).columns(ENTITIES.NAME, ENTITIES.DISPLAY_NAME, ENTITIES.UUID, ENTITIES.CREATION_CLASS)
-                    .values(isStaticGroup(creationClass) ? groupNamePrefix : groupNamePrefix + "_hostname\\" +
-                        groupDisplayName + "\\" + groupName, groupDisplayName, uuid, creationClass)
+            long id = IdentityGenerator.next();
+            dsl.insertInto(ENTITIES).columns(ENTITIES.ID, ENTITIES.NAME, ENTITIES.DISPLAY_NAME, ENTITIES.UUID, ENTITIES.CREATION_CLASS)
+                    .values(id, isStaticGroup(creationClass) ? groupNamePrefix : groupNamePrefix + "_hostname\\" +
+                            groupDisplayName + "\\" + groupName, groupDisplayName, uuid, creationClass)
                     .execute();
-                Result<? extends Record> idResult = context.fetch(SELECT_LAST_INSERT_ID);
-                return ((ULong) idResult.get(0).getValue(0)).longValue();
-            });
+            return id;
         } catch (DataAccessException e) {
             throw new FailedToInsertGroupException(e);
         }
