@@ -1926,12 +1926,9 @@ public class TopologyConverter {
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {
-        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         List<CommoditySoldTO> commSoldTOList = new ArrayList<>();
         commSoldTOList.addAll(commodityConverter.commoditiesSoldList(topologyDTO));
-        if (!shopTogether) {
-            commSoldTOList.addAll(commodityConverter.bcCommoditiesSold(topologyDTO.getOid()));
-        }
+        commSoldTOList.addAll(commodityConverter.bcCommoditiesSold(topologyDTO.getOid()));
         return commSoldTOList;
     }
 

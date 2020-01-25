@@ -343,7 +343,9 @@ public class CommodityConverter {
     public CommodityDTOs.CommoditySpecificationTO bcSpec(@Nonnull String bcKey) {
         return CommodityDTOs.CommoditySpecificationTO.newBuilder()
                 .setBaseType(bcBaseType())
-                .setType(commodityTypeAllocator.allocate(bcKey))
+                .setType(commodityTypeAllocator.allocate(
+                    CommodityDTO.CommodityType.BICLIQUE_VALUE
+                    + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + bcKey))
                 .setDebugInfoNeverUseInCode(TopologyConversionConstants.BICLIQUE + " " + bcKey)
                 .build();
     }

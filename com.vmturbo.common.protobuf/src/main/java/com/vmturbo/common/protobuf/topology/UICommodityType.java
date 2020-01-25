@@ -221,6 +221,8 @@ public enum UICommodityType {
     DESIRED_COUPON("DesiredCoupon", CommodityType.DESIRED_COUPON, "Desired Coupon"),
     /** The commodity NETWORK_INTERFACE_COUNT. */
     NETWORK_INTERFACE_COUNT("NetworkInterfaceCount", CommodityType.NETWORK_INTERFACE_COUNT, "Network Interface Count"),
+    /** Biclique commodity. **/
+    BICLIQUE("Biclique", CommodityType.BICLIQUE, "Biclique"),
     /** The commodity UNKNOWN. */
     UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 

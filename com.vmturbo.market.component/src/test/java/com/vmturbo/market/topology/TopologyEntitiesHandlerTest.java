@@ -455,7 +455,7 @@ public class TopologyEntitiesHandlerTest {
 
         //BiClique commodities will be sold always. There is no harm.
         final long bcSoldShopTogether = countSoldCommodities(shopTogetherTraderDTOs, BC_PATTERN);
-        assertEquals(0, bcSoldShopTogether);
+        assertEquals(8, bcSoldShopTogether);
 
         // No BiClique commodities bought
         final long bcBoughtShopTogether =

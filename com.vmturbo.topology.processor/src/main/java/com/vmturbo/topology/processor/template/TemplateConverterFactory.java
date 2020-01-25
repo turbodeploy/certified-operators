@@ -167,8 +167,11 @@ public class TemplateConverterFactory {
             .map(entityOid -> {
                 final TopologyEntity.Builder entityBuilder = topology.get(entityOid);
                 // Set shopTogether to true for all consumers of an entity to be replaced.
-                entityBuilder.getConsumers().forEach(consumer ->
-                    consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setShopTogether(true));
+                // VMs are the only entity types which do shop together. So we filter for VMs here.
+                entityBuilder.getConsumers().stream()
+                    .filter(c -> c.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .forEach(consumer -> consumer.getTopologyEntityDtoBuilder()
+                        .getAnalysisSettingsBuilder().setShopTogether(true));
                 final TopologyEntityDTO.Builder topologyEntityBuilder =
                     TemplatesConverterUtils.generateTopologyEntityBuilder(template);
                 topologyEntityBuilder
