@@ -16,16 +16,14 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
-import com.google.protobuf.AbstractMessage;
-
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.google.common.base.Preconditions;
+import com.google.protobuf.AbstractMessage;
+
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
@@ -43,7 +41,6 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -68,7 +65,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -591,105 +587,6 @@ public class Stages {
             return Status.success("Marked " + controllableModified +
                     " entities as non-controllable and " + suspendableModified +
                     " entities as non-suspendable.");
-        }
-    }
-
-    /**
-     * The ScopeResolutionStage will translate a list of scope entries (specified in the PlanScope)
-     * into a list of "seed" entity oid's representing the focus on the topology to be analyzed.
-     * These "seed entities" will be written into to the TopologyInfo for inclusion in the
-     * broadcast.
-     * <p>
-     * Each scope entry will refer either to a specific entity, or to a group. Scope entry id's for
-     * specific entities will be directly to the seed entity list. Scope entry id's for "Group"
-     * types will be resolved to a list of group member entities, and each of those will be added
-     * to the "seed entities" list.
-     */
-    public static class ScopeResolutionStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
-        private static final Logger logger = LogManager.getLogger();
-
-        private final PlanScope planScope;
-
-        private final GroupServiceBlockingStub groupServiceClient;
-
-        public ScopeResolutionStage(@Nonnull GroupServiceBlockingStub groupServiceClient,
-                                    @Nullable final PlanScope planScope) {
-            this.groupServiceClient = groupServiceClient;
-            this.planScope = planScope;
-        }
-
-        @Override
-        public Status passthrough(final TopologyGraph<TopologyEntity> input) throws PipelineStageException {
-            // if no scope to apply, this function does nothing.
-            if (planScope == null || planScope.getScopeEntriesCount() == 0) {
-                return Status.success("No scope to apply.");
-            }
-            // translate the set of groups and entities in the plan scope into a list of "seed"
-            // entities for the market to focus on. The list of "seeds" should include all seeds
-            // already in the list, all entities individually specified in the scope, as well as all
-            // entities belonging to groups that are in scope.
-
-            // initialize the set with any existing seed oids
-            final Set<Long> seedEntities = new HashSet<>(getContext().getTopologyInfo().getScopeSeedOidsList());
-            final Set<Long> groupsToResolve = new HashSet<>();
-            List<ScenarioOuterClass.PlanScopeEntry> planScopeEntries = planScope.getScopeEntriesList();
-            for (ScenarioOuterClass.PlanScopeEntry scopeEntry : planScopeEntries) {
-                // if it's an entity, add it right to the seed entity list. Otherwise queue it for
-                // group resolution.
-                if (StringConstants.GROUP_TYPES.contains(scopeEntry.getClassName())) {
-                    groupsToResolve.add(scopeEntry.getScopeObjectOid());
-                } else {
-                    // this is an entity -- add it right to the seedEntities
-                    seedEntities.add(scopeEntry.getScopeObjectOid());
-                }
-            }
-
-            // Now resolve the groups by adding all the group members to the seedEntities
-            if (groupsToResolve.size() > 0) {
-                // fetch the group definitions from the group service
-                GroupDTO.GetGroupsRequest request = GroupDTO.GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
-                                .addAllId(groupsToResolve))
-                        .setReplaceGroupPropertyWithGroupMembershipFilter(true)
-                        .build();
-                groupServiceClient.getGroups(request)
-                        .forEachRemaining(
-                                group -> {
-                                    try {
-                                        // add each group's members to the set of additional seed entities
-                                        Set<Long> groupMemberOids = getContext().getGroupResolver().resolve(group, input);
-                                        seedEntities.addAll(groupMemberOids);
-                                    } catch (GroupResolutionException gre) {
-                                        // log a warning
-                                        logger.warn("Couldn't resolve members for group {} while defining scope", group);
-                                    }
-                                }
-                        );
-            }
-
-            // Set scope type.
-            // We have one scope entity type (e.g. REGION/BUSINESS ACCOUNT/AZ),
-            // hence each of the planScopeEntries will have the same scope entity type.
-            // For a mixed group of entities from different Regions/AZ/BFs, the scope will a group
-            // of VMs/DB/DBS, for which resolution to relevant Regions/BA's/AZ will be made.
-            // ResorceGroups will be handled similarly.
-            // For Plan Account scope, the relevant BA's from same billing family will be used instead
-            // of the scope oids for RI retrieval from the DB.
-            // TODO:  Check with API if its possible to pass the scope type instead.
-            String scopeClassName = planScopeEntries.get(0).getClassName();
-            int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
-                    ? CommonDTO.EntityDTO.EntityType.UNKNOWN_VALUE
-                    : UIEntityType.fromString(scopeClassName).typeNumber();
-            // now add the new seed entities to the list, and the scope type for OCP plans.
-            getContext().editTopologyInfo(topologyInfoBuilder -> {
-                topologyInfoBuilder.clearScopeSeedOids();
-                topologyInfoBuilder
-                        .addAllScopeSeedOids(seedEntities);
-                topologyInfoBuilder.setScopeEntityType(scopeEntityType);
-            });
-
-            return Status.success("Added " + seedEntities.size() +
-                    " seed entities to topology info.");
         }
     }
 

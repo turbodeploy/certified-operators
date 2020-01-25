@@ -16,7 +16,6 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,11 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.group.GroupDTOMoles;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
@@ -576,70 +572,6 @@ public class StagesTest {
 
         changeAppCommodityKeyOnVMAndAppStage.passthrough(topologyGraph);
         verify(applicationCommodityKeyChanger).execute(any());
-    }
-
-    /**
-     * Tests Scope resolution stage for the empty scope. Result status of the stage is succeeded.
-     *
-     * @throws IOException if there was error during test server start.
-     * @throws PipelineStageException if there was error during stage execution.
-     */
-    @Test
-    public void testScopeResolutionStageWithEmptyScope() throws IOException, PipelineStageException {
-        final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(GroupDTOMoles.GroupServiceMole.class);
-        testServer = GrpcTestServer.newServer(groupServiceMole);
-        testServer.start();
-        final GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
-        final PlanScope emptyScope = PlanScope.newBuilder().build();
-        final Stages.ScopeResolutionStage stage = new Stages.ScopeResolutionStage(groupService, emptyScope);
-        final TopologyPipeline.Status status = stage.passthrough(createTopologyGraph());
-        testServer.close();
-        Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
-        Assert.assertEquals("No scope to apply.", status.getMessage());
-    }
-
-    /**
-     * Tests Scope resolution stage for the region scope.
-     *
-     * @throws IOException if there was error during test server start.
-     * @throws PipelineStageException if there was error during stage execution.
-     */
-    @Test
-    public void testScopeResolutionStage() throws IOException, PipelineStageException {
-        final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(GroupDTOMoles.GroupServiceMole.class);
-        testServer = GrpcTestServer.newServer(groupServiceMole);
-        testServer.start();
-        final GroupServiceBlockingStub groupService = GroupServiceGrpc
-                .newBlockingStub(testServer.getChannel());
-        final PlanScope scope = PlanScope.newBuilder()
-                .addScopeEntries(
-                        PlanScopeEntry.newBuilder()
-                                .setClassName(StringConstants.REGION)
-                                .setScopeObjectOid(11111))
-                .addScopeEntries(
-                        PlanScopeEntry.newBuilder()
-                                .setClassName(StringConstants.BUSINESS_ACCOUNT)
-                                .setScopeObjectOid(22222))
-                .build();
-        final Stages.ScopeResolutionStage stage = new Stages.ScopeResolutionStage(groupService, scope);
-        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-                .setTopologyContextId(1)
-                .setTopologyId(1)
-                .setCreationTime(System.currentTimeMillis())
-                .setTopologyType(TopologyType.PLAN)
-                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
-                .build();
-        final GroupResolver groupResolver = mock(GroupResolver.class);
-        final TopologyPipelineContext context = new TopologyPipelineContext(groupResolver,
-                topologyInfo, null);
-        stage.setContext(context);
-        final TopologyPipeline.Status status = stage.passthrough(createTopologyGraph());
-        testServer.close();
-        Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
-        final TopologyInfo topoResult = context.getTopologyInfo();
-        Assert.assertEquals(2, topoResult.getScopeSeedOidsCount());
-        Assert.assertEquals(11111, topoResult.getScopeSeedOids(0));
-        Assert.assertEquals(22222, topoResult.getScopeSeedOids(1));
     }
 
     private TopologyGraph<TopologyEntity> createTopologyGraph() {
