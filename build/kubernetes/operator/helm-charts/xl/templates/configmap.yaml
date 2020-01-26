@@ -465,6 +465,10 @@ data:
             discoveryDumpsToHold.default: 0
             # The pool size for commodity history values' calculations
             historyAggregationMaxPoolSize: 8
+            # The chunk size for fetching data from history component upon startup
+            historyAggregationLoadingChunkSize: 1000
+            # The chunk size for a task of aggregating commodity history values
+            historyAggregationCalculationChunkSize: 2000
             # The percentile buckets distribution per commodity type, should cover the range from 0 to 100.
             # Currently allowed: VCPU VMEM IMAGE_CPU IMAGE_MEM IMAGE_STORAGE
             # If not configured, 101 one-percent buckets will be used.
