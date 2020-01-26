@@ -143,6 +143,7 @@ data:
             tempGroupExpirationTimeMins: 30
             dbSchemaName: group_component
         history:
+            writeTopologyChunkSize: 1000
             userName: vmtplatform
             requestHost: "%"
             dbSchemaName: vmtdb
@@ -161,7 +162,7 @@ data:
             # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
             # The commodities for which stats are not maintained/tracked in the DB.
             # These are typically access commodities.
-            ingest.excludedCommodities: >-
+            excludedCommodities: >-
                 ApplicationCommodity
                 CLUSTERCommodity
                 DATACENTERCommodity
@@ -175,6 +176,7 @@ data:
                 VDCCommodity
                 VMPMAccessCommodity
             retention.updateRetentionIntervalSeconds: 10
+            statsWritersMaxPoolSize: 6
             systemLoadRecordsPerChunk: 500
             timeToWaitNetworkReadinessMs: 10
             # 5-minutes timeout to send big data through GRPC procedure calls
