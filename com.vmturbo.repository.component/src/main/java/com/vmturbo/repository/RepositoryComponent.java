@@ -12,6 +12,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import com.arangodb.ArangoDB;
+import com.arangodb.Protocol;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
 import com.arangodb.velocypack.ValueType;
@@ -297,6 +298,7 @@ public class RepositoryComponent extends BaseVmtComponent {
                     .password(getArangoDBPassword())
                     .user(arangoProps.getUsername())
                     .maxConnections(arangoProps.getMaxConnections())
+                    .useProtocol(Protocol.HTTP_VPACK)
                     .build();
             });
         };
