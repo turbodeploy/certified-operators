@@ -6,23 +6,23 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.21.200-SNAPSHOT</version>
+    <version>7.21.200-EA1</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.21.200-SNAPSHOT</market.version>
+        <market.version>3.21.200-EA1</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>7.21.200-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.21.200-EA1</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>7.21.200-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>7.21.200-EA1</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.21.200-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.21.200-EA1</ux.mt.branch.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
