@@ -40,6 +40,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
@@ -566,7 +567,8 @@ public class CommodityConverter {
                 logger.debug("Using percentile value {} for recalculating resize capacity for {}",
                         value, commDto.getCommodityType().getType());
                 return new Double[]{Double.valueOf(value)};
-            } else if (hv.getTimeSlotCount() > 1) {
+            } else if (hv.getTimeSlotCount() > 1 &&
+                    TIMESLOT_COMMODITIES.contains(commDto.getCommodityType().getType())) {
                 Double[] value = (Double[])hv.getTimeSlotList().toArray();
                 logger.debug("Using hist Utilization value {} for recalculating resize capacity for {}",
                         value, commDto.getCommodityType().getType());
