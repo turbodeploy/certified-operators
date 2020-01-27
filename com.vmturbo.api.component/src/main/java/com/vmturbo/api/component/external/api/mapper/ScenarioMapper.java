@@ -683,7 +683,7 @@ public class ScenarioMapper {
 
         final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
 
-        for (SettingApiDTO<String> apiDto : settingsList) {
+        for (SettingApiDTO<String> apiDto : convertedSettingOverrides) {
             Setting protoSetting = settingProtoOverrides.get(SettingsMapper.getSettingValueEntityTypeKey(apiDto));
             if (protoSetting == null) {
                 String dtoDescription;

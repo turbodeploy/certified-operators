@@ -1511,6 +1511,39 @@ public class ScenarioMapperTest {
     }
 
     /**
+     * Map {@link SettingApiDTO} to {@link SettingOverride}.
+     *<p>ConvertFromPlanSettings can return multiple settingApiDTO.
+     * Make sure same amount of scenarioChanges are generated.
+     * Example.  Virtual Machine resize SettingApiDto gets mapped to
+     * 8 different types of settings.</p>
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
+    @Test
+    public void testBuildSettingChangesWithConvertedPlanSettingsReturningMultiDtos() throws OperationFailedException {
+        //GIVEN
+        final SettingApiDTO<String> setting = createStringSetting("foo", "value");
+
+        final List<SettingApiDTO> convertedSettings = Arrays.asList(setting, setting, setting, setting);
+
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
+        when(settingsManagerMapping.convertFromPlanSetting(anyList())).thenReturn(convertedSettings);
+
+        when(settingsMapper.toProtoSettings(convertedSettings))
+                .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
+                        .setSettingSpecName("foo")
+                        .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
+                        .build()));
+
+        //WHEN
+        final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
+
+        //THEN
+        assertTrue(scenarioChanges.size() == 4);
+    }
+
+    /**
      * Map {@link SettingOverride} global setting to {@link SettingApiDTO}.
      */
     @Test
