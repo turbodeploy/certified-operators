@@ -62,6 +62,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-hpe3par-tmpfs0
+        - mountPath: /etc/targets
+          name: hpe3par-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +98,10 @@ spec:
           optional: true
       - name: mediation-hpe3par-tmpfs0
         emptyDir: {}
+      - name: hpe3par-secrets
+        secret:
+          secretName: "hpe3par"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
