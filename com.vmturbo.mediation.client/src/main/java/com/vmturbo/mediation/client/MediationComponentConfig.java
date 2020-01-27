@@ -56,7 +56,7 @@ public class MediationComponentConfig implements ConnectionConfig {
     @Value("${connRetryIntervalSeconds:10}")
     private long connRetryInterval;
 
-    @Value("${websocket.pong.timeout:30000}")
+    @Value("${websocket.pong.timeout:120000}")
     private long pongMessageTimeout;
 
     @Value("${websocket.send.atomic.timeout:30}")

@@ -41,7 +41,6 @@ defaultProperties:
         serverAddress: ws://topology-processor:8080/remoteMediation
         silentRetryTime: 0
         connRetryIntervalSeconds: 10
-        websocket.pong.timeout: 30000
         # Remote iterator consumers - 10 minutes max wait for next chunk
         com.vmturbo.communication.remote.iterator.timeout: 600000
         # driver property settings must be suitable for inclusion in a URL query
