@@ -142,6 +142,7 @@ public class TopologyCoordinatorSafetyValveTest {
                 mock(StatsAvailabilityTracker.class),
                 historydbIO,
                 config);
+        topologyCoordinator.startup();
         RemoteIterator<Topology.DataSegment> topology = mock(RemoteIterator.class);
         when(topology.hasNext()).thenReturn(false);
         TopologyInfo info = TopologyInfo.newBuilder()
@@ -212,6 +213,7 @@ public class TopologyCoordinatorSafetyValveTest {
                 historydbIO,
                 config);
         topologyCoordinatorFuture.complete(topologyCoordinator);
+        topologyCoordinator.startup();
         // send an empty live topology, which should be processed normally
         Instant snapshotTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         final TopologyInfo info = TopologyInfo.newBuilder()

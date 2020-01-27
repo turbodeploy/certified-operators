@@ -74,6 +74,7 @@ public class TopologyCoordinatorTest extends Assert {
                 mock(StatsAvailabilityTracker.class),
                 historydbIo,
                 config);
+        topologyCoordinator.startup();
     }
 
     /**

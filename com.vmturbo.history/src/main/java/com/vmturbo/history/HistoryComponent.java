@@ -64,6 +64,13 @@ public class HistoryComponent extends BaseVmtComponent {
     @Autowired
     private HistoryDiagnosticsConfig diagnosticsConfig;
 
+    /**
+     * This gives us access to the TopologyCoordinator instance, which manages ingestion and
+     * rollup activities related to topologies received by history component.
+     */
+    @Autowired
+    private IngestersConfig ingestersConfig;
+
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
@@ -107,6 +114,8 @@ public class HistoryComponent extends BaseVmtComponent {
         } catch (VmtDbException e) {
             throw new RuntimeException("DB Initialization / Migration error", e);
         }
+        log.info("Starting topology coordinator");
+        ingestersConfig.topologyCoordinator().startup();
 
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(

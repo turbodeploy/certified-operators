@@ -142,7 +142,7 @@ public class IngestersConfig {
      * @return topology coordinator instance
      */
     @Bean
-    TopologyCoordinator topologyCoordinator() {
+    public TopologyCoordinator topologyCoordinator() {
         return new TopologyCoordinator(
                 liveTopologyIngester(),
                 projectedLiveTopologyIngester(),

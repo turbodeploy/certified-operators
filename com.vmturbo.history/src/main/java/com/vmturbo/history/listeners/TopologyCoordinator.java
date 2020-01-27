@@ -10,6 +10,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -101,6 +103,9 @@ public class TopologyCoordinator extends TopologyListenerBase
     // context id for realtime topologies, so we can skip projected plan topologies
     private final long realtimeTopologyContextId;
     private int ingestionTimeoutSecs;
+    // following latch allows kafka listeners to wait for component startup to complete
+    // before processing any messages.
+    private final CountDownLatch startupLatch = new CountDownLatch(1);
 
     /**
      * Create a new instance.
@@ -183,21 +188,10 @@ public class TopologyCoordinator extends TopologyListenerBase
                 : new Thread(new ProcessingLoop(this, processingStatus, config), "tp-loop");
     }
 
-    private void startup() {
-        if (!processingLoop.isAlive()) {
-            synchronized (processingLoop) {
-                if (!processingLoop.isAlive()) {
-                    processingStatus.load();
-                    processingLoop.start();
-                }
-            }
-        }
-    }
-
     @Override
     public void onTopologyNotification(@Nonnull TopologyInfo info,
             @Nonnull RemoteIterator<Topology.DataSegment> topology) {
-        startup();
+        awaitStartup();
         String topologyLabel = LiveTopologyIngester.getTopologyInfoSummary(info);
         int count = handleTopology(info, topologyLabel, topology, liveTopologyIngester, Live);
         SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
@@ -209,9 +203,9 @@ public class TopologyCoordinator extends TopologyListenerBase
     @Override
     public void onPlanAnalysisTopology(TopologyInfo info,
             @Nonnull RemoteIterator<Topology.DataSegment> topology) {
-        startup();
         // these have no impact on rollups, so we can just perform ingestion as they arrive (in the listener
         // thread for plan topologies topic)
+        awaitStartup();
         try {
             final Pair<Integer, BulkInserterFactoryStats> result
                     = planTopologyIngester.processBroadcast(info, topology);
@@ -237,7 +231,7 @@ public class TopologyCoordinator extends TopologyListenerBase
             @Nonnull final TopologyInfo info,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                     topology) {
-        startup();
+        awaitStartup();
         if (info.getTopologyContextId() == realtimeTopologyContextId) {
 
             String topologyLabel = ProjectedLiveTopologyIngester.getTopologyInfoSummary(info);
@@ -360,7 +354,7 @@ public class TopologyCoordinator extends TopologyListenerBase
 
     @Override
     public void onTopologySummary(final TopologySummary topologySummary) {
-        startup();
+        awaitStartup();
         final TopologyInfo topologyInfo = topologySummary.getTopologyInfo();
         if (topologyInfo.getTopologyContextId() != realtimeTopologyContextId) {
             // not interested in plan topologies
@@ -384,7 +378,7 @@ public class TopologyCoordinator extends TopologyListenerBase
 
     @Override
     public void onAnalysisSummary(@Nonnull final AnalysisSummary analysisSummary) {
-        startup();
+        awaitStartup();
         final TopologyInfo topologyInfo = analysisSummary.getSourceTopologyInfo();
         if (topologyInfo.getTopologyContextId() != realtimeTopologyContextId) {
             // not interested in plan topologies
@@ -402,6 +396,38 @@ public class TopologyCoordinator extends TopologyListenerBase
             logger.info("{} has been announced", topologyLabel);
             // update process status to announce this topology, and kick the processing loop
             processingStatus.expect(Projected, topologyInfo, topologyLabel);
+        }
+    }
+
+    /**
+     * Start topology processing.
+     *
+     * <p>This means starting the ProcessingLoop thread and clearing the startup latch, so any
+     * threads waiting for startup can proceed.</p>
+     */
+    public void startup() {
+        if (startupLatch.getCount() > 0) {
+            if (!processingLoop.isAlive()) {
+                // load saved state of processing status, if any
+                processingStatus.load();
+                // and let the procesing commence!
+                processingLoop.start();
+            }
+            startupLatch.countDown();
+        }
+    }
+
+    /**
+     * Wait until the {@link #startup()} method has been called.
+     *
+     * <p>This prevents message listeners from initiating any processing until component startup
+     * has completed. The latter is what makes the call to {@link #startup}.</p>
+     */
+    private void awaitStartup() {
+        try {
+            startupLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
