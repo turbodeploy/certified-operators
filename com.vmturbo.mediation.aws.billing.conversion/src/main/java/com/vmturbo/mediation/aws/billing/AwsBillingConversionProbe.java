@@ -1,21 +1,10 @@
 package com.vmturbo.mediation.aws.billing;
 
-import java.util.Collections;
-import java.util.Set;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
-import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
-import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
-import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
-import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
 
 /**
  * Wrapper probe on top of {@link AwsBillingProbe}.
@@ -60,13 +49,4 @@ public class AwsBillingConversionProbe extends AwsBillingProbe {
         throws InterruptedException {
         return super.discoverTarget(awsAccount, discoveryContext);
      }
-
-    /**
-     * Creates a definition templates that describes current probe`s discovered objects.
-     * @return a set of templates.
-     */
-    @Override
-    public Set<TemplateDTO> getSupplyChainDefinition() {
-        return new AwsBillingSupplychainConverter(super.getSupplyChainDefinition()).convert();
-    }
 }
