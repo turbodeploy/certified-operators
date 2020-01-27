@@ -342,16 +342,12 @@ public class ServiceConfig {
                 communicationConfig.scenarioRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
-                mapperConfig.statsMapper(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.repositoryRpcService(),
-                userSessionContext(),
                 websocketConfig.websocketHandler(),
                 actionStatsQueryExecutor(),
                 communicationConfig.thinTargetCache(),
-                communicationConfig.entitySeverityService(),
-                communicationConfig.historyRpcService(),
                 statsService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.serviceEntityMapper(),
@@ -359,6 +355,7 @@ public class ServiceConfig {
                 communicationConfig.priceIndexPopulator(),
                 communicationConfig.actionsRpcService(),
                 planEntityStatsFetcher(),
+                communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

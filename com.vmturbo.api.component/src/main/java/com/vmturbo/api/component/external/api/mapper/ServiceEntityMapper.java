@@ -1,14 +1,17 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -134,7 +137,21 @@ public class ServiceEntityMapper {
      */
     @Nonnull
     public ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull ApiPartialEntity apiEntity) {
-        return toServiceEntityApiDTO(Collections.singletonList(apiEntity)).get(apiEntity.getOid());
+        return toServiceEntityApiDTO(Collections.singletonList(apiEntity)).get(0);
+    }
+
+    /**
+     * Converts the input collection of {@link ApiPartialEntity} instances into a list
+     * {@link ServiceEntityApiDTO} values.
+     *
+     * @param apiEntities The input collection of {@link ApiPartialEntity} that will be converted into DTOs.
+     * @return A list of {@link ServiceEntityApiDTO}, in the order of the input API entities.
+     */
+    public List<ServiceEntityApiDTO> toServiceEntityApiDTO(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
+        final List<ServiceEntityApiDTO> retList = new ArrayList<>(apiEntities.size());
+        bulkMapToServiceEntityApiDTO(apiEntities,
+            (oid, convertedEntity) -> retList.add(convertedEntity));
+        return retList;
     }
 
     /**
@@ -142,13 +159,26 @@ public class ServiceEntityMapper {
      * {@link ServiceEntityApiDTO} values. The map keys are the corresponding OIDs of the entity DTOs.
      *
      * @param apiEntities The input collection of {@link ApiPartialEntity} that will be converted into DTOs.
-     * @return The result map containing OID-to-EntityDTO entries.
+     * @return A map of {@link ServiceEntityApiDTO}s arranged by OID.
      */
-    public Map<Long, ServiceEntityApiDTO> toServiceEntityApiDTO(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
-        Map<Long, ServiceEntityApiDTO> resultMap = new HashMap<>(apiEntities.size());
+    public Map<Long, ServiceEntityApiDTO> toServiceEntityApiDTOMap(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
+        final Map<Long, ServiceEntityApiDTO> retMap = new HashMap<>(apiEntities.size());
+        bulkMapToServiceEntityApiDTO(apiEntities, retMap::put);
+        return retMap;
+    }
 
-        Set<Long> costPriceEntities = new HashSet<>();
-        Set<Long> numberOfVmEntities = new HashSet<>();
+    /**
+     * Bulk convesion logic for {@link ApiPartialEntity} objects. Converting in bulk helps us
+     * optimize necessary outgoing RPC calls.
+     *
+     * @param apiEntities The collection of entities to convert.
+     * @param convertedEntityConsumer Consumer for converted entities and their OIDs. The consumer
+     *                                will be called in the order of the input entities.
+     */
+    private void bulkMapToServiceEntityApiDTO(@Nonnull final Collection<ApiPartialEntity> apiEntities,
+                                              @Nonnull final BiConsumer<Long, ServiceEntityApiDTO> convertedEntityConsumer) {
+        final Set<Long> costPriceEntities = new HashSet<>();
+        final Set<Long> numberOfVmEntities = new HashSet<>();
         for (ApiPartialEntity entity : apiEntities) {
             if (shouldGetNumberOfVms(entity)) {
                 numberOfVmEntities.add(entity.getOid());
@@ -159,8 +189,8 @@ public class ServiceEntityMapper {
             }
         }
 
-        Map<Long, Integer> numVmsPerEntity = computeNrOfVmsPerEntity(numberOfVmEntities);
-        Map<Long, Double> costPriceByEntity = computeCostPriceByEntity(costPriceEntities);
+        final Map<Long, Integer> numVmsPerEntity = computeNrOfVmsPerEntity(numberOfVmEntities);
+        final Map<Long, Double> costPriceByEntity = computeCostPriceByEntity(costPriceEntities);
 
         apiEntities.forEach(apiEntity -> {
             // basic information
@@ -206,10 +236,8 @@ public class ServiceEntityMapper {
                 result.setTemplate(template);
             });
 
-            resultMap.put(apiEntity.getOid(), result);
+            convertedEntityConsumer.accept(apiEntity.getOid(), result);
         });
-
-        return resultMap;
     }
 
     /**
