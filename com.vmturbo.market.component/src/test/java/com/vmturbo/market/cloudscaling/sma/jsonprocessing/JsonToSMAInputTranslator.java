@@ -20,6 +20,7 @@ import com.google.gson.JsonParser;
 
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -86,6 +87,7 @@ public class JsonToSMAInputTranslator {
                 br.write("\t\t\t\"context\": {\n");
                 SMAContext smaContext = smaInputContext.getContext();
                 br.write("\t\t\t\t\"os\": \"" + smaContext.getOs().name() + "\",\n");
+                br.write("\t\t\t\t\"csp\": \"" + smaContext.getCsp().name() + "\",\n");
                 br.write("\t\t\t\t\"region\": " + smaContext.getRegionId() + ",\n");
                 br.write("\t\t\t\t\"billingAccount\": " + smaContext.getBillingAccountId() + ",\n");
                 br.write("\t\t\t\t\"tenancy\": \"" + smaContext.getTenancy().name() + "\"\n");
@@ -158,6 +160,7 @@ public class JsonToSMAInputTranslator {
                         br.write("\t\t\t\t\t\"groupName\": " + smaVirtualMachine.getGroupName() + ",\n");
                     }
                     br.write("\t\t\t\t\t\"currentRICoverage\": " + Math.round(smaVirtualMachine.getCurrentRICoverage()) + ",\n");
+                    br.write("\t\t\t\t\t\"currentRIKeyID\": " + Math.round(smaVirtualMachine.getCurrentRIKey()) + ",\n");
                     br.write("\t\t\t\t\t\"currentTemplate\": " + smaVirtualMachine.getCurrentTemplate().getOid() + "\n");
 
                     if (smaVirtualMachine != smaInputContext.getVirtualMachines().get(smaInputContext.getVirtualMachines().size() - 1)) {
@@ -319,6 +322,11 @@ public class JsonToSMAInputTranslator {
         String name = virtualMachineObj.get("name").getAsString();
         Long businessAccountOid = virtualMachineObj.get("businessAccount").getAsLong();
         float currentRICoverage = virtualMachineObj.get("currentRICoverage").getAsFloat();
+        JsonElement currentRIObj = virtualMachineObj.get("currentRIKeyID");
+        long currentRI = SMAUtils.NO_CURRENT_RI;
+        if (currentRIObj != null) {
+            currentRI = currentRIObj.getAsLong();
+        }
         Long currentTemplateOid = virtualMachineObj.get("currentTemplate").getAsLong();
         List<SMATemplate> providers = new ArrayList<>();
         JsonArray providersObjs = (JsonArray)virtualMachineObj.get("providers");
@@ -339,13 +347,13 @@ public class JsonToSMAInputTranslator {
                 String vm_name = name + i.toString();
                 long newOid = oid + i;
                 SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupName, businessAccountOid,
-                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
+                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI);
                 virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
             SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupName, businessAccountOid,
-                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
+                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI);
             virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
         }
@@ -353,11 +361,13 @@ public class JsonToSMAInputTranslator {
     }
 
     private SMAContext parseContext(JsonObject contextObj) {
+        JsonElement cspObj = contextObj.get("csp");
+        SMACSP csp = SMACSP.valueOf(cspObj.getAsString());
         OSType os = OSType.valueOf(contextObj.get("os").getAsString());
         long region = contextObj.get("region").getAsLong();
         long billingAccount = contextObj.get("billingAccount").getAsLong();
         Tenancy tenancy = Tenancy.valueOf(contextObj.get("tenancy").getAsString());
-        SMAContext context = new SMAContext(os, region, billingAccount, tenancy);
+        SMAContext context = new SMAContext(csp, os, region, billingAccount, tenancy);
         return context;
     }
 

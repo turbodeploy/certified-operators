@@ -6,6 +6,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+
 /**
  * The Stable Marriage algorithm input context.
  * The context contains all the VMs, RIs and templates that are scoped to this input context.
@@ -67,7 +69,8 @@ public class SMAInputContext {
                     oldVM.getCurrentTemplate(),
                     oldVM.getProviders(),
                     oldVM.getCurrentRICoverage(),
-                    oldVM.getZone());
+                    oldVM.getZone(),
+                    oldVM.getCurrentRIKey());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
@@ -110,7 +113,10 @@ public class SMAInputContext {
                     smaMatch.getTemplate(),
                     oldVM.getProviders(),
                     (float)smaMatch.getDiscountedCoupons(),
-                    oldVM.getZone());
+                    oldVM.getZone(),
+                    smaMatch.getReservedInstance() == null ?
+                            SMAUtils.NO_CURRENT_RI :
+                            smaMatch.getReservedInstance().getRiKeyOid());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }

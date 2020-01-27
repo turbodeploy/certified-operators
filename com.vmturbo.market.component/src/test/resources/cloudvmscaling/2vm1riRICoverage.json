@@ -3,6 +3,7 @@
     {
       "context": {
         "os": LINUX,
+        "csp": "AWS",
         "region": sydney,
         "billingAccount": biac1,
         "tenancy": DEFAULT
@@ -57,7 +58,7 @@
             template3
           ],
           "zone": 1a,
-          "currentRICoverage": 1.0,
+          "currentRICoverage": 0,
           "currentTemplate": template1
         },
         {

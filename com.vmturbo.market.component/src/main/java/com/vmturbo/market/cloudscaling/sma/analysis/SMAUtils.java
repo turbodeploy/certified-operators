@@ -2,6 +2,7 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import java.util.EnumSet;
 
+import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
@@ -58,7 +59,12 @@ public class SMAUtils {
     /**
      * When there is no RI coverage.
      */
-    public static final long NO_RI_COVERAGE = 0;
+    public static final float NO_RI_COVERAGE = 0;
+
+    /**
+     * When there is no RI coverage.
+     */
+    public static final long NO_CURRENT_RI = -1;
 
     /**
      * zero cost.
@@ -68,7 +74,7 @@ public class SMAUtils {
     /**
      * Placeholder for invalid SMAContext.
      */
-    public static final SMAContext BOGUS_CONTEXT = new SMAContext(OSType.UNKNOWN_OS,
+    public static final SMAContext BOGUS_CONTEXT = new SMAContext(SMACSP.UNKNOWN, OSType.UNKNOWN_OS,
         -1, -1, Tenancy.DEDICATED);
 
     /**

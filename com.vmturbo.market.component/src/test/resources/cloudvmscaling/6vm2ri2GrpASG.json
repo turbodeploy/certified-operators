@@ -3,6 +3,7 @@
     {
       "context": {
         "os": "LINUX",
+        "csp": "AWS",
         "region": 31,
         "billingAccount": 1,
         "tenancy": "DEFAULT"
@@ -143,6 +144,7 @@
           ],
           "zone": 21,
           "currentRICoverage": 1,
+          "currentRIKeyID": 3000001,
           "currentTemplate": 100004
         },
         {
@@ -159,6 +161,7 @@
           ],
           "zone": 22,
           "currentRICoverage": 1,
+          "currentRIKeyID": 3000001,
           "currentTemplate": 100004
         },
         {

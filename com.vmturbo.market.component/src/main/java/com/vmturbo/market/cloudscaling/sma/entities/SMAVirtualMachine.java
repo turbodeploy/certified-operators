@@ -53,6 +53,11 @@ public class SMAVirtualMachine {
      * Not known at construction time, because need to process compute tiers to get number of coupons.
      */
     private float currentRICoverage;
+    /**
+     * Current RIKeyID.
+     */
+    private long currentRIKey;
+
     /*
      * Cloud Zone
      */
@@ -97,6 +102,7 @@ public class SMAVirtualMachine {
      * @param providers the list of templates that the vm can fit in.
      * @param currentRICoverage the current RI converage of the VM
      * @param zone the zone to which the vm belongs to.
+     * @param currentRIKey ID of the current RI covering the VM.
      */
     public SMAVirtualMachine(final long oid,
                              @Nonnull final String name,
@@ -105,7 +111,8 @@ public class SMAVirtualMachine {
                              SMATemplate currentTemplate,
                              @Nonnull List<SMATemplate> providers,
                              final float currentRICoverage,
-                             final long zone) {
+                             final long zone,
+                             final long currentRIKey) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupName = groupName;
@@ -116,6 +123,7 @@ public class SMAVirtualMachine {
         this.providers = new ArrayList(providers);
         this.zone = zone;
         this.groupSize = 1;
+        this.currentRIKey = currentRIKey;
     }
 
     /**
@@ -240,6 +248,14 @@ public class SMAVirtualMachine {
 
     public void setCurrentRICoverage(float coverage) {
         currentRICoverage = coverage;
+    }
+
+    public long getCurrentRIKey() {
+        return currentRIKey;
+    }
+
+    public void setCurrentRIKey(final long currentRIKey) {
+        this.currentRIKey = currentRIKey;
     }
 
     public long getZone() {

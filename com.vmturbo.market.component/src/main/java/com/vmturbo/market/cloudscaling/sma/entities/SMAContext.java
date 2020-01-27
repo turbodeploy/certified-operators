@@ -12,6 +12,10 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  */
 public class SMAContext {
     /*
+     * CSP  cloud service provider; e.g. AWS or Azure
+     */
+    private final SMACSP csp;
+    /*
      * OS; e.g. windows or Linux.
      */
     private final OSType osType;
@@ -30,20 +34,30 @@ public class SMAContext {
 
     /**
      * SMAContext constructor.
+     * @param csp  csp
      * @param osType operating system
      * @param regionId the corresponding region
      * @param billingAccountId corresponding billing account
      * @param tenancy the corresponding tenancy
      */
-    public SMAContext(@Nonnull OSType osType,
+    public SMAContext(@Nonnull SMACSP csp,
+                      @Nonnull OSType osType,
                       long regionId,
                       long billingAccountId,
                       @Nonnull Tenancy tenancy) {
+        this.csp = Objects.requireNonNull(csp);
         this.osType = Objects.requireNonNull(osType);
         this.regionId = regionId;
         this.billingAccountId = billingAccountId;
         this.tenancy = Objects.requireNonNull(tenancy);
     }
+
+    @Nonnull
+    public SMACSP getCsp() {
+        return csp;
+    }
+
+
 
     @Nonnull
     public OSType getOs() {
@@ -87,6 +101,7 @@ public class SMAContext {
     @Override
     public String toString() {
         return "SMAContext{" +
+            "csp=" + csp +
             "billingAccount='" + billingAccountId + '\'' +
             ", region='" + regionId + '\'' +
             ", os=" + osType +

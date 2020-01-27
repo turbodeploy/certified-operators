@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.junit.Assert;
 
+import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
@@ -255,7 +256,10 @@ public class SMAUtilsTest {
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone());
+                        oldVM.getZone(),
+                        outputContext.getMatches().get(i).getReservedInstance() == null ?
+                                SMAUtils.NO_CURRENT_RI :
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -426,7 +430,8 @@ public class SMAUtilsTest {
                     smaTemplate,
                     Arrays.asList(smaTemplate),
                     0,
-                    SMATestConstants.ZONE_BASE);
+                    SMATestConstants.ZONE_BASE,
+                    SMAUtils.NO_CURRENT_RI);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             virtualMachines.add(smaVirtualMachine);
         }
@@ -445,7 +450,7 @@ public class SMAUtilsTest {
                     true);
             reservedInstances.add(reservedInstance);
         }
-        SMAContext context = new SMAContext(
+        SMAContext context = new SMAContext(SMACSP.AWS,
                 OSType.LINUX,
                 SMATestConstants.REGION_BASE,
                 SMATestConstants.BILLING_FAMILY_BASE + 1,
@@ -497,7 +502,10 @@ public class SMAUtilsTest {
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone());
+                        oldVM.getZone(),
+                        outputContext.getMatches().get(i).getReservedInstance() == null ?
+                                SMAUtils.NO_CURRENT_RI :
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -591,7 +599,7 @@ public class SMAUtilsTest {
     private static SMAInputContext generateInput(int nTemplates, int nVirtualMachines, int nReservedInstances,
                                                  int nfamily, int nzones, int nbusinessAccount,
                                                  TypeOfRIs typeOfRIs, OSType os, int familyRange) {
-        SMAContext context = new SMAContext(
+        SMAContext context = new SMAContext(SMACSP.AWS,
                 os,
                 SMATestConstants.REGION_BASE + 1,
                 SMATestConstants.BILLING_FAMILY_BASE + 1,
@@ -637,7 +645,8 @@ public class SMAUtilsTest {
                     providers.get(rand.nextInt(providers.size())),
                     providers,
                     currentRICoverage,
-                    SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
+                    SMATestConstants.ZONE_BASE + rand.nextInt(nzones),
+                    SMAUtils.NO_CURRENT_RI);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(smaVirtualMachine);
         }
@@ -771,7 +780,10 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone());
+                        oldVM.getZone(),
+                        outputContext.getMatches().get(i).getReservedInstance() == null ?
+                                SMAUtils.NO_CURRENT_RI :
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -825,7 +837,7 @@ public class SMAUtilsTest {
     private static SMAInputContext generateASGInput(int nTemplates,
                                                     int nfamily, int nzones, int nbusinessAccount,
                                                     TypeOfRIs typeOfRIs, OSType os, int familyRange, int asgCount, int asgSize) {
-        SMAContext context = new SMAContext(
+        SMAContext context = new SMAContext(SMACSP.AWS,
                 os,
                 SMATestConstants.REGION_BASE,
                 SMATestConstants.BILLING_FAMILY_BASE + 1,
@@ -876,7 +888,7 @@ public class SMAUtilsTest {
                         providers.get(rand.nextInt(providerSize)),
                         memberProviders,
                         currentRICoverage,
-                        vmZone);
+                        vmZone, SMAUtils.NO_CURRENT_RI);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(smaVirtualMachine);
             }

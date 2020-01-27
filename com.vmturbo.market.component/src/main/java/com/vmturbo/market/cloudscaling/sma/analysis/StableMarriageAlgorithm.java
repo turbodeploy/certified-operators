@@ -33,10 +33,12 @@ public class StableMarriageAlgorithm {
         List<SMAOutputContext> outputContexts = new ArrayList<>();
         for (SMAInputContext inputContext : input.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
-            logger.info("StableMarriageAlgorithm: {}", outputContext);
             outputContexts.add(outputContext);
         }
         SMAOutput output = new SMAOutput(outputContexts);
+        for (SMAOutputContext outputContext : output.getContexts()) {
+            logger.info("StableMarriageAlgorithm: {}", outputContext);
+        }
         return output;
     }
 }

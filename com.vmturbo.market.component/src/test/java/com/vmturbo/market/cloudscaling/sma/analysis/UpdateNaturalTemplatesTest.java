@@ -48,12 +48,12 @@ public class UpdateNaturalTemplatesTest {
     public void testChoosingMin() {
         List<SMAVirtualMachine> vms = new ArrayList<SMAVirtualMachine>();
         long vmOid = SMATestConstants.VIRTUAL_MACHINE_BASE + 1L;
-        vms.add(new SMAVirtualMachine(vmOid, "name:" + vmOid, SMAUtils.NO_GROUP_ID, businessAccount, small, Arrays.asList(new SMATemplate[]{small, small2, medium, large, xlarge}), 0, zone));
-        vms.add(new SMAVirtualMachine(10001L, "name:10001", SMAUtils.NO_GROUP_ID, businessAccount, small2, Arrays.asList(new SMATemplate[]{medium, large, xlarge, small, small2}), 0, zone));
-        vms.add(new SMAVirtualMachine(10002L, "name:10002", SMAUtils.NO_GROUP_ID, businessAccount, xlarge, Arrays.asList(new SMATemplate[]{medium, large, small, small2, xlarge}), 0, zone));
-        vms.add(new SMAVirtualMachine(10003L, "name:10003", SMAUtils.NO_GROUP_ID, businessAccount, large, Arrays.asList(new SMATemplate[]{medium, xlarge, large}), 0, zone));
-        vms.add(new SMAVirtualMachine(10004L, "name:10004", SMAUtils.NO_GROUP_ID, businessAccount, medium, Arrays.asList(new SMATemplate[]{xlarge}), 0, zone));
-        vms.add(new SMAVirtualMachine(10005L, "name:10005", SMAUtils.NO_GROUP_ID, businessAccount, medium, Arrays.asList(new SMATemplate[]{}), 0, zone));
+        vms.add(new SMAVirtualMachine(vmOid, "name:" + vmOid, SMAUtils.NO_GROUP_ID, businessAccount, small, Arrays.asList(new SMATemplate[]{small, small2, medium, large, xlarge}), 0, zone, SMAUtils.NO_CURRENT_RI));
+        vms.add(new SMAVirtualMachine(10001L, "name:10001", SMAUtils.NO_GROUP_ID, businessAccount, small2, Arrays.asList(new SMATemplate[]{medium, large, xlarge, small, small2}), 0, zone, SMAUtils.NO_CURRENT_RI));
+        vms.add(new SMAVirtualMachine(10002L, "name:10002", SMAUtils.NO_GROUP_ID, businessAccount, xlarge, Arrays.asList(new SMATemplate[]{medium, large, small, small2, xlarge}), 0, zone, SMAUtils.NO_CURRENT_RI));
+        vms.add(new SMAVirtualMachine(10003L, "name:10003", SMAUtils.NO_GROUP_ID, businessAccount, large, Arrays.asList(new SMATemplate[]{medium, xlarge, large}), 0, zone, SMAUtils.NO_CURRENT_RI));
+        vms.add(new SMAVirtualMachine(10004L, "name:10004", SMAUtils.NO_GROUP_ID, businessAccount, medium, Arrays.asList(new SMATemplate[]{xlarge}), 0, zone, SMAUtils.NO_CURRENT_RI));
+        vms.add(new SMAVirtualMachine(10005L, "name:10005", SMAUtils.NO_GROUP_ID, businessAccount, medium, Arrays.asList(new SMATemplate[]{}), 0, zone, SMAUtils.NO_CURRENT_RI));
         vms.get(0).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(0).getNaturalTemplate(), sameInstance(small));
         vms.get(1).updateNaturalTemplateAndMinCostProviderPerFamily();

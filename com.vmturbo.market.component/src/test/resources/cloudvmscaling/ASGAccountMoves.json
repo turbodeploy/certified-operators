@@ -3,6 +3,7 @@
     {
       "context": {
         "os": LINUX,
+        "csp": "AWS",
         "region": sydney,
         "billingAccount": 1,
         "tenancy": DEFAULT

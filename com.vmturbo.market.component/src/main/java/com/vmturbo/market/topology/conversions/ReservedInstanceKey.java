@@ -23,6 +23,10 @@ public class ReservedInstanceKey {
     private final long riBoughtId;
     private final boolean instanceSizeFlexible;
 
+    public long getRiBoughtId() {
+        return riBoughtId;
+    }
+
     Tenancy getTenancy() {
         return tenancy;
     }

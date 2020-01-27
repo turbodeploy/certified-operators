@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -313,7 +312,7 @@ public class SMAReservedInstance {
         float coverage = 0;
         float total = 0;
         for (SMAVirtualMachine member : virtualMachineGroup.getVirtualMachines()) {
-            if (isSingleVMDiscounted(member)) {
+            if (isVMDiscountedByThisRI(member)) {
                 coverage = coverage + member.getCurrentRICoverage();
             }
             total = total + member.getCurrentTemplate().getCoupons();
@@ -334,7 +333,7 @@ public class SMAReservedInstance {
             riCoverage = riCoveragePerGroup.get(vm.getGroupName()).first
                     / riCoveragePerGroup.get(vm.getGroupName()).second;
         } else {
-            if (isSingleVMDiscounted(vm)) {
+            if (isVMDiscountedByThisRI(vm)) {
                 riCoverage = vm.getCurrentRICoverage()
                         / vm.getCurrentTemplate().getCoupons();
             } else {
@@ -351,18 +350,9 @@ public class SMAReservedInstance {
      * @return true if the vm is currently discounted.
      */
 
-    public boolean isSingleVMDiscounted(SMAVirtualMachine vm) {
+    public boolean isVMDiscountedByThisRI(SMAVirtualMachine vm) {
         float riCoverage = vm.getCurrentRICoverage();
-        if (riCoverage > SMAUtils.EPSILON) {
-            if (!isIsf()) {
-                return (vm.getCurrentTemplate().getOid()
-                        == getTemplate().getOid());
-            } else {
-                return (vm.getCurrentTemplate().getFamily()
-                        .equals(getTemplate().getFamily()));
-            }
-        }
-        return false;
+        return (riCoverage > SMAUtils.EPSILON && vm.getCurrentRIKey() == getRiKeyOid());
     }
 
 
