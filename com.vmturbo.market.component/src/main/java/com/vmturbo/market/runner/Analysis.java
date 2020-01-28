@@ -104,17 +104,6 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  */
 public class Analysis {
 
-    private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
-            .withName("mkt_economy_scoping_duration_seconds")
-            .withHelp("Time to scope the economy for analysis.")
-            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-            .withMaxAgeSeconds(60 * 10) // 10 mins.
-            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
-            .build()
-            .register();
-
     private static final DataMetricSummary TOPOLOGY_CONVERT_TO_TRADER_SUMMARY = DataMetricSummary.builder()
             .withName("mkt_economy_convert_to_traders_duration_seconds")
             .withHelp("Time to convert from TopologyDTO to TraderTO before sending for analysis.")
@@ -165,8 +154,6 @@ public class Analysis {
     private final String logPrefix;
 
     private TopologyConverter converter;
-
-    private Map<Long, TopologyEntityDTO> scopeEntities = Collections.emptyMap();
 
     private Map<Long, ProjectedTopologyEntity> projectedEntities = null;
 
@@ -226,8 +213,6 @@ public class Analysis {
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
      * in the market analysis or not.
-     *
-     * The scoping algorithm is described more completely below - {@link #scopeTopology}.
      *
      * @param topologyInfo descriptive info about the topology - id, type, etc
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
@@ -472,12 +457,12 @@ public class Analysis {
                     processResultTime = RESULT_PROCESSING.startTimer();
                 }
                 // Calculate reservedCapacity and generate resize actions
-                ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
+                ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
                 reservedCapacityAnalysis.execute();
 
                 // Execute wasted file analysis
                 WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                        topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
+                        topologyInfo, topologyDTOs, this.clock, topologyCostCalculator, originalCloudTopology);
                 final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
 
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
@@ -632,7 +617,7 @@ public class Analysis {
                 originalCloudTopology.getAllEntitiesOfType(
                         TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream();
         final Stream<TopologyEntityDTO> projectedEntitiesFromSkippedEntities =
-                converter.getSkippedEntitiesInScope(scopeEntities.keySet()).stream();
+                converter.getSkippedEntitiesInScope(topologyDTOs.keySet()).stream();
         final Set<ProjectedTopologyEntity> entitiesToAdd = Stream
                 .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
                 // Exclude Volumes that have been already added to projected entities
