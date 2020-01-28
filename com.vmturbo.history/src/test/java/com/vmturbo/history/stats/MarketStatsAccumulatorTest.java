@@ -4,9 +4,6 @@ import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -14,28 +11,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
+import org.hamcrest.Matchers;
 import org.jooq.Insert;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -46,9 +45,14 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -61,10 +65,12 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
-import com.vmturbo.history.schema.abstraction.tables.PmStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
+import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -88,15 +94,15 @@ public class MarketStatsAccumulatorTest {
         .setCreationTime(SNAPSHOT_TIME)
         .build();
 
-    private ImmutableList<String> commoditiesToExclude =
-        ImmutableList.copyOf(("ApplicationCommodity CLUSTERCommodity DATACENTERCommodity " +
+    private Set<String> commoditiesToExclude =
+        ImmutableSet.copyOf(("ApplicationCommodity CLUSTERCommodity DATACENTERCommodity " +
             "DATASTORECommodity DSPMAccessCommodity NETWORKCommodity").toLowerCase()
             .split(" "));
 
     private static final int FIELDS_PER_ROW = (new VmStatsLatestRecord()).fieldsRow().size();
 
     // collect stats rows in groups of 3 to be written (inserted) into the DB
-    private static final long WRITE_TOPOLOGY_CHUNK_SIZE = 3;
+    private static final int WRITE_TOPOLOGY_CHUNK_SIZE = 3;
 
     // DTO's to use for testing
     private TopologyEntityDTO testPm;
@@ -113,6 +119,8 @@ public class MarketStatsAccumulatorTest {
 
     @Captor
     private ArgumentCaptor<List<Query>> queryListCaptor;
+    private BulkLoader<HistUtilizationRecord> mockBulkLoader;
+    private MarketStatsAccumulator marketStatsAccumulator;
 
     /**
      * Create test entities used in tests.
@@ -130,6 +138,14 @@ public class MarketStatsAccumulatorTest {
         } catch (Exception e) {
             throw new RuntimeException("Cannot load DTO's", e);
         }
+        mockBulkLoader = Mockito.mock(BulkLoader.class);
+        final BulkLoader<?> loaderLatestTable = Mockito.mock(BulkLoader.class);
+        final SimpleBulkLoaderFactory loaderFactory = mock(SimpleBulkLoaderFactory.class);
+        when(loaderFactory.getLoader(any())).thenReturn((BulkLoader<Record>)loaderLatestTable);
+        when(loaderFactory.getLoader(HistUtilization.HIST_UTILIZATION)).thenReturn(mockBulkLoader);
+        this.marketStatsAccumulator =
+                new MarketStatsAccumulator(TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
+                        historydbIO, commoditiesToExclude, loaderFactory);
     }
 
 
@@ -191,6 +207,132 @@ public class MarketStatsAccumulatorTest {
             // assert 10 rows
             verify(writer, times(10)).insert(any(Record.class));
         }
+    }
+
+    /**
+     * Tests the amount of generated records for inserting information about timeslots and
+     * percentile utilization for all commodities.
+     *
+     * @throws InterruptedException if interrupted.
+     */
+    @Test
+    public void testAmountGeneratedRecords() throws InterruptedException {
+        final List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
+        commoditiesSold.add(StatsTestUtils.q1_vcpu(3.14));
+        marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
+        final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
+                ArgumentCaptor.forClass(HistUtilizationRecord.class);
+        final CapacityCache capacityCache = new CapacityCache();
+        final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
+                HashMultimap.create();
+        capacityCache.cacheCapacities(testVm);
+        final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
+        marketStatsAccumulator.persistCommoditiesBought(testApp, capacityCache,
+                delayedCommoditiesBought, entityByOid);
+        Mockito.verify(mockBulkLoader, times(5)).insert(recordArgumentCaptor.capture());
+        Assert.assertEquals(5, recordArgumentCaptor.getAllValues().size());
+    }
+
+    /**
+     * Tests generated records parameters for inserting information about timeslots and percentile
+     * utilization for sold commodities.
+     *
+     * @throws InterruptedException if interrupted.
+     */
+    @Test
+    public void testRecordsParametersSoldCommodity() throws InterruptedException {
+        final List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
+        final CommoditySoldDTO soldCpu = StatsTestUtils.q1_vcpu(3.14);
+        commoditiesSold.add(soldCpu);
+        marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
+        final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
+                ArgumentCaptor.forClass(HistUtilizationRecord.class);
+        Mockito.verify(mockBulkLoader, Mockito.atLeastOnce())
+                .insert(recordArgumentCaptor.capture());
+        final List<HistUtilizationRecord> allValues = recordArgumentCaptor.getAllValues();
+        for (CommoditySoldDTO commoditySoldDTO : commoditiesSold) {
+            final List<HistUtilizationRecord> records = allValues.stream()
+                    .filter(rec -> rec.getPropertyTypeId() ==
+                            commoditySoldDTO.getCommodityType().getType())
+                    .collect(Collectors.toList());
+            checkParametersRecordsByCommodityValues(ENTITY_ID, null, records,
+                    commoditySoldDTO.getCommodityType(), commoditySoldDTO.getCapacity(),
+                    commoditySoldDTO.getHistoricalUsed());
+        }
+    }
+
+    /**
+     * Tests generated records parameters for inserting information about timeslots and percentile
+     * utilization for bought commodities.
+     *
+     * @throws InterruptedException if interrupted.
+     */
+    @Test
+    public void testRecordsParametersForBoughtCommodity() throws InterruptedException {
+        final CapacityCache capacityCache = new CapacityCache();
+        capacityCache.cacheCapacities(testVm);
+        final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
+                HashMultimap.create();
+        final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
+        marketStatsAccumulator.persistCommoditiesBought(testApp, capacityCache,
+                delayedCommoditiesBought, entityByOid);
+        final CommoditiesBoughtFromProvider commoditiesBoughtFromProviders =
+                testApp.getCommoditiesBoughtFromProviders(0);
+        final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
+                ArgumentCaptor.forClass(HistUtilizationRecord.class);
+        Mockito.verify(mockBulkLoader, Mockito.atLeastOnce())
+                .insert(recordArgumentCaptor.capture());
+        final TIntObjectMap<TObjectDoubleMap<String>> entityCapacities =
+                capacityCache.getEntityCapacities(commoditiesBoughtFromProviders.getProviderId());
+        for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBoughtFromProviders.getCommodityBoughtList()) {
+            final double[] capacityValues =
+                    entityCapacities.get(commodityBoughtDTO.getCommodityType().getType()).values();
+            final double capacity = capacityValues[0];
+            final List<HistUtilizationRecord> records = recordArgumentCaptor.getAllValues()
+                    .stream()
+                    .filter(rec -> rec.getPropertyTypeId() ==
+                            commodityBoughtDTO.getCommodityType().getType())
+                    .collect(Collectors.toList());
+            checkParametersRecordsByCommodityValues(testApp.getOid(),
+                    commoditiesBoughtFromProviders.getProviderId(), records,
+                    commodityBoughtDTO.getCommodityType(), capacity,
+                    commodityBoughtDTO.getHistoricalUsed());
+        }
+    }
+
+    private void checkParametersRecordsByCommodityValues(long oid, Long providerId,
+            Collection<HistUtilizationRecord> records, CommodityType commodityType, double capacity,
+            HistoricalValues historicalUsed) {
+        Long checkProviderId = providerId;
+        if (providerId == null) {
+            checkProviderId = 0L;
+        }
+        int propertySlot = 0;
+        for (HistUtilizationRecord record : records) {
+            final HistoryUtilizationType historyUtilizationType =
+                    HistoryUtilizationType.forNumber(record.getValueType());
+            final boolean isTimeslot = historyUtilizationType == HistoryUtilizationType.Timeslot;
+            final int newPropertySlot = isTimeslot ? propertySlot++ : 0;
+            final double value = isTimeslot ? historicalUsed.getTimeSlot(newPropertySlot) :
+                    historicalUsed.getPercentile();
+            checkParametersRecord(oid, checkProviderId, record, commodityType, capacity,
+                    historyUtilizationType, newPropertySlot, value);
+        }
+    }
+
+    private void checkParametersRecord(long oid, Long providerId, HistUtilizationRecord record,
+            CommodityType commodityType, double capacity, HistoryUtilizationType percentile,
+            int propertySlot, double utilization) {
+        Assert.assertThat(record.getOid(), Matchers.is(oid));
+        Assert.assertEquals(providerId, record.getProducerOid());
+        Assert.assertThat(commodityType.getType(), Matchers.is(record.getPropertyTypeId()));
+        Assert.assertThat(PropertySubType.Utilization.ordinal(),
+                Matchers.is(record.getPropertySubtypeId()));
+        Assert.assertEquals(commodityType.getKey(), record.getCommodityKey());
+        Assert.assertThat(percentile.ordinal(), Matchers.is(record.getValueType()));
+        Assert.assertThat(propertySlot, Matchers.is(record.getPropertySlot()));
+        Assert.assertEquals(BigDecimal.valueOf(utilization), record.getUtilization());
+        Assert.assertThat(capacity, Matchers.is(record.getCapacity()));
     }
 
     /**
