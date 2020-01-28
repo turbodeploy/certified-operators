@@ -236,8 +236,36 @@ public class ServiceEntityMapper {
                 result.setTemplate(template);
             });
 
+            // set providers
+            if (!apiEntity.getProvidersList().isEmpty()) {
+                result.setProviders(apiEntity.getProvidersList().stream()
+                        .map(ServiceEntityMapper::toBaseApiDTO)
+                        .collect(Collectors.toList()));
+            }
+
+            // set consumers
+            if (!apiEntity.getConsumersList().isEmpty()) {
+                result.setConsumers(apiEntity.getConsumersList().stream()
+                        .map(ServiceEntityMapper::toBaseApiDTO)
+                        .collect(Collectors.toList()));
+            }
+
             convertedEntityConsumer.accept(apiEntity.getOid(), result);
         });
+    }
+
+    /**
+     * Convert the given {@link RelatedEntity} to {@link BaseApiDTO}.
+     *
+     * @param relatedEntity the entity to convert
+     * @return {@link BaseApiDTO}
+     */
+    private static BaseApiDTO toBaseApiDTO(@Nonnull RelatedEntity relatedEntity) {
+        BaseApiDTO entityApiDTO = new BaseApiDTO();
+        entityApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
+        entityApiDTO.setDisplayName(relatedEntity.getDisplayName());
+        entityApiDTO.setClassName(UIEntityType.fromType(relatedEntity.getEntityType()).apiStr());
+        return entityApiDTO;
     }
 
     /**

@@ -117,6 +117,8 @@ public class PartialEntityConverter {
                 apiBldr.addAllConnectedTo(repoGraphEntity.getBroadcastRelatedEntities());
                 repoGraphEntity.getProviders().forEach(provider ->
                         apiBldr.addProviders(relatedEntity(provider)));
+                repoGraphEntity.getConsumers().forEach(consumer ->
+                        apiBldr.addConsumers(relatedEntity(consumer)));
                 partialEntityBldr.setApi(apiBldr);
                 break;
             case HEADROOM_PLAN:

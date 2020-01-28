@@ -10,12 +10,11 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.StringUtils;
@@ -23,9 +22,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 import org.springframework.context.annotation.Bean;
 
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
@@ -34,14 +33,13 @@ import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -71,9 +69,6 @@ public class ServiceEntityMapperTest {
     private final static String PROBE_TYPE = "probe type";
     private final static String PROBE_CATEGORY = "probe category";
     private final static long PROBE_ID = 123123123;
-
-    private final static String PROVIDER_DISPLAY_NAME = "Standard_D2";
-    private final static long PROVIDER_OID = 132L;
 
     private final PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
@@ -120,7 +115,14 @@ public class ServiceEntityMapperTest {
                             .withInterceptors(jwtClientInterceptor()));
 
         final String displayName = "entity display name";
+        final String consumerDisplayName = "app1";
+        final String providerDisplayName1 = "Standard_D2";
+        final String providerDisplayName2 = "storage-tier";
         final long oid = 152L;
+        final long consumerOid = 190L;
+        final long providerOid1 = 142L;
+        final long providerOid2 = 162L;
+
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
         final EntityState entityState = EntityState.POWERED_ON;
         final EnvironmentType environmentType = EnvironmentType.ON_PREM;
@@ -145,15 +147,22 @@ public class ServiceEntityMapperTest {
                         .putTags(
                             tagKey,
                             TagValuesDTO.newBuilder().addValues(tagValue).build()))
-                .addProviders(createComputeTierProvider())
+                .addConsumers(RelatedEntity.newBuilder()
+                    .setOid(consumerOid)
+                    .setEntityType(EntityType.APPLICATION_VALUE)
+                    .setDisplayName(consumerDisplayName))
+                .addProviders(RelatedEntity.newBuilder()
+                    .setDisplayName(providerDisplayName1)
+                    .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                    .setOid(providerOid1))
                 // non-primary tiers should be ignored
                 // providers should take precedence over connected entities
                 .addProviders(RelatedEntity.newBuilder()
-                    .setDisplayName("storage-tier")
+                    .setDisplayName(providerDisplayName2)
                     .setEntityType(EntityType.STORAGE_TIER_VALUE)
-                    .setOid(PROVIDER_OID + 10))
+                    .setOid(providerOid2))
                 .addConnectedTo(RelatedEntity.newBuilder()
-                    .setOid(PROVIDER_OID + 20)
+                    .setOid(172)
                     .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                     .setDisplayName("connected-primary-tier"))
                 .build();
@@ -175,21 +184,30 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().size());
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
-        Assert.assertEquals(PROVIDER_DISPLAY_NAME, serviceEntityApiDTO.getTemplate().getDisplayName());
+        Assert.assertEquals(providerDisplayName1, serviceEntityApiDTO.getTemplate().getDisplayName());
 
         Map<String, String> target2id = serviceEntityApiDTO.getVendorIds();
         Assert.assertNotNull(target2id);
         Assert.assertEquals(localName, target2id.get(TARGET_DISPLAY_NAME));
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
-    }
 
-    private RelatedEntity createComputeTierProvider() {
-        return RelatedEntity.newBuilder()
-                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-                .setOid(PROVIDER_OID)
-                .setDisplayName(PROVIDER_DISPLAY_NAME)
-                .build();
+        // check consumers
+        Assert.assertEquals(1, serviceEntityApiDTO.getConsumers().size());
+        Assert.assertEquals(String.valueOf(consumerOid), serviceEntityApiDTO.getConsumers().get(0).getUuid());
+        Assert.assertEquals(UIEntityType.APPLICATION.apiStr(), serviceEntityApiDTO.getConsumers().get(0).getClassName());
+        Assert.assertEquals(consumerDisplayName, serviceEntityApiDTO.getConsumers().get(0).getDisplayName());
+
+        // check providers
+        Assert.assertEquals(2, serviceEntityApiDTO.getProviders().size());
+        Map<String, BaseApiDTO> providers = serviceEntityApiDTO.getProviders().stream()
+                .collect(Collectors.toMap(BaseApiDTO::getUuid, Function.identity()));
+        BaseApiDTO provider1 = providers.get(String.valueOf(providerOid1));
+        Assert.assertEquals(UIEntityType.COMPUTE_TIER.apiStr(), provider1.getClassName());
+        Assert.assertEquals(providerDisplayName1, provider1.getDisplayName());
+        BaseApiDTO provider2 = providers.get(String.valueOf(providerOid2));
+        Assert.assertEquals(UIEntityType.STORAGE_TIER.apiStr(), provider2.getClassName());
+        Assert.assertEquals(providerDisplayName2, provider2.getDisplayName());
     }
 
     private void checkDiscoveredBy(@Nonnull final TargetApiDTO targetApiDTO) {

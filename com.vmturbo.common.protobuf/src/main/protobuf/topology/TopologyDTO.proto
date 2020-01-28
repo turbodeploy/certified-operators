@@ -436,8 +436,9 @@ message PartialEntity {
 
         optional .tag.Tags tags = 10;
 
-        // Note - we don't serve consumer and connected_from related entities, because in the
-        // cases where we DON'T use the topology graph these can be a bit expensive to get.
+        // only used for real time market where the topology graph is available, otherwise it
+        // would be expensive to get
+        repeated RelatedEntity consumers = 19;
 
         repeated RelatedEntity providers = 20;
 
