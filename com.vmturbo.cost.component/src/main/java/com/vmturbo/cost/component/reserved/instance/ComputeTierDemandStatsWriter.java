@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -258,6 +259,12 @@ public class ComputeTierDemandStatsWriter {
             final OSType guestOsType = vmInfo.getGuestOsInfo().getGuestOsType();
             if (guestOsType == OSType.UNKNOWN_OS) {
                 logger.debug("Skipping. Unknown OS for workload {}", workLoadDisplayName);
+                continue;
+            }
+
+            // If the billing type of a VM is bidding the demand should not be recorded.
+            if (vmInfo.getBillingType() == VMBillingType.BIDDING) {
+                logger.debug("Skipping. The billing type is bidding for workload {}", workLoadDisplayName);
                 continue;
             }
 

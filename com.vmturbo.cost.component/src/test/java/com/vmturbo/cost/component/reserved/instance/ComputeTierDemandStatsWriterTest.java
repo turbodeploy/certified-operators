@@ -29,6 +29,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter.ComputeTierDemandStatsRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -73,21 +74,24 @@ public class ComputeTierDemandStatsWriterTest {
         entityDTOs.add(computeTierDTO1);
         entityDTOs.add(computeTierDTO2);
         TopologyEntityDTO vm1 = buildVMDTO(computeTierDTO1.getOid(), "vm1", OSType.LINUX,
-                Tenancy.DEFAULT, EntityState.POWERED_ON);
+                Tenancy.DEFAULT, EntityState.POWERED_ON, VMBillingType.ONDEMAND);
         TopologyEntityDTO vm2 = buildVMDTO(computeTierDTO1.getOid(), "vm2", OSType.LINUX,
-                Tenancy.DEFAULT, EntityState.POWERED_ON);
+                Tenancy.DEFAULT, EntityState.POWERED_ON, VMBillingType.ONDEMAND);
         TopologyEntityDTO vm3 = buildVMDTO(computeTierDTO1.getOid(), "vm3", OSType.WINDOWS,
-                Tenancy.DEFAULT, EntityState.POWERED_ON);
+                Tenancy.DEFAULT, EntityState.POWERED_ON, VMBillingType.ONDEMAND);
         TopologyEntityDTO vm4 = buildVMDTO(computeTierDTO2.getOid(), "vm4", OSType.LINUX,
-                Tenancy.DEFAULT, EntityState.POWERED_ON);
+                Tenancy.DEFAULT, EntityState.POWERED_ON, VMBillingType.ONDEMAND);
         TopologyEntityDTO vm5 = buildVMDTO(computeTierDTO2.getOid(), "vm5", OSType.LINUX,
-                Tenancy.DEFAULT, EntityState.POWERED_ON);
+                Tenancy.DEFAULT, EntityState.POWERED_ON, VMBillingType.ONDEMAND);
         TopologyEntityDTO vm6 = buildVMDTO(computeTierDTO2.getOid(), "vm6", OSType.LINUX,
-                Tenancy.DEDICATED, EntityState.POWERED_ON);
+                Tenancy.DEDICATED, EntityState.POWERED_ON, VMBillingType.ONDEMAND);
         // Demand for this VM will not be counted as it is powered off.
         TopologyEntityDTO vm7 = buildVMDTO(computeTierDTO1.getOid(), "vm7", OSType.LINUX,
-                Tenancy.DEFAULT, EntityState.POWERED_OFF);
-        List<TopologyEntityDTO> vmDTOs = Lists.newArrayList(vm1, vm2, vm3, vm4, vm5, vm6, vm7);
+                Tenancy.DEFAULT, EntityState.POWERED_OFF, VMBillingType.ONDEMAND);
+        // Demand for this VM will not be counted as its billing type is bidding.
+        TopologyEntityDTO vm8 = buildVMDTO(computeTierDTO1.getOid(), "vm8", OSType.LINUX,
+                Tenancy.DEFAULT, EntityState.POWERED_OFF, VMBillingType.BIDDING);
+        List<TopologyEntityDTO> vmDTOs = Lists.newArrayList(vm1, vm2, vm3, vm4, vm5, vm6, vm7, vm8);
         final List<ConnectedEntity> connectedEntities = getConnectedEntities(vmDTOs);
         TopologyEntityDTO businessAccount = buildBusinessAccountDTO(connectedEntities);
         entityDTOs.addAll(vmDTOs);
@@ -167,7 +171,8 @@ public class ComputeTierDemandStatsWriterTest {
     }
 
     private TopologyEntityDTO buildVMDTO(Long computeTierProviderId, String displayName,
-                                         OSType osType, Tenancy tenancy, EntityState entityState) {
+                                         OSType osType, Tenancy tenancy, EntityState entityState,
+                                         VMBillingType vmBillingType) {
         return TopologyEntityDTO.newBuilder()
                 .setOid(oidProvider.incrementAndGet())
                 .setDisplayName(displayName)
@@ -177,7 +182,8 @@ public class ComputeTierDemandStatsWriterTest {
                         .setVirtualMachine(VirtualMachineInfo.newBuilder()
                                 .setGuestOsInfo(OS.newBuilder()
                                         .setGuestOsType(osType))
-                                .setTenancy(tenancy)))
+                                .setTenancy(tenancy)
+                                .setBillingType(vmBillingType)))
                 .setEntityState(entityState)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
