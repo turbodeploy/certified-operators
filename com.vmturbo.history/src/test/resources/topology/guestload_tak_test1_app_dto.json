@@ -13,7 +13,10 @@
             },
             "used": 0,
             "peak": 0,
-            "active": true
+            "active": true,
+            "historicalUsed": {
+              "percentile": 0.444
+            }
           },
           {
             "commodityType": {
@@ -31,7 +34,10 @@
             },
             "used": 0,
             "peak": 0,
-            "active": true
+            "active": true,
+            "historicalUsed": {
+              "percentile": 0.333
+            }
           }
         ]
       }
