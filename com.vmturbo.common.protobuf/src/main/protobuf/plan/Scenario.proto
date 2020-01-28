@@ -235,6 +235,9 @@ message ScenarioChange {
         // UI only supports selection of VMs, Host, Storage, Container groups
         // If unset, apply to global scope
         // entity_type indicates the entities to target when expanding groups
+        // Currently group_oid only applies if entity_type is set.
+        // TODO : Change this behavior in SettingOverride implementation such that group_oid and
+        // entity_type be independent variables.
         optional int64 group_oid = 3;
     }
 }

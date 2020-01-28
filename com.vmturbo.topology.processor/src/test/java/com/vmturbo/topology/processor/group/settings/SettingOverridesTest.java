@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -19,6 +21,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
@@ -43,6 +48,7 @@ public class SettingOverridesTest {
         .addExpectedTypes(GroupDTO.MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE.getValue()))
         .setDefinition(GroupDTO.GroupDefinition.newBuilder().setDisplayName("PM Group"))
         .build();
+
     private static final TopologyEntityDTO.Builder entity1 = TopologyEntityDTO
             .newBuilder()
             .setOid(111L)
@@ -60,6 +66,7 @@ public class SettingOverridesTest {
     private static final TopologyEntity topologyEntity3 = TopologyEntityUtils.topologyEntity(entity3);
     private static final Set<Long> entities = ImmutableSet.of(333L);
     private static final Set<Long> pms = ImmutableSet.of(111L, 222L);
+    private static final Set<Long> pm1Set = ImmutableSet.of(111L);
 
     @Test
     public void testResolveGroupOverridesWithGlobalMaxUtil() {
@@ -140,5 +147,49 @@ public class SettingOverridesTest {
         Assert.assertTrue(settingOverrides.overridesForEntity.get(222L)
             .get(EntitySettingSpecs.MemoryUtilization.getSettingName())
             .getNumericSettingValue().getValue() == 20);
+    }
+
+    /**
+     * Create Setting Override with group ID, entityType (PM) and Setting (Provision -> Disabled).
+     * Apply s.t override works on one host out of two and make sure setting
+     * is available for relevant host.
+     */
+    @Test
+    public void testResolveGroupOverridesForHostGroupSettingOverride() {
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<>();
+        String disabled = "DISABLED";
+        groupsById.put(pmGroupId, hostGroup);
+        List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
+            .setSettingOverride(buildSettingOverrideStringValue(EntitySettingSpecs.Provision.getSettingName(), disabled)
+                .setEntityType(EntityType.PHYSICAL_MACHINE.getValue())
+                .setGroupOid(pmGroupId)
+                .build())
+            .build());
+        SettingOverrides settingOverrides = new SettingOverrides(changes);
+        when(topologyGraph.entitiesOfType(EntityType.PHYSICAL_MACHINE.getValue()))
+                .thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+
+        // Only return one host with 111L and leave host with id 222L
+        when(groupResolver.resolve(hostGroup, topologyGraph)).thenReturn(pm1Set);
+
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
+
+        // Only host with id 111L has setting disabled.
+        Assert.assertTrue(settingOverrides.overridesForEntity.size() == 1);
+
+        // Only host with id 111L has setting disabled.
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(111L)
+                .get(EntitySettingSpecs.Provision.getSettingName())
+                .getStringSettingValue().getValue().equals(disabled));
+
+        // Host with id 222L has no setting.
+        Assert.assertFalse(settingOverrides.overridesForEntity.containsKey(222L));
+    }
+
+    @Nonnull
+    private SettingOverride.Builder buildSettingOverrideStringValue(String name, String value) {
+        return SettingOverride.newBuilder().setSetting(Setting.newBuilder()
+                .setSettingSpecName(name)
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue(value)));
     }
 }
