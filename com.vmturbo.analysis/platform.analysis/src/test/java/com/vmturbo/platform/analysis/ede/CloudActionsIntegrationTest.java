@@ -43,9 +43,12 @@ public class CloudActionsIntegrationTest {
     private static final CommoditySpecification COUPON = new CommoditySpecification(1).setDebugInfoNeverUseInCode("COUPON");
     private static final CommoditySpecification FAMILY = new CommoditySpecification(2).setDebugInfoNeverUseInCode("FAMILY");
     private static final CommoditySpecification LICENSE = new CommoditySpecification(5, 5).setDebugInfoNeverUseInCode("LICENSE");
+    private static final CommoditySpecification TEMPLATE = new CommoditySpecification(6).setDebugInfoNeverUseInCode("TEMPLATE");
     private static final Basket SOLDbyTP = new Basket(CPU, COUPON, FAMILY, LICENSE);
+    private static final Basket soldByTemplateFamilyTP = new Basket(CPU, COUPON, LICENSE, TEMPLATE);
     private static final Basket SOLDbyCBTP = new Basket(CPU, COUPON, LICENSE);
     private static final Basket BOUGHTbyVM = new Basket(CPU, COUPON, LICENSE);
+    private static final Basket boughtByTemplateExcludedVM = new Basket(CPU, COUPON, LICENSE, TEMPLATE);
     static final Logger logger = LogManager.getLogger(CloudActionsIntegrationTest.class);
 
     private static final long BA = 1, REGION = 2, ZONE = 3;
@@ -54,9 +57,10 @@ public class CloudActionsIntegrationTest {
     private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
 
     // sets up 2 VMs.
-    private Trader[] setupConsumers(Economy economy) {
+    private Trader[] setupConsumers(Economy economy, boolean isTemplateExcluded) {
         Trader[] traders = new Trader[4];
-        Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket(), BOUGHTbyVM);
+        Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket(), isTemplateExcluded ?
+                boughtByTemplateExcludedVM : BOUGHTbyVM);
         traders[0] = vm1;
         Trader vm2 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket(), BOUGHTbyVM);
         traders[1] = vm2;
@@ -87,9 +91,9 @@ public class CloudActionsIntegrationTest {
     }
 
     // sets up 4 providers. 2 TPs followed by 2 CBTPs
-    private Trader[] setupProviders(Economy economy, Topology topology, long startIndex) {
+    private Trader[] setupProviders(Economy economy, Topology topology, long startIndex, boolean isTemplateExclusion) {
         Trader[] traders = new Trader[4];
-        Trader tp1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, SOLDbyTP, new Basket());
+        Trader tp1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, isTemplateExclusion ? soldByTemplateFamilyTP : SOLDbyTP, new Basket());
         traders[0] = tp1;
         Trader tp2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, SOLDbyTP, new Basket());
         traders[1] = tp2;
@@ -242,6 +246,41 @@ public class CloudActionsIntegrationTest {
         return traders;
     }
 
+    private Trader[] setupTemplateExcludedConsumersInCsg(Economy economy, int numBuyers, String scalingGroupId,
+                                                         int startIndex, double cpuQnty, boolean isGroupLeaderTemplateExcluded) {
+        Trader[] traders = new Trader[numBuyers];
+        int traderIndex = 0;
+        for (int i = 1; i <= numBuyers; i++) {
+            // Create two Traders in a single scaling group.
+            Trader trader = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
+            trader.setDebugInfoNeverUseInCode("VirtualMachine|" + (startIndex + i));
+            trader.setScalingGroupId(scalingGroupId);
+            trader.getSettings().setQuoteFactor(1).setMoveCostFactor(0);
+            ShoppingList shoppingList;
+            if (isGroupLeaderTemplateExcluded) {
+                if (i == 1) {
+                    shoppingList = economy.addBasketBought(trader, boughtByTemplateExcludedVM)
+                            .setQuantity(0, cpuQnty).setMovable(true);
+                } else {
+                    shoppingList = economy.addBasketBought(trader, BOUGHTbyVM)
+                            .setQuantity(0, cpuQnty).setMovable(true);
+                }
+            } else {
+                shoppingList = economy.addBasketBought(trader, boughtByTemplateExcludedVM)
+                        .setQuantity(0, cpuQnty).setMovable(true);
+            }
+            economy.getCommodityBought(shoppingList, CPU).setQuantity(cpuQnty);
+            // First buyer is the group leader
+            shoppingList.setGroupFactor(i == 1 ? numBuyers : 0);
+            economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
+            trader.getSettings().setContext(new Context(REGION, ZONE,
+                    new Context.BalanceAccount(0, 10000, BA, 0)));
+            traders[traderIndex++] = trader;
+            traderOids.put(trader, (long) (i + startIndex));
+        }
+        return traders;
+    }
+
     private ShoppingList getSl(Economy economy, Trader trader) {
         // Return the first (and only) ShoppingList for buyer
         return economy.getMarketsAsBuyer(trader).keySet().iterator().next();
@@ -255,8 +294,8 @@ public class CloudActionsIntegrationTest {
         // CBTP has a capacity of 40 coupons
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(40);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
@@ -278,8 +317,8 @@ public class CloudActionsIntegrationTest {
         // CBTP has a capacity of 30 coupons
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(30).setQuantity(10);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
@@ -303,8 +342,8 @@ public class CloudActionsIntegrationTest {
     public void testCouponUpdationOnMoves3() {
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         // CBTP has a capacity of 30 coupons
         sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(8);
         sellers[3].getCommoditySold(COUPON).setCapacity(16);
@@ -358,8 +397,8 @@ public class CloudActionsIntegrationTest {
     public void testCouponUpdationOnMoves4() {
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         // CBTP has a capacity of 30 coupons
         sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(8);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -385,8 +424,8 @@ public class CloudActionsIntegrationTest {
     public void testCouponUpdationOnMoves5() {
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         // CBTP has a capacity of 30 coupons
         sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(16);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -418,8 +457,8 @@ public class CloudActionsIntegrationTest {
     public void testCouponUpdationOnMoves6() {
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         // CBTP has a capacity of 16 coupons off which 8 is overhead by VM1
         sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(16);
         sellers[3].getCommoditySold(COUPON).setCapacity(16);
@@ -453,7 +492,7 @@ public class CloudActionsIntegrationTest {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 2, "id1", 0, 8);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(30);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
@@ -485,7 +524,7 @@ public class CloudActionsIntegrationTest {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(12).setQuantity(4);
         sellers[3].getCommoditySold(COUPON).setCapacity(4).setQuantity(4);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -538,7 +577,7 @@ public class CloudActionsIntegrationTest {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(12);
         sellers[3].getCommoditySold(COUPON).setCapacity(4).setQuantity(4);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -591,7 +630,7 @@ public class CloudActionsIntegrationTest {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(12);
         sellers[3].getCommoditySold(COUPON).setCapacity(12).setQuantity(12);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -646,8 +685,8 @@ public class CloudActionsIntegrationTest {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
-        Trader[] sellers = setupProviders(e, t, 0);
-        sellers[2].getCommoditySold(COUPON).setCapacity(12).setQuantity(8);;
+        Trader[] sellers = setupProviders(e, t, 0, false);
+        sellers[2].getCommoditySold(COUPON).setCapacity(12).setQuantity(8);
         sellers[3].getCommoditySold(COUPON).setCapacity(4);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
@@ -705,7 +744,7 @@ public class CloudActionsIntegrationTest {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(8).setQuantity(8);
         sellers[3].getCommoditySold(COUPON).setCapacity(4).setQuantity(4);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -752,6 +791,127 @@ public class CloudActionsIntegrationTest {
         assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
+    /**
+     * This tests the relinquishing of coupons by a VM on a CBTP when a matching template provider
+     * cannot be found. Use Case: Enforce scaling of a VM to a different family size via template exclusion.
+     * The coupons should be relinquished.
+     */
+    @Test
+    public void testRelinquishingForTemplateExclusion() {
+        Economy e = new Economy();
+        Topology t = new Topology();
+        Trader[] vms = setupConsumers(e, true);
+        Trader[] sellers = setupProviders(e, t, 0, true);
+        sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(8);
+
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        slVM1.setQuantity(1, 8);
+        // Set the supplier of VM1 as the cbtp.
+        slVM1.move(sellers[2]);
+
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        // Set the supplier of VM2 as a TP.
+        slVM2.move(sellers[0]);
+        getSl(e, vms[1]).setQuantity(0, 51).setMovable(true);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        Placement.generateShopAlonePlacementDecisions(e, slVM1);
+
+        // VM 1 moves off discounted tier 1 to the Template provider and relinquishes its coupons.
+        assertEquals(slVM1.getSupplier(), sellers[0]);
+
+        // sellers[2] aka DiscountedMarketTier|1 got its relinquished coupons back when VM1
+        // moved off from it.
+        assertEquals(0.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.0);
+
+        Placement.generateShopAlonePlacementDecisions(e, slVM2);
+
+        // VM 2 comes in and moves to the discounted tier and takes the coupons left behind by
+        // relinquishing of VM1's coupons.
+        assertEquals(slVM2.getSupplier(), sellers[2]);
+
+        // VM 2 gets 16/16 coupons it request for from DiscountedMarketTier|1.
+        assertEquals(0.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 16.0);
+    }
+
+    /**
+     * In this case, we have an ASG with the group leader on an RI discounted market tier. The peer is
+     * on an demand market tier. Both VM's have a template exclusion policy set on them. The VM's
+     * must scale to an on demand market tier. The group leader should relinquish its coupons to the
+     * RI discounted market tier.
+     */
+    @Test
+    public void testRelinquishingForTemplateExclusionGroupLeaderAcrossAsgs() {
+        Economy e = new Economy();
+        Topology t = new Topology();
+        Trader[] vms = setupTemplateExcludedConsumersInCsg(e, 2, "id1",
+                0, 8, true);
+        Trader[] sellers = setupProviders(e, t, 0, true);
+        sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(8);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        slVM1.setQuantity(1, 8);
+        // Set the supplier of VM1 as the cbtp.
+        slVM1.move(sellers[2]);
+
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        // Set the supplier of VM2 as a TP.
+        slVM2.move(sellers[0]);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        assertEquals(8.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.0);
+        Placement.generateShopAlonePlacementDecisions(e, slVM1);
+
+        // Test the group leaser scaling to the on demand market tier.
+        assertEquals(slVM1.getSupplier(), sellers[0]);
+
+        // The peer remains on the on demand market tier.
+        assertEquals(slVM2.getSupplier(), sellers[0]);
+
+        // The RI discounted market tier gets back its coverage.
+        assertEquals(0.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.0);
+    }
+
+    /**
+     * In this test case, the peer of the group leader is on the RI discounted market tier. Both
+     * the group leader and the peer have a template exclusion policy set and must scale for compliance.
+     * In this case the peer should relinquish its coverage to the RI discounted market tier.
+     */
+    @Test
+    public void testRelinquishingForTemplateExclusionNonGroupLeaderAcrossAsgs() {
+        Economy e = new Economy();
+        Topology t = new Topology();
+        Trader[] vms = setupTemplateExcludedConsumersInCsg(e, 2, "id1",
+                0, 8, false);
+        Trader[] sellers = setupProviders(e, t, 0, true);
+        sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(8);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        // Set the supplier of VM1 as the on demand market tier.
+        slVM1.move(sellers[0]);
+
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        // Set the supplier of VM2 as the RI discounted market tier .
+        slVM2.setQuantity(1, 8);
+        slVM2.move(sellers[2]);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        assertEquals(8.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.0);
+        Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        Placement.generateShopAlonePlacementDecisions(e, slVM2);
+
+        // The group leader stays on the on demand market tier.
+        assertEquals(slVM1.getSupplier(), sellers[0]);
+
+        // The peer moves from the RI Discounted market to the on demand market tier.
+        assertEquals(slVM2.getSupplier(), sellers[0]);
+
+        // The peer relinquishes RI coverage to the RI discounted market tier.
+        assertEquals(0.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.0);
+    }
+
     @Test
     @Parameters
     @TestCaseName("Test #{index}: CouponUpdationWithOverhead({0}, {1}, {2}, {3})")
@@ -759,8 +919,8 @@ public class CloudActionsIntegrationTest {
                                                                        double couponSoldUsed, double couponAllocated) {
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(couponSoldCap).setQuantity(couponSoldUsed);
         // invalidating CBTP2 by making it fully used
         sellers[3].getCommoditySold(COUPON).setCapacity(couponSoldCap).setQuantity(couponSoldCap);
@@ -798,8 +958,8 @@ public class CloudActionsIntegrationTest {
 
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumers(e);
-        Trader[] sellers = setupProviders(e, t, 0);
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
         sellers[2].getCommoditySold(COUPON).setCapacity(couponSoldCap).setQuantity(couponSoldUsed);
         // invalidating CBTP2 by making it fully used
         sellers[3].getCommoditySold(COUPON).setCapacity(couponSoldCap).setQuantity(couponSoldCap);
