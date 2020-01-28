@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -12,16 +13,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -46,6 +47,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.reserved.instance.coverage.allocator.utils.ReservedInstanceHelper;
 
 public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServiceImplBase {
 
@@ -111,14 +113,56 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                     .getReservedInstanceBoughtByFilter(riBoughtFilter);
         }
 
+        // filter the expired RIs
+        final List<ReservedInstanceBought> filteredUnstitchedReservedInstances =
+            filterExpiredRIs(unstitchedReservedInstances);
 
         final GetReservedInstanceBoughtByTopologyResponse response =
                 GetReservedInstanceBoughtByTopologyResponse.newBuilder()
                         .addAllReservedInstanceBought(
-                                createStitchedRIBoughtInstances(unstitchedReservedInstances))
+                                createStitchedRIBoughtInstances(filteredUnstitchedReservedInstances))
                         .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Gets a list of bought reserved instances and returned a filtered list of input reserved
+     * instances that only contains those reserved instances that are not expired at current time.
+     *
+     * @param reservedInstances input list of reserved instances.
+     * @return the filtered list.
+     */
+    private List<ReservedInstanceBought> filterExpiredRIs(List<ReservedInstanceBought> reservedInstances) {
+        List<ReservedInstanceBought> filteredRIs = new ArrayList<>();
+        final Set<Long> reservedInstanceSpecIds = reservedInstances.stream()
+            .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
+            .map(ReservedInstanceBought.ReservedInstanceBoughtInfo::getReservedInstanceSpec).collect(Collectors.toSet());
+        Map<Long, ReservedInstanceSpec> idToRISpec =
+            reservedInstanceSpecStore.getReservedInstanceSpecByIds(reservedInstanceSpecIds)
+            .stream()
+            .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
+
+        for (ReservedInstanceBought reservedInstance : reservedInstances) {
+            final ReservedInstanceSpec riSpec =
+                idToRISpec.get(reservedInstance.getReservedInstanceBoughtInfo().getReservedInstanceSpec());
+
+            if (riSpec == null) {
+                logger.error("The spec with Id `{}` for bought RI `{}` cannot be found.",
+                    reservedInstance.getReservedInstanceBoughtInfo().getReservedInstanceSpec(),
+                    reservedInstance.getId());
+                continue;
+            }
+
+            // If the RI is not expired add it to the list of filtered RIs
+            if (!ReservedInstanceHelper.isExpired(reservedInstance, riSpec)) {
+                filteredRIs.add(reservedInstance);
+            } else {
+                logger.debug("Ignoring expired RI with Id `{}`.", reservedInstance.getId());
+            }
+        }
+
+        return filteredRIs;
     }
 
     @Override
