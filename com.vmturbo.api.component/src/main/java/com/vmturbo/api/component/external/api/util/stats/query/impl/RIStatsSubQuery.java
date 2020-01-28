@@ -57,6 +57,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
     private final RIStatsMapper riStatsMapper;
     private final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService;
+    private final Set<UIEntityType> validEntityTypesForRIStats = new HashSet<>();
 
     public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                            @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
@@ -78,26 +79,26 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
         this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
         this.reservedInstanceCostService = reservedInstanceCostService;
-    }
-
-    @Override
-    public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
         // related entity types that we support RI stats for
-        List<UIEntityType> validEntityTypesForRIStats = new ArrayList<>();
         validEntityTypesForRIStats.add(UIEntityType.REGION);
         validEntityTypesForRIStats.add(UIEntityType.AVAILABILITY_ZONE);
         validEntityTypesForRIStats.add(UIEntityType.BUSINESS_ACCOUNT);
         validEntityTypesForRIStats.add(UIEntityType.VIRTUAL_MACHINE);
-        // Doesn't seem like it should support plan, because the backend doesn't allow specifying
-        // the plan ID.
-        UIEntityType relatedEntityType;
-        if (context.getQueryScope().getGlobalScope().isPresent()
-                && !context.getQueryScope().getGlobalScope().get().entityTypes().isEmpty()) {
-            // if related entity type doesn't support RI stats, we don't go through the query
-            relatedEntityType = context.getQueryScope().getGlobalScope().get().entityTypes().iterator().next();
-            return !context.getInputScope().isPlan() && validEntityTypesForRIStats.contains(relatedEntityType);
+    }
+
+    @Override
+    public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
+        // plans should use separate sub query
+        if (context.getInputScope().isPlan()) {
+            return false;
         }
-        return !context.getInputScope().isPlan();
+        UIEntityType relatedEntityType;
+        if (context.getQueryScope().getGlobalScope().isPresent() &&  !context.getQueryScope().getGlobalScope().get().entityTypes().isEmpty()) {
+            relatedEntityType = context.getQueryScope().getGlobalScope().get().entityTypes().iterator().next();
+            return validEntityTypesForRIStats.contains(relatedEntityType);
+        } else {
+            return true;
+        }
     }
 
     @Nonnull
