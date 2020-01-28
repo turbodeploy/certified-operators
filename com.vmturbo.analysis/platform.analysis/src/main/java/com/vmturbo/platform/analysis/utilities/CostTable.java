@@ -34,6 +34,7 @@ public class CostTable {
     public CostTable(final List<CostTuple> costTupleList) {
         for (CostTuple costTuple : costTupleList) {
             CostTableKey key = new CostTableKey(
+                    costTuple.hasZoneId() ? costTuple.getZoneId() :
                     costTuple.getRegionId(),
                     costTuple.getBusinessAccountId(),
                     costTuple.getLicenseCommodityType());
@@ -97,12 +98,12 @@ public class CostTable {
      * Class to support the Cost values by Cloud info.
      */
     private static class CostTableKey {
-        private long regionId;           // -1 if not provided
+        private long locationId;           // -1 if not provided
         private long businessAccountId; // -1 if not provided
         private int licenseCommodityType;
 
-        public CostTableKey(long regionId, long businessAccountId, int licenseCommodityType) {
-            this.regionId = regionId;
+        CostTableKey(long locationId, long businessAccountId, int licenseCommodityType) {
+            this.locationId = locationId;
             this.businessAccountId = businessAccountId;
             this.licenseCommodityType = licenseCommodityType;
         }
@@ -116,7 +117,7 @@ public class CostTable {
             if (getClass() != o.getClass())
                 return false;
             CostTableKey key = (CostTableKey) o;
-            return regionId == key.regionId
+            return locationId == key.locationId
                     && businessAccountId == key.businessAccountId
                     && licenseCommodityType == key.licenseCommodityType;
         }
@@ -125,7 +126,7 @@ public class CostTable {
         public int hashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + Long.hashCode(regionId);
+            result = prime * result + Long.hashCode(locationId);
             result = prime * result + Long.hashCode(businessAccountId);
             result = prime * result + licenseCommodityType;
             return result;

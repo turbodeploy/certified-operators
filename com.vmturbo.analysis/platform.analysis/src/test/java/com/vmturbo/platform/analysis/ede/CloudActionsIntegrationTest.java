@@ -42,7 +42,7 @@ public class CloudActionsIntegrationTest {
     private static final CommoditySpecification CPU = new CommoditySpecification(0).setDebugInfoNeverUseInCode("CPU");
     private static final CommoditySpecification COUPON = new CommoditySpecification(1).setDebugInfoNeverUseInCode("COUPON");
     private static final CommoditySpecification FAMILY = new CommoditySpecification(2).setDebugInfoNeverUseInCode("FAMILY");
-    private static final CommoditySpecification LICENSE = new CommoditySpecification(5, 5).setDebugInfoNeverUseInCode("LICENSE");
+    private static final CommoditySpecification LICENSE = new CommoditySpecification(0, 0).setDebugInfoNeverUseInCode("LICENSE");
     private static final CommoditySpecification TEMPLATE = new CommoditySpecification(6).setDebugInfoNeverUseInCode("TEMPLATE");
     private static final Basket SOLDbyTP = new Basket(CPU, COUPON, FAMILY, LICENSE);
     private static final Basket soldByTemplateFamilyTP = new Basket(CPU, COUPON, LICENSE, TEMPLATE);
@@ -157,7 +157,7 @@ public class CloudActionsIntegrationTest {
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setDiscountPercentage(0.4)
-                        .setCostTuple(CostDTOs.CostDTO.CostTuple.newBuilder()
+                        .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
                                 .setBusinessAccountId(BA)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
@@ -170,7 +170,7 @@ public class CloudActionsIntegrationTest {
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setDiscountPercentage(0.4)
-                        .setCostTuple(CostDTOs.CostDTO.CostTuple.newBuilder()
+                        .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
                                 .setBusinessAccountId(BA)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)

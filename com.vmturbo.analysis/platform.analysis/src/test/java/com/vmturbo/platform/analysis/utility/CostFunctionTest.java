@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.BiMap;
@@ -458,7 +459,7 @@ public class CostFunctionTest {
 
         // Create CBTP
         Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
-                regionId);
+                regionId, 0);
         traderOids.put(cbtp_m5Large, 2L);
 
         // Create a new TP which sells to CBTP
@@ -540,7 +541,7 @@ public class CostFunctionTest {
 
         // Create CBTP
         Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
-                regionId);
+                regionId, 0);
 
         // Create a new TP which sells to CBTP
         Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
@@ -620,11 +621,11 @@ public class CostFunctionTest {
 
         // CBTP with zone scope 11
         Trader m5LargeCbtpZone11 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
-                false, zone11);
+                false, zone11, 0);
         traderOids.put(m5LargeCbtpZone11, 2L);
         // CBTP with zone scope 13
         Trader m5LargetCbtpZone13 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
-                false, zone13);
+                false, zone13, 0);
         traderOids.put(m5LargetCbtpZone13, 3L);
 
         m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
@@ -665,6 +666,102 @@ public class CostFunctionTest {
                 bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
 
         // Non-infinite quote since the VM and CBTP are both on zone 13
+        Assert.assertFalse(Double.isInfinite(q2));
+    }
+
+    /**
+     * Test that if a VM has a price id and business account id, then it gets an infinite quote
+     * from a CBTP scoped to an account which is different from the VM's account.
+     */
+    @Test
+    public void testAccountScopeDiscountedComputeCost() {
+        final long priceId = 1111L;
+        final long vmBusinessAccountId = 24L;
+        final long cbtpBusinessAccountId = 3333L;
+
+        // Create economy with discounted compute cost factor
+        Economy economy = new Economy();
+        Topology topo = new Topology();
+        economy.setTopology(topo);
+
+        // Create a VM buyer
+        Trader vm = TestUtils.createVM(economy, "vm-buyer");
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, vmBusinessAccountId, priceId);
+        vm.getSettings().setContext(new Context(10L, 0L, ba));
+
+        // VM with no supplier
+        ShoppingList vmSL = TestUtils.createAndPlaceShoppingList(economy,
+                Collections.singletonList(TestUtils.CPU), vm, new double[] {1000}, null);
+        vmSL.setGroupFactor(1L);
+
+        // Create a new TP which sells to CBTPs
+        Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE,
+                Collections.singletonList(0L), Arrays.asList(TestUtils.COUPON_COMMODITY,
+                        TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY), new double[] {8, 3000, 1},
+                true, true, "m5Large");
+        BiMap<Trader, Long> traderOids = HashBiMap.create();
+        traderOids.put(m5LargeTP, 1L);
+        double m5LargePrice = 0.19200;
+
+        // CBTP with Account id 3333L
+        Trader m5LargetCbtpAccount1 = TestUtils.setAndGetCBTP(m5LargePrice, "cbtp_m5Large", economy,
+                false, 0, cbtpBusinessAccountId);
+        traderOids.put(m5LargetCbtpAccount1, 2L);
+        // CBTP with Account id 24L and priceId 1111L
+        Trader m5LargetCbtpAccount2 = TestUtils.setAndGetCBTP(m5LargePrice, "cbtp_m5Large", economy,
+                false, 0, priceId);
+        traderOids.put(m5LargetCbtpAccount2, 3L);
+
+        m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory
+                .budgetDepletionRiskBasedQuoteFunction());
+        // Set the cost dto on the TP
+        CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
+                TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
+                        .setLicenseCommodityType(-1)
+                        .setPrice(m5LargePrice)
+                        .setBusinessAccountId(24)
+                        .build()).build()).build();
+        m5LargeTP.getSettings().setCostFunction(CostFunctionFactory
+                .createCostFunction(m5LargeTP_CostDto));
+
+        // Place CBTPs on TP
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
+                TestUtils.SEGMENTATION_COMMODITY), m5LargetCbtpAccount1, new double[] {2, 1},
+                m5LargeTP);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
+                TestUtils.SEGMENTATION_COMMODITY), m5LargetCbtpAccount2, new double[] {2, 1},
+                m5LargeTP);
+
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        try {
+            final Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+            traderOidField.setAccessible(true);
+            traderOidField.set(topo, traderOids);
+            final Field unmodifiableTraderOidField = Topology.class
+                    .getDeclaredField("unmodifiableTraderOids_");
+            unmodifiableTraderOidField.setAccessible(true);
+            unmodifiableTraderOidField.set(topo, traderOids);
+        } catch (Exception e) {
+            logger.error("Error setting up topology.");
+        }
+
+        final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
+        final boolean forTraderIncomeStatement = true;
+
+        // Quote for VM from CBTP scoped to account 3333L
+        final double q1 = EdeCommon.quote(economy, vmSL, m5LargetCbtpAccount1,
+                bestQuoteSoFar.getQuoteValue(),
+                forTraderIncomeStatement).getQuoteValue();
+
+        // Infinite quote because the VM is on a account (24)
+        assertTrue(Double.isInfinite(q1));
+
+        // Quote for VM from CBTP scoped to account 24
+        final double q2 = EdeCommon.quote(economy, vmSL, m5LargetCbtpAccount2,
+                bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
+
+        // Non-infinite quote since the VM and CBTP are both on account 24
         Assert.assertFalse(Double.isInfinite(q2));
     }
 

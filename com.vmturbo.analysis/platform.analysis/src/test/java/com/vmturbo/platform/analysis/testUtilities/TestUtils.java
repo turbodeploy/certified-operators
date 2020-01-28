@@ -649,10 +649,12 @@ public class TestUtils {
      * @param economy to which the Trader should belong.
      * @param regional true if the CBTP is regional, false otherwise.
      * @param locationId region id or zone id of the CBTP.
+     * @param accountScopeId account id or price id of the CBTP.
+     *
      * @return an instance of Trader.
      */
     public static Trader setAndGetCBTP(double cost, String name, Economy economy,
-                                       boolean regional, long locationId) {
+                                       boolean regional, long locationId, long accountScopeId) {
         double riDeprecationFactor = 0.0000001;
         Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),
@@ -675,8 +677,9 @@ public class TestUtils {
         } else {
             costTuple.setZoneId(locationId);
         }
+        costTuple.setBusinessAccountId(accountScopeId);
         CostDTO costDTOcbtp = CostDTO.newBuilder()
-                .setCbtpResourceBundle(cbtpBundleBuilder.setCostTuple(costTuple).build()).build();
+                .setCbtpResourceBundle(cbtpBundleBuilder.addCostTupleList(costTuple).build()).build();
         CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
         cbtp.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
         return cbtp;
@@ -718,7 +721,7 @@ public class TestUtils {
         } else {
             costTuple.setZoneId(locationId);
         }
-        cbtpBundleBuilder.setCostTuple(costTuple);
+        cbtpBundleBuilder.addCostTupleList(costTuple);
         cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
         return cbtpBundleBuilder;
     }

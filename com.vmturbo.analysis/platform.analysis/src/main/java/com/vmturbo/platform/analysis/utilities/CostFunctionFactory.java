@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import org.apache.logging.log4j.LogManager;
@@ -52,8 +53,8 @@ public class CostFunctionFactory {
 
     // a class to represent the minimum and maximum capacity of a commodity
     public static class CapacityLimitation {
-        private double minCapacity_ = Double.POSITIVE_INFINITY;
-        private double maxCapacity_ = Double.POSITIVE_INFINITY;
+        private double minCapacity_;
+        private double maxCapacity_;
 
         public CapacityLimitation(double minCapacity, double maxCapacity) {
             minCapacity_ = minCapacity;
@@ -197,7 +198,7 @@ public class CostFunctionFactory {
                                 new CapacityLimitation(resourceLimit.getMinCapacity(),
                                                 resourceLimit.getMaxCapacity()));
             } else {
-                throw new IllegalArgumentException("Duplicate constraint on cpacity limitation");
+                throw new IllegalArgumentException("Duplicate constraint on capacity limitation");
             }
         }
         return commCapacity;
@@ -462,28 +463,30 @@ public class CostFunctionFactory {
      * @param seller {@link Trader} the cbtp that the buyer asks a price from
      * @param cbtpResourceBundle {@link CbtpCostDTO} associated with the selling cbtp
      * @param economy {@link Economy}
+     * @param costTable containing costTuples indexed by location id, account id and license
+     *                  commodity type.
      *
      * @return the cost given by {@link CostFunction}
      */
     public static MutableQuote calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
                                                               CbtpCostDTO cbtpResourceBundle,
-                                                              UnmodifiableEconomy economy) {
+                                                              UnmodifiableEconomy economy,
+                                                              CostTable costTable) {
         long groupFactor = buyer.getGroupFactor();
-
         final com.vmturbo.platform.analysis.economy.Context buyerContext = buyer.getBuyer()
                 .getSettings().getContext();
-
-        final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
-        boolean inLocationScope = isBuyerInLocationScope(costTuple, buyerContext);
-        if (!inLocationScope) {
+        final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, costTable);
+        if (costTuple == null) {
             if (logger.isTraceEnabled() || seller.isDebugEnabled()
                     || buyer.getBuyer().isDebugEnabled()) {
                 logger.info("VM {} with context {} is not in scope of discounted tier {} with " +
                                 "context {}", buyer.getDebugInfoNeverUseInCode(), buyerContext,
-                        seller.getDebugInfoNeverUseInCode(), costTuple);
+                        seller.getDebugInfoNeverUseInCode(),
+                        cbtpResourceBundle.getCostTupleListList());
             }
             return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, null, null);
         }
+
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm
         // 2) Determine the template cost the discount should apply to
@@ -609,14 +612,27 @@ public class CostFunctionFactory {
         }
     }
 
-    private static boolean isBuyerInLocationScope(final CostTuple costTuple,
-                                                  final com.vmturbo.platform.analysis.economy
-                                                          .Context buyerContext) {
-        if (buyerContext != null) {
-            return costTuple.hasZoneId() ? costTuple.getZoneId() == buyerContext.getZoneId()
-                    : costTuple.getRegionId() == buyerContext.getRegionId();
-        }
-        return false;
+    /**
+     * Retrieves a CostTuple from the provided CostTable using priceId, region/zone and license
+     * commodity index from the buyerContext.
+     *
+     * @param buyerContext for which the CostTuple is being retrieved.
+     * @param costTable from which the CostTuple is being retrieved.
+     * @return costTuple from the CostTable.
+     */
+    @Nullable
+    private static CostTuple retrieveCbtpCostTuple(
+            com.vmturbo.platform.analysis.economy.Context buyerContext, CostTable costTable) {
+        final BalanceAccount balanceAccount = buyerContext.getBalanceAccount();
+        // costTable will be indexed using price id, if the CBTP is scoped to all accounts under a
+        // billing family. Otherwise the costTable will be indexed using the account id.
+        final long priceId = costTable.hasAccountId(balanceAccount.getPriceId()) ?
+                balanceAccount.getPriceId() : balanceAccount.getId();
+        // costTable will be indexed using zone id, if the CBTP is scoped to a zone. Otherwise
+        // the costTable will be indexed using the region id.
+        return Optional.ofNullable(costTable.getTuple(
+                buyerContext.getRegionId(), priceId, 0))
+                .orElse(costTable.getTuple(buyerContext.getZoneId(), priceId, 0));
     }
 
     /**
@@ -753,32 +769,43 @@ public class CostFunctionFactory {
      */
     public static @NonNull CostFunction
                     createResourceBundleCostFunctionForCbtp(CbtpCostDTO cbtpResourceBundle) {
-
-        CostFunction costFunction = new CostFunction() {
-            @Override
-            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
-                                        boolean validate, UnmodifiableEconomy economy) {
-                int couponCommodityBaseType = cbtpResourceBundle.getCouponBaseType();
-                final MutableQuote quote =
-                    insufficientCommodityWithinSellerCapacityQuote(buyer, seller,  couponCommodityBaseType);
-                if (quote.isInfinite()) {
-                    return quote;
-                }
-                if (!validate) {
-                    // In case that a vm is already placed on a cbtp, We return the cost based on the best template it fits on
-                    return calculateDiscountedComputeCostForCurrentSupplierOnCBTPForTier(buyer, seller,
-                            cbtpResourceBundle, economy);
-                }
-
-                return calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy);
+        final CostTable costTable = new CostTable(cbtpResourceBundle.getCostTupleListList());
+        CostFunction costFunction = (CostFunction)(buyer, seller, validate, economy) -> {
+            int couponCommodityBaseType = cbtpResourceBundle.getCouponBaseType();
+            final MutableQuote quote =
+                insufficientCommodityWithinSellerCapacityQuote(buyer, seller,
+                        couponCommodityBaseType);
+            if (quote.isInfinite()) {
+                return quote;
             }
+            if (!validate) {
+                // In case that a vm is already placed on a cbtp, We return the cost based on the best template it fits on
+                return calculateDiscountedComputeCostForCurrentSupplierOnCBTPForTier(buyer, seller,
+                        cbtpResourceBundle, economy, costTable);
+            }
+
+            return calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy,
+                    costTable);
         };
 
         return costFunction;
     }
 
-    public static MutableQuote calculateDiscountedComputeCostForCurrentSupplierOnCBTPForTier(ShoppingList buyer, Trader cbtp,
-                                                CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
+    /**
+     * Calculate the discounted compute cost for the current cbtp supplier.
+     *
+     * @param buyer {@link ShoppingList} associated with the vm that is requesting price
+     * @param cbtp {@link Trader} the cbtp that the buyer asks a price from
+     * @param cbtpResourceBundle {@link CbtpCostDTO} associated with the selling cbtp
+     * @param economy {@link Economy}
+     * @param costTable containing costTuples indexed by location id, account id and license
+     *                  commodity type
+     *
+     * @return the cost given by {@link CostFunction}
+     */
+    public static MutableQuote calculateDiscountedComputeCostForCurrentSupplierOnCBTPForTier(
+            ShoppingList buyer, Trader cbtp, CbtpCostDTO cbtpResourceBundle,
+            UnmodifiableEconomy economy, CostTable costTable) {
         long groupFactor = buyer.getGroupFactor();
         double discountedCost = 0;
         Optional<EconomyDTOs.Context> context = Optional.empty();
@@ -814,9 +841,10 @@ public class CostFunctionFactory {
                     CommoditySold couponCommSoldByTp =
                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
                     double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
-
                     double singleVmTemplateCost = currentTemplateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
-                    final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
+                    final com.vmturbo.platform.analysis.economy.Context buyerContext
+                            = buyer.getBuyer().getSettings().getContext();
+                    final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, costTable);
                     double couponsCovered = buyer.getTotalAllocatedCoupons(economy, matchingTP);
                     if (couponCommSoldByTp.getCapacity() != 0) {
                         double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
@@ -826,6 +854,13 @@ public class CostFunctionFactory {
                             discountedCost = Math.max(costTuple.getPrice(),
                                     numCouponsToPayFor * templateCostPerCoupon);
                         } else {
+                            if (costTuple == null) {
+                                logger.error("VM {} with context {} is not in scope of discounted "
+                                                + "tier {} with context {}",
+                                        buyer.getDebugInfoNeverUseInCode(), buyerContext,
+                                        cbtp.getDebugInfoNeverUseInCode(),
+                                        cbtpResourceBundle.getCostTupleListList());
+                            }
                             discountedCost = numCouponsToPayFor * templateCostPerCoupon;
                         }
                     } else {
