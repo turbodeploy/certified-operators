@@ -2,7 +2,7 @@ package com.vmturbo.components.common.health;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryUsage;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
@@ -34,12 +34,6 @@ import org.apache.logging.log4j.Logger;
  *
  */
 public class MemoryMonitor extends SimpleHealthStatusProvider {
-    // memory pool names differ slightly depending on which GC implementation is used. We default
-    // to "G1 Old Gen" because we normally run with the G1 garbage collector in our production code.
-    // But this may get reset to a different name in setupMonitor() if we detect the runtime pool
-    // name is different.
-    private static String oldGenPoolName = "G1 Old Gen";
-
     // string message returned by Java after major GC events.
     private static final String MAJOR_GC_ACTION_LABEL = "end of major GC";
 
@@ -68,48 +62,47 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
     }
 
     /**
-     * hook into the memory management jmx beans so we can track heap availability.
+     * Set up the MemoryMonitor by hooking into the memory management jmx beans so we can track heap
+     * availability.
+     *
+     * @return true if the setup was successful, false otherwise.
      */
     private void setupMonitor() {
         // listener that will process JMX notifications
         MemoryNotificationListener notificationListener = new MemoryNotificationListener();
 
-        boolean oldGenPoolFound = false;
-        // we are going to listen for both major and minor gc's.
-        for (GarbageCollectorMXBean gcBean : ManagementFactory.getGarbageCollectorMXBeans()) {
+        List<GarbageCollectorMXBean> gcMXBeans = ManagementFactory.getGarbageCollectorMXBeans();
+        // first, try to find the tenured generation we want to monitor
+        for (GarbageCollectorMXBean gcBean : gcMXBeans) {
             log.info("Found GC Bean {} mem pools {}", gcBean::getName, gcBean::getMemoryPoolNames);
             ((NotificationEmitter) gcBean).addNotificationListener(notificationListener, null, null);
-            // find the actual old gen mem pool name in this VM, in case it's not using the G1
-            // collector.
-            for (String memPoolName : gcBean.getMemoryPoolNames()) {
-                if (memPoolName.endsWith("Old Gen") || memPoolName.endsWith("Tenured Gen")) {
-                    log.info("Setting old gen mem pool name to {}", memPoolName);
-                    oldGenPoolName = memPoolName;
-                    oldGenPoolFound = true;
-                    break;
-                }
-            }
         }
 
-        if (oldGenPoolFound) {
-            reportHealthy("Running");
-        } else {
-            reportHealthy("Old gen pool not found.");
-        }
+        reportHealthy("Running");
     }
 
     /**
-     * This health check reports "unhealthy" when the ratio of old gen space available is less than
+     * This health check reports "unhealthy" when the ratio of heap space available is less than
      * the threshold specified in the memory monitor configuration.
      */
-    public void updateHealthStatus(MemoryUsage memoryUsage) {
+    public void updateHealthStatus() {
+
+        // we are going to monitor the total heap used %, instead of just the tenured generation as
+        // we used to. This is a simpler and more universal algorithm than finding and tracking the
+        // tenured generation usage %.
+        Runtime rt = Runtime.getRuntime();
+        long maxMem = rt.maxMemory();
+        long freeMem = rt.freeMemory();
+        long usedMem = maxMem - freeMem;
+        double usageRatio = 1.0 * usedMem / maxMem;
+        double usedPercentage = Math.round(10000.0 * usageRatio) / 100.0; // round to 2 decimals for display
+        log.debug("MemoryMonitor: currently {}% used ({}/{}} {} free memory", usedPercentage,
+                usedMem, maxMem, freeMem);
+
         // report an unhealthy status if we are over the allocation threshold
-        double usageRatio = 1.0 * memoryUsage.getUsed() / memoryUsage.getMax();
-        double usedPercentage = 100.0 * usageRatio;
-        log.debug("MemoryMonitor: currently {}% ({}/{}) used.", usedPercentage, memoryUsage.getUsed(), memoryUsage.getMax());
         if (usageRatio >= memUsedRatioAlertThreshold) {
-            String message = String.format("Tenured heap %.2f%% (%d/%d) used.",
-                    usedPercentage, memoryUsage.getUsed(), memoryUsage.getMax());
+            String message = String.format("Heap %.2f%% (%d/%d) used. %d free.",
+                    usedPercentage, usedMem, maxMem, freeMem);
             reportUnhealthy(message);
         }
         else {
@@ -148,24 +141,16 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
                     log.trace("Received GC {} notification name {} info {}.", info::getGcAction,
                             info::getGcName, info::getGcCause);
 
-                    // get the old gen pool info
-                    MemoryUsage oldGenUsage = info.getGcInfo().getMemoryUsageAfterGc().get(oldGenPoolName);
-                    if (oldGenUsage == null) {
-                        // don't process further if no old gen after-GC info available.
-                        log.warn("Old Gen Memory Pool after GC information not available.");
-                        return;
-                    }
-
                     // if we are unhealthy, then any GC can clear the unhealthy state as long as our
                     // mem usage indicates we have room
                     if (! getHealthStatus().isHealthy()) {
-                        updateHealthStatus(oldGenUsage);
+                        updateHealthStatus();
                     } else {
                         // otherwise, if we are healthy, we are only looking for the "unhealthy" scenario
                         // where we don't have enough heap left after a full gc happens.
                         if (info.getGcAction().equals(MAJOR_GC_ACTION_LABEL)) {
                             lastFullGcCompletionTime.set(System.currentTimeMillis());
-                            updateHealthStatus(oldGenUsage);
+                            updateHealthStatus();
                         }
                     }
                     break;
