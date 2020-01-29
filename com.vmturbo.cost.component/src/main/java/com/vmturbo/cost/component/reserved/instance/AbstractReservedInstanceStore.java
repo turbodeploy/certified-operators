@@ -106,6 +106,6 @@ public abstract class AbstractReservedInstanceStore {
 
     private static Double getValueByName(final Result<Record3<BigDecimal, BigDecimal, BigDecimal>> riAggregatedCostResult, String valueName) {
         return riAggregatedCostResult.getValues(valueName, Double.class).stream().filter(s -> s != null)
-                        .findFirst().orElse(0D);
+                        .findAny().orElse(0D);
     }
 }

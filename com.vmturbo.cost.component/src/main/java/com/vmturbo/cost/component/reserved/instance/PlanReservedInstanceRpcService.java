@@ -163,21 +163,21 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
     @Nonnull
     private static List<Cost.ReservedInstanceCostStat> unifyProjectedRICostStats(@Nonnull Cost.ReservedInstanceCostStat boughtRICostStats,
                     @Nonnull List<Cost.ReservedInstanceCostStat> buyRICostStats) {
-        if (!(CollectionUtils.isEmpty(buyRICostStats))) {
-            final Cost.ReservedInstanceCostStat boughtRICostStat = boughtRICostStats;
-            final Cost.ReservedInstanceCostStat buyRICostStat = buyRICostStats.get(0);
-            final Cost.ReservedInstanceCostStat projectedRICostStat =
-                            Cost.ReservedInstanceCostStat.newBuilder()
-                                            .setAmortizedCost(boughtRICostStat.getAmortizedCost()
-                                                            + buyRICostStat.getAmortizedCost())
-                                            .setFixedCost(boughtRICostStat.getFixedCost()
-                                                            + buyRICostStat.getFixedCost())
-                                            .setRecurringCost(boughtRICostStat.getRecurringCost()
-                                                            + buyRICostStat.getRecurringCost())
-                                            .setSnapshotTime(Clock.systemUTC().instant().toEpochMilli()).build();
-            return Collections.singletonList(projectedRICostStat);
+        if (CollectionUtils.isEmpty(buyRICostStats)) {
+            return Collections.singletonList(boughtRICostStats);
         }
-        return Collections.singletonList(boughtRICostStats);
+        final Cost.ReservedInstanceCostStat boughtRICostStat = boughtRICostStats;
+        final Cost.ReservedInstanceCostStat buyRICostStat = buyRICostStats.get(0);
+        final Cost.ReservedInstanceCostStat projectedRICostStat =
+                        Cost.ReservedInstanceCostStat.newBuilder()
+                                        .setAmortizedCost(boughtRICostStat.getAmortizedCost()
+                                            + buyRICostStat.getAmortizedCost())
+                                        .setFixedCost(boughtRICostStat.getFixedCost()
+                                            + buyRICostStat.getFixedCost())
+                                        .setRecurringCost(boughtRICostStat.getRecurringCost()
+                                            + buyRICostStat.getRecurringCost())
+                                        .setSnapshotTime(Clock.systemUTC().instant().toEpochMilli()).build();
+        return Collections.singletonList(projectedRICostStat);
     }
 
     @Nonnull
