@@ -28,7 +28,6 @@ import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
@@ -123,17 +122,14 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         // create CouponComm
         float capacity = marketTier.getTotalNumberOfCouponsBought();
         float used = marketTier.getTotalNumberOfCouponsUsed();
-        final int slots = marketTier.getTier().getAnalysisSettings().getSlots();
         CommodityType commType =
                 CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.COUPON_VALUE)
                             .build();
         UpdatingFunctionTO couponUf = UpdatingFunctionTO.newBuilder().setUpdateCoupon(
                 UpdateCoupon.newBuilder().build()).build();
-        List<CommoditySoldTO> soldTOs = commodityConverter.createCommoditySoldTO(commType, capacity, used,
-                couponUf, slots);
-        checkAndReportMultipleSpecsWaring(soldTOs, commType);
-        commoditiesSold.add(soldTOs.get(0));
+        commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                couponUf));
 
         // create TenancyAccess
         capacity = marketTier.getTotalNumberOfCouponsBought();
@@ -143,23 +139,19 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                             .setKey(marketTier.getRiAggregate().getRiKey().getTenancy().toString())
                             .build();
         UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
-        soldTOs = commodityConverter.createCommoditySoldTO(commType, capacity, used,
-                couponUf, slots);
-        checkAndReportMultipleSpecsWaring(soldTOs, commType);
-        commoditiesSold.add(soldTOs.get(0));
+        commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                emptyUf));
 
         // Create template exclusion segmentation commodities
         ReservedInstanceKey riKey = marketTier.getRiAggregate().getRiKey();
         if (riKey.isInstanceSizeFlexible()) {
             commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(riKey.getFamily()).stream()
-                .map(ct -> commodityConverter.createCommoditySoldTO(ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf, slots))
-                    .flatMap(List::stream)
+                .map(ct -> commodityConverter.createCommoditySoldTO(ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
                 .collect(Collectors.toList()));
         } else {
             commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(computeTier.getOid()).stream()
                 .map(ct -> commodityConverter.createCommoditySoldTO(
-                    ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf, slots))
-                    .flatMap(List::stream)
+                    ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
                 .collect(Collectors.toList()));
         }
         return commoditiesSold;
@@ -171,7 +163,6 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                 .filter(c -> shouldSellCommodity(c, ri))
                 .map(c -> commodityConverter.createCommonCommoditySoldTO(c, computeTier
                 ))
-                .flatMap(List::stream)
                 .collect(Collectors.toList());
     }
 
@@ -227,30 +218,20 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                 .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                 .setKey(instanceSizeFlexibleKey)
                 .build();
-        List<CommoditySpecificationTO> commSpecs = commodityConverter
-                .commoditySpecification(instanceSizeFlexibleTACommType, 1);
-        if (commSpecs.size() != 1) {
-            logger.error("Multiple specs obtained for {}", instanceSizeFlexibleTACommType);
-        } else {
-            commBoughtList.add(CommodityBoughtTO.newBuilder()
-                    .setQuantity(0).setPeakQuantity(0)
-                    .setSpecification(commSpecs.get(0))
-                    .build());
-        }
+        commBoughtList.add(CommodityBoughtTO.newBuilder()
+                .setQuantity(0).setPeakQuantity(0)
+                .setSpecification(commodityConverter
+                        .commoditySpecification(instanceSizeFlexibleTACommType))
+                .build());
         CommodityType regionSpecificTACommType = CommodityType.newBuilder()
                 .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                 .setKey(topology.get(riAgg.getRiKey().getRegionId()).getDisplayName())
                 .build();
-        commSpecs = commodityConverter
-                .commoditySpecification(regionSpecificTACommType, 1);
-        if (commSpecs.size() != 1) {
-            logger.error("Multiple specs obtained for {}", regionSpecificTACommType);
-        } else {
-            commBoughtList.add(CommodityBoughtTO.newBuilder()
-                    .setQuantity(0).setPeakQuantity(0)
-                    .setSpecification(commSpecs.get(0))
-                    .build());
-        }
+        commBoughtList.add(CommodityBoughtTO.newBuilder()
+                .setQuantity(0).setPeakQuantity(0)
+                .setSpecification(commodityConverter
+                        .commoditySpecification(regionSpecificTACommType))
+                .build());
         return ShoppingListTO.newBuilder()
                 .setOid(IdentityGenerator.next())
                 .setMovable(false)

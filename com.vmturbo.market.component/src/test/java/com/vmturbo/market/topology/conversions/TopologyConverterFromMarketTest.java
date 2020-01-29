@@ -359,8 +359,8 @@ public class TopologyConverterFromMarketTest {
                 .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
                         .setBaseType(BICLIQUE_TYPE_ID).setType(DSPM_TYPE_ID)
                         .build()));
-        Mockito.doReturn(ImmutableList.of(cpuCommSpecTO)).when(mockCommodityConverter)
-                .commoditySpecification(cpuCommType, 1);
+        Mockito.doReturn(cpuCommSpecTO).when(mockCommodityConverter)
+                .commoditySpecification(cpuCommType);
         // create a topology entity DTO with DSPM sold
         TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(PM_OID)
