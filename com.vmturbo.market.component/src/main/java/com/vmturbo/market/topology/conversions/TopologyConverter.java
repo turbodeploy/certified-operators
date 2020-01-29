@@ -2509,7 +2509,7 @@ public class TopologyConverter {
      * @param topologyCommBought commodity to get usage for
      * @param providerOid OID of provider
      * @param scalingGroupUsage pre-calculated scaling group usage, if available.
-     * @return a list of a pairs, each pair with the used and peak values.
+     * @return a two element array containing the used and peak used values.
      */
     public List<Pair<Double, Double>> getCommBoughtQuantities(
         final TopologyEntityDTO buyer,
