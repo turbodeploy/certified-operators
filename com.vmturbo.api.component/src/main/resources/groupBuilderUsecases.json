@@ -205,5 +205,29 @@
             {"inputType": "*", "elements": "discoveredBy:displayName", "filterCategory": "property", "filterType": "businessAccountTargetName"},
             {"inputType": "s", "elements": "discoveredBy:validationStatus", "filterCategory": "property", "filterType": "businessAccountValidationStatus", "loadOptions": true}
         ]
+    },
+
+    "BillingFamily" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "billingFamilyByName"}
+      ]
+    },
+
+    "Region" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "regsByName"}
+      ]
+    },
+
+    "AvailabilityZone" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "zonsByName"}
+      ]
+    },
+
+    "LoadBalancer" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "lbsByName"}
+      ]
     }
 }
