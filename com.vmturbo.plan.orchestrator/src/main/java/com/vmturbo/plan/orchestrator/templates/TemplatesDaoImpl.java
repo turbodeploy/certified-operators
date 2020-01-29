@@ -138,7 +138,22 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Override
     @Nonnull
     public TemplateDTO.Template createTemplate(@Nonnull final TemplateInfo templateInfo) throws DuplicateTemplateException {
-        return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER);
+        return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER, Optional.empty());
+    }
+
+    /**
+     * Create a new template. If a template with the same name exists, update it.
+     *
+     * @param templateInfo describe the contents of one template
+     * @param targetId the target id this template is associated with
+     * @return new created template
+     * @throws DuplicateTemplateException if template name already exist
+     */
+    @Override
+    @Nonnull
+    public TemplateDTO.Template createTemplate(@Nonnull final TemplateInfo templateInfo,
+                                               @Nonnull final Optional<Long> targetId) throws DuplicateTemplateException {
+        return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER, targetId);
     }
 
     /**
@@ -166,13 +181,15 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * @param context the transaction context
      * @param templateInfo describes the contents of one template
      * @param type of the template
+     * @param targetId the target id this template is associated with
      * @return new created template
      * @throws DuplicateTemplateException if duplicate template name found
      */
     @Nonnull
     private TemplateDTO.Template internalCreateTemplate(@Nonnull final DSLContext context,
                                                         @Nonnull final TemplateInfo templateInfo,
-                                                        @Nonnull final TemplateDTO.Template.Type type)
+                                                        @Nonnull final TemplateDTO.Template.Type type,
+                                                        @Nonnull final Optional<Long> targetId)
             throws DuplicateTemplateException {
         try {
             return dsl.transactionResult(configuration -> {
@@ -184,14 +201,15 @@ public class TemplatesDaoImpl implements TemplatesDao {
                     return editTemplate(templateRecordOptional.get().getId(), templateInfo);
                 } else {
                     // Create a new template.
-                    final TemplateDTO.Template templateDto = TemplateDTO.Template.newBuilder()
+                    final TemplateDTO.Template.Builder templateBuilder = TemplateDTO.Template.newBuilder()
                         .setId(IdentityGenerator.next())
                         .setType(type)
-                        .setTemplateInfo(templateInfo)
-                        .build();
+                        .setTemplateInfo(templateInfo);
+                    targetId.ifPresent(templateBuilder::setTargetId);
+                    final TemplateDTO.Template template = templateBuilder.build();
                     final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
-                    updateRecordFromProto(templateDto, templateRecord);
-                    return templateDto;
+                    updateRecordFromProto(template, templateRecord);
+                    return template;
                 }
             });
         } catch (DataAccessException e) {
@@ -216,6 +234,24 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Override
     @Nonnull
     public TemplateDTO.Template editTemplate(long id, @Nonnull TemplateInfo templateInfo)
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
+        return editTemplate(id, templateInfo, Optional.empty());
+    }
+    /**
+     * Update a existing template with new template instance.
+     *
+     * @param id of existing template
+     * @param templateInfo the new template instance need to store
+     * @param targetId the target id this template is associated with
+     * @return Updated template
+     * @throws NoSuchObjectException if not found existing template.
+     * @throws IllegalTemplateOperationException if any operation is not allowed.
+     * @throws DuplicateTemplateException if new template name already exist.
+     */
+    @Override
+    @Nonnull
+    public TemplateDTO.Template editTemplate(long id, @Nonnull TemplateInfo templateInfo,
+                                             @Nonnull final Optional<Long> targetId)
             throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
         try {
             return dsl.transactionResult(configuration -> {
@@ -242,9 +278,10 @@ public class TemplatesDaoImpl implements TemplatesDao {
                             "System-created templates are not editable.");
                 }
 
-                final TemplateDTO.Template newTemplate = oldTemplate.toBuilder()
-                        .setTemplateInfo(templateInfo)
-                        .build();
+                final TemplateDTO.Template.Builder newTemplateBuilder = oldTemplate.toBuilder()
+                        .setTemplateInfo(templateInfo);
+                targetId.ifPresent(newTemplateBuilder::setTargetId);
+                final TemplateDTO.Template newTemplate = newTemplateBuilder.build();
                 updateRecordFromProto(newTemplate, templateRecord);
                 return newTemplate;
             });
@@ -520,7 +557,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             Sets.difference(newTemplates.keySet(), existingNames).forEach(nameToAdd -> {
                 try {
                     logger.info("Creating default template: {}", nameToAdd);
-                    internalCreateTemplate(transactionDsl, newTemplates.get(nameToAdd), Type.SYSTEM);
+                    internalCreateTemplate(transactionDsl, newTemplates.get(nameToAdd), Type.SYSTEM, Optional.empty());
                     logger.info("Created default template: {}", nameToAdd);
                 } catch (DuplicateTemplateException e) { // should never occur..
                     logger.error("Could not create default template : {} as another template with same name already exist.", nameToAdd);

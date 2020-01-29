@@ -417,12 +417,20 @@ public class PlanProjectExecutor {
         if (!systemLoadRecordList.isEmpty()) {
             // Cluster has sufficient system load data.
             // Create avg template info.
-            SystemLoadProfileCreator profileCreator = new SystemLoadProfileCreator(
+            final SystemLoadProfileCreator profileCreator = new SystemLoadProfileCreator(
                 cluster, systemLoadRecordList, LOOPBACK_DAYS);
-            Map<Operation, SystemLoadCalculatedProfile> profiles = profileCreator.createAllProfiles();
-            SystemLoadCalculatedProfile avgProfile = profiles.get(Operation.AVG);
+            final Map<Operation, SystemLoadCalculatedProfile> profiles = profileCreator.createAllProfiles();
+            final SystemLoadCalculatedProfile avgProfile = profiles.get(Operation.AVG);
             // In this case, avgTemplateInfo exists for sure.
-            TemplateInfo avgTemplateInfo = avgProfile.getHeadroomTemplateInfo().get();
+            final TemplateInfo avgTemplateInfo = avgProfile.getHeadroomTemplateInfo().get();
+            // The target that discovered this group.
+            final Optional<Long> targetId;
+            if (cluster.hasOrigin() && cluster.getOrigin().hasDiscovered() &&
+                cluster.getOrigin().getDiscovered().getDiscoveringTargetIdCount() != 0) {
+                targetId = Optional.of(cluster.getOrigin().getDiscovered().getDiscoveringTargetId(0));
+            } else {
+                targetId = Optional.empty();
+            }
 
             if (headroomTemplate.isPresent()) {
                 // Cluster has sufficient system load data and has associated headroom template.
@@ -433,7 +441,9 @@ public class PlanProjectExecutor {
                         // Associated headroom template is avg template.
                         logger.info("Updating existing avg template for cluster {}, id {}",
                             cluster.getDefinition().getDisplayName(), cluster.getId());
-                        templatesDao.editTemplate(headroomTemplate.get().getId(), avgTemplateInfo);
+                        // Provide targetId for editTemplate so that existing templates without a targetId
+                        // will be assigned a targetId and then can be deleted while removing target.
+                        templatesDao.editTemplate(headroomTemplate.get().getId(), avgTemplateInfo, targetId);
                     } else if (headroomTemplate.get().getTemplateInfo().getName()
                         .equals(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)) {
                         // Associated headroom template is default template.
@@ -441,10 +451,10 @@ public class PlanProjectExecutor {
                         logger.info("Creating avg template for cluster {}, id {}. Switch from default " +
                             "template to avg template.", cluster.getDefinition().getDisplayName(), cluster.getId());
                         newClusterHeadroomTemplateId =
-                            Optional.of(templatesDao.createTemplate(avgTemplateInfo).getId());
+                            Optional.of(templatesDao.createTemplate(avgTemplateInfo, targetId).getId());
                     } else {
                         // Create or update AVG template even though current template is not AVG template.
-                        templatesDao.createTemplate(avgTemplateInfo);
+                        templatesDao.createTemplate(avgTemplateInfo, targetId);
                     }
                 }
             } else {
@@ -452,7 +462,7 @@ public class PlanProjectExecutor {
                 logger.info("Creating avg template for cluster {}, id {}",
                     cluster.getDefinition().getDisplayName(), cluster.getId());
                 newClusterHeadroomTemplateId =
-                    Optional.of(templatesDao.createTemplate(avgTemplateInfo).getId());
+                    Optional.of(templatesDao.createTemplate(avgTemplateInfo, targetId).getId());
             }
         } else {
             if (!headroomTemplate.isPresent()) {
