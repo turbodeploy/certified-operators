@@ -2,97 +2,117 @@
   "Contexts": [
     {
       "context": {
-        "os": LINUX,
+        "os": "LINUX",
         "csp": "AWS",
-        "region": sydney,
-        "billingAccount": biac1,
-        "tenancy": DEFAULT
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": "DEFAULT"
       },
       "Templates": [
         {
-          "name": template1,
-          "family": family1,
+          "oid": 100001,
+          "name": "template1",
+          "family": "family1",
           "onDemandCost": {
             "compute": 100.0,
-            "license": 20.0
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 3
         },
         {
-          "name": template2,
-          "family": family2,
+          "oid": 100002,
+          "name": "template2",
+          "family": "family2",
           "onDemandCost": {
             "compute": 120.0,
-            "license": 20.0
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 3
         },
         {
-          "name": template3,
-          "family": family3,
+          "oid": 100003,
+          "name": "template3",
+          "family": "family3",
           "onDemandCost": {
             "compute": 140.0,
-            "license": 20.0
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 3
         }
       ],
       "VirtualMachines": [
         {
-          "name": VM2,
+          "oid": 1000002,
+          "name": "VM2",
           "businessAccount": 10,
           "providers": [
-            template2,
-            template3
+            100002,
+            100003
           ],
-          "zone": 1a,
+          "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": template1
+          "currentTemplate": 100001,
+          "os": "LINUX"
         },
         {
-          "name": VM1,
+          "oid": 1000001,
+          "name": "VM1",
           "businessAccount": 10,
           "providers": [
-            template2,
-            template3
+            100002,
+            100003
           ],
-          "zone": 1a,
+          "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": template1
+          "currentTemplate": 100001,
+          "os": "LINUX"
         }
       ],
       "ReservedInstances": [
         {
-          "name": RI1,
+          "oid": 2000001,
+          "name": "RI1",
           "businessAccount": 10,
           "utilization": 0,
-          "zone": 1a,
-          "template": template3,
+          "zone": 21,
+          "template": 100003,
           "count": 1,
           "isf": false
         }
       ],
       "Matching": [
         {
-          "VirtualMachine": VM1,
-          "Template": template2
+          "VirtualMachine": 1000001,
+          "Template": 100002
         },
         {
-          "VirtualMachine": VM2,
-          "ReservedInstance": RI1,
-          "Template": template3,
+          "VirtualMachine": 1000002,
+          "ReservedInstance": 2000001,
+          "Template": 100003,
           "DiscountedCoupons": 3
         }
       ]

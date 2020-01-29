@@ -105,7 +105,7 @@ public class SMAVirtualMachineGroup {
         //non leaders have group size 0
         virtualMachine.setGroupSize(0);
         // update the group size of the leader with the size of the group.
-        if (groupLeader.getZone() != virtualMachine.getZone()) {
+        if (groupLeader.getZoneId() != virtualMachine.getZoneId()) {
             this.zonalDiscountable = false;
         }
     }

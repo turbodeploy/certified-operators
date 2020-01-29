@@ -65,21 +65,23 @@ public class SMAInputContext {
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                     oldVM.getName(),
                     oldVM.getGroupName(),
-                    oldVM.getBusinessAccount(),
+                    oldVM.getBusinessAccountId(),
                     oldVM.getCurrentTemplate(),
                     oldVM.getProviders(),
                     oldVM.getCurrentRICoverage(),
-                    oldVM.getZone(),
-                    oldVM.getCurrentRIKey());
+                    oldVM.getZoneId(),
+                    oldVM.getCurrentRIKey(),
+                    oldVM.getOsType());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
         List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
         List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
-        for (int i = 0; i < inputContext.getReservedInstances().size(); i++) {
-            SMAReservedInstance oldRI = oldReservedInstances.get(i);
-            SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+        if (oldReservedInstances != null) {
+            for (int i = 0; i < oldReservedInstances.size(); i++) {
+                SMAReservedInstance oldRI = oldReservedInstances.get(i);
+                SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
                     oldRI.getRiKeyOid(),
                     oldRI.getName(),
                     oldRI.getBusinessAccount(),
@@ -87,7 +89,8 @@ public class SMAInputContext {
                     oldRI.getZone(),
                     oldRI.getCount(),
                     oldRI.isIsf());
-            newReservedInstances.add(newRI);
+                newReservedInstances.add(newRI);
+            }
         }
         this.reservedInstances = newReservedInstances;
     }
@@ -109,14 +112,15 @@ public class SMAInputContext {
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                     oldVM.getName(),
                     oldVM.getGroupName(),
-                    oldVM.getBusinessAccount(),
+                    oldVM.getBusinessAccountId(),
                     smaMatch.getTemplate(),
                     oldVM.getProviders(),
                     (float)smaMatch.getDiscountedCoupons(),
-                    oldVM.getZone(),
+                    oldVM.getZoneId(),
                     smaMatch.getReservedInstance() == null ?
                             SMAUtils.NO_CURRENT_RI :
-                            smaMatch.getReservedInstance().getRiKeyOid());
+                            smaMatch.getReservedInstance().getRiKeyOid(),
+                    oldVM.getOsType());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
@@ -163,7 +167,7 @@ public class SMAInputContext {
         return "SMAInputContext{" +
                 "context=" + context +
                 ", virtualMachines=" + virtualMachines.size() +
-                ", reservedInstances=" + reservedInstances.size() +
+                ", reservedInstances=" + reservedInstances == null ? "" + 0 : reservedInstances.size() +
                 ", templates=" + templates.size() +
                 '}';
     }

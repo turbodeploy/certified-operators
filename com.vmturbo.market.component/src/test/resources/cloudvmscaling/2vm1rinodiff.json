@@ -15,11 +15,15 @@
           "family": "family1",
           "onDemandCost": {
             "compute": 100.0,
-            "license": 20.0
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 3
         },
@@ -29,11 +33,15 @@
           "family": "family2",
           "onDemandCost": {
             "compute": 120.0,
-            "license": 20.0
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 3
         },
@@ -43,11 +51,15 @@
           "family": "family3",
           "onDemandCost": {
             "compute": 140.0,
-            "license": 20.0
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 3
         }
@@ -63,7 +75,8 @@
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100001
+          "currentTemplate": 100001,
+          "os": "LINUX"
         },
         {
           "oid": 1000001,
@@ -75,7 +88,8 @@
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100001
+          "currentTemplate": 100001,
+          "os": "LINUX"
         }
       ],
       "ReservedInstances": [

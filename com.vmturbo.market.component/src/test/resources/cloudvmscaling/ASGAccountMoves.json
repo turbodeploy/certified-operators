@@ -14,11 +14,15 @@
           "family": t3,
           "onDemandCost": {
             "compute": 1.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 1
         },
@@ -27,11 +31,15 @@
           "family": t3a,
           "onDemandCost": {
             "compute": 1.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 1
         }

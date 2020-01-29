@@ -17,14 +17,16 @@
             {
               "compute": 100.0,
               "license": 20.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 10.0,
               "license": 2.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 3
@@ -41,7 +43,8 @@
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100001
+          "currentTemplate": 100001,
+          "os": "LINUX"
         }
       ],
       "ReservedInstances": [

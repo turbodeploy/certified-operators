@@ -20,6 +20,9 @@ import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
 public class SMAReservedInstance {
     /*
+     * Set by the constructor
+     */
+    /*
      * identifier of RIBought. Unique identifier.
      */
     private final long oid;
@@ -44,6 +47,18 @@ public class SMAReservedInstance {
 
     private final SMATemplate template;
 
+
+    private final int count;
+
+    /*
+     * Reserved Instance is InstanceSizeFlexible or not based on context.
+     */
+    private final boolean isf;
+
+
+    /*
+     * Additional instance variables.
+     */
     // the least cost template in the family for ISF RI's
     private SMATemplate normalizedTemplate;
 
@@ -56,13 +71,13 @@ public class SMAReservedInstance {
      */
     /*  We therefore compute coupons to list of pairs..
         the pair is the vm and the actual index in the RI preference list.
-        assume the ri can discount 5 vms (vma vmb vmc vmd vme) in this order and they
+        assume the RI can discount 5 vms (vma vmb vmc vmd vme) in this order and they
         need 2 4 1 2 1 coupons respectively. Then couponToBestVM will look like this.
            1 -> [(vmc,2),(vme,5)]
            2 -> [(vma,0),(vmd,4)]
            4 -> [(vmb,1)]
 
-        This is done so that we can know the preference of ri within a coupon family.
+        This is done so that we can know the preference of RI within a coupon family.
         Also we can get the most preferred vm which needs < x coupons efficiently.
      */
     private HashMap<Integer, List<Pair<SMAVirtualMachine, Integer>>> couponToBestVM;
@@ -77,19 +92,11 @@ public class SMAReservedInstance {
     /*
      * Total count is the count after we normalize the RI and combine the RIs.
      */
-    private float totalCount;
-
-    private final int count;
-
-    /*
-     * Reserved Instance is InstanceSizeFlexible or not based on context.
-     */
-    private final boolean isf;
-
+    private float normalizedCount;
 
     // map to keep track of RI Coverage for each group.
     // Saved to avoid recomputing everytime.
-    // RI OID x Pair<couponsCovered, totalCoupons>
+    // ASG Group Name x Pair<couponsCoveredOfASG, totalCouponsOfASG>
     private HashMap<String, Pair<Float, Float>> riCoveragePerGroup;
 
     // last discounted VM
@@ -98,7 +105,7 @@ public class SMAReservedInstance {
     /**
      * SMA Reserved Instance.
      *
-     * @param oid             oid of ri bought.
+     * @param oid             oid of RI bought.
      * @param riKeyOid        generated keyid for ReservedInstanceKey
      * @param name            name of RI
      * @param businessAccount business account
@@ -122,7 +129,7 @@ public class SMAReservedInstance {
         this.template = Objects.requireNonNull(template, "template is null!");
         this.normalizedTemplate = template;
         this.zone = zone;
-        this.totalCount = count;
+        this.normalizedCount = count;
         this.count = count;
         this.isf = isf;
         couponToBestVM = new HashMap<>();
@@ -194,16 +201,16 @@ public class SMAReservedInstance {
         return zone;
     }
 
-    public float getTotalCount() {
-        return totalCount;
+    public float getNormalizedCount() {
+        return normalizedCount;
     }
 
     public void setNormalizedTemplate(final SMATemplate normalizedTemplate) {
         this.normalizedTemplate = normalizedTemplate;
     }
 
-    public void setTotalCount(final float totalCount) {
-        this.totalCount = totalCount;
+    public void setNormalizedCount(final float normalizedCount) {
+        this.normalizedCount = normalizedCount;
     }
 
     /**
@@ -216,7 +223,7 @@ public class SMAReservedInstance {
         if (isIsf()) {
             SMATemplate oldTemplate = getNormalizedTemplate();
             float countMultiplier = (float)oldTemplate.getCoupons() / (float)newTemplate.getCoupons();
-            setTotalCount(getCount() * countMultiplier);
+            setNormalizedCount(getCount() * countMultiplier);
             setNormalizedTemplate(newTemplate);
         }
     }
@@ -232,11 +239,12 @@ public class SMAReservedInstance {
     }
 
     /**
-     * add  the pair (vm,vmIndex) to couponToBestVM.get(coupon).
+     * Add  the pair (VM, vmIndex) to couponToBestVM.get(coupon).
+     * Side Effect: updates discountableVMs.
      *
      * @param coupon  the key to search in couponToBestVM
-     * @param vmIndex the index of vm in RI's preference list.
-     * @param vm      the vm to be added.
+     * @param vmIndex the index of VM in RI's preference list.
+     * @param vm      the VM to be added.
      */
     public void addVMToCouponToBestVM(int coupon, Integer vmIndex, SMAVirtualMachine vm) {
         if (couponToBestVM.get(coupon) == null) {
@@ -255,6 +263,7 @@ public class SMAReservedInstance {
 
     /**
      * remove the 0th entry from couponToBestVM.get(coupon).
+     * Side Effect: updates discountableVMs.
      *
      * @param coupon the key to search in couponToBestVM
      */
@@ -365,12 +374,11 @@ public class SMAReservedInstance {
         return Objects.hash(oid);
     }
 
-    /**
+    /*
      * RI's that have same businessAccount,normalizedTemplate and zone should be combined. This allows
      * multiple RI's to discount a single VM in case of ISF. Multiple RI to discount multiple VMs in case
      * of ASG.
      */
-
     /**
      * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
      * @param obj the other RI
@@ -395,10 +403,10 @@ public class SMAReservedInstance {
                 ", keyOID='" + riKeyOid + "'" +
                 ", name='" + name + "'" +
                 ", businessAccount='" + businessAccount + "'" +
-                ", normalizedTemplate=" + normalizedTemplate +
                 ", zone='" + zone + "'" +
-                ", totalCount=" + totalCount +
+                ", normalizedCount=" + normalizedCount +
                 ", isf=" + isf +
+                ", normalizedTemplate=" + normalizedTemplate.toStringWithOutCost() +
                 '}';
     }
 }

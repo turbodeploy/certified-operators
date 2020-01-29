@@ -251,15 +251,16 @@ public class SMAUtilsTest {
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                         oldVM.getName(),
                         oldVM.getGroupName(),
-                        oldVM.getBusinessAccount(),
+                        oldVM.getBusinessAccountId(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone(),
+                        oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.NO_CURRENT_RI :
-                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid());
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                        oldVM.getOsType());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -294,8 +295,8 @@ public class SMAUtilsTest {
                     //      vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(vm.getBusinessAccount(), match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), vm.getCurrentRICoverage()) -
+                            match.getTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), match.getDiscountedCoupons()));
                 }
                 if (currentTemplate != matchTemplate) {
                     templatemismatch++;
@@ -335,13 +336,15 @@ public class SMAUtilsTest {
      * family to templates.
      * sorted by coupons.
      *
+     * @param os  the osType, which is needed to access cost.
      * @param familyToNumberOfTemplates map from family to number of templates
      *                                  return map from family to template
      * @param rand Random object with a seed based on current time.
      * @param nBusinessAccounts number of business accounts.  Needed to associate cost with each business account.
      * @return a map of family to templates sorted by coupons.
      */
-    private static Map<String, List<SMATemplate>> computeFamilyToTemplateMap(Map<Integer, Integer> familyToNumberOfTemplates,
+    private static Map<String, List<SMATemplate>> computeFamilyToTemplateMap(OSType os,
+                                                                             Map<Integer, Integer> familyToNumberOfTemplates,
                                                                              Random rand, int nBusinessAccounts) {
 
         // map from family to its templates
@@ -366,8 +369,8 @@ public class SMAUtilsTest {
                         (nFamily * 1000L) + i, name, family,
                         numberOfCoupons, SMAUtils.BOGUS_CONTEXT, null);
                 for (int j = 0; j < nBusinessAccounts; j++) {
-                    smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, onDemandCost);
-                    smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, discountedCost);
+                    smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, os, onDemandCost);
+                    smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, os, discountedCost);
                 }
                 list.add(smaTemplate);
             }
@@ -413,12 +416,13 @@ public class SMAUtilsTest {
      * @param nReservedInstances number of reserved instances
      */
     public static void testWorstCase(int nVirtualMachines, int nReservedInstances) {
+        OSType os = OSType.UNKNOWN_OS;
         SMATemplate smaTemplate = new SMATemplate(SMATestConstants.TEMPLATE_BASE + 1,
                 SMATestConstants.TEMPLATE_NAME_ONE,
                 "family1", 1, SMAUtils.BOGUS_CONTEXT, null);
         for (int i = 0; i <  10; i++) {
-            smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, new SMACost(1, 0));
-            smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, new SMACost(0, 0));
+            smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, os, new SMACost(1, 0));
+            smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, os, new SMACost(0, 0));
         }
         List<SMATemplate> templates = Arrays.asList(smaTemplate);
         List<SMAVirtualMachine> virtualMachines = new ArrayList<>();
@@ -431,7 +435,8 @@ public class SMAUtilsTest {
                     Arrays.asList(smaTemplate),
                     0,
                     SMATestConstants.ZONE_BASE,
-                    SMAUtils.NO_CURRENT_RI);
+                    SMAUtils.NO_CURRENT_RI,
+                    os);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             virtualMachines.add(smaVirtualMachine);
         }
@@ -497,15 +502,16 @@ public class SMAUtilsTest {
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                         oldVM.getName(),
                         oldVM.getGroupName(),
-                        oldVM.getBusinessAccount(),
+                        oldVM.getBusinessAccountId(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone(),
+                        oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.NO_CURRENT_RI :
-                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid());
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                        oldVM.getOsType());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -540,14 +546,14 @@ public class SMAUtilsTest {
                                     "currentTemplate=%s % != matchTemplate=%s " +
                                     "%scoverage=%s discount=%s",
                             vm.getName(), currentTemplate.getName(),
-                            currentTemplate.getOnDemandTotalCost(vm.getBusinessAccount()),
+                            currentTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), os),
                             matchTemplate.getName(),
-                            matchTemplate.getOnDemandTotalCost(vm.getBusinessAccount()),
+                            matchTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), os),
                             vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(vm.getBusinessAccount(), match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), os, vm.getCurrentRICoverage()) -
+                            match.getTemplate().getNetCost(vm.getBusinessAccountId(), os, match.getDiscountedCoupons()));
                 }
                 if (currentTemplate != matchTemplate) {
                     templatemismatch++;
@@ -625,7 +631,7 @@ public class SMAUtilsTest {
 
         // map from family to sorted list of templates.
         Map<String, List<SMATemplate>> familyToTemplateMap =
-            computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
+            computeFamilyToTemplateMap(os, familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
 
         for (int i = 0; i < nVirtualMachines; i++) {
@@ -646,7 +652,8 @@ public class SMAUtilsTest {
                     providers,
                     currentRICoverage,
                     SMATestConstants.ZONE_BASE + rand.nextInt(nzones),
-                    SMAUtils.NO_CURRENT_RI);
+                    SMAUtils.NO_CURRENT_RI,
+                    os);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(smaVirtualMachine);
         }
@@ -776,14 +783,15 @@ public class SMAUtilsTest {
                 }
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(), oldVM.getName(),
                         oldVM.getGroupName(),
-                        oldVM.getBusinessAccount(),
+                        oldVM.getBusinessAccountId(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone(),
+                        oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.NO_CURRENT_RI :
-                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid());
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                        os);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -861,7 +869,7 @@ public class SMAUtilsTest {
         }
 
         // map from family to sorted list of templates.
-        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
+        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(os, familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
         for (int i = 0; i < asgCount; i++) {
             int size = rand.nextInt(asgSize) + 1;
@@ -888,7 +896,8 @@ public class SMAUtilsTest {
                         providers.get(rand.nextInt(providerSize)),
                         memberProviders,
                         currentRICoverage,
-                        vmZone, SMAUtils.NO_CURRENT_RI);
+                        vmZone, SMAUtils.NO_CURRENT_RI,
+                        os);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(smaVirtualMachine);
             }

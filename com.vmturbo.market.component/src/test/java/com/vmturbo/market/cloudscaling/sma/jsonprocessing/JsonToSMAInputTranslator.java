@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+import com.google.common.collect.Table;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -102,11 +103,12 @@ public class JsonToSMAInputTranslator {
 
                     br.write("\t\t\t\t\t\"onDemandCost\": [\n");
                     int currentIndex = 0;
-                    for (Entry<Long, SMACost> entry : smaTemplate.getOnDemandCosts().entrySet()) {
+                    for (Table.Cell<Long, OSType, SMACost> entry : smaTemplate.getOnDemandCosts().cellSet()) {
                         br.write("\t\t\t\t\t\t{\n");
                         br.write("\t\t\t\t\t\t\t\"compute\": " + entry.getValue().getCompute() + ",\n");
                         br.write("\t\t\t\t\t\t\t\"license\": " + entry.getValue().getLicense() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getRowKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"osType\": " + entry.getColumnKey() + "\n");
 
                         if (currentIndex != smaTemplate.getOnDemandCosts().values().size() - 1) {
                             br.write("\t\t\t\t\t\t},\n");
@@ -118,11 +120,12 @@ public class JsonToSMAInputTranslator {
 
                     br.write("\t\t\t\t\t\"discountedCost\": [\n");
                     currentIndex = 0;
-                    for (Entry<Long, SMACost> entry : smaTemplate.getDiscountedCosts().entrySet()) {
+                    for (Table.Cell<Long, OSType, SMACost> entry : smaTemplate.getDiscountedCosts().cellSet()) {
                         br.write("\t\t\t\t\t\t{\n");
                         br.write("\t\t\t\t\t\t\t\"compute\": " + entry.getValue().getCompute() + ",\n");
                         br.write("\t\t\t\t\t\t\t\"license\": " + entry.getValue().getLicense() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getRowKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"osType\": " + entry.getColumnKey() + "\n");
 
                         if (currentIndex != smaTemplate.getDiscountedCosts().values().size() - 1) {
                             br.write("\t\t\t\t\t\t},\n");
@@ -145,7 +148,7 @@ public class JsonToSMAInputTranslator {
                     br.write("\t\t\t\t{\n");
                     br.write("\t\t\t\t\t\"oid\": " + smaVirtualMachine.getOid() + ",\n");
                     br.write("\t\t\t\t\t\"name\": \"" + smaVirtualMachine.getName() + "\",\n");
-                    br.write("\t\t\t\t\t\"businessAccount\": " + smaVirtualMachine.getBusinessAccount() + ",\n");
+                    br.write("\t\t\t\t\t\"businessAccount\": " + smaVirtualMachine.getBusinessAccountId() + ",\n");
                     br.write("\t\t\t\t\t\"providers\": [\n");
                     for (SMATemplate provider : smaVirtualMachine.getProviders()) {
                         br.write("\t\t\t\t\t\t" + provider.getOid());
@@ -155,7 +158,7 @@ public class JsonToSMAInputTranslator {
                     }
                     br.write("\n");
                     br.write("\t\t\t\t\t],\n");
-                    br.write("\t\t\t\t\t\"zone\": " + smaVirtualMachine.getZone() + ",\n");
+                    br.write("\t\t\t\t\t\"zone\": " + smaVirtualMachine.getZoneId() + ",\n");
                     if (!smaVirtualMachine.getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
                         br.write("\t\t\t\t\t\"groupName\": " + smaVirtualMachine.getGroupName() + ",\n");
                     }
@@ -303,6 +306,7 @@ public class JsonToSMAInputTranslator {
                     onDemandCostObj.getAsJsonObject().get("license").getAsFloat());
             template.setOnDemandCost(
                     onDemandCostObj.getAsJsonObject().get("businessAccount").getAsLong(),
+                    OSType.valueOf(onDemandCostObj.getAsJsonObject().get("os").getAsString()),
                     onDemandCost);
         }
         JsonArray discountedCostObjs = (JsonArray)templateObj.get("discountedCost");
@@ -312,6 +316,7 @@ public class JsonToSMAInputTranslator {
                     discountedCostObj.getAsJsonObject().get("license").getAsFloat());
             template.setDiscountedCost(
                     discountedCostObj.getAsJsonObject().get("businessAccount").getAsLong(),
+                OSType.valueOf(discountedCostObj.getAsJsonObject().get("os").getAsString()),
                     discountedCost);
         }
         return template;
@@ -321,6 +326,7 @@ public class JsonToSMAInputTranslator {
         Long oid = virtualMachineObj.get("oid").getAsLong();
         String name = virtualMachineObj.get("name").getAsString();
         Long businessAccountOid = virtualMachineObj.get("businessAccount").getAsLong();
+        OSType osType = OSType.valueOf(virtualMachineObj.get("os").getAsString());
         float currentRICoverage = virtualMachineObj.get("currentRICoverage").getAsFloat();
         JsonElement currentRIObj = virtualMachineObj.get("currentRIKeyID");
         long currentRI = SMAUtils.NO_CURRENT_RI;
@@ -347,13 +353,13 @@ public class JsonToSMAInputTranslator {
                 String vm_name = name + i.toString();
                 long newOid = oid + i;
                 SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupName, businessAccountOid,
-                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI);
+                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI, osType);
                 virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
             SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupName, businessAccountOid,
-                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI);
+                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI, osType);
             virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
         }

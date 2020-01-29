@@ -3,8 +3,8 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 import java.util.EnumSet;
 
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
-import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -47,6 +47,7 @@ public class SMAUtils {
         return (float)Math.round(input *
                 SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
     }
+
     /**
      * Set of Linux OS. Used to determine if the RI is ISF.
      */

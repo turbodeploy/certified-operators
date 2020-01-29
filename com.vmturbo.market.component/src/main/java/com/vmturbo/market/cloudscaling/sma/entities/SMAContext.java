@@ -102,7 +102,7 @@ public class SMAContext {
     public String toString() {
         return "SMAContext{" +
             "csp=" + csp +
-            "billingAccount='" + billingAccountId + '\'' +
+            ", billingAccount='" + billingAccountId + '\'' +
             ", region='" + regionId + '\'' +
             ", os=" + osType +
             ", tenancy=" + tenancy +

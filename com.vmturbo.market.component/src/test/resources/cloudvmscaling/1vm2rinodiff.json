@@ -17,14 +17,16 @@
             {
               "compute": 4.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 4
@@ -37,14 +39,16 @@
             {
               "compute": 4.1,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 4
@@ -57,14 +61,16 @@
             {
               "compute": 4.1,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 4
@@ -81,7 +87,8 @@
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100003
+          "currentTemplate": 100003,
+          "os": "LINUX"
         }
       ],
       "ReservedInstances": [

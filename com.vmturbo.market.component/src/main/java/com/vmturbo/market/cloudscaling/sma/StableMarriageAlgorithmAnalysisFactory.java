@@ -18,6 +18,6 @@ public interface StableMarriageAlgorithmAnalysisFactory {
      */
     @Nonnull
     StableMarriageAlgorithmAnalysis newStableMarriageAlgorithmAnalysis(
-            @Nonnull final SMAInput input);
+            @Nonnull SMAInput input);
 
 }

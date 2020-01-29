@@ -29,7 +29,7 @@ public class StableMarriageAlgorithm {
      * @return the SMA output
      */
     public static SMAOutput execute(@Nonnull SMAInput input) {
-        Objects.requireNonNull(input, "StableMarriageAlgorithm.execute() input is null!");
+        Objects.requireNonNull(input, "SMA execute() input is null!");
         List<SMAOutputContext> outputContexts = new ArrayList<>();
         for (SMAInputContext inputContext : input.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
@@ -37,7 +37,7 @@ public class StableMarriageAlgorithm {
         }
         SMAOutput output = new SMAOutput(outputContexts);
         for (SMAOutputContext outputContext : output.getContexts()) {
-            logger.info("StableMarriageAlgorithm: {}", outputContext);
+            logger.info("SMA {}", outputContext);
         }
         return output;
     }
