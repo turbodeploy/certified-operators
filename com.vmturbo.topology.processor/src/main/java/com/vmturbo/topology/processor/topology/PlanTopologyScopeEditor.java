@@ -228,8 +228,6 @@ public class PlanTopologyScopeEditor {
         // record a count of the number of entities by their entity type in the context.
         logger.info("Initial entity graph total count is {}", topology.size());
         entityCountMsg(topology.entities().collect(Collectors.toSet()));
-        // holder for the scoped topology
-        TopologyGraphCreator scopedGraphCreator = new TopologyGraphCreator();
 
         Map<EntityType, Set<TopologyEntity>> allSeed = getSeedEntities(groupResolver, planScope, topology);
         // a "work queue" of entities to expand; any given OID is only ever added once -
@@ -349,6 +347,11 @@ public class PlanTopologyScopeEditor {
         scopedTopologyOIDs.stream().forEach(oid -> scopingResult.put(oid,
                 TopologyEntity.newBuilder(topology.getEntity(oid).get().getTopologyEntityDtoBuilder())
                     .setClonedFromEntityOid(topology.getEntity(oid).get().getClonedFromEntityOid())));
+        // including addedEntities into the scope
+        topology.entities().filter(entity -> entity.getTopologyEntityDtoBuilder().hasOrigin() &&
+                                             entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin())
+                .forEach(entity -> scopingResult.put(entity.getOid(),
+                        TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())));
         logger.info("Completed scoping stage for on-prem topology .....");
         return new TopologyGraphCreator<>(scopingResult).build();
     }

@@ -7,6 +7,8 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.analysis.InvertedIndexBaseTranslator;
@@ -45,8 +47,14 @@ public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTransla
      */
     public int[] getCommodityBoughtTypeArray(final TopologyEntityDTO.CommoditiesBoughtFromProvider basket) {
         return basket.getCommodityBoughtList().stream()
-                .mapToInt(commBought -> toMarketCommodityId(commBought.getCommodityType()))
-                .sorted().toArray();
+            // When there is a basket with no accessCommodities, it is possible that it could bring in entities from
+            // outside the scope. When we filter out non-accessComms and use just accessCommodities while determining
+            // scope, restrict the scope to just entities that are within the specified constraints.
+            // In the case of vSAN storages that buy no accessCommodities, we pull in the relevant hosts as providers
+            // of the VMs in scope.
+            .filter(commBought -> !StringUtils.isEmpty(commBought.getCommodityType().getKey()))
+            .mapToInt(commBought -> toMarketCommodityId(commBought.getCommodityType()))
+            .sorted().toArray();
     }
 
     /**
