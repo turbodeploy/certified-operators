@@ -74,6 +74,11 @@ message GroupDefinition {
     // support user tags as well.
     optional .tag.Tags tags = 11;
 
+    // Collection of group type's specific data.
+    oneof group_data {
+        EntityDefinitionData entity_definition_data = 12;
+    }
+
     // Represent a list of group-specific search parameters, for groups that contain other groups.
     message GroupFilters {
         // a group is a member of this group if it satisfies any of the filters specified here (OR)
@@ -101,7 +106,12 @@ message GroupDefinition {
         // The environment for which this group is group of all entities
         optional .common.EnvironmentType environment_type = 2;
     }
+}
 
+// This is used to store specific data for EntityDefinition group type.
+message EntityDefinitionData {
+    // Represents The type of entity that will be created based on an EntityDefinition group.
+    optional common_dto.EntityDTO.EntityType defined_entity_type = 1;
 }
 
 // This encapsulates both the origin type and the information appropriate to that origin type
