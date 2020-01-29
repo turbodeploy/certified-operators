@@ -1190,18 +1190,19 @@ public class GroupsService implements IGroupsService {
             @Nullable List<String> scopes,
             boolean includeAllGroupClasses) throws OperationFailedException {
         GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
-        // don't set a group type if we want to include all types of groups.  Filters don't
-        // apply since there could be multiple different group types returned.
-        if (includeAllGroupClasses && groupType == GroupType.REGULAR) {
-            request.setGroupFilter(GroupFilter.getDefaultInstance());
-        } else {
-            if (includeAllGroupClasses) {
-                logger.warn("includeAllGroupClasses flag set to true for group type {}."
-                        + "  This will be ignored and only groups of type {} will be returned.",
-                    groupType.name(), groupType.name());
-            }
-            request.setGroupFilter(groupFilterMapper.apiFilterToGroupFilter(groupType, filterList));
+        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, filterList);
+        if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
+            String errorMessage =
+                String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",
+                    groupType.name());
+            throw new OperationFailedException(errorMessage);
         }
+        // if we are including all subclasses, clear the group type from the filter
+        if (includeAllGroupClasses) {
+            groupFilter = groupFilter.toBuilder().clearGroupType().build();
+        }
+        request.setGroupFilter(groupFilter);
+
         if (scopes != null) {
             if (scopes.size() == 1 && scopes.get(0).equals(USER_GROUPS)) {
                 // if we are looking for groups created by user, we should also add a origin filter

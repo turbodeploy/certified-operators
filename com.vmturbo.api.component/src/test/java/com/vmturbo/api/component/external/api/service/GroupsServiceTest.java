@@ -50,6 +50,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestRe
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -1424,9 +1425,19 @@ public class GroupsServiceTest {
                 .build();
         // when getPaginatedGroupApiDTOs is called with includeAllGroupClasses=true, we will send
         // the default group filter
-        GetGroupsRequest defaultRequest = GetGroupsRequest.newBuilder()
-            .setGroupFilter(GroupFilter.getDefaultInstance())
+        final FilterApiDTO nameFilter = new FilterApiDTO();
+
+        final GroupFilter groupFilterWithNameFilter = GroupFilter.newBuilder()
+            .addPropertyFilters(SearchProtoUtil.nameFilterRegex(
+                "foobar",
+                EntityFilterMapper.isPositiveMatchingOperator(EntityFilterMapper.REGEX_MATCH),
+                false))
             .build();
+        GetGroupsRequest allGroupsRequestWithNameFilter = GetGroupsRequest.newBuilder()
+            .setGroupFilter(groupFilterWithNameFilter)
+            .build();
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+            eq(Collections.singletonList(nameFilter)))).thenReturn(groupFilterWithNameFilter);
 
         final Grouping groupOfClusters = Grouping.newBuilder()
                 .setId(11L)
@@ -1473,7 +1484,7 @@ public class GroupsServiceTest {
             .build();
         when(groupExpander.getGroupsWithMembers(expectedRequest)).thenAnswer(c ->
                 Stream.of(group1, group2));
-        when(groupExpander.getGroupsWithMembers(defaultRequest)).thenAnswer(c ->
+        when(groupExpander.getGroupsWithMembers(allGroupsRequestWithNameFilter)).thenAnswer(c ->
             Stream.of(group1, group2, group3));
 
         GroupApiDTO groupApiDTO1 = new GroupApiDTO();
@@ -1510,7 +1521,7 @@ public class GroupsServiceTest {
                 .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId()));
 
         // search for groups of all group types
-        response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
+        response = groupsService.getPaginatedGroupApiDTOs(Collections.singletonList(nameFilter),
             new SearchPaginationRequest(null, null, true, null),
             null, null, null, true);
         assertThat(response.getRestResponse().getBody().stream()
