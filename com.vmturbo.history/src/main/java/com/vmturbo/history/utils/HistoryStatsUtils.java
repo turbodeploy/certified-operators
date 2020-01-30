@@ -22,6 +22,7 @@ import static com.vmturbo.history.db.EntityType.CHASSIS;
 import static com.vmturbo.history.db.EntityType.DESKTOP_POOL;
 import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
 import static com.vmturbo.history.db.EntityType.IO_MODULE;
+import static com.vmturbo.history.db.EntityType.SERVICE;
 import static com.vmturbo.history.db.EntityType.STORAGE_CONTROLLER;
 import static com.vmturbo.history.db.EntityType.SWITCH;
 import static com.vmturbo.history.db.EntityType.VDC;
@@ -153,6 +154,7 @@ public class HistoryStatsUtils {
             SDK_ENTITY_TYPE_TO_ENTITY_TYPE =
             new ImmutableMap.Builder<CommonDTO.EntityDTO.EntityType, EntityType>()
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.SERVICE, SERVICE)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
@@ -191,6 +193,7 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
                     .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.SERVICE, SERVICE)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)

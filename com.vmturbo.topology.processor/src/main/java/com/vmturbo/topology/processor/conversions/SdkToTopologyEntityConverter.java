@@ -849,7 +849,9 @@ public class SdkToTopologyEntityConverter {
                 entity.getEntityType() == EntityType.APPLICATION_SERVER ||
                 entity.getEntityType() == EntityType.APPLICATION ||
                 entity.getEntityType() == EntityType.DATABASE_SERVER ||
-                entity.getEntityType() == EntityType.DATABASE) {
+                entity.getEntityType() == EntityType.DATABASE ||
+                entity.getEntityType() == EntityType.SERVICE
+        ) {
             return Optional.of(checkAppSuspendability(entity));
         }
         return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
