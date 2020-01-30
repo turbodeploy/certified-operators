@@ -10,6 +10,7 @@ import java.util.Map;
 
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -113,7 +114,35 @@ public class CommodityConverterTest {
 
     }
 
-
+    /**
+     * Test that the resizable flag of comm sold TO created is based on entity state.
+     * @param entityState the state of the entity
+     * @param expectedResizable the expected resizable on the commodities sold
+     */
+    @Test
+    @Parameters({"POWERED_ON, true", "POWERED_OFF, false", "SUSPENDED, false", "MAINTENANCE, false", "FAILOVER, false", "UNKNOWN, false"})
+    @TestCaseName("Test #{index}: For EntityState {0}, the commodities sold are expected to be resizable {1}")
+    public final void testCommSoldTOResizableIsBasedOnEntityState(EntityState entityState, boolean expectedResizable) {
+        HistoricalValues histUsed = HistoricalValues.newBuilder()
+            .setHistUtilization(RAW_USED)
+            .setPercentile(PERCENTILE_USED)
+            .build();
+        final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
+            .setOid(PM_OID)
+            .setEntityState(entityState)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditySoldList(createSoldCommodity(histUsed, SCALING_FACTOR,
+                CommodityDTO.CommodityType.VCPU, 100))
+            .addCommoditySoldList(createSoldCommodity(histUsed, SCALING_FACTOR,
+                CommodityDTO.CommodityType.VMEM, 100))
+            .build();
+        // Act
+        final Collection<CommoditySoldTO> result =
+            converterToTest.commoditiesSoldList(originalTopologyEntityDTO);
+        // Assert
+        assertThat(result.size(), equalTo(2));
+        result.forEach(c -> assertEquals(expectedResizable, c.getSettings().getResizable()));
+    }
 
     private static CommoditySoldTO getCommodityByType(Collection<CommoditySoldTO> commodities,
                     CommodityDTO.CommodityType desiredType) {
