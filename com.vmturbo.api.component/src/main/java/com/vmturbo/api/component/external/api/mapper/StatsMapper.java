@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -82,6 +83,11 @@ public class StatsMapper {
     private static final String BIT_PER_SEC = "bit/sec";
 
     public static final String FILTER_NAME_KEY = "key";
+    /**
+     * This is a special "group by" sent in by the probe and transferred directly to/from history
+     * component.
+     */
+    private static final String PERCENTILE = "percentile";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
     private static final ImmutableSet<String> apiRelationTypes = ImmutableSet.of(
@@ -405,19 +411,37 @@ public class StatsMapper {
             filters.add(keyFilter);
         }
 
-        if (convertedStatRecord.hasPercentileUtilization()) {
-            final StatValue percentileUtilization = convertedStatRecord.getPercentileUtilization();
-            if (percentileUtilization.hasAvg()) {
-                final StatPercentileApiDTO statPercentileApiDTO = new StatPercentileApiDTO();
-                statPercentileApiDTO.setPercentileUtilization(percentileUtilization.getAvg());
-                statApiDTO.setPercentile(statPercentileApiDTO);
-            }
+        if (!convertedStatRecord.getHistUtilizationValueList().isEmpty()) {
+            final Optional<HistUtilizationValue> percentileValue =
+                            convertedStatRecord.getHistUtilizationValueList().stream()
+                                            .filter(value -> PERCENTILE.equals(value.getType()))
+                                            .findAny();
+            percentileValue.map(StatsMapper::calculatePercentile)
+                            .map(StatsMapper::createPercentileApiDto)
+                            .ifPresent(statApiDTO::setPercentile);
         }
 
         if (filters.size() > 0) {
             statApiDTO.setFilters(filters);
         }
         return statApiDTO;
+    }
+
+    @Nonnull
+    private static StatPercentileApiDTO createPercentileApiDto(@Nullable Float percentileUtilization) {
+        final StatPercentileApiDTO result = new StatPercentileApiDTO();
+        result.setPercentileUtilization(percentileUtilization);
+        return result;
+    }
+
+    @Nullable
+    private static Float calculatePercentile(@Nonnull HistUtilizationValue value) {
+        final StatValue usage = value.getUsage();
+        final StatValue capacity = value.getCapacity();
+        if (usage.hasAvg() && capacity.hasAvg()) {
+            return usage.getAvg() / capacity.getAvg() * 100;
+        }
+        return null;
     }
 
     @Nonnull

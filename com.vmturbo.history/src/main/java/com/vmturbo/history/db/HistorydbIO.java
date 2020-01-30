@@ -108,6 +108,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRe
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -127,6 +128,7 @@ public class HistorydbIO extends BasedbIO {
     // min and max for numerical values for the statstables; must fit in DECIMAL(15,3), 12 digits
     private static final double MAX_STATS_VALUE = 1e12D - 1;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
+    private static final String SPACE = UICommodityType.SPACE.apiStr();
     private final SQLConfigObject sqlConfigObject;
     private static final String SECURE_DB_QUERY_PARMS = "useSSL=true&trustServerCertificate=true";
 
@@ -170,8 +172,6 @@ public class HistorydbIO extends BasedbIO {
         retentionDbColumnNameToSettingName.inverse();
 
     private static final String AUDIT_LOG_RETENTION_POLICY_NAME = "retention_days";
-
-    private static final String STATS_TABLE_PROPERTY_SUBTYPE_FILTER = "used";
 
     private static final String MAX_COLUMN_NAME = "max";
 
@@ -1374,7 +1374,7 @@ public class HistorydbIO extends BasedbIO {
                         DSL.max(getField(tbl, MAX_VALUE)))
                     .from(tbl)
                     // only interested in used and sold commodities
-                    .where(getStringField(tbl, PROPERTY_SUBTYPE).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
+                    .where(getStringField(tbl, PROPERTY_SUBTYPE).eq(PropertySubType.Used.getApiParameterName()).and(
                         (getRelationTypeField(tbl, RELATION)).eq(RelationType.COMMODITIES)))
                     .groupBy(getField(tbl, UUID), getField(tbl, PROPERTY_TYPE))
                     .fetch(); //TODO:karthikt - check if fetchLazy would help here.
@@ -1505,12 +1505,13 @@ public class HistorydbIO extends BasedbIO {
         final Set<Long> allDatacenterEntities = new HashSet<>();
         try (Connection conn = connection()) {
             // query from latest table.
+            final String usedSubType = PropertySubType.Used.getApiParameterName();
             using(conn)
                 .selectDistinct(PM_STATS_LATEST.UUID)
                 .from(PM_STATS_LATEST)
                 .where(PM_STATS_LATEST.PRODUCER_UUID.isNull()).and(
-                PM_STATS_LATEST.PROPERTY_TYPE.eq("Space")).and(
-                PM_STATS_LATEST.PROPERTY_SUBTYPE.eq("used"))
+                PM_STATS_LATEST.PROPERTY_TYPE.eq(SPACE)).and(
+                PM_STATS_LATEST.PROPERTY_SUBTYPE.eq(usedSubType))
                 .fetch()
                 .listIterator()
                 .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
@@ -1520,8 +1521,8 @@ public class HistorydbIO extends BasedbIO {
                 .selectDistinct(PM_STATS_BY_HOUR.UUID)
                 .from(PM_STATS_BY_HOUR)
                 .where(PM_STATS_BY_HOUR.PRODUCER_UUID.isNull()).and(
-                PM_STATS_BY_HOUR.PROPERTY_TYPE.eq("Space")).and(
-                PM_STATS_BY_HOUR.PROPERTY_SUBTYPE.eq("used"))
+                PM_STATS_BY_HOUR.PROPERTY_TYPE.eq(SPACE)).and(
+                PM_STATS_BY_HOUR.PROPERTY_SUBTYPE.eq(usedSubType))
                 .fetch()
                 .listIterator()
                 .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
@@ -1531,8 +1532,8 @@ public class HistorydbIO extends BasedbIO {
                 .selectDistinct(PM_STATS_BY_DAY.UUID)
                 .from(PM_STATS_BY_DAY)
                 .where(PM_STATS_BY_DAY.PRODUCER_UUID.isNull()).and(
-                PM_STATS_BY_DAY.PROPERTY_TYPE.eq("Space")).and(
-                PM_STATS_BY_DAY.PROPERTY_SUBTYPE.eq("used"))
+                PM_STATS_BY_DAY.PROPERTY_TYPE.eq(SPACE)).and(
+                PM_STATS_BY_DAY.PROPERTY_SUBTYPE.eq(usedSubType))
                 .fetch()
                 .listIterator()
                 .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));

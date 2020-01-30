@@ -41,6 +41,8 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonth
 @DirtiesContext(classMode = ClassMode.AFTER_CLASS)
 public class ClusterStatsReaderTest {
 
+    private static final String NUM_VMS = PropertySubType.NumVms.getApiParameterName();
+    private static final String HEADROOM_VMS = PropertySubType.HeadroomVms.getApiParameterName();
     @Autowired
     private DbTestConfig dbTestConfig;
 
@@ -88,7 +90,7 @@ public class ClusterStatsReaderTest {
      */
     private void populateTestData() throws VmtDbException {
         String[] datesByDay = {"2017-12-15", "2017-12-14", "2017-12-12"};
-        String[] commodityNames = {"headroomVMs", "numVMs"};
+        String[] commodityNames = {HEADROOM_VMS, NUM_VMS};
 
         for (int i = 0; i < datesByDay.length; i++) {
             for (int j = 0; j < commodityNames.length; j++) {
@@ -173,7 +175,7 @@ public class ClusterStatsReaderTest {
      */
     @Test
     public void testGetStatsRecordsByDayWithOneCommodityName() throws VmtDbException {
-        Set<String> commodityNames = Sets.newHashSet("headroomVMs");
+        Set<String> commodityNames = Sets.newHashSet(HEADROOM_VMS);
         List<ClusterStatsByDayRecord> result =
             clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
                 Date.valueOf("2017-12-14").getTime(),
@@ -190,7 +192,7 @@ public class ClusterStatsReaderTest {
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange1() throws VmtDbException {
-        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet(HEADROOM_VMS, NUM_VMS);
         List<ClusterStatsByDayRecord> result =
                 clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
                         Date.valueOf("2017-12-14").getTime(),
@@ -206,7 +208,7 @@ public class ClusterStatsReaderTest {
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange2() throws VmtDbException {
-        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet(HEADROOM_VMS, NUM_VMS);
         List<ClusterStatsByDayRecord> result =
                 clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
                         Date.valueOf("2017-12-10").getTime(),
@@ -217,7 +219,7 @@ public class ClusterStatsReaderTest {
 
     @Test
     public void testGetStatsRecordsByMonth() throws VmtDbException {
-        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet(HEADROOM_VMS, NUM_VMS);
         List<ClusterStatsByMonthRecord> result =
                 clusterStatsReader.getStatsRecordsByMonth(Long.parseLong(clusterId1),
                         Date.valueOf("2017-09-10").getTime(),
@@ -250,7 +252,7 @@ public class ClusterStatsReaderTest {
      */
     @Test
     public void testGetStatsRecordsByMonthWithOneCommodityName() throws VmtDbException {
-        Set<String> commodityNames = Sets.newHashSet("headroomVMs");
+        Set<String> commodityNames = Sets.newHashSet(HEADROOM_VMS);
         List<ClusterStatsByMonthRecord> result =
             clusterStatsReader.getStatsRecordsByMonth(Long.parseLong(clusterId1),
                 Date.valueOf("2017-09-10").getTime(),
@@ -261,7 +263,7 @@ public class ClusterStatsReaderTest {
 
     @Test
     public void testGetStatsRecordsByDayWithSameDate() throws VmtDbException {
-        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet(HEADROOM_VMS, NUM_VMS);
 
         // Scenario :
         // a) This date does not currently exist in db.

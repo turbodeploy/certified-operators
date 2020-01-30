@@ -21,6 +21,10 @@ import com.vmturbo.history.db.VmtDbException;
  */
 public interface INonPaginatingStatsReader<R extends Record> {
     /**
+     * Partition the list of entities to read into chunks of this size in order not to flood the DB.
+     */
+    int ENTITIES_PER_CHUNK = 50000;
+    /**
      * Reads and returns collection of records related to entities specified by entity identifiers
      * and filtered by conditions in {@link StatsFilter} instance.
      *

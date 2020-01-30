@@ -266,7 +266,6 @@ public class StringConstants {
     public static final String CURRENTVMS = "CurrentVMs";
     public static final String V_POD = "VPod";
     public static final String D_POD = "DPod";
-    public static String[] PROPERTY_SUBTYPE_LIST = {"DesiredVMs","CurrentVMs","currentNumHosts","currentNumStorages","currentUtilization"};
     public static final String CREATE_TIME="create_time";
 
     public static final String TARGET = "Target";
@@ -274,10 +273,7 @@ public class StringConstants {
     public static final String TARGET_UUID_CC = "targetUuid";
     public static final String PROPERTY_SUBTYPE_USED = "used";
     public static final String PROPERTY_SUBTYPE_UTILIZATION = "utilization";
-    /**
-     * Commodity percentile utilization.
-     */
-    public static final String PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION = "percentileUtilization";
+
     public static final String TARGET_UUID = "target_uuid";
     public static final String PROVIDER_ID = "provider_id";
     public static final String CATEGORY_ID = "category_id";

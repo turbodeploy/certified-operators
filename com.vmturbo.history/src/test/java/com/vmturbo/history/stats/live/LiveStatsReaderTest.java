@@ -56,10 +56,13 @@ import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.PmStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.stats.INonPaginatingStatsReader;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
+import com.vmturbo.history.stats.readers.HistUtilizationReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 
@@ -72,6 +75,8 @@ public class LiveStatsReaderTest {
     private StatsQueryFactory statsQueryFactory = mock(StatsQueryFactory.class);
 
     private RatioRecordFactory ratioRecordFactory = mock(RatioRecordFactory.class);
+    private INonPaginatingStatsReader<HistUtilizationRecord> histUtilizationReader =
+                    mock(HistUtilizationReader.class);
 
     private FullMarketRatioProcessorFactory fullMarketRatioProcessor =
         mock(FullMarketRatioProcessorFactory.class);
@@ -80,7 +85,7 @@ public class LiveStatsReaderTest {
             new LiveStatsReader(mockHistorydbIO, timeRangeFactory,
                 statsQueryFactory,
                 fullMarketRatioProcessor,
-                ratioRecordFactory);
+                ratioRecordFactory, histUtilizationReader, 5000);
 
     private static final Timestamp TIMESTAMP = new Timestamp(0);
 

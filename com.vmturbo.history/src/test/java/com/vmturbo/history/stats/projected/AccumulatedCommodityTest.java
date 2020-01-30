@@ -6,11 +6,13 @@ import static org.junit.Assert.assertFalse;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
@@ -31,6 +33,13 @@ public class AccumulatedCommodityTest {
         .record(5)
         .record(5)
         .toStatValue();
+    private static final StatValue PERCENTILE_USAGE = StatValue.newBuilder()
+    .setAvg(2.5F)
+    .setMax(2.5F)
+    .setMin(2.5F)
+    .setTotal(5F)
+    .setTotalMax(5F)
+    .setTotalMin(5F).build();
 
     @Test
     public void testAccumulatedSoldCommodityEmpty() {
@@ -66,13 +75,12 @@ public class AccumulatedCommodityTest {
                 .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
                 .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
                 .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
-                .setPercentileUtilization(StatValue.newBuilder()
-                        .setAvg(0.5F)
-                        .setMax(0.5F)
-                        .setMin(0.5F)
-                        .setTotal(1F)
-                        .setTotalMax(1F)
-                        .setTotalMin(1F).build()).build();
+                .addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                                .setType(HistoryUtilizationType.Percentile
+                                                .getApiParameterName())
+                                .setUsage(PERCENTILE_USAGE)
+                                .setCapacity(TWO_VALUE_STAT))
+                                .build();
 
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
@@ -105,13 +113,11 @@ public class AccumulatedCommodityTest {
                 .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
                 .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
                 .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
-                .setPercentileUtilization(StatValue.newBuilder()
-                        .setAvg(0.5F)
-                        .setMax(0.5F)
-                        .setMin(0.5F)
-                        .setTotal(1F)
-                        .setTotalMax(1F)
-                        .setTotalMin(1F).build()).build();
+                .addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                                .setType(HistoryUtilizationType.Percentile
+                                                .getApiParameterName())
+                                .setUsage(PERCENTILE_USAGE)
+                                .setCapacity(TWO_VALUE_STAT)).build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }
@@ -140,14 +146,7 @@ public class AccumulatedCommodityTest {
             .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
             .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
             .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
-            .setPercentileUtilization(StatValue.newBuilder()
-                    .setAvg(0.5F)
-                    .setMax(0.5F)
-                    .setMin(0.5F)
-                    .setTotal(1F)
-                    .setTotalMax(1F)
-                    .setTotalMin(1F)
-                    .build()).build();
+            .build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }

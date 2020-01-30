@@ -19,7 +19,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -102,12 +101,11 @@ import com.vmturbo.history.ingesters.live.writers.SystemLoadWriter;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
-import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 
 /**
  * Test gRPC methods to handle snapshot requests.
@@ -119,6 +117,8 @@ public class StatsHistoryRpcServiceTest {
     private static final long PLAN_OID = PLAN_UUID;
     private static final Timestamp SNAPSHOT_TIME = new Timestamp(123L);
     private static final long REALTIME_CONTEXT_ID = 7L;
+    private static final String NUM_VMS = PropertySubType.NumVms.getApiParameterName();
+    private static final String HEADROOM_VMS = PropertySubType.HeadroomVms.getApiParameterName();
     private final long topologyContextId = 8L;
 
     private LiveStatsReader mockLivestatsreader = mock(LiveStatsReader.class);
@@ -135,10 +135,11 @@ public class StatsHistoryRpcServiceTest {
 
     private EntityStatsPaginationParamsFactory paginationParamsFactory =
             mock(EntityStatsPaginationParamsFactory.class);
+    private StatRecordBuilder statRecordBuilderSpy =
+                    Mockito.spy(StatsConfig.createStatRecordBuilder(mockLivestatsreader));
 
-    private StatRecordBuilder statRecordBuilderSpy = spy(new DefaultStatRecordBuilder(mockLivestatsreader));
-
-    private StatSnapshotCreator statSnapshotCreatorSpy = spy(new DefaultStatSnapshotCreator(statRecordBuilderSpy));
+    private StatSnapshotCreator statSnapshotCreatorSpy =
+                    Mockito.spy(StatsConfig.createStatSnapshotCreator(mockLivestatsreader));
 
     private SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
 
@@ -170,6 +171,7 @@ public class StatsHistoryRpcServiceTest {
 
     @Before
     public void setup() {
+
         clientStub = StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
     }
 
@@ -193,9 +195,7 @@ public class StatsHistoryRpcServiceTest {
         final List<Record> statsRecordsList = Lists.newArrayList(
             newStatRecord(SNAPSHOT_TIME, c1Value1, propType, USED),
             newStatRecord(SNAPSHOT_TIME, c1Value2, propType, USED),
-            newStatRecord(SNAPSHOT_TIME, c2Value, propType2, USED),
-            // This one (utilization) should be dropped while processing the stats.
-            newStatRecord(SNAPSHOT_TIME, 0.95f, propType2, UTILIZATION));
+            newStatRecord(SNAPSHOT_TIME, c2Value, propType2, USED));
 
         when(mockLivestatsreader.getRecords(anyObject(), anyObject()))
                 .thenReturn(statsRecordsList);
@@ -587,7 +587,7 @@ public class StatsHistoryRpcServiceTest {
     @Test
     public void testClusterStatsWithoutDates() throws Exception {
         String[] dates = {"2017-12-15"};
-        String[] commodityNames = {"headroomVMs", "numVMs"};
+        String[] commodityNames = {HEADROOM_VMS, NUM_VMS};
         String clusterId = "1234567890";
 
         ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
@@ -610,7 +610,7 @@ public class StatsHistoryRpcServiceTest {
         List<StatRecord> startRecordList = capturedArgument.getStatRecordsList();
         List<String> recordNames = Arrays.asList(startRecordList.get(0).getName(),
                 startRecordList.get(1).getName());
-        assertThat(recordNames, containsInAnyOrder("headroomVMs", "numVMs"));
+        assertThat(recordNames, containsInAnyOrder(HEADROOM_VMS, NUM_VMS));
     }
 
     /**
@@ -623,7 +623,7 @@ public class StatsHistoryRpcServiceTest {
     @Test
     public void testClusterStatsWithDates() throws Exception {
         String[] dates = {"2017-12-13", "2017-12-14", "2017-12-15"};
-        String[] commodityNames = {"headroomVMs", "numVMs"};
+        String[] commodityNames = {HEADROOM_VMS, NUM_VMS};
 
         long startDate = Date.valueOf(dates[0]).getTime();
         long endDate = Date.valueOf(dates[dates.length - 1]).getTime();
@@ -650,7 +650,7 @@ public class StatsHistoryRpcServiceTest {
             List<StatRecord> startRecordList = snapshots.get(i).getStatRecordsList();
             List<String> recordNames = Arrays.asList(startRecordList.get(0).getName(),
                     startRecordList.get(1).getName());
-            assertThat(recordNames, containsInAnyOrder("headroomVMs", "numVMs"));
+            assertThat(recordNames, containsInAnyOrder(HEADROOM_VMS, NUM_VMS));
         }
     }
 
@@ -662,7 +662,7 @@ public class StatsHistoryRpcServiceTest {
      */
     @Test
     public void testClusterStatsByMonth() throws Exception {
-        String[] commodityNames = {"headroomVMs", "numVMs"};
+        String[] commodityNames = {HEADROOM_VMS, NUM_VMS};
         long startDate = Date.valueOf("2017-06-25").getTime();
         long endDate = Date.valueOf("2017-12-19").getTime();
         String clusterId = "1234567890";

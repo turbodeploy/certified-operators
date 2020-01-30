@@ -55,9 +55,6 @@ class ClusterStatsWriter {
     private static final String SUM_OF_CAPACITY = "sum_cap";
     private static final String SUM_OF_AVERAGE = "sum_avg";
 
-    private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
-
-
     private final HistorydbIO historydbIO;
 
     /**

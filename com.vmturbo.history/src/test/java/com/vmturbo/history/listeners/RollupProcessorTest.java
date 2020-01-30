@@ -58,6 +58,7 @@ import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
+import com.vmturbo.history.stats.PropertySubType;
 
 /**
  * Class to test the rollup processor and the stored procs it depends on.
@@ -174,7 +175,8 @@ public class RollupProcessorTest {
     @Test
     public void testRollups() throws InterruptedException, VmtDbException, SQLException {
         PmStatsLatestRecord template1 =
-                createTemplateForStatsTimeSeries(Tables.PM_STATS_LATEST, "CPU", "used", null);
+                        createTemplateForStatsTimeSeries(Tables.PM_STATS_LATEST, "CPU",
+                                        PropertySubType.Used.getApiParameterName(), null);
         StatsTimeSeries<PmStatsLatestRecord> ts1 = new StatsTimeSeries<>(
                 Tables.PM_STATS_LATEST, template1, 100_000.0, 50_000.0,
                 Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10));

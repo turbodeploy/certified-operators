@@ -4,7 +4,6 @@ import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_VCPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
@@ -27,13 +26,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.Table;
-
-import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.TObjectDoubleMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -396,9 +395,6 @@ public class MarketStatsAccumulator {
             Record record = dbTable.newRecord();
             historydbIO.initializeCommodityRecord(commodityName, snapshotTime,
                     entityId, relationType, providerId, 1D, 1D, commodityKey, record,
-                    dbTable);
-            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION,
-                    historicalUsed.getPercentile(), historicalUsed.getPercentile(), record,
                     dbTable);
             loader.insert(record);
         }

@@ -111,4 +111,16 @@ public class StatsAccumulator {
             .setTotalMin((float)getTotalMin())
             .build();
     }
+
+    /**
+     * Clears state of the current instance to initial values.
+     */
+    public void clear() {
+        min = Double.MAX_VALUE;
+        max = Double.MIN_VALUE;
+        total = 0;
+        totalMax = 0;
+        totalMin = 0;
+        count = 0;
+    }
 }

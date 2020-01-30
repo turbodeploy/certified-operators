@@ -8,11 +8,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
 
@@ -26,7 +28,7 @@ abstract class AccumulatedCommodity {
 
     private StatsAccumulator capacity = new StatsAccumulator();
 
-    private StatsAccumulator percentileUtilization = new StatsAccumulator();
+    private StatsAccumulator percentileUsage = new StatsAccumulator();
 
     private final String commodityName;
 
@@ -47,13 +49,17 @@ abstract class AccumulatedCommodity {
 
         final StatRecord.Builder builder = StatRecord.newBuilder();
         builder.setName(commodityName);
-        builder.setCapacity(capacity.toStatValue());
+        final StatValue capacityStatValue = capacity.toStatValue();
+        builder.setCapacity(capacityStatValue);
         builder.setUsed(statValue);
         builder.setValues(statValue);
         builder.setPeak(statValue);
         builder.setCurrentValue(statValue.getAvg());
-        if (percentileUtilization.getCount() > 0) {
-            builder.setPercentileUtilization(percentileUtilization.toStatValue());
+        if (percentileUsage.getCount() > 0) {
+            builder.addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                            .setType(HistoryUtilizationType.Percentile.getApiParameterName())
+                            .setUsage(percentileUsage.toStatValue()).setCapacity(capacityStatValue)
+                            .build());
         }
 
         final CommodityTypeUnits commodityType = CommodityTypeUnits.fromString(commodityName);
@@ -84,9 +90,9 @@ abstract class AccumulatedCommodity {
         this.capacity.record(capacity);
     }
 
-    protected void recordPercentileUtilization(final double percentileUtilization) {
+    protected void recordPercentile(final double percentileUtilization, double capacity) {
         empty = false;
-        this.percentileUtilization.record(percentileUtilization);
+        this.percentileUsage.record(percentileUtilization * capacity);
     }
 
     /**
@@ -119,10 +125,10 @@ abstract class AccumulatedCommodity {
                                    final double capacity) {
             recordUsed(commodityBoughtDTO.getUsed(), commodityBoughtDTO.getPeak());
             recordCapacity(capacity);
-            if (commodityBoughtDTO.hasHistoricalUsed()) {
+            if (commodityBoughtDTO.hasHistoricalUsed() && Double.compare(capacity, 0) > 0) {
                 final HistoricalValues historicalUsed = commodityBoughtDTO.getHistoricalUsed();
                 if (historicalUsed.hasPercentile()) {
-                    recordPercentileUtilization(historicalUsed.getPercentile());
+                    recordPercentile(historicalUsed.getPercentile(), capacity);
                 }
             }
             this.providers.add(providerId);
@@ -161,11 +167,12 @@ abstract class AccumulatedCommodity {
          */
         void recordSoldCommodity(@Nonnull final CommoditySoldDTO commoditySoldDTO) {
             recordUsed(commoditySoldDTO.getUsed(), commoditySoldDTO.getPeak());
-            recordCapacity(commoditySoldDTO.getCapacity());
+            final double capacity = commoditySoldDTO.getCapacity();
+            recordCapacity(capacity);
             if (commoditySoldDTO.hasHistoricalUsed()) {
                 final HistoricalValues historicalUsed = commoditySoldDTO.getHistoricalUsed();
                 if (historicalUsed.hasPercentile()) {
-                    recordPercentileUtilization(historicalUsed.getPercentile());
+                    recordPercentile(historicalUsed.getPercentile(), capacity);
                 }
             }
         }
