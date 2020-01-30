@@ -2884,4 +2884,12 @@ public class TopologyConverter {
     public CommodityDTOs.CommoditySpecificationTO getCommSpecForCommodity(CommodityType commType) {
         return commodityConverter.commoditySpecification(commType);
     }
+
+    /**
+     * Return the consistent scaling helper associated with this TC.
+     * @return consistent scaling helper
+     */
+    public ConsistentScalingHelper getConsistentScalingHelper() {
+        return consistentScalingHelper;
+    }
 }

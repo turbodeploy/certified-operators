@@ -458,7 +458,7 @@ public class Analysis {
                 }
                 // Calculate reservedCapacity and generate resize actions
                 ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
-                reservedCapacityAnalysis.execute();
+                reservedCapacityAnalysis.execute(converter.getConsistentScalingHelper());
 
                 // Execute wasted file analysis
                 WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
