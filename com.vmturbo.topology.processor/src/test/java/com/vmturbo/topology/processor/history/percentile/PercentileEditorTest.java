@@ -212,7 +212,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     public void testLoadData() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         // First initializing history from db.
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         // LATEST(1, 2, 3, 4, 5) + TOTAL(41, 42, 43, 44, 45) = FULL(42, 44, 46, 48, 50)
         Assert.assertEquals(Arrays.asList(42, 44, 46, 48, 50),
                 percentileEditor.getCacheEntry(VCPU_COMMODITY_REFERENCE)
@@ -282,7 +282,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                     throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         // First initializing history from db.
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         // Necessary to set last checkpoint timestamp.
         percentileEditor.completeBroadcast();
 
@@ -297,7 +297,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser));
 
         // Check observation periods changed.
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         // Check full utilization count array for virtual machine VCPU commodity.
         // 36 37 38 39 40 [x] 28 Aug 2019 12:00:00 GMT.
         // 31 32 33 34 35 [x] 29 Aug 2019 00:00:00 GMT.
@@ -418,7 +418,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     public void testCacheBackupSuccessCase()
                     throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         final EntityCommodityFieldReference mockReference =
                         Mockito.mock(EntityCommodityFieldReference.class);
         try (PercentileEditor.CacheBackup cacheBackup = new PercentileEditor.CacheBackup(percentileEditor.getCache())) {
@@ -441,7 +441,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCacheBackupFailureCase() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache =
                         percentileEditor.getCache();
         final PercentileEditor.CacheBackup cacheBackup =
@@ -468,7 +468,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCompleteBroadcastTooSoon() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_06_00);
         Mockito.reset(percentilePersistenceTask);
 
@@ -503,7 +503,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCompleteBroadcastOneMaintenanceWindow() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_12_00);
 
         Mockito.reset(percentilePersistenceTask);
@@ -534,7 +534,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCompleteBroadcastTwoMaintenanceWindows() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
-        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, Collections.emptyList(), false);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_30_2019_00_00);
 
         Mockito.reset(percentilePersistenceTask);

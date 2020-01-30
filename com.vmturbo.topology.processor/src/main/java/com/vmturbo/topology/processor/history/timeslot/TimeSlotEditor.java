@@ -8,21 +8,20 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor;
-import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
+import com.vmturbo.topology.processor.history.AbstractBackgroundLoadingHistoricalEditor;
 
 /**
  * Calculate and provide time slot historical values for topology commodities.
  * TODO dmitry provide config and db value class
  */
 public class TimeSlotEditor extends
-                AbstractCachingHistoricalEditor<TimeSlotCommodityData,
+    AbstractBackgroundLoadingHistoricalEditor<TimeSlotCommodityData,
                 TimeSlotLoadingTask,
-                CachingHistoricalEditorConfig,
+                TimeslotHistoricalEditorConfig,
                 Void,
                 StatsHistoryServiceBlockingStub> {
 
-    public TimeSlotEditor(CachingHistoricalEditorConfig config,
+    public TimeSlotEditor(TimeslotHistoricalEditorConfig config,
                           StatsHistoryServiceBlockingStub statsHistoryClient) {
         super(config, statsHistoryClient, TimeSlotLoadingTask::new, TimeSlotCommodityData::new);
     }

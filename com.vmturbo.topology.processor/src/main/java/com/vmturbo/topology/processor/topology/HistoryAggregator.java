@@ -46,8 +46,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Pipelin
 /**
  * A pipeline stage to calculate historical values for commodities.
  * Different kinds of aggregations of per-commodity history into smaller number of values (typically one):
- * - hist utilization
- * - max quantity
+ * - hist utilization (to be ported here)
+ * - max quantity (to be ported here)
  * - percentile
  * - time slot (several values)
  * - system load
@@ -118,7 +118,10 @@ public class HistoryAggregator {
         // set up commodity builders lazy/fast access
         ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph.getTopologyGraph());
 
-        forEachEditor(editorsToRun, editor -> editor.initContext(graph, accessor, !CollectionUtils.isEmpty(changes)),
+        // this may initiate background loading of certain data
+        forEachEditor(editorsToRun,
+                      editor -> editor.initContext(graph, accessor, commsToUpdate.get(editor),
+                                                   !CollectionUtils.isEmpty(changes)),
                       "initialization",
                       "The time spent initializing historical data cache for {}");
 
@@ -126,10 +129,6 @@ public class HistoryAggregator {
             // submit the preparation tasks and wait for completion
             executeTasks(graph.getTopologyGraph(), commsToUpdate, IHistoricalEditor::createPreparationTasks,
                          true, "chunked prepare", LOAD_HISTORY_SUMMARY_METRIC);
-
-            // TODO dmitry limit the waiting time (config setting) for non-mandatory tasks
-            // if it's exceeded, proceed without setting the relevant historical values
-            // and keep loading in the background
 
             // submit the calculation tasks and wait for completion
             executeTasks(graph.getTopologyGraph(), commsToUpdate, IHistoricalEditor::createCalculationTasks,
