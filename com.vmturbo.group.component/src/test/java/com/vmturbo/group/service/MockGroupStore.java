@@ -8,10 +8,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
@@ -191,16 +189,5 @@ public class MockGroupStore implements IGroupStore {
     @Override
     public void deleteAllGroups() {
         groups.clear();
-    }
-
-    @Nonnull
-    @Override
-    public Set<Long> getOwnersOfGroups(@Nonnull Collection<Long> groupIds,
-            @Nullable GroupType groupType) {
-        Stream<Grouping> groupingStream = groupIds.stream().map(groups::get);
-        if (groupType != null) {
-            groupingStream.filter(gr -> gr.getDefinition().getType() == groupType);
-        }
-        return groupingStream.map(Grouping::getId).collect(Collectors.toSet());
     }
 }

@@ -43,6 +43,8 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -217,9 +219,12 @@ class DiscoveredGroupInterpreter {
         groupDefinition.setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO));
 
         // set tags
-        if (sdkDTO.getTagsMap() != null) {
-            groupDefinition.setTags(
-                    SdkToTopologyEntityConverter.convertGroupTags(sdkDTO.getTagsMap()));
+        final Map<String, TagValuesDTO.Builder> tags = SdkToTopologyEntityConverter.extractTags(
+                sdkDTO.getEntityPropertiesList());
+        if (!tags.isEmpty()) {
+            final Tags.Builder tagsBuilder = Tags.newBuilder();
+            tags.forEach((key, value) -> tagsBuilder.putTags(key, value.build()));
+            groupDefinition.setTags(tagsBuilder.build());
         }
 
         if (sdkDTO.hasOwner()) {

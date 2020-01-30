@@ -27,7 +27,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.tag.Tag.Tags.Builder;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -55,7 +54,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
@@ -964,22 +962,5 @@ public class SdkToTopologyEntityConverter {
                             .addValues(entityProperty.getValue());
                 });
         return result;
-    }
-
-    /**
-     * Convert tags related to group.
-     *
-     * @param tagsMap contains information about tag names and appropriate tag values
-     * @return converted tags related to group
-     */
-    @Nonnull
-    public static Tags convertGroupTags(@Nonnull Map<String, TagValues> tagsMap) {
-        final Builder tagsBuilder = Tags.newBuilder();
-        for (Entry<String, TagValues> entry : tagsMap.entrySet()) {
-            final TagValuesDTO tagValuesDTO =
-                    TagValuesDTO.newBuilder().addAllValues(entry.getValue().getValueList()).build();
-            tagsBuilder.putTags(entry.getKey(), tagValuesDTO);
-        }
-        return tagsBuilder.build();
     }
 }

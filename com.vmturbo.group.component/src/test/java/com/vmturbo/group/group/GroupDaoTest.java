@@ -742,40 +742,6 @@ public class GroupDaoTest {
         Assert.assertEquals(Collections.singleton(entityFilters), members.getEntityFilters());
     }
 
-    /**
-     * Test get owners of requested groups.
-     *
-     * @throws StoreOperationException on exceptions occurred.
-     */
-    @Test
-    public void testGetOwnersOfGroups() throws StoreOperationException {
-        final Origin origin = createUserOrigin();
-        final Long owner1 = 12L;
-        final Long owner2 = 21L;
-
-        final GroupDefinition groupDefinition1 =
-                GroupDefinition.newBuilder().setOwner(owner1).setType(GroupType.RESOURCE).setDisplayName("resourceGroup").setStaticGroupMembers(
-                        StaticMembers.getDefaultInstance()).build();
-        final GroupDefinition groupDefinition2 =
-                GroupDefinition.newBuilder().setOwner(owner2).setType(GroupType.REGULAR).setDisplayName("regularGroup").setStaticGroupMembers(
-                        StaticMembers.getDefaultInstance()).build();
-        groupStore.createGroup(OID1, origin, groupDefinition1,
-                Collections.singleton(MemberType.getDefaultInstance()), true);
-        groupStore.createGroup(OID2, origin, groupDefinition2,
-                Collections.singleton(MemberType.getDefaultInstance()), true);
-
-        Assert.assertEquals(Sets.newHashSet(owner1),
-                groupStore.getOwnersOfGroups(Collections.singletonList(OID1), null));
-
-        Assert.assertEquals(Sets.newHashSet(owner1, owner2),
-                groupStore.getOwnersOfGroups(Arrays.asList(OID1, OID2), null));
-
-        Assert.assertEquals(Sets.newHashSet(owner1),
-                groupStore.getOwnersOfGroups(Arrays.asList(OID1, OID2), GroupType.RESOURCE));
-
-        Assert.assertTrue(groupStore.getOwnersOfGroups(Collections.singletonList(OID3), null).isEmpty());
-    }
-
     @Nonnull
     private Set<Long> getEntityMembers(@Nonnull GroupDefinition groupDefinition) {
         return groupDefinition.getStaticGroupMembers()

@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.util;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
@@ -17,8 +16,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -30,8 +27,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -345,22 +340,5 @@ public class GroupExpanderTest {
         assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
             12L)));
         assertThat(result.get(UIEntityType.DATABASE), equalTo(Collections.singleton(20L)));
-    }
-
-    /**
-     * Tests getting owners of requested groups.
-     */
-    @Test
-    public void testGetGroupOwners() {
-        final Set<Long> ownersIds = Sets.newHashSet(11L);
-        final long groupId = 1L;
-        final GroupType groupType = GroupType.RESOURCE;
-        doReturn(GetOwnersResponse.newBuilder().addAllOwnerId(ownersIds).build()).when(groupServiceSpy)
-                .getOwnersOfGroups(GetOwnersRequest.newBuilder()
-                        .addGroupId(groupId)
-                        .setGroupType(groupType)
-                        .build());
-        assertEquals(ownersIds,
-                groupExpander.getGroupOwners(Collections.singletonList(groupId), groupType));
     }
 }

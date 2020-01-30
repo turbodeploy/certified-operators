@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util;
 
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,15 +14,14 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+
+import org.apache.commons.lang3.StringUtils;
+import org.immutables.value.Value;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.commons.lang3.StringUtils;
-import org.immutables.value.Value;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -30,13 +30,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * A utility object to:
@@ -310,25 +307,5 @@ public class GroupExpander {
             }
         }
         return answer;
-    }
-
-    /**
-     * Returns set of owners of requested groups.
-     * Input groupType parameter used for reducing area of searching, so if group type is known
-     * we search all groups with this type and after it select groups with certain ids.
-     * If groupType is null search owners of groups among all groups.
-     *
-     * @param groupIds group ids to query
-     * @param groupType group type to query
-     * @return set of owners
-     */
-    public Set<Long> getGroupOwners(@Nonnull Collection<Long> groupIds,
-            @Nullable GroupType groupType) {
-        final Builder ownersRequest = GetOwnersRequest.newBuilder().addAllGroupId(groupIds);
-        if (groupType != null) {
-            ownersRequest.setGroupType(groupType);
-        }
-        return new HashSet<>(
-                groupServiceGrpc.getOwnersOfGroups(ownersRequest.build()).getOwnerIdList());
     }
 }

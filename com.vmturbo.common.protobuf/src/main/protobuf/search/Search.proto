@@ -40,12 +40,12 @@ message SearchFilter {
     // There are 3 types of filters.
     // - traversal filter: used to traverse graph relationship
     // - property filter: used to specify specific criteria on properties of the element
-    // - group filter: this is a special-case filter that will target members of
-    // a group/set of groups or owners of groups
+    // - group membership filter: this is a special-case filter that will target members of
+    // a group or set of groups.
     oneof filterType {
         TraversalFilter traversal_filter = 1;
         PropertyFilter property_filter = 2;
-        GroupFilter group_filter = 3;
+        GroupMembershipFilter group_membership_filter = 3;
     }
 }
 
@@ -233,11 +233,11 @@ message PropertyFilter {
     }
 }
 
-// Used to check if entities are part of a group or group is owned by appropriate owner.
+// used to check if entities are part of a group.
 //
 // This filter gets special handling in SearchService, where the group information is resolved in a
-// separate step from the other filtering mechanisms and then is translated to a String Filter
-// for checking if an entity id is part of the group or if this group is owned by certain owner.
+// separate step from the other filtering mechanisms and then is translated to a String RegEx filter
+// for checking if an entity id is part of the group.
 //
 // This is due to the group membership information being stored in a separate arango database from
 // the topology information and disallowing "joining" the topology documents with group info
@@ -245,23 +245,11 @@ message PropertyFilter {
 // be handled in a way that is consistent with the other search filters, e.g. direct graph
 // traversals in a single database/context.
 //
-message GroupFilter {
-    // Specifies the group(s) to filter group membership or owners of groups based on.
+message GroupMembershipFilter {
+    // Specifies the group(s) to filter membership based on.
     optional PropertyFilter group_specifier = 1;
     // Type of a group requested. If not specified, query will not distinguish between group types.
     optional common_dto.GroupDTO.GroupType group_type = 2;
-
-    // Defines relationship between entity and group.
-    required EntityToGroupType entityToGroupType = 3 [default = MEMBER_OF];
-
-    // Used in GroupFilter for searching entities depending on their relationship to the group.
-    enum EntityToGroupType {
-        // Check that entities are members of groups.
-        MEMBER_OF = 0;
-
-        // Check that entities are owners of groups.
-        OWNER_OF = 1;
-    }
 }
 
 enum ComparisonOperator {

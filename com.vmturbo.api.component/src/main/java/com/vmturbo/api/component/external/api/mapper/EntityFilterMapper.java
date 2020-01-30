@@ -31,8 +31,7 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUse
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.GroupFilter;
-import com.vmturbo.common.protobuf.search.Search.GroupFilter.EntityToGroupType;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -70,10 +69,7 @@ public class EntityFilterMapper {
     // matches that inside "groupBuilderUseCases.json".
     public static final String ACCOUNT_OID = "BusinessAccount:oid:OWNS:1";
     /** Key of the criteria to query resource groups by ids. */
-    public static final String MEMBER_OF_RESOURCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
-    /** Key of the criteria to query resource groups by ids. */
-    public static final String OWNER_OF_RESOURCE_GROUP_OID = "OwnerOf:ResourceGroup:uuid";
-
+    public static final String RESOURCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
     public static final String STATE = "state";
     public static final String NETWORKS = "networks";
     public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
@@ -112,8 +108,6 @@ public class EntityFilterMapper {
     public static final String EMPTY_QUERY_STRING = "\\Q\\E";
 
     private static final String MEMBER_OF = "MemberOf";
-
-    private static final String OWNER_OF = "OwnerOf";
 
     // set of supported traversal types, the string should be the same as groupBuilderUsecases.json
     private static final Set<String> TRAVERSAL_TYPES = ImmutableSet.of(
@@ -157,9 +151,9 @@ public class EntityFilterMapper {
         final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
                 filterTypesToProcessors = new ImmutableMap.Builder<>();
         filterTypesToProcessors.put(StringConstants.TAGS_ATTR, EntityFilterMapper::getTagProcessor);
-        filterTypesToProcessors.put(StringConstants.CLUSTER, EntityFilterMapper::getGroupFilterProcessor);
+        filterTypesToProcessors.put(StringConstants.CLUSTER,
+                EntityFilterMapper::getGroupFilterProcessor);
         filterTypesToProcessors.put(MEMBER_OF, EntityFilterMapper::getGroupFilterProcessor);
-        filterTypesToProcessors.put(OWNER_OF, EntityFilterMapper::getGroupFilterProcessor);
         filterTypesToProcessors.put(NETWORKS, EntityFilterMapper::getNetworkProcessor);
         filterTypesToProcessors.put(SearchableProperties.VENDOR_ID, EntityFilterMapper::getVendorIdProcessor);
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
@@ -219,23 +213,8 @@ public class EntityFilterMapper {
 
     @Nonnull
     private static List<SearchFilter> getGroupFilterProcessor(@Nonnull SearchFilterContext context) {
-        final String currentToken = context.getCurrentToken();
-        final EntityToGroupType entityToGroupType;
-        switch (currentToken) {
-            case OWNER_OF:
-                entityToGroupType = EntityToGroupType.OWNER_OF;
-                break;
-            default:
-                entityToGroupType = EntityToGroupType.MEMBER_OF;
-                break;
-        }
-        boolean isOwnerFilter = currentToken.equals(OWNER_OF);
-        String groupTypeToken;
-        if (currentToken.equals(MEMBER_OF) || currentToken.equals(OWNER_OF)) {
-            groupTypeToken = context.getIterator().next();
-        } else {
-            groupTypeToken = context.getCurrentToken();
-        }
+        final String groupTypeToken = context.getCurrentToken().equals(MEMBER_OF) ?
+            context.getIterator().next() : context.getCurrentToken();
         final GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(groupTypeToken);
         if (groupType == null) {
             throw new IllegalArgumentException("Unknown group type " + groupTypeToken);
@@ -245,17 +224,15 @@ public class EntityFilterMapper {
         final String propertyName = translateToken(context.getIterator().next());
         final PropertyFilter groupSpecifier = context.isExactMatching() ?
                 SearchProtoUtil.stringPropertyFilterExact(propertyName,
-                        Arrays.asList(filter.getExpVal().split("\\|")), isPositiveMatch,
-                        filter.getCaseSensitive()) :
+                    Arrays.asList(filter.getExpVal().split("\\|")), isPositiveMatch,
+                    filter.getCaseSensitive()) :
                 SearchProtoUtil.stringPropertyFilterRegex(propertyName, filter.getExpVal(),
-                        isPositiveMatch, filter.getCaseSensitive());
+                    isPositiveMatch, filter.getCaseSensitive());
 
-        final GroupFilter groupFilter = GroupFilter.newBuilder()
+        final GroupMembershipFilter clusterFilter = GroupMembershipFilter.newBuilder()
                 .setGroupSpecifier(groupSpecifier)
-                .setEntityToGroupType(entityToGroupType)
-                .setGroupType(groupType)
-                .build();
-        return Collections.singletonList(createSearchFilter(groupFilter));
+                .setGroupType(groupType).build();
+        return Collections.singletonList(searchFilterCluster(clusterFilter));
     }
 
     private static List<SearchFilter> getNetworkProcessor(SearchFilterContext context) {
@@ -1011,13 +988,13 @@ public class EntityFilterMapper {
     }
 
     /**
-     * Wrap an instance of {@link GroupFilter} with a {@link SearchFilter}.
+     * Wrap an instance of {@link GroupMembershipFilter} with a {@link SearchFilter}.
      *
-     * @param groupFilter the group filter to wrap
+     * @param clusterFilter the cluster membership filter to wrap
      * @return a search filter that wraps the argument
      */
     @Nonnull
-    private static SearchFilter createSearchFilter(@Nonnull GroupFilter groupFilter) {
-        return SearchFilter.newBuilder().setGroupFilter(groupFilter).build();
+    private static SearchFilter searchFilterCluster(@Nonnull GroupMembershipFilter clusterFilter) {
+        return SearchFilter.newBuilder().setGroupMembershipFilter(clusterFilter).build();
     }
 }

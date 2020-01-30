@@ -2,24 +2,20 @@ package com.vmturbo.common.protobuf.search;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter.Builder;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * This is an object able to resolve filters. There are some filters that could not be executed
@@ -54,23 +50,12 @@ public abstract class SearchFilterResolver {
     protected abstract Set<Long> getGroupMembers(@Nonnull GroupFilter groupFilter);
 
     /**
-     * Returns a set of OIDs of all owners for requested groups.
-     *
-     * @param groupIds group ids to query
-     * @param groupType group type to query
-     * @return set of owners OIDs
-     */
-    @Nonnull
-    protected abstract Set<Long> getGroupOwners(@Nonnull Collection<Long> groupIds,
-            @Nullable GroupType groupType);
-
-    /**
-     * Provided an input SearchParameters object, resolve any group filters contained
+     * Provided an input SearchParameters object, resolve any group membership filters contained
      * inside and return a new SearchParameters object with the resolved filters. If there are no
-     * group filters inside, return the original object.
+     * group membership filters inside, return the original object.
      *
      * @param searchParameters A SearchParameters object that may contain cluster filters.
-     * @return A SearchParameters object that has had any group filters in it resolved. Will be
+     * @return A SearchParameters object that has had any cluster filters in it resolved. Will be
      *         the original object if there were no group filters inside.
      */
     @Nonnull
@@ -78,7 +63,7 @@ public abstract class SearchFilterResolver {
         // return the original object if no group member filters inside
         if (searchParameters.getSearchFilterList()
                 .stream()
-                .noneMatch(filter -> filter.hasGroupFilter() ||
+                .noneMatch(filter -> filter.hasGroupMembershipFilter() ||
                         isTargetFilter(filter))) {
             return searchParameters;
         }
@@ -88,81 +73,48 @@ public abstract class SearchFilterResolver {
         // we will rebuild the search filters, resolving any group member filters we encounter.
         searchParamBuilder.clearSearchFilter();
         for (SearchFilter sf : searchParameters.getSearchFilterList()) {
-            searchParamBuilder.addSearchFilter(convertGroupFilter(sf));
+            searchParamBuilder.addSearchFilter(convertGroupMemberFilter(sf));
         }
 
         return convertTargetFilters(searchParamBuilder.build());
     }
 
     /**
-     * Convert a group filter to a static entity property filter.
-     * If the input filter does not contain a group filter, the input filter will
+     * Convert a group member filter to a static entity property filter.
+     * If the input filter does not contain a group member filter, the input filter will
      * be returned, unchanged.
      *
-     * @param inputFilter The group filter to convert.
-     * @return A new SearchFilter with any GroupFilter converted to property filters.
-     *         If there weren't any GroupFilter to convert, the original filter is
+     * @param inputFilter The group membership filter to convert to convert.
+     * @return A new SearchFilter with any ClusterMembershipFilter converted to property filters.
+     *         If there weren't any ClusterMembershipFilter to convert, the original filter is
      *         returned.
      */
     @Nonnull
-    private SearchFilter convertGroupFilter(@Nonnull SearchFilter inputFilter) {
-        if (!inputFilter.hasGroupFilter()) {
+    private SearchFilter convertGroupMemberFilter(@Nonnull SearchFilter inputFilter) {
+        if (!inputFilter.hasGroupMembershipFilter()) {
             return inputFilter;
         }
-        final Builder searchFilterBuilder = SearchFilter.newBuilder();
-        final Search.GroupFilter groupFilter = inputFilter.getGroupFilter();
-        switch (groupFilter.getEntityToGroupType()) {
-            case OWNER_OF:
-                convertFilterForGroupOwners(searchFilterBuilder, groupFilter);
-                break;
-            case MEMBER_OF:
-                convertFilterForGroupMembers(searchFilterBuilder, groupFilter);
-                break;
-            default:
-                throw new UnsupportedOperationException(
-                        "Unsupported relationship between entity and group:" + ' ' +
-                                groupFilter.getEntityToGroupType());
-        }
-        return searchFilterBuilder.build();
-    }
-
-    private void convertFilterForGroupOwners(@Nonnull final Builder searchFilterBuilder,
-            @Nonnull final Search.GroupFilter groupFilter) {
-        final PropertyFilter groupSpecifier = groupFilter.getGroupSpecifier();
-        if (groupSpecifier.hasStringFilter()) {
-            boolean positiveMatch = groupSpecifier.getStringFilter().getPositiveMatch();
-            final List<Long> groupIds = groupSpecifier.getStringFilter()
-                    .getOptionsList()
-                    .stream()
-                    .map(Long::valueOf)
-                    .collect(Collectors.toList());
-            final com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType groupType =
-                    groupFilter.getGroupType();
-            final Set<Long> groupOwners = getGroupOwners(groupIds, groupType);
-            searchFilterBuilder.setPropertyFilter(
-                    SearchProtoUtil.idFilter(groupOwners, positiveMatch));
-        }
-    }
-
-    private void convertFilterForGroupMembers(@Nonnull final Builder searchFilterBuilder,
-            @Nonnull final Search.GroupFilter groupFilter) {
         // this has a group membership filter.
         // We are only supporting static group lookups in this filter. Theoretically we could call
         // back to getMembers() to get generic group resolution, which would be more flexible,
         // but has the huge caveat of allowing circular references to happen. We'll stick to
         // just handling groups here and open it up later, when/if needed.
-        final PropertyFilter groupSpecifierFilter = groupFilter.getGroupSpecifier();
+        final GroupMembershipFilter groupSrcFilter = inputFilter.getGroupMembershipFilter();
+        final PropertyFilter groupSpecifierFilter = groupSrcFilter.getGroupSpecifier();
         logger.debug("Resolving group filter {}", groupSpecifierFilter);
 
-        final GroupFilter.Builder grFilter =
+        final GroupFilter.Builder groupFilter =
                 GroupFilter.newBuilder().addPropertyFilters(groupSpecifierFilter);
-        if (groupFilter.hasGroupType()) {
-            grFilter.setGroupType(groupFilter.getGroupType());
+        if (groupSrcFilter.hasGroupType()) {
+            groupFilter.setGroupType(groupSrcFilter.getGroupType());
         }
-        final Set<Long> matchingGroupMembers = getGroupMembers(grFilter.build());
+        final Set<Long> matchingGroupMembers = getGroupMembers(groupFilter.build());
         // build the replacement filter - a set of options, holding the oids that we've
         // fetched from groups.
-        searchFilterBuilder.setPropertyFilter(SearchProtoUtil.idFilter(matchingGroupMembers));
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(SearchProtoUtil.idFilter(matchingGroupMembers))
+                .build();
+        return searchFilter;
     }
 
     /**

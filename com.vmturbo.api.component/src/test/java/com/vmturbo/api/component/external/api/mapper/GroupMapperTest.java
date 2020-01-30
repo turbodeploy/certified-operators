@@ -86,7 +86,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -492,11 +492,11 @@ public class GroupMapperTest {
         assertEquals(2, param.getSearchFilterCount());
 
         // 1. first one is Cluster Membership Filter, verify that it was created
-        assertTrue(param.getSearchFilter(0).hasGroupFilter());
-        final GroupFilter groupFilter =
-                        param.getSearchFilter(0).getGroupFilter();
+        assertTrue(param.getSearchFilter(0).hasGroupMembershipFilter());
+        final GroupMembershipFilter clusterMembershipFilter =
+                        param.getSearchFilter(0).getGroupMembershipFilter();
         // verify that we are looking for clusters with name FOO
-        assertEquals("^" + FOO + "$", groupFilter.getGroupSpecifier()
+        assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
                         .getStringFilter().getStringPropertyRegex());
 
         // 2. second one is traversal filter (produces) used to traverse to vm
@@ -541,9 +541,9 @@ public class GroupMapperTest {
         assertEquals(1, param.getSearchFilterCount());
 
         // verify that Cluster Membership Filter was created
-        assertTrue(param.getSearchFilter(0).hasGroupFilter());
-        final GroupFilter clusterMembershipFilter =
-                param.getSearchFilter(0).getGroupFilter();
+        assertTrue(param.getSearchFilter(0).hasGroupMembershipFilter());
+        final GroupMembershipFilter clusterMembershipFilter =
+                param.getSearchFilter(0).getGroupMembershipFilter();
         // verify that we are looking for clusters with name FOO
         assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
                 .getStringFilter().getStringPropertyRegex());

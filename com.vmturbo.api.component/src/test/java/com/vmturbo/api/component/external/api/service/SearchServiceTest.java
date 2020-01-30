@@ -115,6 +115,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
@@ -122,6 +124,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -1146,7 +1149,7 @@ public class SearchServiceTest {
                 groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList()))
                 .thenReturn(Arrays.asList(resourceGroup1, resourceGroup2));
         final List<CriteriaOptionApiDTO> result1 =
-                searchService.getCriteriaOptions(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, null, null,
+                searchService.getCriteriaOptions(EntityFilterMapper.RESOURCE_GROUP_OID, null, null,
                         null);
         Assert.assertEquals(2, result1.size());
         Assert.assertEquals("Ravenclaw", result1.get(0).getDisplayName());
