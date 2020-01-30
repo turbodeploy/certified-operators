@@ -188,13 +188,14 @@ public class MapperConfig {
 
     @Bean
     public UuidMapper uuidMapper() {
-        return new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
-            magicScopeGateway(),
-            communicationConfig.repositoryApi(),
-            communicationConfig.topologyProcessor(),
-            communicationConfig.planRpcService(),
-            communicationConfig.groupRpcService(),
-            communicationConfig.groupExpander());
+        final UuidMapper uuidMapper =
+                new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
+                        magicScopeGateway(), communicationConfig.repositoryApi(),
+                        communicationConfig.topologyProcessor(),
+                        communicationConfig.planRpcService(), communicationConfig.groupRpcService(),
+                        communicationConfig.groupExpander());
+        repositoryClientConfig.repository().addListener(uuidMapper);
+        return uuidMapper;
     }
 
     @Bean
