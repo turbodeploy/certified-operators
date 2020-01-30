@@ -96,6 +96,7 @@ import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.notification.NotificationInMemoryStore;
 import com.vmturbo.notification.NotificationStore;
@@ -429,7 +430,8 @@ public class CommunicationConfig {
 
     @Bean
     public GroupExpander groupExpander() {
-        return new GroupExpander(groupRpcService());
+        return new GroupExpander(groupRpcService(),
+                new GroupMemberRetriever(groupRpcService()));
     }
 
     @Bean
