@@ -990,6 +990,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         case RI_COMPUTE:
                             resultsTypeFilter.setValue(CostCategory.RI_COMPUTE.name());
                             break;
+                        case RESERVED_LICENSE:
+                            resultsTypeFilter.setValue(CostCategory.RESERVED_LICENSE.name());
+                            break;
                     }
                     filters.add(resultsTypeFilter);
 
