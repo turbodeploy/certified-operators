@@ -226,12 +226,10 @@ public class ReservationDaoImplTest {
     @Test
     public void testGetReservationByStatus() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
-        Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
         reservationDao.createReservation(reservationWithTemplateFirst);
-        reservationDao.createReservation(reservationWithTemplateSecond);
-        Set<Reservation> retrievedReservation = reservationDao.getReservationsByStatus(ReservationStatus.RESERVED);
+        Set<Reservation> retrievedReservation = reservationDao.getReservationsByStatus(ReservationStatus.INITIAL);
         assertTrue(retrievedReservation.size() == 1);
-        assertEquals("Test-second-reservation", retrievedReservation.iterator().next().getName());
+        assertEquals("Test-first-reservation", retrievedReservation.iterator().next().getName());
     }
 
     @Test

@@ -153,7 +153,7 @@ public class PlanDaoImplTest {
         // verify that a plan project plan created without a user in the calling context will be
         // attributed to SYSTEM.
         PlanInstance planInstance = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.INITAL_PLACEMENT);
+                PlanProjectType.RESERVATION_PLAN);
 
         // should have the created by user set to SYSTEM.
         assertEquals(AuditLogUtils.SYSTEM, planInstance.getCreatedByUser());
@@ -322,7 +322,7 @@ public class PlanDaoImplTest {
                 .setTopologyId(1L)
                 .build());
         PlanInstance inst2 = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.INITAL_PLACEMENT);
+                PlanProjectType.RESERVATION_PLAN);
 
         // User plan instance should always be queued.
         Optional<PlanDTO.PlanInstance> inst = planDao.queuePlanInstance(inst1);
@@ -346,7 +346,8 @@ public class PlanDaoImplTest {
     @Test
     public void testListeners() throws Exception {
         PlanInstanceQueue planInstanceQueue = Mockito.mock(PlanInstanceQueue.class);
-        PlanInstanceCompletionListener listener = Mockito.spy(new PlanInstanceCompletionListener(planInstanceQueue));
+        PlanInstanceCompletionListener listener = Mockito.spy(
+                new PlanInstanceCompletionListener(planInstanceQueue));
         planDao.addStatusListener(listener);
         PlanDTO.PlanInstance inst = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)

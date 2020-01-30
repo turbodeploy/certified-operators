@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,13 +39,22 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 public class ReservationPlacementHandler {
     private final Logger logger = LogManager.getLogger();
 
-    private final ReservationDao reservationDao;
+    private final ReservationManager reservationManager;
 
     private final RepositoryServiceBlockingStub repositoryService;
 
-    public ReservationPlacementHandler(@Nonnull final ReservationDao reservationDao,
+    public ReservationManager getReservationManager() {
+        return reservationManager;
+    }
+
+    /**
+     * constuctor for ReservationPlacementHandler.
+     * @param reservationManager reservation manager.
+     * @param repositoryService reservation service.
+     */
+    public ReservationPlacementHandler(@Nonnull final ReservationManager reservationManager,
                                        @Nonnull final RepositoryServiceBlockingStub repositoryService) {
-        this.reservationDao = Objects.requireNonNull(reservationDao);
+        this.reservationManager = Objects.requireNonNull(reservationManager);
         this.repositoryService = Objects.requireNonNull(repositoryService);
     }
 
@@ -55,21 +65,31 @@ public class ReservationPlacementHandler {
      *
      * @param contextId context id of topology.
      * @param topologyId id of topology.
+     * @param isReservationPlan true if the topology belongs to a reservationPlan.
      */
-    public void updateReservations(final long contextId, final long topologyId) {
+    public void updateReservations(final long contextId, final long topologyId, boolean isReservationPlan) {
         // Get all RESERVED reservations, only RESERVED reservations have entities.
-        final Set<Reservation> reservationSet =
-                reservationDao.getReservationsByStatus(ReservationStatus.RESERVED);
-
+        Set<Reservation> reservationSet = new HashSet<>();
+        if (isReservationPlan) {
+            reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
+                    .filter(res -> res.getStatus() == ReservationStatus.RESERVED ||
+                            res.getStatus() == ReservationStatus.PLACEMENT_FAILED ||
+                            res.getStatus() == ReservationStatus.INPROGRESS)
+                    .collect(Collectors.toSet());
+        } else {
+            reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
+                    .filter(res -> res.getStatus() == ReservationStatus.RESERVED ||
+                            res.getStatus() == ReservationStatus.PLACEMENT_FAILED)
+                    .collect(Collectors.toSet());
+        }
         // if no reservations, don't bother updating.
         if (reservationSet.size() == 0) {
             return;
         }
 
         // Get projected topology entities of reservation entities.
-        final List<TopologyEntityDTO> reservationEntities =
+        List<TopologyEntityDTO> reservationEntities =
                 retrieveReservationEntities(contextId, topologyId, reservationSet);
-
         final List<TopologyEntityDTO> providerEntities =
                 retrieveProviderEntities(contextId, topologyId, reservationEntities);
 
@@ -82,12 +102,9 @@ public class ReservationPlacementHandler {
                 .map(reservation -> updateReservationPlacement(reservation, entityIdToEntityMap,
                         providerIdToEntityType))
                 .collect(Collectors.toSet());
-        try {
-            reservationDao.updateReservationBatch(updatedReservation);
-        } catch (NoSuchObjectException e) {
-            logger.error("Reservation update failed, contextId: " + contextId + " topologyId: "
-            + topologyId + " error message: " + e);
-        }
+        reservationManager.updateReservationResult(updatedReservation);
+
+        reservationManager.checkAndStartReservationPlan();
     }
 
     /**

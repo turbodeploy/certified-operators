@@ -57,8 +57,6 @@ import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc.DeploymentProfileServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
@@ -346,11 +344,6 @@ public class CommunicationConfig {
     @Bean
     public TemplateSpecServiceBlockingStub templateSpecServiceBlockingStub() {
         return TemplateSpecServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
-    }
-
-    @Bean
-    public DeploymentProfileServiceBlockingStub deploymentProfileServiceBlockingStub() {
-        return DeploymentProfileServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
     /**

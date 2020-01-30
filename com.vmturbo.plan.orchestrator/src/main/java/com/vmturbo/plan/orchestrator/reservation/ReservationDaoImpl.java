@@ -115,6 +115,7 @@ public class ReservationDaoImpl implements ReservationDao {
             return dsl.transactionResult(configuration -> {
                 final ReservationDTO.Reservation newReservation = ReservationDTO.Reservation.newBuilder(reservation)
                         .setId(IdentityGenerator.next())
+                        .setStatus(ReservationStatus.INITIAL)
                         .build();
                 final Set<Long> templateIds = getTemplateIds(newReservation);
                 final DSLContext transactionDsl = DSL.using(configuration);

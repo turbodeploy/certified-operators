@@ -410,12 +410,7 @@ public class ServiceConfig {
     public ReservationsService reservationsService() {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
-                mapperConfig.reservationMapper(),
-                initialPlacementTimeoutSeconds,
-                communicationConfig.planRpcService(),
-                communicationConfig.planRpcServiceFuture(),
-                communicationConfig.actionsRpcService(),
-                communicationConfig.templateServiceBlockingStub());
+                mapperConfig.reservationMapper());
     }
 
     @Bean

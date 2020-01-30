@@ -431,7 +431,7 @@ public class EntitySettingsApplicator {
             // In case of initial placement, the template VM shop together should always be true
              // regardless of action settings.
             disableShopTogether = topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo()
-                    .getPlanProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
+                    .getPlanProjectType().equals(PlanProjectType.RESERVATION_PLAN);
         }
 
         @Override

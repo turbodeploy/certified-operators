@@ -251,8 +251,7 @@ public class MapperConfig {
         return new ReservationMapper(communicationConfig.repositoryApi(),
             communicationConfig.templateServiceBlockingStub(),
             communicationConfig.groupRpcService(),
-            communicationConfig.policyRpcService(),
-            communicationConfig.deploymentProfileServiceBlockingStub());
+            communicationConfig.policyRpcService());
     }
 
     @Bean

@@ -455,7 +455,7 @@ public class PlanNotificationsTest {
         actionsListener.onProjectedTopologyAvailable(0, PlanTestConfig.REALTIME_TOPOLOGY_ID);
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
         Mockito.verify(reservationPlacementHandler, Mockito.times(1))
-                .updateReservations(Mockito.anyLong(), Mockito.anyLong());
+                .updateReservations(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyBoolean());
         actionsListener.onProjectedTopologyFailure(0, PlanTestConfig.REALTIME_TOPOLOGY_ID, "");
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
     }

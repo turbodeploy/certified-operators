@@ -554,7 +554,7 @@ public class PlanDaoImpl implements PlanDao {
                         PlanStatus.FAILED.name()))
                 .and(PLAN_INSTANCE.STATUS.isNotNull())
                 .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
-                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.INITAL_PLACEMENT.name()))
+                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.RESERVATION_PLAN.name()))
                 .fetchOne()
                 .into(Integer.class);
     }
@@ -818,7 +818,7 @@ public class PlanDaoImpl implements PlanDao {
      */
     private boolean isUserOrInitialPlacementPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
         return planInstance.getProjectType().equals(PlanProjectType.USER) ||
-            planInstance.getProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
+            planInstance.getProjectType().equals(PlanProjectType.RESERVATION_PLAN);
     }
 
     /**

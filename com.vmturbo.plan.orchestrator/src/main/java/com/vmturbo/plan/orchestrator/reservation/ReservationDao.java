@@ -92,4 +92,5 @@ public interface ReservationDao extends DiagsRestorable {
      * @return a set of {@link Reservation}.
      */
     public Set<Reservation> getReservationsByTemplates(@Nonnull final Set<Long> templateIds);
+
 }
