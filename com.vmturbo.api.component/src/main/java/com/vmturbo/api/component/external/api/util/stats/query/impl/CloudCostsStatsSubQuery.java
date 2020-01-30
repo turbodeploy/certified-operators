@@ -112,14 +112,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     );
 
     /**
-     * We need virtual volumes with workloads for the plan to get storage costs.
-     */
-    private static final List<String> PLAN_CLOUD_COST_ENTITIES_TYPES = Stream
-                    .concat(GroupProtoUtil.WORKLOAD_ENTITY_TYPES.stream(),
-                                    Stream.of(UIEntityType.VIRTUAL_VOLUME))
-                    .map(UIEntityType::apiStr).collect(Collectors.toList());
-
-    /**
      * Cloud target constant to match UI request, also used in test case.
      * This is used for the "Cost Breakdown by Cloud Account" widget.
      */
@@ -268,19 +260,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         } else if (inputScope.isRealtimeMarket() || inputScope.isPlan() ||
                 inputScope.isCloud()) {
             final Set<Long> cloudEntityOids;
-            if (inputScope.isPlan()) {
-                cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getExpandedOids(),
-                                                PLAN_CLOUD_COST_ENTITIES_TYPES);
+            // not expand scope for resource groups, because can be a situation when
+            // connected entities exist in different resource groups (vm and attached volume)
+            // but scope for resource group should contain only members of this resource group
+            if (shouldQueryUsingFilter(inputScope) || isResourceGroup(inputScope)) {
+                cloudEntityOids = context.getQueryScope().getScopeOids();
             } else {
-                // not expand scope for resource groups, because can be a situation when
-                // connected entities exist in different resource groups (vm and attached volume)
-                // but scope for resource group should contain only members of this resource group
-                if (shouldQueryUsingFilter(inputScope) ||
-                        isResourceGroup(inputScope)) {
-                    cloudEntityOids = context.getQueryScope().getScopeOids();
-                } else {
-                    cloudEntityOids = context.getQueryScope().getExpandedOids();
-                }
+                cloudEntityOids = context.getQueryScope().getExpandedOids();
             }
             /*
              * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
@@ -358,7 +344,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         return statsResponse;
     }
 
-    private boolean shouldQueryUsingFilter(ApiId inputScope) {
+    private static boolean shouldQueryUsingFilter(ApiId inputScope) {
         return inputScope.isRealtimeMarket() ||
                 inputScope.getScopeTypes()
                         .map(scopeTypes -> scopeTypes.size() == 1 &&
