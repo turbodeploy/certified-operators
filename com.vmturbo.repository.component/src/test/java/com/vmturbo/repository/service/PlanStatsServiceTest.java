@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -198,6 +200,15 @@ public class PlanStatsServiceTest {
                 .setEntityType(10)
                 .setDisplayName("x"))
             .build();
+        // unplaced VM - should be filtered out
+        final ProjectedTopologyEntity unplacedVmDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setOid(2L)
+                .setEntityType(10)
+                .setDisplayName("y")
+                // Adding a commodity bought with no provider indicates that the entity is unplaced
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder().build()))
+            .build();
         final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
             .setCursor("foo")
             .build();
@@ -208,7 +219,7 @@ public class PlanStatsServiceTest {
 
         final TopologyProtobufReader protobufReader = mock(TopologyProtobufReader.class);
         when(protobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(protobufReader.nextChunk()).thenReturn(Collections.singletonList(topologyEntityDTO));
+        when(protobufReader.nextChunk()).thenReturn(Arrays.asList(topologyEntityDTO, unplacedVmDTO));
 
         final StatEpoch statEpoch = StatEpoch.PLAN_PROJECTED;
         final EntityStats.Builder statsBuilder = EntityStats.newBuilder()

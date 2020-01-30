@@ -211,11 +211,13 @@ public class PlanStatsAggregator {
     private boolean shouldCountEntity(TopologyEntityDTO entity) {
         // Suspended entities should not appear in the counts
         boolean entitySuspended = entity.getEntityState() == EntityState.SUSPENDED;
+        // Unplaced entities (generally VMs) should not appear in the counts
+        boolean entityPlaced = TopologyDTOUtil.isPlaced(entity);
         // Only filter scenario additions from the SOURCE topology
         final boolean scenarioAddition = isProcessingSourceTopologyStats
             && entity.hasOrigin()
             && entity.getOrigin().hasPlanScenarioOrigin();
-        return !scenarioAddition && !entitySuspended;
+        return entityPlaced && !scenarioAddition && !entitySuspended;
     }
 
     /**
