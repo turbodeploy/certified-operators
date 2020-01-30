@@ -1,6 +1,7 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -10,6 +11,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -19,9 +21,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -146,6 +149,17 @@ class AzureAllocationTopologyTest {
                     .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                             .setNumberOfCoupons(1)
                             .build()))
+            .build();
+
+    protected static final Long BILLING_FAMILY_ID = OID_PROVIDER.incrementAndGet();
+
+    protected static final GroupAndMembers BILLING_FAMILY_GROUPS =
+        ImmutableGroupAndMembers.builder()
+            .group(GroupDTO.Grouping.newBuilder()
+                .setId(BILLING_FAMILY_ID)
+                .build())
+            .entities(Collections.singleton(BUSINESS_ACCOUNT.getOid()))
+            .members(Collections.singleton(BUSINESS_ACCOUNT.getOid()))
             .build();
 
 }
