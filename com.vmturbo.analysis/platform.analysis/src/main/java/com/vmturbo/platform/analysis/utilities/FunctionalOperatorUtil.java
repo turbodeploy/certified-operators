@@ -135,8 +135,28 @@ public class FunctionalOperatorUtil {
                     QuoteMinimizer::combine);
             Trader matchingTP = minimizer.getBestSeller();
 
-            if (matchingTP == null) {
-                logger.error("UPDATE_COUPON_COMM cannot find a best seller for:"
+            double requestedCoupons;
+            if (matchingTP != null) {
+                // The capacity of coupon commodity sold by the matching tp holds the
+                // number of coupons associated with the template. This is the number of
+                // coupons consumed by a vm that got placed on a cbtp.
+
+                // Determining the coupon quantity for buyers in consistent scaling
+                // groups requires special handling when there is partial RI coverage.
+                //
+                // For example, if a m4.large needs 16 coupons and there are three VMs
+                // in the scaling group. There is an m4.large CBTP that has 16 coupons.
+                //
+                // Since scaling actions are synthesized from a master buyer, we need to
+                // spread the available coupons over all VMs in the scaling group in
+                // order to be able to provide a consistent discounted cost for all
+                // actions.  So, instead of one VM having 100% RI coverage and the other
+                // two having 0% coverage, all VMs will have 33% coverage.
+                int indexOfCouponCommByTp = matchingTP.getBasketSold().indexOfBaseType(couponCommBaseType);
+                CommoditySold couponCommSoldByTp = matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
+                requestedCoupons = couponCommSoldByTp.getCapacity();
+            } else {
+                logger.warn("UPDATE_COUPON_COMM cannot find a best seller for:"
                         + buyer.getBuyer().getDebugInfoNeverUseInCode()
                         + " which moved to: "
                         + seller.getDebugInfoNeverUseInCode()
@@ -144,27 +164,9 @@ public class FunctionalOperatorUtil {
                         + mutableSellers.stream()
                         .map(Trader::getDebugInfoNeverUseInCode)
                         .collect(Collectors.toList()));
-                return new double[]{commSold.getQuantity(), 0};
+                requestedCoupons = 0;
             }
 
-            // The capacity of coupon commodity sold by the matching tp holds the
-            // number of coupons associated with the template. This is the number of
-            // coupons consumed by a vm that got placed on a cbtp.
-
-            // Determining the coupon quantity for buyers in consistent scaling
-            // groups requires special handling when there is partial RI coverage.
-            //
-            // For example, if a m4.large needs 16 coupons and there are three VMs
-            // in the scaling group. There is an m4.large CBTP that has 16 coupons.
-            //
-            // Since scaling actions are synthesized from a master buyer, we need to
-            // spread the available coupons over all VMs in the scaling group in
-            // order to be able to provide a consistent discounted cost for all
-            // actions.  So, instead of one VM having 100% RI coverage and the other
-            // two having 0% coverage, all VMs will have 33% coverage.
-            int indexOfCouponCommByTp = matchingTP.getBasketSold().indexOfBaseType(couponCommBaseType);
-            CommoditySold couponCommSoldByTp = matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-            double requestedCoupons = couponCommSoldByTp.getCapacity();
 
             Map<Long, Double> totalCouponsToRelinquish = new HashMap<>();
             // if gf > 1 (its a group leader), reset coverage of the CSG and relinquish coupons to the CBTP
