@@ -312,6 +312,17 @@
             <artifactId>com.vmturbo.mediation.hybrid.cloud.common</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.platform.sdk.probe</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.commons</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.antlr</groupId>

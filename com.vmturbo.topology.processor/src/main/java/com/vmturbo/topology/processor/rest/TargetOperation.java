@@ -18,16 +18,16 @@ public enum TargetOperation {
     UPDATE;
 
 
-     // A set of invalid creation mode for each target operation.
+    // A set of invalid creation mode for each target operation.
     private Set<CreationMode> invalidForCreationMode;
 
-     // Setting invalid creation mode for each target operation.
+    // Setting invalid creation mode for each target operation.
     static {
-        ADD.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER);
+        ADD.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.INTERNAL, CreationMode.OTHER);
         DISCOVER.invalidForCreationMode = Collections.emptySet();
         VALIDATE.invalidForCreationMode = Collections.emptySet();
-        REMOVE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER);
-        UPDATE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER);
+        REMOVE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.INTERNAL, CreationMode.OTHER);
+        UPDATE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.INTERNAL, CreationMode.OTHER);
     }
 
     /**
