@@ -94,10 +94,7 @@ public class StatsMapper {
         RelationType.COMMODITIESBOUGHT.getLiteral(), Optional.of(StringConstants.RELATION_BOUGHT),
         // (June 12, 2017): This is not a relation that the UI understands,
         // so don't map it to any relation type.
-        RelationType.METRICS.getLiteral(), Optional.empty(),
-        // (June 8, 2017): "plan" is not valid relation type from the UI's point of view,
-        // so don't map it to any relation type when constructing results for the UI.
-        "plan", Optional.empty());
+        RelationType.METRICS.getLiteral(), Optional.empty());
 
     /**
      * The UI distinguishes between "metrics" and "commodities". Commodities are expected to contain
