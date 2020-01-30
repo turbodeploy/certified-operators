@@ -140,7 +140,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
-        diagsConfig.diagsHandler().dumpDiags(diagnosticZip);
+        diagsConfig.diagsHandler().dump(diagnosticZip);
     }
 
     @Override

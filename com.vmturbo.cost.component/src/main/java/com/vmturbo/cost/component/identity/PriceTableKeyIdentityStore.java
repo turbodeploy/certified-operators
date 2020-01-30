@@ -17,7 +17,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -33,8 +32,9 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PriceTableKeyOidRecord;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
@@ -45,7 +45,7 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * Persistence for price table key oids for {@link Tables#PRICE_TABLE}.
  */
-public class PriceTableKeyIdentityStore implements Diagnosable {
+public class PriceTableKeyIdentityStore implements DiagsRestorable {
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
     private final IdentityProvider identityProvider;
@@ -216,22 +216,20 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
      * {@inheritDoc}
      */
     @Override
-    @Nonnull
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender)
+            throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         try {
-            return fetchAllOidMappings().entrySet().stream()
-                    .map(entry -> {
-                        try {
-                            return new PriceTableKeyOid(entry.getKey(), entry.getValue());
-                        } catch (NumberFormatException | IdentityStoreException e) {
-                            logger.error("Could not collect diags for {}.",
-                                    entry.getValue(), e);
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .map(priceTableKeyOid -> gson.toJson(priceTableKeyOid, PriceTableKeyOid.class));
+            for (Entry<IdentityMatchingAttributes, Long> entry: fetchAllOidMappings().entrySet()) {
+                try {
+                    final PriceTableKeyOid priceTableKeyOid =
+                            new PriceTableKeyOid(entry.getKey(), entry.getValue());
+                    appender.appendString(gson.toJson(priceTableKeyOid, PriceTableKeyOid.class));
+                } catch (NumberFormatException | IdentityStoreException e) {
+                    logger.error("Could not collect diags for {}.",
+                            entry.getValue(), e);
+                }
+            }
         } catch (DbException e) {
             throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
                     + "failed. %s", e));
@@ -267,6 +265,12 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
             throw new DiagnosticsException(String.format("restoring priceTableKeys to database "
                     + "failed. %s", e));
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return getClass().getSimpleName();
     }
 
     private void removeAllOids() {

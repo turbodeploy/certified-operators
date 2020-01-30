@@ -7,13 +7,13 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
  * Data access object for creating, updating, searching, deleting reservations.
  */
-public interface ReservationDao extends Diagnosable {
+public interface ReservationDao extends DiagsRestorable {
 
     /**
      * Get all reservations which are stored in reservation table.

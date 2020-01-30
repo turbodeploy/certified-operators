@@ -85,6 +85,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersEntities;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersGroups;
@@ -1442,6 +1443,7 @@ public class GroupDAO implements IGroupStore {
 
     @Override
     public void deleteAllGroups() {
+        dslContext.deleteFrom(Tables.POLICY_GROUP).execute();
         dslContext.deleteFrom(GROUPING).execute();
     }
 

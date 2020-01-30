@@ -11,10 +11,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -28,6 +26,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.PriceTableKeyOid;
@@ -260,10 +261,12 @@ public class PriceTableKeyIdentityStoreTest {
     public void testCollectDiags() throws DiagnosticsException, DbException {
         insertAzurePriceTable();
         //collecting diags
-        List<String> listOfString = testIdentityStore.collectDiagsStream()
-            .collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        testIdentityStore.collectDiags(appender);
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender).appendString(captor.capture());
         final PriceTableKeyOid priceTableKeyOid =
-                GSON.fromJson(listOfString.iterator().next(), PriceTableKeyOid.class);
+                GSON.fromJson(captor.getValue(), PriceTableKeyOid.class);
         final IdentityMatchingAttributes attrs = getMatchingAttributes(priceTableKeyOid.priceTableKeyIdentifiers);
         Map<IdentityMatchingAttributes, Long> identityMatchingAttributesLongMap = testIdentityStore
                 .fetchAllOidMappings();
@@ -283,15 +286,17 @@ public class PriceTableKeyIdentityStoreTest {
     public void testRestoreDiags() throws DiagnosticsException, DbException {
         insertAzurePriceTable();
         //collecting diags
-        final List<String> restoreList = testIdentityStore.collectDiagsStream()
-            .collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        testIdentityStore.collectDiags(appender);
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender).appendString(captor.capture());
         final Map<IdentityMatchingAttributes, Long> controlMatchingAttributesLongMap =
                 testIdentityStore.fetchAllOidMappings();
 
         dsl.delete(Tables.PRICE_TABLE_KEY_OID).execute();
         assertThat(testIdentityStore.fetchAllOidMappings().isEmpty(), is(true));
 
-        testIdentityStore.restoreDiags(restoreList);
+        testIdentityStore.restoreDiags(captor.getAllValues());
         assertThat(controlMatchingAttributesLongMap,
                 equalTo(testIdentityStore.fetchAllOidMappings()));
     }
@@ -308,12 +313,14 @@ public class PriceTableKeyIdentityStoreTest {
 
         Map<IdentityMatchingAttributes, Long> originalMap = testIdentityStore
                 .fetchAllOidMappings();
-        final List<String> collectedDiags = testIdentityStore.collectDiagsStream()
-            .collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        testIdentityStore.collectDiags(appender);
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender).appendString(captor.capture());
 
         PriceTableKeyIdentityStore newPriceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
                 new IdentityProvider(0));
-        newPriceTableKeyIdentityStore.restoreDiags(collectedDiags);
+        newPriceTableKeyIdentityStore.restoreDiags(captor.getAllValues());
 
         Map<IdentityMatchingAttributes, Long> newMap = newPriceTableKeyIdentityStore.fetchAllOidMappings();
         assertThat(originalMap, equalTo(newMap));

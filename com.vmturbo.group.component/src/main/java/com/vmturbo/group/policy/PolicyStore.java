@@ -7,7 +7,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -24,8 +23,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
@@ -41,8 +43,14 @@ import com.vmturbo.proactivesupport.DataMetricCounter;
  * The {@link PolicyStore} class is used for CRUD operations on policies, to abstract away the
  * persistence details from the rest of the component.
  */
-public class PolicyStore implements Diagnosable {
+public class PolicyStore implements DiagsRestorable {
 
+    /**
+     * The file name for the policies dump collected from the {@link PolicyStore}.
+     * It's a string file, so the "diags" extension is required for compatibility
+     * with {@link DiagsZipReader}.
+     */
+    private static final String POLICIES_DUMP_FILE = "policies_dump";
     private static final String GET_LABEL = "get";
 
     private static final String CREATE_LABEL = "create";
@@ -280,18 +288,15 @@ public class PolicyStore implements Diagnosable {
         }
     }
 
-
     /**
      * {@inheritDoc}
      */
     @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Collection<PolicyDTO.Policy> policies = getAll();
         logger.info("Collected diags for {} policies.", policies.size());
-
-        return Stream.of(ComponentGsonFactory.createGsonNoPrettyPrint()
-            .toJson(policies));
+        appender.appendString(ComponentGsonFactory.createGsonNoPrettyPrint().toJson(policies));
     }
 
     /**
@@ -299,7 +304,7 @@ public class PolicyStore implements Diagnosable {
      * Restore policies to the {@link PolicyStore} from the collected diags.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException If there is a problem writing the policies
      *         to the store.
      */
@@ -329,6 +334,12 @@ public class PolicyStore implements Diagnosable {
         } catch (DataAccessException e) {
             throw new DiagnosticsException(e);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return POLICIES_DUMP_FILE;
     }
 
     @Nonnull

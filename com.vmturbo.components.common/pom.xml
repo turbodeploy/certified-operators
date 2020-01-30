@@ -12,6 +12,21 @@
     <artifactId>com.vmturbo.components.common</artifactId>
     <description>Common classes for all components.</description>
 
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-checkstyle-plugin</artifactId>
+                    <configuration>
+                        <failOnViolation>true</failOnViolation>
+                        <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
     <dependencies>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>

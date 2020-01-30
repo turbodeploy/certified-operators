@@ -9,7 +9,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
@@ -17,7 +17,7 @@ import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperati
 /**
  * Data access object, responsible for creating, updating, searching, deleting templates.
  */
-public interface TemplatesDao extends Diagnosable {
+public interface TemplatesDao extends DiagsRestorable {
     /**
      * Get all templates that match a filter.
      *

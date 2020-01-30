@@ -10,21 +10,22 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -58,6 +59,10 @@ public class IdentityProviderImpl implements IdentityProvider {
     // ---------------------------
     // START diags-related constants
 
+    /**
+     * File name inside diagnostics to store identity information.
+     */
+    public static final String ID_DIAGS_FILE_NAME = "Identity";
     /**
      * The total number of diags entries. There should be this many DIAGS_*_IDX variables.
      */
@@ -287,7 +292,7 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         logger.info("Collecting diagnostics from the Identity Provider...");
         // No-pretty-print is important, because we want one line per item so that we
         // can restore properly.
@@ -296,13 +301,11 @@ public class IdentityProviderImpl implements IdentityProvider {
             // Synchronize on the probeIdLock so that probes that register
             // during a diags dump don't cause any issues or inconsistencies.
             synchronized (probeIdLock) {
+                appender.appendString(gson.toJson(probeTypeToId));
+                appender.appendString(gson.toJson(perProbeMetadata));
                 final StringWriter writer = new StringWriter();
                 identityService.backup(writer);
-
-                return Stream.of(
-                    gson.toJson(probeTypeToId),
-                    gson.toJson(perProbeMetadata),
-                    writer.toString());
+                appender.appendString(writer.toString());
             }
         } finally {
             logger.info("Finished collecting diagnostics from the Identity Provider.");
@@ -349,6 +352,12 @@ public class IdentityProviderImpl implements IdentityProvider {
             identityService.restore(reader);
         }
         logger.info("Successfully restored the Identity Provider!");
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return ID_DIAGS_FILE_NAME;
     }
 
     private void storeProbeId(final String probeType, final Long probeId) {

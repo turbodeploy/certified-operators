@@ -7,10 +7,8 @@ import static org.junit.Assert.fail;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
@@ -21,6 +19,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ContextConfiguration;
@@ -31,6 +31,7 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import com.vmturbo.common.protobuf.cost.Pricing.BusinessAccountPriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.identity.IdentityProvider;
@@ -192,10 +193,13 @@ public class BusinessAccountPriceTableKeyStoreTest {
                 .putBusinessAccountPriceTableKey(456L, barPriceTableKey)
                 .build();
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
-        List<String> collectDiags = businessAccountPriceTableKeyStore.collectDiagsStream()
-            .collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        businessAccountPriceTableKeyStore.collectDiags(appender);
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(captor.capture());
+
         dsl.truncate(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY).execute();
-        businessAccountPriceTableKeyStore.restoreDiags(collectDiags);
+        businessAccountPriceTableKeyStore.restoreDiags(captor.getAllValues());
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());
 
         assertThat(priceTableKeyMap.size(), is(2));

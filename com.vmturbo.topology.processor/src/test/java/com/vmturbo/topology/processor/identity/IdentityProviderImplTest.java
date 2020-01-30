@@ -20,9 +20,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -360,15 +362,18 @@ public class IdentityProviderImplTest {
         assertEquals(1, idMap.size());
         assertEquals(entity, idMap.get(7L));
 
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        final ArgumentCaptor<String> diagsCaptor = ArgumentCaptor.forClass(String.class);
         // Collect the diags
-        final List<String> diags = providerImpl.collectDiagsStream().collect(Collectors.toList());
+        providerImpl.collectDiags(appender);
         verify(identityService).backup(any(Writer.class));
+        verify(appender, Mockito.atLeastOnce()).appendString(diagsCaptor.capture());
 
         // Create a new provider, restore the diags, and make sure
         // the new providers behaves just like the old one.
         final IdentityProviderImpl newProvider = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
-        newProvider.restoreDiags(diags);
+        newProvider.restoreDiags(diagsCaptor.getAllValues());
         verify(identityService).restore(any());
         // It should assign the same ID for the same probe type.
         assertEquals(probeId, newProvider.getProbeId(probeInfo));

@@ -47,8 +47,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
@@ -67,7 +69,14 @@ import com.vmturbo.group.identity.IdentityProvider;
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
  * in an efficient way.
  */
-public class SettingStore implements Diagnosable {
+public class SettingStore implements DiagsRestorable {
+
+    /**
+     * The file name for the settings dump collected from the {@link SettingStore}.
+     * It's a string file, so the "diags" extension is required for compatibility
+     * with {@link DiagsZipReader}.
+     */
+    private static final String SETTINGS_DUMP_FILE = "settings_dump";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -876,15 +885,13 @@ public class SettingStore implements Diagnosable {
     /**
      * {@inheritDoc}
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
 
         try {
-            return Stream.of(
-                gson.toJson(getAllGlobalSettings()),
-                gson.toJson(getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+            appender.appendString(gson.toJson(getAllGlobalSettings()));
+            appender.appendString(gson.toJson(getSettingPolicies(SettingPolicyFilter.newBuilder().build())
                     .collect(Collectors.toList())));
         } catch (DataAccessException | InvalidProtocolBufferException e) {
             throw new DiagnosticsException(e);
@@ -938,6 +945,12 @@ public class SettingStore implements Diagnosable {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return SETTINGS_DUMP_FILE;
     }
 
     /**

@@ -18,9 +18,11 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
@@ -101,13 +103,16 @@ public class DiscoveredCloudCostUploaderTest {
 
         final Map<Long, TargetCostData> originalMap = cloudCostUploader.getCostDataByTargetIdSnapshot();
 
-        List<String> diags = cloudCostUploader.collectDiagsStream().collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        cloudCostUploader.collectDiags(appender);
+        final ArgumentCaptor<String> diagsCaptor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diagsCaptor.capture());
 
         final DiscoveredCloudCostUploader newUploader =
             new DiscoveredCloudCostUploader(riCostDataUploader, accountExpensesUploader, priceTableUploader,
                     businessAccountPriceTableKeyUploader);
 
-        newUploader.restoreDiags(diags);
+        newUploader.restoreDiags(diagsCaptor.getAllValues());
 
         assertThat(newUploader.getProbeTypesForTargetId(), is(cloudCostUploader.getProbeTypesForTargetId()));
 

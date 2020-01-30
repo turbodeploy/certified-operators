@@ -8,17 +8,17 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -28,13 +28,13 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.StreamingDiagnosable;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity.Builder;
-import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
  * Represents an in-memory "source" topology for the realtime (live) context.
@@ -44,7 +44,7 @@ import com.vmturbo.topology.graph.TopologyGraphCreator;
  */
 @Immutable
 @ThreadSafe
-public class SourceRealtimeTopology implements StreamingDiagnosable {
+public class SourceRealtimeTopology {
     private final TopologyInfo topologyInfo;
 
     /**
@@ -123,21 +123,12 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
             globalSupplyChainCalculator.getSupplyChainNodes(entityGraph, environmentType, entityTypesToSkip));
     }
 
-    @Nonnull
-    @Override
-    public Stream<String> collectDiags() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-        return entityGraph.entities()
-            .map(RepoGraphEntity::getTopologyEntity)
-            .map(gson::toJson);
-    }
-
-    @Override
-    public void restoreDiags(@Nonnull final Stream<String> collectedDiags) throws DiagnosticsException {
-        // Restoring diags not supported for now.
-        //
-        // It's not an important use case - we typically restore diags to Topology Processor and
-        // broadcast.
+        for (RepoGraphEntity entity: entityGraph.entities().collect(Collectors.toList())) {
+            final String string = gson.toJson(entity.getTopologyEntity());
+            appender.appendString(string);
+        }
     }
 
     /**

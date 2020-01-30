@@ -24,7 +24,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,8 +61,9 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
@@ -87,8 +87,11 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * Because price data is expected to change infrequently, we will do a checksum comparison with the
  * latest price table checksum from the cost component before initiating a new upload.
  */
-public class PriceTableUploader implements Diagnosable {
-
+public class PriceTableUploader implements DiagsRestorable {
+    /**
+     * File name inside diagnostics to store price table info.
+     */
+    public static final String PRICE_TABLE_NAME = "PriceTables";
     private static final Logger logger = LogManager.getLogger();
     private static final String END_OF_TARGET_ID_MAPPINGS = "END_OF_TARGET_ID_TO_PRICETABLE_MAPPING";
 
@@ -611,9 +614,9 @@ public class PriceTableUploader implements Diagnosable {
      * Create a stream of pairs of JSON-formatted String values corresponding to the probe type and
      * corresponding priceTable to be saved to the diagnostics file.
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender diagnostics)
+            throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Printer printer =
@@ -623,30 +626,27 @@ public class PriceTableUploader implements Diagnosable {
             sourcePriceTableByTargetId.values()
                     .forEach(priceTable -> priceTableToKeyMap.putIfAbsent(
                             priceTable.getPriceTableKeysList(), priceTable));
-
-            final List<String> diagnostics = new ArrayList<>();
             for (Entry<Long, PricingDTO.PriceTable> probeTypePriceTableEntry : sourcePriceTableByTargetId
                     .entrySet()) {
                 final long targetId = probeTypePriceTableEntry.getKey();
                 final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
-                diagnostics.add(String.valueOf(targetId));
-                diagnostics.add(gson.toJson(priceTable.getPriceTableKeysList()));
+                diagnostics.appendString(String.valueOf(targetId));
+                diagnostics.appendString(gson.toJson(priceTable.getPriceTableKeysList()));
             }
-            diagnostics.add(END_OF_TARGET_ID_MAPPINGS);
+            diagnostics.appendString(END_OF_TARGET_ID_MAPPINGS);
             for (Entry<Collection<PricingIdentifier>, PricingDTO.PriceTable> pricingData : priceTableToKeyMap
                     .entrySet()) {
                 final Collection<PricingIdentifier> pricingIdentifiers = pricingData.getKey();
                 final PricingDTO.PriceTable priceTable = pricingData.getValue();
                 try {
-                    diagnostics.add(gson.toJson(pricingIdentifiers));
-                    diagnostics.add(printer.print(priceTable));
+                    diagnostics.appendString(gson.toJson(pricingIdentifiers));
+                    diagnostics.appendString(printer.print(priceTable));
                 } catch (InvalidProtocolBufferException ex) {
                     throw new DiagnosticsException(
                             "Error mapping targetId " + pricingIdentifiers + " priceTable " +
                                     priceTable, ex);
                 }
             }
-            return diagnostics.stream();
         }
     }
 
@@ -700,6 +700,12 @@ public class PriceTableUploader implements Diagnosable {
                     priceTableKeyToData.getOrDefault(priceTableKey,
                             PricingDTO.PriceTable.newBuilder()).build()));
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return PRICE_TABLE_NAME;
     }
 
     /**

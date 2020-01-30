@@ -1,6 +1,5 @@
 package com.vmturbo.repository.topology;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,12 +10,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
@@ -27,6 +22,9 @@ import com.google.common.collect.Multimaps;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
@@ -35,8 +33,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
@@ -54,7 +54,12 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntities
  * in Arangodb so that, on startup of repository, we can rebuild the in-memory
  * representation.
  */
-public class GlobalSupplyChain implements Diagnosable {
+public class GlobalSupplyChain implements DiagsRestorable {
+    /**
+     * The file name for the state of the {@link GlobalSupplyChainManager}. It's a string file,
+     * so the "diags" extension is required for compatibility with {@link DiagsZipReader}.
+     */
+    public static final String GLOBAL_SUPPLY_CHAIN_DIAGS_FILE = "global-supply-chain";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -381,11 +386,9 @@ public class GlobalSupplyChain implements Diagnosable {
                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().build()));
     }
 
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
-        List<String> diagsJson = new ArrayList<>();
-        diagsJson.add(ComponentGsonFactory.createGsonNoPrettyPrint()
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
+        appender.appendString(ComponentGsonFactory.createGsonNoPrettyPrint()
                 .toJson(globalSupplyChainProviderRels.asMap()));
 
         Map<Long, EntityInfo> oidToEntityInfoMap =
@@ -402,10 +405,8 @@ public class GlobalSupplyChain implements Diagnosable {
             logger.error("Error loading global supply chain document from db");
 
         }
-        diagsJson.add(ComponentGsonFactory.createGsonNoPrettyPrint()
+        appender.appendString(ComponentGsonFactory.createGsonNoPrettyPrint()
                 .toJson(oidToEntityInfoMap));
-
-        return diagsJson.stream();
     }
 
     @Override
@@ -433,6 +434,12 @@ public class GlobalSupplyChain implements Diagnosable {
             envTypeToOidsMap.computeIfAbsent(EnvironmentType.forNumber(info.envType),
                     k -> new HashSet<>()).add(oid);
         });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return GLOBAL_SUPPLY_CHAIN_DIAGS_FILE;
     }
 
     private class EntityInfo{

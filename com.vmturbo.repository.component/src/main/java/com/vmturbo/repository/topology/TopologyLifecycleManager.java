@@ -16,25 +16,26 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Collections2;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javaslang.Function1;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.CollectionOperationException;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.EdgeOperationException;
@@ -65,7 +66,13 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
  * Topologies may also be removed (e.g. when a plan is deleted) via
  * {@link TopologyLifecycleManager#deleteTopology(TopologyID)}.
  */
-public class TopologyLifecycleManager implements Diagnosable {
+public class TopologyLifecycleManager implements DiagsRestorable {
+
+    /**
+     * The file name for the state of the {@link TopologyLifecycleManager}. It's a string file,
+     * so the "diags" extension is required for compatibility with {@link DiagsZipReader}.
+     */
+    public static final String ID_MGR_FILE = "database-id-metadata";
 
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -161,13 +168,14 @@ public class TopologyLifecycleManager implements Diagnosable {
         }
     }
 
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
-        return topologyIdByContextAndType.values().stream()
-                .flatMap(idsByType -> idsByType.values().stream())
-                // Save the database names in the diags.
-                .map(TopologyID::toDatabaseName);
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
+        for ( Map<TopologyType, TopologyID> map: topologyIdByContextAndType.values()) {
+            for (TopologyID topologyID: map.values()) {
+                final String string = topologyID.toDatabaseName();
+                appender.appendString(string);
+            }
+        }
     }
 
     @Override
@@ -181,6 +189,12 @@ public class TopologyLifecycleManager implements Diagnosable {
                 // Register, overwriting any existing TID for the same context and topology type.
                 // This will drop any database associated with the existing TID.
                 .forEach(tid -> registerTopology(tid, true));
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return ID_MGR_FILE;
     }
 
     /**

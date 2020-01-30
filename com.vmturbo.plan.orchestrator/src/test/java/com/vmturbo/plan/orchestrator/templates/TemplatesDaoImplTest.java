@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -24,6 +23,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -36,6 +37,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
@@ -264,11 +266,15 @@ public class TemplatesDaoImplTest {
         final List<Template> expected = Arrays.asList(foo, bar);
 
 
-        final List<String> diags = templatesDao.collectDiagsStream().collect(Collectors.toList());
-        System.out.println(diags);
-        assertEquals(2, diags.size());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        templatesDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
 
-        assertTrue(diags.stream()
+        System.out.println(diags.getAllValues());
+        assertEquals(2, diags.getAllValues().size());
+
+        assertTrue(diags.getAllValues().stream()
             .map(string -> TemplatesDaoImpl.GSON.fromJson(string, Template.class))
             .allMatch(expected::contains));
 

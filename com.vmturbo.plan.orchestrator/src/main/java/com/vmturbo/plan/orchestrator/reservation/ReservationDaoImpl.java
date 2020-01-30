@@ -15,7 +15,6 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +33,8 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Reservation;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
@@ -391,16 +391,15 @@ public class ReservationDaoImpl implements ReservationDao {
      *
      * This method retrieves all reservations and serializes them as JSON strings.
      *
-     * @return
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException on diagnostics exceptions occurred
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Set<ReservationDTO.Reservation> reservations = getAllReservations();
         logger.info("Collecting diagnostics for {} reservations", reservations.size());
-        return reservations.stream()
-            .map(reservation -> GSON.toJson(reservation, ReservationDTO.Reservation.class));
+        for (ReservationDTO.Reservation reservation : reservations) {
+            appender.appendString(GSON.toJson(reservation, ReservationDTO.Reservation.class));
+        }
     }
 
     /**
@@ -410,7 +409,7 @@ public class ReservationDaoImpl implements ReservationDao {
      * serialized reservations from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains reservations, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              reservation.
@@ -460,6 +459,12 @@ public class ReservationDaoImpl implements ReservationDao {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "Reservations";
     }
 
     /**

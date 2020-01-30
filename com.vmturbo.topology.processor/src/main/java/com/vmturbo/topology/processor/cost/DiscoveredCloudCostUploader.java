@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -23,7 +22,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
@@ -39,7 +40,11 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
  * This class is responsible for extracting the cloud cost data and
  * sending it to the Cost Component.
  */
-public class DiscoveredCloudCostUploader implements Diagnosable {
+public class DiscoveredCloudCostUploader implements DiagsRestorable {
+    /**
+     * File name inside diagnostics to store discovered cloud costs.
+     */
+    public static final String DISCOVERED_CLOUD_COST_NAME = "DiscoveredCloudCost";
     private static final Logger logger = LogManager.getLogger();
 
     public static final long MILLIS_PER_YEAR = 31536000000L; // ms per year
@@ -251,15 +256,15 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
      */
     @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Map<Long, String> strProbeTypesForTargetId = probeTypesForTargetId.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getProbeType()));
 
         // return the type -> targets map serialized, and then each cost data item serialized
-        return Stream.concat(
-            Stream.of(GSON.toJson(strProbeTypesForTargetId)),
-            costDataByTargetId.values().stream().map(GSON::toJson));
-
+        appender.appendString(GSON.toJson(strProbeTypesForTargetId));
+        for (TargetCostData costData: costDataByTargetId.values()) {
+            appender.appendString(GSON.toJson(costData));
+        }
     }
 
     /**
@@ -287,6 +292,12 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
             final TargetCostData costData = GSON.fromJson(collectedDiags.get(i), TargetCostData.class);
             costDataByTargetId.put(costData.targetId, costData);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return DISCOVERED_CLOUD_COST_NAME;
     }
 
     /**

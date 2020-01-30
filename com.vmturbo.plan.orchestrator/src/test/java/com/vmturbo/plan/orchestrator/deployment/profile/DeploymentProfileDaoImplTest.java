@@ -23,6 +23,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -32,6 +34,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.Tables;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
@@ -218,14 +221,16 @@ public class DeploymentProfileDaoImplTest {
         DeploymentProfile first = deploymentProfileDao.createDeploymentProfile(firstInfo);
         DeploymentProfile second = deploymentProfileDao.createDeploymentProfile(secondInfo);
 
-        final List<String> result = deploymentProfileDao.collectDiagsStream()
-            .collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        deploymentProfileDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
         final List<String> expected = Stream.of(first, second)
             .map(profile -> DeploymentProfileDaoImpl.GSON.toJson(profile, DeploymentProfile.class))
             .collect(Collectors.toList());
 
-       assertTrue(result.containsAll(expected));
-       assertTrue(expected.containsAll(result));
+       assertTrue(diags.getAllValues().containsAll(expected));
+       assertTrue(expected.containsAll(diags.getAllValues()));
     }
 
     /**

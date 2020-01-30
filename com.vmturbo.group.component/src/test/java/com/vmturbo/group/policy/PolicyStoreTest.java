@@ -26,11 +26,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
@@ -311,13 +314,15 @@ public class PolicyStoreTest {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
 
-        final List<String> diags = policyStore.collectDiagsStream().collect(Collectors.toList());
-
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        policyStore.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
         dbConfig.getDslContext().deleteFrom(Tables.POLICY);
 
         final PolicyStore newPolicyStore =
                 new PolicyStore(dbConfig.getDslContext(), mapperFactory, identityProvider);
-        newPolicyStore.restoreDiags(diags);
+        newPolicyStore.restoreDiags(diags.getAllValues());
 
         final Policy gotPolicy = policyStore.get(POLICY_ID).get();
         assertThat(gotPolicy, is(policy));

@@ -1,24 +1,19 @@
 package com.vmturbo.api.internal.controller;
 
-import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 
-import io.prometheus.client.CollectorRegistry;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.service.AdminService;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -26,19 +21,19 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.Sup
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricDefinitions;
 
-public class ApiDiagnosticsHandler {
+/**
+ * Appliance version diagnostics provider.
+ */
+public class VersionDiagnosable implements StringDiagnosable {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final DiagnosticsWriter diagnosticsWriter;
-
     private static final String VERSION_FILE_NAME = "turbonomic_cluster_version.txt";
-
-    private static final String ERRORS_FILE = "dump_errors";
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
@@ -48,26 +43,26 @@ public class ApiDiagnosticsHandler {
 
     private final long liveTopologyContextId;
 
-    public ApiDiagnosticsHandler(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+    /**
+     * Constructs diagnostics provider.
+     *
+     * @param supplyChainFetcherFactory supply chain factory
+     * @param adminService admin service
+     * @param clusterManagerClient cluster manager client
+     * @param liveTopologyContextId live topology context id
+     */
+    public VersionDiagnosable(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                  @Nonnull final AdminService adminService,
                                  @Nonnull ClusterMgrRestClient clusterManagerClient,
-                                 @Nonnull final DiagnosticsWriter diagnosticsWriter,
                                  final long liveTopologyContextId) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.adminService = Objects.requireNonNull(adminService);
-        this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
         this.clusterService = Objects.requireNonNull(clusterManagerClient);
         this.liveTopologyContextId = liveTopologyContextId;
     }
 
-    /**
-     * Dumps the API component state to a {@link ZipOutputStream}.
-     *
-     * @param diagnosticZip The destination.
-     */
-    public void dump(@Nonnull final ZipOutputStream diagnosticZip) {
-        final List<String> errors = new ArrayList<>();
-
+    @Override
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         ProductVersionDTO versionDTO = new ProductVersionDTO();
         try {
             versionDTO = adminService.getVersionInfo(true);
@@ -75,38 +70,20 @@ public class ApiDiagnosticsHandler {
             logger.error("Error fetching production version: ", e);
         }
 
-        // Version information (capture regardless of whether telemetry is enabled or not)
-        try {
-            diagnosticsWriter.writeZipEntry(VERSION_FILE_NAME, versionInfo(versionDTO).stream(),
-                diagnosticZip);
-        } catch (Exception e) {
-            logger.error("Error writing version information: ", e);
-            errors.add(e.getMessage());
-        }
-
         // Collect telemetry only if user has enabled telemetry.
         if (clusterService.isTelemetryEnabled()) {
             // Collect telemetry metrics to Prometheus before writing out the Prometheus metrics.
             collectTelemetryMetrics(versionDTO);
-            try {
-                diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
-            } catch (DiagnosticsException e) {
-                errors.addAll(e.getErrors());
-            }
         }
-
-        if (!errors.isEmpty()) {
-            try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors.stream(), diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Error writing the zip errors file", e);
-            }
+        for (String string: versionInfo(versionDTO)) {
+            appender.appendString(string);
         }
     }
 
-    public List<String> restore(@Nonnull final InputStream inputStream) {
-        // Nothing to do
-        return Collections.emptyList();
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return VERSION_FILE_NAME;
     }
 
     @VisibleForTesting

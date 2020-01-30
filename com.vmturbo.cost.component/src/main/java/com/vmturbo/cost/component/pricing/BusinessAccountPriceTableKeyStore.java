@@ -8,7 +8,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -28,8 +27,9 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.cost.Pricing.BusinessAccountPriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.BusinessAccountPriceTableKeyRecord;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
@@ -42,7 +42,7 @@ import com.vmturbo.sql.utils.DbException;
  * persisted in {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
  */
 @ThreadSafe
-public class BusinessAccountPriceTableKeyStore implements Diagnosable {
+public class BusinessAccountPriceTableKeyStore implements DiagsRestorable {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
@@ -63,13 +63,16 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
     /**
      * {@inheritDoc}
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
-        return fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet()).entrySet().stream()
-                .map(entry -> new BusinessAccountOidToPriceTableKey(entry.getKey(),
-                        entry.getValue()))
-                .map(priceTableKeyOid -> GSON.toJson(priceTableKeyOid, BusinessAccountOidToPriceTableKey.class));
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
+        for (Entry<Long, Long> entry : fetchPriceTableKeyOidsByBusinessAccount(
+                Collections.emptySet()).entrySet()) {
+            final BusinessAccountOidToPriceTableKey priceTableKeyOid =
+                    new BusinessAccountOidToPriceTableKey(entry.getKey(), entry.getValue());
+            final String string =
+                    GSON.toJson(priceTableKeyOid, BusinessAccountOidToPriceTableKey.class);
+            appender.appendString(string);
+        }
     }
 
     /**
@@ -97,6 +100,12 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
             throw new DiagnosticsException(String.format("Restoring BusinessAccountOidToPriceTableKey" +
                     " to database failed. %s", e));
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return getClass().getSimpleName();
     }
 
     private void removeAllOids() {

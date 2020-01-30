@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -28,7 +27,8 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanProjectRecord;
@@ -174,11 +174,14 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      */
     @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender)
+            throws DiagnosticsException {
         final List<PlanProjectOuterClass.PlanProject> planProjects = getAllPlanProjects();
         logger.info("Collecting diagnostics for {} plan projects", planProjects.size());
-        return planProjects.stream()
-            .map(planProject -> GSON.toJson(planProject, PlanProjectOuterClass.PlanProject.class));
+        for (PlanProjectOuterClass.PlanProject planProject : planProjects) {
+            appender.appendString(
+                    GSON.toJson(planProject, PlanProjectOuterClass.PlanProject.class));
+        }
     }
 
     /**
@@ -188,7 +191,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * serialized plan projects from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains plan projects, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              plan project.
@@ -241,6 +244,12 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "PlanProjects";
     }
 
     /**

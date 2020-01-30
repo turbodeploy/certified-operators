@@ -25,6 +25,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -32,6 +34,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
@@ -185,13 +188,14 @@ public class PersistentTargetSpecIdentityStoreTest {
     public void testDiagsCollectAndRestore() throws DiagnosticsException {
         final PersistentIdentityStore testIdentityStore = new PersistentTargetSpecIdentityStore(dsl);
         persistTargetSpecOids();
-        final List<String> diags = testIdentityStore
-            .collectDiagsStream()
-            .collect(Collectors.toList());
-        assertEquals(2, diags.size());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        testIdentityStore.collectDiags(appender);
+        final ArgumentCaptor<String> diagsCaptor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diagsCaptor.capture());
+        assertEquals(2, diagsCaptor.getAllValues().size());
         // Clean up db before restore
         dsl.delete(TARGETSPEC_OID).execute();
-        testIdentityStore.restoreDiags(diags);
+        testIdentityStore.restoreDiags(diagsCaptor.getAllValues());
         final Result<Record> rs = dsl.select()
                 .from(TARGETSPEC_OID)
                 .fetch();

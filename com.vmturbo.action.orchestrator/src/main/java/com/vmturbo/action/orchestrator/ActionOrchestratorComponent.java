@@ -99,7 +99,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     @Override
     public void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
-        diagnosticsConfig.diagnostics().dump(diagnosticZip);
+        diagnosticsConfig.diagnosticsHandler().dump(diagnosticZip);
     }
 
     @Nonnull

@@ -1,13 +1,19 @@
 package com.vmturbo.group.diagnostics;
 
+import com.google.common.collect.Lists;
+
+import io.prometheus.client.CollectorRegistry;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
+import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.group.GroupDaoDiagnostics;
 import com.vmturbo.group.policy.PolicyConfig;
@@ -42,21 +48,21 @@ public class GroupDiagnosticsConfig {
     private RpcConfig rpcConfig;
 
     @Bean
-    public DiagnosticsWriter diagnosticsWriter() {
-        return new DiagnosticsWriter();
-    }
-
-    @Bean
     public DiagsZipReaderFactory recursiveZipReaderFactory() {
         return new DefaultDiagsZipReader();
     }
 
     @Bean
-    public GroupDiagnosticsHandler diagsHandler() {
-        return new GroupDiagnosticsHandler(groupStoreDiagnostics(), policyConfig.policyStore(),
-                settingConfig.settingStore(), scheduleConfig.scheduleStore(),
-                recursiveZipReaderFactory(), diagnosticsWriter());
+    public PrometheusDiagnosticsProvider prometheusDiagnisticsProvider() {
+        return new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry);
+    }
 
+    @Bean
+    public DiagnosticsHandlerImportable diagsHandler() {
+        return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
+                Lists.newArrayList(groupStoreDiagnostics(), policyConfig.policyStore(),
+                        settingConfig.settingStore(), scheduleConfig.scheduleStore(),
+                        prometheusDiagnisticsProvider()));
     }
 
     @Bean
@@ -65,7 +71,7 @@ public class GroupDiagnosticsConfig {
     }
 
     @Bean
-    public GroupDiagnosticsController diagnosticsController() {
-        return new GroupDiagnosticsController(diagsHandler());
+    public DiagnosticsControllerImportable diagnosticsController() {
+        return new DiagnosticsControllerImportable(diagsHandler());
     }
 }

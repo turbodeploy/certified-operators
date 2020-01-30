@@ -37,8 +37,10 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemActionException.InvalidScheduleAssignmentException;
@@ -54,7 +56,14 @@ import com.vmturbo.group.setting.SettingStore;
 /**
  * This class implements persistence layer for schedules.
  */
-public class ScheduleStore implements Diagnosable {
+public class ScheduleStore implements DiagsRestorable {
+
+    /**
+     * The file name for the schedules dump collected from the {@link ScheduleStore}.
+     * It's a string file, so the "diags" extension is required for compatibility
+     * with {@link DiagsZipReader}.
+     */
+    private static final String SCHEDULES_DUMP_FILE = "schedules_dump";
     private static final int MAX_BATCH_SIZE = 50;
 
     private final Logger logger = LogManager.getLogger();
@@ -85,16 +94,14 @@ public class ScheduleStore implements Diagnosable {
     /**
      * {@inheritDoc}
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         try {
-            return dslContext.transactionResult(configuration -> {
+            dslContext.transaction(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 logger.info("Exporting schedules");
-                return Stream.of(
-                    exportSchedulesAsJson(context),
-                    exportSettingPolicySchedulesAsJson(context));
+                appender.appendString(exportSchedulesAsJson(context));
+                appender.appendString(exportSettingPolicySchedulesAsJson(context));
             });
         } catch (DataAccessException e) {
             logger.error("Exception collecting schedule diags", e);
@@ -134,6 +141,12 @@ public class ScheduleStore implements Diagnosable {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return SCHEDULES_DUMP_FILE;
     }
 
     /**

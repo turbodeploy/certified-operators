@@ -26,6 +26,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -36,6 +38,7 @@ import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
@@ -341,12 +344,15 @@ public class PriceTableUploaderTest {
         assertThat(originalSrcTables.keySet(), containsInAnyOrder(TARGET_ID, anotherTargetId ));
         assertThat(originalSrcTables.get(TARGET_ID), is(sourcePriceTable));
 
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
         // ACT
-        List<String> diags = priceTableUploader.collectDiagsStream().collect(Collectors.toList());
+        priceTableUploader.collectDiags(appender);
+        final ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(argumentCaptor.capture());
 
         PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
                 100, targetStore);
-        newUploader.restoreDiags(diags);
+        newUploader.restoreDiags(argumentCaptor.getAllValues());
         final Map<Long, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
 
         assertThat(newSrcTables, is(originalSrcTables));

@@ -13,19 +13,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
-
-import org.apache.commons.lang3.StringUtils;
-import org.jooq.DSLContext;
-import org.jooq.Record1;
-import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -34,6 +25,14 @@ import com.google.gson.JsonParseException;
 import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.lang3.StringUtils;
+import org.jooq.DSLContext;
+import org.jooq.Record1;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
@@ -67,6 +66,7 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
@@ -831,13 +831,14 @@ public class PlanDaoImpl implements PlanDao {
      */
     @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
 
         final Set<PlanDTO.PlanInstance> planInstances = getAllPlanInstances();
         logger.info("Collecting diags for {} plan instances", planInstances.size());
 
-        return planInstances.stream()
-            .map(planInstance -> GSON.toJson(planInstance, PlanDTO.PlanInstance.class));
+        for (PlanDTO.PlanInstance planInstance: planInstances) {
+            appender.appendString(GSON.toJson(planInstance, PlanDTO.PlanInstance.class));
+        }
     }
 
     /**
@@ -898,6 +899,12 @@ public class PlanDaoImpl implements PlanDao {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "PlanInstances";
     }
 
     /**

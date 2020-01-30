@@ -9,12 +9,12 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 
 /**
  * DAO for plan project.
  */
-public interface PlanProjectDao extends Diagnosable {
+public interface PlanProjectDao extends DiagsRestorable {
 
     /**
      * Creates a plan project, based on plan project information.

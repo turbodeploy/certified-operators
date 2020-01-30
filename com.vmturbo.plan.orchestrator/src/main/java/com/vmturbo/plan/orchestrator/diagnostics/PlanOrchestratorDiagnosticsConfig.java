@@ -1,18 +1,20 @@
 package com.vmturbo.plan.orchestrator.diagnostics;
 
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import java.util.Arrays;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
-import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 
@@ -43,27 +45,23 @@ public class PlanOrchestratorDiagnosticsConfig {
     private PlanOrchestratorDBConfig planOrchestratorDBConfig;
 
     @Bean
-    public DiagnosticsWriter diagnosticsWriter() {
-        return new DiagnosticsWriter();
-    }
-
-    @Bean
     public DiagsZipReaderFactory recursiveZipReaderFactory() {
         return new DefaultDiagsZipReader();
     }
 
     @Bean
-    public PlanOrchestratorDiagnosticsHandler diagnosticsHandler() {
-        return new PlanOrchestratorDiagnosticsHandler(planConfig.planDao(),
-            planProjectConfig.planProjectDao(), planOrchestratorDBConfig.reservationDao(),
-            scenarioConfig.scenarioDao(), templatesConfig.templatesDao(),
-            templatesConfig.templateSpecParser(), deploymentProfileConfig.deploymentProfileDao(),
-            recursiveZipReaderFactory(), diagnosticsWriter());
+    public DiagnosticsHandlerImportable diagnosticsHandler() {
+        return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
+                Arrays.asList(planConfig.planDao(), planProjectConfig.planProjectDao(),
+                        planOrchestratorDBConfig.reservationDao(), scenarioConfig.scenarioDao(),
+                        templatesConfig.templatesDao(), templatesConfig.templateSpecParser(),
+                        deploymentProfileConfig.deploymentProfileDao()));
+
     }
 
     @Bean
-    public PlanOrchestratorDiagnosticsController diagnosticsController() {
-        return new PlanOrchestratorDiagnosticsController(diagnosticsHandler());
+    public DiagnosticsControllerImportable diagnosticsController() {
+        return new DiagnosticsControllerImportable(diagnosticsHandler());
     }
 
 }
