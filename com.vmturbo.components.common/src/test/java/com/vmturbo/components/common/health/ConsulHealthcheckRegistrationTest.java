@@ -33,6 +33,7 @@ public class ConsulHealthcheckRegistrationTest {
     private final String instanceIp = "1.2.3.4";
     private final String instanceRoute = "";
     private final Integer serverPort = 8080;
+    private final int maxRetrySecs = 30;
 
     // the ConsulHealthcheckRegistration under test
     private ConsulHealthcheckRegistration consulHealthcheckRegistration;
@@ -45,7 +46,8 @@ public class ConsulHealthcheckRegistrationTest {
     public void testRegisterConsulServiceEnabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            true, componentType, instanceId, instanceIp, instanceRoute, serverPort);
+            true, componentType, instanceId, instanceIp, instanceRoute, serverPort,
+                maxRetrySecs);
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
         expectedNewService.setId(instanceId);
@@ -85,7 +87,8 @@ public class ConsulHealthcheckRegistrationTest {
     public void testRegisterConsulServiceEnabledNoInstanceIp() throws UnknownHostException {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            true, componentType, instanceId, null, instanceRoute, serverPort);
+            true, componentType, instanceId, null, instanceRoute,
+                serverPort, maxRetrySecs);
         String localhostIp = InetAddress.getLocalHost().getHostAddress();
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
@@ -124,7 +127,8 @@ public class ConsulHealthcheckRegistrationTest {
     public void testRegisterConsulServiceDisabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            false, componentType, instanceId, instanceIp, instanceRoute, serverPort);
+            false, componentType, instanceId, instanceIp, instanceRoute,
+                serverPort, maxRetrySecs);
         // act
         consulHealthcheckRegistration.registerService();
         // assert
@@ -138,7 +142,8 @@ public class ConsulHealthcheckRegistrationTest {
     public void deregisterServiceEnabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            true, componentType, instanceId, instanceIp, instanceRoute, serverPort);
+            true, componentType, instanceId, instanceIp, instanceRoute,
+                serverPort, maxRetrySecs);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert
@@ -154,7 +159,8 @@ public class ConsulHealthcheckRegistrationTest {
     public void deregisterServiceDisabled() {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
-            false, componentType, instanceId, instanceIp, instanceRoute, serverPort);
+            false, componentType, instanceId, instanceIp, instanceRoute,
+                serverPort, maxRetrySecs);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert

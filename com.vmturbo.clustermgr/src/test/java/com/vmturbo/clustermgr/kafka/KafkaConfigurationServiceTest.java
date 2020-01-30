@@ -46,6 +46,35 @@ public class KafkaConfigurationServiceTest {
         Assert.assertNull("topic 2 has no properties", topic2.getProperties());
     }
 
+
+    /**
+     * Verify that the topics loaded will be prefixed with the namespace, when a namespace is defined.
+     */
+    @Test
+    public void testKafkaConfigurationLoadWithNamespace() {
+        String namespacePrefix = "namespace.";
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService("localhost:9093",
+                KafkaConfigurationServiceConfig.DEFAULT_CONFIG_MAX_RETRY_TIME_SECS,
+                KafkaConfigurationServiceConfig.DEFAULT_CONFIG_RETRY_DELAY_MS, namespacePrefix);
+
+        String testConfigFile = "/kafka-test-config.yml";
+        KafkaConfiguration config = kafkaConfigurationService.readKafkaConfiguration(testConfigFile);
+
+        // verify that both topics are prefixed correctly
+        List<TopicConfiguration> topicConfigs = config.getTopics();
+        // validate topic 1
+        TopicConfiguration topic1 = topicConfigs.get(0);
+        Assert.assertEquals("topic 1 is namespace-test-topic", namespacePrefix + "test-topic", topic1.getTopic());
+        // validate the topic 1 properties
+        Assert.assertFalse("preallocate should be false", (Boolean) topic1.getProperties().get("preallocate"));
+        Assert.assertEquals("message.timestamp.type should be 'CreateTime'", "CreateTime", topic1.getProperties().get("message.timestamp.type"));
+        Assert.assertEquals("max.message.bytes should be 67108864", 67108864, topic1.getProperties().get("max.message.bytes"));
+        // validate topic 2
+        TopicConfiguration topic2 = topicConfigs.get(1);
+        Assert.assertEquals("topic 2 is namespace-test-topic2", namespacePrefix + "test-topic2", topic2.getTopic());
+        Assert.assertNull("topic 2 has no properties", topic2.getProperties());
+    }
+
     @Test
     public void testKafkaConfigurationServiceEmptyUrl() {
         // test bad URL's

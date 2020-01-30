@@ -186,6 +186,10 @@ public class KafkaConfigurationService {
         } catch (IOException e) {
             throw new RuntimeException("General I/O Exception reading " + configFileRelativePath, e);
         }
+        // apply the namespace prefix, if there is one
+        kafkaConfiguration.getTopics().stream().forEach(topicConfig ->
+                topicConfig.setTopic(namespacePrefix + topicConfig.getTopic()));
+
         return kafkaConfiguration;
     }
 
@@ -197,10 +201,6 @@ public class KafkaConfigurationService {
      */
     public void applyKafkaConfiguration(@Nonnull KafkaConfiguration configuration)
             throws InterruptedException, ExecutionException {
-
-        // prefix all the topics with the namespace
-        Objects.requireNonNull(configuration).getTopics().stream().forEach(topicConfig ->
-                topicConfig.setTopic(namespacePrefix + topicConfig.getTopic()));
 
         // create an admin client
         try (AdminClient adminClient = createKafkaAdminClient(kafkaBootstrapServers)) {
@@ -216,15 +216,17 @@ public class KafkaConfigurationService {
                             DEFAULT_TOPIC_REPLICATION_FACTOR))
                     .collect(Collectors.toSet());
 
-            // create the topics
-            log.debug("Will create new topics for {}", newTopics);
             long startTime = System.currentTimeMillis();
-            CreateTopicsResult createTopicsResult = adminClient.createTopics(newTopics);
+            // create the topics
+            if (newTopics.size() > 0) {
+                log.info("Will create new topics for {}", newTopics);
+                CreateTopicsResult createTopicsResult = adminClient.createTopics(newTopics);
 
-            // wait until all topics completed.
-            createTopicsResult.all().get();
-            long topicsCreatedTime = System.currentTimeMillis();
-            log.info("Topics created successfully in {} ms.", topicsCreatedTime - startTime);
+                // wait until all topics completed.
+                createTopicsResult.all().get();
+                long topicsCreatedTime = System.currentTimeMillis();
+                log.info("Topics created successfully in {} ms.", topicsCreatedTime - startTime);
+            }
 
             // now set any custom properties on topics
             // first create a set of config updates for each topic that needs them.
@@ -241,7 +243,7 @@ public class KafkaConfigurationService {
             // block until complete
             adminClient.alterConfigs(kafkaConfigs).all().get();
             log.info("Kafka configurations applied successfully in {} ms.",
-                    System.currentTimeMillis() - topicsCreatedTime);
+                    System.currentTimeMillis() - startTime);
         }
     }
 

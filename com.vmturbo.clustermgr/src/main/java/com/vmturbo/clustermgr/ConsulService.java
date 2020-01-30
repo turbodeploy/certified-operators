@@ -1,6 +1,8 @@
 package com.vmturbo.clustermgr;
 
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -10,6 +12,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -28,10 +32,13 @@ import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 
 /**
@@ -48,6 +55,9 @@ public class ConsulService {
     private final String consulHost;
     @org.springframework.beans.factory.annotation.Value("${clustermgr.consul.port:8500}")
     private final int consulPort;
+
+    @org.springframework.beans.factory.annotation.Value("${consulMaxRetrySecs:60}")
+    private int consulMaxRetrySecs;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -113,9 +123,28 @@ public class ConsulService {
     private Consul getConsulApi() {
         if (consulClientApi == null) {
             HostAndPort hostAndPort = HostAndPort.fromParts(consulHost, consulPort);
-            consulClientApi = Consul.builder()
-                    .withHostAndPort(hostAndPort)
-                    .build();
+            try {
+                consulClientApi = RetriableOperation.newOperation(() -> Consul.builder()
+                                .withHostAndPort(hostAndPort)
+                                .build())
+                        .retryOnException(e -> {
+                            if (e instanceof ConsulException) {
+                                Throwable cause = e.getCause();
+                                if (cause instanceof SocketTimeoutException
+                                        || cause instanceof ConnectException
+                                        || cause instanceof ConnectTimeoutException) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })
+                        .run(consulMaxRetrySecs, TimeUnit.SECONDS);
+            } catch (RetriableOperationFailedException | TimeoutException e) {
+                // rethrow
+                throw new RuntimeException(e);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
         }
         return consulClientApi;
     }
