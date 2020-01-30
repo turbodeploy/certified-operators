@@ -20,7 +20,9 @@
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid", "loadOptions": true}
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid", "loadOptions": true},
+            {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"}
         ]
     },
 
