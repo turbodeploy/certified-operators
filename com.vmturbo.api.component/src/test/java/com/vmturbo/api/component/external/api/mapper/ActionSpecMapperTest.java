@@ -645,7 +645,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapCloudResizeActionDetails() throws Exception {
+    public void testMapCloudResizeActionDetails() {
         final long targetId = 1;
         // mock on-demand cost response from cost service
         Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto1 =

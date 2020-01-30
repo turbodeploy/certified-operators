@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -83,12 +82,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class InterpretActionTest {
 
-    private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
+    private static final TopologyInfo REALTIME_TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.REALTIME)
             .build();
 
     // No AZ in this json file. Entities are connected to Region.
-    private static String SIMPLE_CLOUD_TOPOLOGY_NO_AZ_JSON_FILE =
+    private static final String SIMPLE_CLOUD_TOPOLOGY_NO_AZ_JSON_FILE =
         "protobuf/messages/simple-cloudTopology-no-AZ.json";
 
     private CommodityDTOs.CommoditySpecificationTO economyCommodity1;
@@ -229,7 +228,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretMoveAction() throws IOException, RuntimeException {
+    public void testInterpretMoveAction() throws IOException {
         TopologyDTO.TopologyEntityDTO entityDto =
                 TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         long resourceId = entityDto.getCommoditiesBoughtFromProviders(0).getVolumeId();
@@ -330,7 +329,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretReconfigureAction() throws IOException, InvalidTopologyException, RuntimeException {
+    public void testInterpretReconfigureAction() throws IOException {
         long reconfigureSourceId = 1234;
         int reconfigureSourceType = 1;
 
@@ -370,7 +369,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretReconfigureActionWithoutSource() throws IOException, InvalidTopologyException, RuntimeException {
+    public void testInterpretReconfigureActionWithoutSource() throws IOException {
         TopologyDTO.TopologyEntityDTO entityDto =
                         TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
@@ -403,7 +402,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretProvisionBySupplyAction() throws Exception {
+    public void testInterpretProvisionBySupplyAction() {
         long modelSeller = 1234;
         int modelType = 1;
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
@@ -436,7 +435,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretResizeAction() throws Exception {
+    public void testInterpretResizeAction() {
         long entityToResize = 1;
         int  entityType = 1;
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
@@ -474,7 +473,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretActivateAction() throws Exception {
+    public void testInterpretActivateAction() {
         long entityToActivate = 1;
         int  entityType = 1;
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
@@ -529,7 +528,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretDeactivateAction() throws Exception {
+    public void testInterpretDeactivateAction() {
         long entityToDeactivate = 1;
         int  entityType = 1;
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
@@ -622,20 +621,22 @@ public class InterpretActionTest {
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
-        // Source compute cost = 10 + 2 +3 = 15 (compute + ip + license)
+        // Source compute cost = 10 + 2 + 3 + 4 = 19 (compute + ip + license + reserved license)
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
         // Total Source cost = 20
         when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(20d));
         when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
 
         Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
         CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
-        // Destination compute cost = 9 + 1 + 2 = 12
+        // Destination compute cost = 9 + 1 + 2 + 5 = 17
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(9d));
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(1d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(2d));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(5d));
         // Total destination cost = 15
         when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(15d));
         projectedCosts.put(vm.getOid(), projectedCostJournal);
@@ -645,10 +646,9 @@ public class InterpretActionTest {
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class));
-        ActionTO actionTO = null;
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
-        actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
+        ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
                 .setMove(MoveTO.newBuilder()
                         .setShoppingListToMove(5)
                         .setSource(1)
@@ -670,7 +670,10 @@ public class InterpretActionTest {
                                                               originalCloudTopology, projectedCosts,
                                                               mockTopologyCostCalculator);
 
-        assertEquals(3, action.get().getSavingsPerHour().getAmount(), 0.0001);
+        assertTrue(action.isPresent());
+
+        // Savings = 19 - 17 = 2
+        assertEquals(2, action.get().getSavingsPerHour().getAmount(), 0.0001);
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getId(), is(m1Large.getOid()));
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));
