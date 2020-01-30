@@ -89,6 +89,10 @@
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"}]
     },
 
+    "Service" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "service"}]
+    },
+
     "Database" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
