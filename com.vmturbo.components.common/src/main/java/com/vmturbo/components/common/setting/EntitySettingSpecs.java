@@ -716,8 +716,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION,
-                    EntityType.DATABASE_SERVER, EntityType.SERVICE),
+                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -728,8 +727,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -740,8 +738,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION,
-                    EntityType.DATABASE_SERVER, EntityType.SERVICE),
+                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
             true),
 

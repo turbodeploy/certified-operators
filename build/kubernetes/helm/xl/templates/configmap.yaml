@@ -451,7 +451,6 @@ data:
             historyAggregation.blobReadWriteChunkSizeKb: 128
             # Whether to enable consistent scaling
             consistentScalingEnabled: true
-            enableInternalProbes: false
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

@@ -10,6 +10,7 @@ import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
 
 import io.grpc.BindableService;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
@@ -26,7 +27,6 @@ import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiSecurityConfig;
-import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
@@ -37,8 +37,6 @@ import com.vmturbo.topology.processor.migration.MigrationsConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
-import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.probes.internal.InternalProbeManager;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rest.RESTConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
@@ -46,7 +44,6 @@ import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
@@ -129,14 +126,9 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
 
-    @Autowired
-    private TargetConfig targetConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
-
-    @Value("${enableInternalProbes:false}")
-    private boolean enableInternalProbes;
 
     @PostConstruct
     private void setup() {
@@ -144,10 +136,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             topologyProcessorDBConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
-        if (enableInternalProbes) {
-            log.info("Internal probes enabled.");
-            createInternalProbes();
-        }
     }
 
     @Override
@@ -175,18 +163,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             probeConfig.probeActionPoliciesService(),
             topologyProcessorRpcConfig.probeService(),
             topologyProcessorRpcConfig.targetSearchRpcService());
-    }
-
-    /**
-     * The method starts a business logic related to internal probe(s).
-     */
-    private void createInternalProbes() {
-        final RemoteMediationServer server = sdkServerConfig.remoteMediation();
-        final ProbeStore probeStore = probeConfig.probeStore();
-        final TargetStore targetStore = targetConfig.targetStore();
-        final InternalProbeManager internalProbeManager
-                = new InternalProbeManager(server, probeStore, targetStore);
-        internalProbeManager.createProbes();
     }
 
     /**

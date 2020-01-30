@@ -432,4 +432,3 @@ defaultProperties:
         # The chunk size for history access streaming operations
         historyAggregation.blobReadWriteChunkSizeKb: 128
         consistentScalingEnabled: true
-        enableInternalProbes: false
