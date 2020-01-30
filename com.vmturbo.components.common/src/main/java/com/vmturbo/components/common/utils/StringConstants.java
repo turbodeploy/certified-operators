@@ -266,6 +266,7 @@ public class StringConstants {
     public static final String CURRENTVMS = "CurrentVMs";
     public static final String V_POD = "VPod";
     public static final String D_POD = "DPod";
+    public static final String SERVICE = "Service";
     public static String[] PROPERTY_SUBTYPE_LIST = {"DesiredVMs","CurrentVMs","currentNumHosts","currentNumStorages","currentUtilization"};
     public static final String CREATE_TIME="create_time";
 
