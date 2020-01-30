@@ -3,6 +3,8 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -10,6 +12,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -23,6 +26,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -32,7 +37,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 class AwsAllocationTopologyTest {
 
     private AwsAllocationTopologyTest() {}
-
 
     protected static final AtomicLong OID_PROVIDER = new AtomicLong();
 
@@ -190,5 +194,25 @@ class AwsAllocationTopologyTest {
                     .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                             .setNumberOfCoupons(1)
                             .build()))
+            .build();
+
+    protected static final TopologyEntityDTO BUSINESS_ACCOUNT_B = BUSINESS_ACCOUNT.toBuilder()
+        .setOid(OID_PROVIDER.incrementAndGet())
+        .clearConnectedEntityList()
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectedEntityId(BUSINESS_ACCOUNT.getOid())
+            .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setConnectionType(ConnectionType.OWNS_CONNECTION))
+        .build();
+
+    protected static final Long BILLING_FAMILY_ID = OID_PROVIDER.incrementAndGet();
+
+    protected static final GroupAndMembers BILLING_FAMILY_GROUPS =
+        ImmutableGroupAndMembers.builder()
+            .group(GroupDTO.Grouping.newBuilder()
+                .setId(BILLING_FAMILY_ID)
+                .build())
+            .entities(ImmutableSet.of(BUSINESS_ACCOUNT.getOid(), BUSINESS_ACCOUNT_B.getOid()))
+            .members(ImmutableSet.of(BUSINESS_ACCOUNT.getOid(), BUSINESS_ACCOUNT_B.getOid()))
             .build();
 }

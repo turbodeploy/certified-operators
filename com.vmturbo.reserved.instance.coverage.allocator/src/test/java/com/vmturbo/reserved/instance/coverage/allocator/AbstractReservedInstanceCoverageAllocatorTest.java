@@ -28,16 +28,17 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class AbstractReservedInstanceCoverageAllocatorTest {
 
-    protected final TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
-
     protected final RICoverageAllocatorFactory allocatorFactory = new DefaultRICoverageAllocatorFactory();
 
     protected CoverageTopology generateCoverageTopology(
             SDKProbeType cspType,
             @Nonnull Set<ReservedInstanceBought> reservedInstances,
             @Nonnull Set<ReservedInstanceSpec> riSpecs,
+            @Nonnull GroupMemberRetriever groupMemberRetriever,
             TopologyEntityDTO... entityDtos) {
+
+        TopologyEntityCloudTopologyFactory cloudTopologyFactory =
+            new DefaultTopologyEntityCloudTopologyFactory(groupMemberRetriever);
 
         ThinTargetCache mockTargetCache = mock(ThinTargetCache.class);
         final ThinTargetInfo targetInfo = ImmutableThinTargetInfo.builder()
