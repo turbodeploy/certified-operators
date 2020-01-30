@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.stats.StatsUtils;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A utility to convert extract requested stats from {@link TopologyEntityDTO}.
@@ -133,7 +135,8 @@ interface PlanEntityStatsExtractor {
                             commodityBoughtDTO.getPeak()));
                     final StatValue usedValues = accumulator.toStatValue();
                     final StatRecord statRecord =
-                        buildStatRecord(commodityName, key, usedValues, buildStatValue(0), providerOidString);
+                        buildStatRecord(commodityName, key, usedValues, buildStatValue(0),
+                            providerOidString, StringConstants.RELATION_BOUGHT);
                     snapshot.addStatRecords(statRecord);
                 });
             }
@@ -171,7 +174,8 @@ interface PlanEntityStatsExtractor {
                 final StatValue usedValues = accumulator.toStatValue();
                 final StatValue capacityValue = capacityAccumulator.toStatValue();
                 final StatRecord statRecord =
-                    buildStatRecord(commodityName, key, usedValues, capacityValue, entityOidString);
+                    buildStatRecord(commodityName, key, usedValues, capacityValue, entityOidString,
+                        StringConstants.RELATION_SOLD);
                 snapshot.addStatRecords(statRecord);
             });
 
@@ -215,11 +219,26 @@ interface PlanEntityStatsExtractor {
         private String getGroupByStringForCommodity(
                 final Map<String, Set<String>> commodityNameToGroupByFields,
                 final CommodityType commodityType) {
-            return commodityNameToGroupByFields.getOrDefault(getCommodityName(commodityType),
-                Collections.emptySet()).stream()
-                .map(groupBy -> commodityType.getKey())
+            return commodityNameToGroupByFields
+                .getOrDefault(getCommodityName(commodityType), Collections.emptySet()).stream()
+                .map(groupByMapper(commodityType))
                 .distinct()
                 .collect(Collectors.joining());
+        }
+
+        private Function<String, String> groupByMapper(final CommodityType commodityType) {
+            return groupByField -> {
+                switch (groupByField) {
+                    // Only support "key" and "virtualDisk" group by for now
+                    // Both equate to grouping by the key (matches existing logic in
+                    // History component).
+                    case KEY:
+                    case VIRTUAL_DISK:
+                        return commodityType.getKey();
+                    default:
+                        return StringConstants.EMPTY_STRING;
+                }
+            };
         }
 
         /**
@@ -231,13 +250,15 @@ interface PlanEntityStatsExtractor {
          * @param capacity the total capacity for the commodity
          * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
          *                          SE for bought commodities
+         * @param relation the relation ("bought" or "sold") of the commodity to the entity
          * @return a new StatRecord initialized from the given values
          */
         private StatRecord buildStatRecord(@Nonnull final String commodityName,
-                                                     @Nonnull final String key,
-                                                     @Nonnull final StatValue used,
-                                                     @Nonnull final StatValue capacity,
-                                                     @Nonnull final String providerOidString) {
+                                           @Nonnull final String key,
+                                           @Nonnull final StatValue used,
+                                           @Nonnull final StatValue capacity,
+                                           @Nonnull final String providerOidString,
+                                           @Nonnull final String relation) {
             final String units = CommodityTypeUnits.fromString(commodityName).getUnits();
             StatRecord statRecord = StatRecord.newBuilder()
                 .setName(commodityName)
@@ -248,6 +269,7 @@ interface PlanEntityStatsExtractor {
                 .setCapacity(capacity)
                 .setStatKey(key)
                 .setProviderUuid(providerOidString)
+                .setRelation(relation)
                 .build();
             return statRecord;
         }

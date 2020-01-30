@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.service.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
@@ -43,8 +44,8 @@ public class PlanEntityStatsExtractorTest {
     public void testExtractStats() {
         // Prepare
 
-        long cpuUsedValue = 20;
-        long cpuPeakValue = 30;
+        final double cpuUsedValue = 20;
+        final double cpuPeakValue = 30;
 
         CommoditiesBoughtFromProvider commoditiesBought = CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(888)
@@ -68,12 +69,15 @@ public class PlanEntityStatsExtractorTest {
             .setCapacity(100)
             .build();
 
+        final double vMemUsedValue = 1024;
+        final double vMemCapacity = 8196;
+
         CommoditySoldDTO memCommoditySold =
             CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.VMEM_VALUE))
-                .setUsed(1024)
-                .setCapacity(8196)
+                .setUsed(vMemUsedValue)
+                .setCapacity(vMemCapacity)
                 .build();
 
         ProjectedTopologyEntity entity = ProjectedTopologyEntity.newBuilder()
@@ -105,9 +109,10 @@ public class PlanEntityStatsExtractorTest {
         final StatSnapshot statSnapshot = stats.getStatSnapshotsList().iterator().next();
         assertEquals(statEpoch, statSnapshot.getStatEpoch());
         assertEquals(snapshotDate, statSnapshot.getSnapshotDate());
+        // Check CPU stat
         final List<StatRecord> cpuStats = statSnapshot.getStatRecordsList().stream()
             .filter(StatRecord::hasName)
-            .filter(statRecord -> statRecord.getName().equals(CommodityDTO.CommodityType.CPU.toString()))
+            .filter(statRecord -> statRecord.getName().equalsIgnoreCase(CommodityDTO.CommodityType.CPU.toString()))
             .collect(Collectors.toList());
         assertEquals(1, cpuStats.size());
         StatRecord cpuStat = cpuStats.iterator().next();
@@ -115,5 +120,17 @@ public class PlanEntityStatsExtractorTest {
         assertEquals(cpuUsedValue, cpuStat.getUsed().getAvg(), 0);
         assertEquals(cpuPeakValue, cpuStat.getUsed().getMax(), 0);
         assertEquals(cpuPeakValue, cpuStat.getUsed().getTotalMax(), 0);
+        assertEquals(StringConstants.RELATION_BOUGHT, cpuStat.getRelation());
+        // Check VMem stat
+        final List<StatRecord> vMemStats = statSnapshot.getStatRecordsList().stream()
+            .filter(StatRecord::hasName)
+            .filter(statRecord -> statRecord.getName().equalsIgnoreCase(CommodityDTO.CommodityType.VMEM.toString()))
+            .collect(Collectors.toList());
+        assertEquals(1, vMemStats.size());
+        StatRecord vMemStat = vMemStats.iterator().next();
+        assertEquals(vMemUsedValue, vMemStat.getCurrentValue(), 0);
+        assertEquals(vMemUsedValue, vMemStat.getUsed().getTotal(), 0);
+        assertEquals(vMemCapacity, vMemStat.getCapacity().getTotal(), 0);
+        assertEquals(StringConstants.RELATION_SOLD, vMemStat.getRelation());
     }
 }

@@ -835,10 +835,11 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     null /* producerId */,
                     statsValue.toStatValue(),
                     null /* commodityKey */,
-                    // (Feb 3, 2017) Currently, unlike in the real-time market, UI
-                    // doesn't use the 'relation' data for the plan results. Here, set the
-                    // property as "plan" to indicate this record is for a plan result.
-                    "plan" /*relation*/);
+                    // (Jan 29, 2020) Now we do populate (and rely on) the 'relation' data for
+                    // individual plan entities coming from the Repository. However, we still don't
+                    // have a use case for using this data in the History response, which is
+                    // aggregated data for the entire plan. In this context, relation makes no sense.
+                    null /*relation*/);
 
             // Group all records with property type name that start with "current" in one group
             // (before plan) and others in another group (after plan).

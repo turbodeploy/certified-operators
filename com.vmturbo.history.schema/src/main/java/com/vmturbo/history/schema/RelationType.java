@@ -23,6 +23,8 @@ public enum RelationType {
     // map a string used in the REST API queries to a RelationType
     private static Map<String, RelationType> API_TO_RELATION_MAP =
             new ImmutableMap.Builder<String, RelationType>()
+                // TODO: find a way to reference 'StringConstants.RELATION_SOLD', etc. instead of
+                // hard-coding these Strings. Current maven dependencies don't allow this.
                     .put("bought", COMMODITIESBOUGHT)
                     .put("sold", COMMODITIES)
                     .put("metrics", METRICS)

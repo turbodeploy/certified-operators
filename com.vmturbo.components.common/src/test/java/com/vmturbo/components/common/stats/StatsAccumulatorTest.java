@@ -48,4 +48,25 @@ public class StatsAccumulatorTest {
         assertEquals(10.0f, value.getAvg(), 0);
         assertEquals(10.0f, value.getTotal(), 0);
     }
+
+    /**
+     * The intention of this test is to ensure that the "max" value can never be less than the "min"
+     * or "average" values.
+     */
+    @Test
+    public void testAccumulationTwoValuesMissingPeak() {
+        final StatsAccumulator value = new StatsAccumulator();
+        value.record(1, 0);
+        value.record(3, 0);
+        assertEquals(0, value.getMin(), 0);
+        assertEquals(3, value.getMax(), 0);
+        assertEquals(2, value.getAvg(), 0);
+        assertEquals(4, value.getTotal(), 0);
+
+        final StatValue statValue = value.toStatValue();
+        assertEquals(0, statValue.getMin(), 0);
+        assertEquals(3, statValue.getMax(), 0);
+        assertEquals(2, statValue.getAvg(), 0);
+        assertEquals(4, statValue.getTotal(), 0);
+    }
 }

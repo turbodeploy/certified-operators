@@ -52,11 +52,15 @@ public class StatsAccumulator {
      */
     @Nonnull
     public StatsAccumulator record(double minValue, double avgValue, double peakValue) {
-        min = Math.min(minValue, min);
-        max = Math.max(peakValue, max);
+        // Find the actual min and max, in case the assumption that minValue <= avgValue <= peakValue
+        // does not hold true, e.g. if peakValue is provided but set to zero.
+        final double minRecorded = Math.min(Math.min(minValue, avgValue), peakValue);
+        final double maxRecorded = Math.max(Math.max(minValue, avgValue), peakValue);
+        min = Math.min(minRecorded, min);
+        max = Math.max(maxRecorded, max);
         total += avgValue;
-        totalMax += peakValue;
-        totalMin += minValue;
+        totalMax += maxRecorded;
+        totalMin += minRecorded;
         ++count;
 
         return this;
