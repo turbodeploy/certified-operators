@@ -1085,7 +1085,6 @@
             <modules>
                 <module>../versioning</module>
                 <module>../com.vmturbo.components.baseimage</module>
-                <module>../com.vmturbo.base.fulljava</module>
                 <module>../syslog</module>
                 <module>../db</module>
                 <module>../com.vmturbo.arangodb</module>
