@@ -38,7 +38,7 @@ public class SearchProtoUtilTest {
                 "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
                 "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
                 "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume", "ProcessorPool",
-                "ViewPod", "DesktopPool", "BusinessUser", "Service");
+                "ViewPod", "DesktopPool", "BusinessUser");
         assertThat(SearchProtoUtil.SEARCH_ALL_TYPES, containsInAnyOrder(expectedTypes.toArray()));
     }
 

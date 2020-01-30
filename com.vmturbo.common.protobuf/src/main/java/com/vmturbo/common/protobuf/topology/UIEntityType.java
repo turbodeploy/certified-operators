@@ -52,7 +52,6 @@ public enum UIEntityType {
     VIEW_POD("ViewPod", EntityType.VIEW_POD),
     DESKTOP_POOL("DesktopPool", EntityType.DESKTOP_POOL),
     BUSINESS_USER("BusinessUser", EntityType.BUSINESS_USER),
-    SERVICE("Service", EntityType.SERVICE),
     UNKNOWN("Unknown", EntityType.UNKNOWN);
 
     /**
