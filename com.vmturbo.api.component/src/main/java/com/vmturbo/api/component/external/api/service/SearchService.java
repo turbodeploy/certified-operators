@@ -225,7 +225,8 @@ public class SearchService implements ISearchService {
                         (a, b, c) -> getConnectionStorageTierOptions())
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
-                .put(EntityFilterMapper.RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
                 .build();
 

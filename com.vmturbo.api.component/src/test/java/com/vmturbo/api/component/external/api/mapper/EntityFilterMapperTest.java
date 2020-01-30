@@ -23,7 +23,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -701,7 +701,7 @@ public class EntityFilterMapperTest {
         assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME),
             params.getStartingFilter());
         assertEquals(1, params.getSearchFilterCount());
-        final GroupMembershipFilter memFilter = params.getSearchFilter(0).getGroupMembershipFilter();
+        final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();
         assertEquals(GroupType.RESOURCE, memFilter.getGroupType());
         assertEquals(SearchableProperties.OID, memFilter.getGroupSpecifier().getPropertyName());
         final StringFilter specifierStringFilter = memFilter.getGroupSpecifier().getStringFilter();
@@ -726,7 +726,7 @@ public class EntityFilterMapperTest {
         assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.DATABASE_SERVER),
             params.getStartingFilter());
         assertEquals(1, params.getSearchFilterCount());
-        final GroupMembershipFilter memFilter = params.getSearchFilter(0).getGroupMembershipFilter();
+        final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();
         assertEquals(GroupType.RESOURCE, memFilter.getGroupType());
         assertEquals(SearchableProperties.OID, memFilter.getGroupSpecifier().getPropertyName());
         final StringFilter specifierStringFilter = memFilter.getGroupSpecifier().getStringFilter();

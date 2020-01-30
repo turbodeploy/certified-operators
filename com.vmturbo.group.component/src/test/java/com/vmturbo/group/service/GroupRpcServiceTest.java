@@ -90,7 +90,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesS
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupFilter.EntityToGroupType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -2115,8 +2115,10 @@ public class GroupRpcServiceTest {
                         .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                                 .addSearchParameters(SearchParameters.newBuilder()
                                         .addSearchFilter(SearchFilter.newBuilder()
-                                                .setGroupMembershipFilter(
-                                                        GroupMembershipFilter.newBuilder()
+                                                .setGroupFilter(
+                                                        Search.GroupFilter.newBuilder()
+                                                                .setEntityToGroupType(
+                                                                        EntityToGroupType.MEMBER_OF)
                                                                 .setGroupSpecifier(
                                                                         PropertyFilter.newBuilder()
                                                                                 .setPropertyName(
