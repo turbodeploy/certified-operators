@@ -46,6 +46,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -431,6 +433,23 @@ public class GroupRpcService extends GroupServiceImplBase {
         });
     }
 
+    @Override
+    public void getOwnersOfGroups(GetOwnersRequest request,
+            StreamObserver<GetOwnersResponse> responseObserver) {
+        executeOperation(responseObserver, stores -> {
+            final List<Long> groupIdList = request.getGroupIdList();
+            if (groupIdList != null) {
+                final Set<Long> ownersForGroups = stores.getGroupStore()
+                        .getOwnersOfGroups(request.getGroupIdList(), request.getGroupType());
+                responseObserver.onNext(
+                        GetOwnersResponse.newBuilder().addAllOwnerId(ownersForGroups).build());
+            }
+
+            responseObserver.onCompleted();
+        });
+    }
+
+
     /**
      * Given a group, transform any dynamic filters based on group properties it contains into StringFilters
      * that express the group membership filter statically.
@@ -457,7 +476,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             // check if there are any group property filters in the search params
             if (!searchParameters.stream()
                 .anyMatch(params -> params.getSearchFilterList().stream()
-                    .anyMatch(SearchFilter::hasGroupMembershipFilter))) {
+                    .anyMatch(SearchFilter::hasGroupFilter))) {
                 newGrouping.getDefinitionBuilder().getEntityFiltersBuilder()
                     .addEntityFilter(entityFilter);
                 continue; // no group property filters inside -- return original group

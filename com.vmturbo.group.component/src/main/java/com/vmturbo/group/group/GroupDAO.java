@@ -60,6 +60,7 @@ import org.jooq.Record5;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
+import org.jooq.SelectJoinStep;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -1445,6 +1446,23 @@ public class GroupDAO implements IGroupStore {
     public void deleteAllGroups() {
         dslContext.deleteFrom(Tables.POLICY_GROUP).execute();
         dslContext.deleteFrom(GROUPING).execute();
+    }
+
+    @Nonnull
+    @Override
+    public Set<Long> getOwnersOfGroups(@Nonnull Collection<Long> groupIds,
+            @Nullable GroupType groupType) {
+        if (groupIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        final SelectJoinStep<Record1<Long>> query =
+                dslContext.select(GROUPING.OWNER_ID).from(GROUPING);
+        if (groupType == null) {
+            query.where(GROUPING.ID.in(groupIds));
+        } else {
+            query.where(GROUPING.GROUP_TYPE.eq(groupType).and(GROUPING.ID.in(groupIds)));
+        }
+        return new HashSet<>(query.fetchInto(Long.class));
     }
 
     /**

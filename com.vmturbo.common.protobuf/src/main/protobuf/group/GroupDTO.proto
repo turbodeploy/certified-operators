@@ -433,6 +433,21 @@ message GetTagsResponse {
     optional .tag.Tags tags = 1;
 }
 
+// Request owners for groups
+message GetOwnersRequest {
+    // The groupType to get owners for. If not specified, query will not distinguish between group types.
+    optional common_dto.GroupDTO.GroupType group_type = 1;
+
+    // The group IDs to get owners for
+    repeated int64 group_id = 2;
+}
+
+// Response contains list of owners for owners request
+message GetOwnersResponse {
+    // Collection of owners ids
+    repeated int64 owner_id = 1;
+}
+
 message CountGroupsResponse {
     optional int32 count = 1;
 }
@@ -469,4 +484,7 @@ service GroupService {
 
     // Returns all tags of groups
     rpc GetTags (GetTagsRequest) returns (GetTagsResponse);
+
+    // Returns owners of requested groups
+    rpc GetOwnersOfGroups (GetOwnersRequest) returns (GetOwnersResponse);
 }

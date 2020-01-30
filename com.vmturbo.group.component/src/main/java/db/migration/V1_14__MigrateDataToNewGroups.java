@@ -399,8 +399,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
                         case PROPERTY_FILTER:
                             propertyFilters.add(searchFilter.getPropertyFilterBuilder());
                             break;
-                        case GROUP_MEMBERSHIP_FILTER:
-                            propertyFilters.add(searchFilter.getGroupMembershipFilterBuilder()
+                        case GROUP_FILTER:
+                            propertyFilters.add(searchFilter.getGroupFilterBuilder()
                                     .getGroupSpecifierBuilder());
                             break;
                         default:
