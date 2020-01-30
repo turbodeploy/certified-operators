@@ -25,12 +25,10 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest;
@@ -238,53 +236,10 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
             final ApiId inputScope = context.getInputScope();
             final GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder =
-                GetReservedInstanceUtilizationStatsRequest.newBuilder()
-                    .setIncludeBuyRiUtilization(
-                            buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
-
-            context.getTimeWindow().ifPresent(timeWindow -> {
-                reqBuilder.setStartDate(timeWindow.startTime());
-                reqBuilder.setEndDate(timeWindow.endTime());
-            });
-
-            if (inputScope.getScopeTypes().isPresent()) {
-                final Set<Long> scopeEntities = new HashSet<>();
-                if (inputScope.isGroup()) {
-                    if (inputScope.getCachedGroupInfo().isPresent()) {
-                        scopeEntities.addAll(inputScope.getCachedGroupInfo().get().getEntityIds());
-                    }
-                } else {
-                    scopeEntities.add(inputScope.oid());
-                }
-                final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-
-                if (CollectionUtils.isEmpty(uiEntityTypes)) {
-                    throw new OperationFailedException("Entity type not present");
-                }
-                final UIEntityType type = uiEntityTypes.stream().findFirst().get();
-
-                switch (type) {
-                    case REGION:
-                        reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                                .addAllRegionId(scopeEntities));
-                        break;
-                    case AVAILABILITY_ZONE:
-                        reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                                .addAllAvailabilityZoneId(scopeEntities));
-                        break;
-                    case BUSINESS_ACCOUNT:
-                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
-                                .addAllAccountId(scopeEntities));
-                        break;
-                    default:
-                        throw new OperationFailedException("Invalid scope for query: " + type.apiStr());
-                }
-            } else if (!context.isGlobalScope()) {
-                throw new OperationFailedException("Invalid scope for query." +
-                        " Must be global or have an entity type.");
-            }
-
-            return reqBuilder.build();
+                    GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                            .setIncludeBuyRiUtilization(
+                                    buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
+            return internalCreateUtilizationRequest(context, reqBuilder, inputScope);
         }
 
         @Nonnull
@@ -293,61 +248,11 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
             final ApiId inputScope = context.getInputScope();
             final GetReservedInstanceCoverageStatsRequest.Builder reqBuilder =
-                GetReservedInstanceCoverageStatsRequest.newBuilder()
-                    .setIncludeBuyRiCoverage(
-                            buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
+                    GetReservedInstanceCoverageStatsRequest.newBuilder()
+                            .setIncludeBuyRiCoverage(
+                                    buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
 
-            context.getTimeWindow().ifPresent(timeWindow -> {
-                reqBuilder.setStartDate(timeWindow.startTime());
-                reqBuilder.setEndDate(timeWindow.endTime());
-            });
-
-            if (inputScope.getScopeTypes().isPresent()
-                            && !inputScope.getScopeTypes().get().isEmpty()) {
-
-                final Set<Long> scopeEntities = new HashSet<>();
-                if (inputScope.isGroup()) {
-                    if (inputScope.getCachedGroupInfo().isPresent()) {
-                        scopeEntities.addAll(inputScope.getCachedGroupInfo().get().getEntityIds());
-                    }
-                } else {
-                    scopeEntities.add(inputScope.oid());
-                }
-
-                if (inputScope.getScopeTypes().get().size() != 1) {
-                    //TODO (mahdi) Change the logic to support scopes with more than one type
-                    throw new IllegalStateException("Scopes with more than one type is not supported.");
-                }
-
-                final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-
-                if (CollectionUtils.isEmpty(uiEntityTypes)) {
-                    throw new OperationFailedException("Entity type not present");
-                }
-                final UIEntityType type = uiEntityTypes.stream().findFirst().get();
-
-                switch (type) {
-                    case REGION:
-                        reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                                .addAllRegionId(scopeEntities));
-                        break;
-                    case AVAILABILITY_ZONE:
-                        reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                                .addAllAvailabilityZoneId(scopeEntities));
-                        break;
-                    case BUSINESS_ACCOUNT:
-                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
-                                .addAllAccountId(scopeEntities));
-                        break;
-                    default:
-                        reqBuilder.setEntityFilter(EntityFilter.newBuilder()
-                                .addAllEntityId(context.getQueryScope().getExpandedOids()));
-                        break;
-                }
-            } else if (!context.isGlobalScope()) {
-                throw new OperationFailedException("Invalid context - must be global or have entity type");
-            }
-            return reqBuilder.build();
+            return internalCreateCoverageRequest(context, reqBuilder, inputScope);
         }
 
         @Nonnull
@@ -432,47 +337,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
         public List<StatSnapshotApiDTO> convertRIStatsRecordsToStatSnapshotApiDTO(
                 @Nonnull final List<ReservedInstanceStatsRecord> records,
                 final boolean isRICoverage) {
-            return records.stream()
-                    .map(record -> {
-                        final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
-                        snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
-                        // TODO: Can these be projected?
-                        snapshotApiDTO.setEpoch(Epoch.HISTORICAL);
-                        final StatApiDTO statApiDTO = createRIUtilizationStatApiDTO(record, isRICoverage);
-                        snapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
-                        return snapshotApiDTO;
-                    })
-                    .collect(Collectors.toList());
-        }
-
-        /**
-         * Create a {@link StatApiDTO} from input {@link ReservedInstanceStatsRecord}.
-         *
-         * @param record       a {@link ReservedInstanceStatsRecord}.
-         * @param isRICoverage a boolean which true means it's a reserved instance coverage stats request,
-         *                     false means it's a reserved instance utilization stats request.
-         * @return a {@link StatApiDTO}.
-         */
-        private static StatApiDTO createRIUtilizationStatApiDTO(@Nonnull final ReservedInstanceStatsRecord record,
-                                                         final boolean isRICoverage) {
-            final String name = isRICoverage ? StringConstants.RI_COUPON_COVERAGE : StringConstants.RI_COUPON_UTILIZATION;
-            StatApiDTO statsDto = new StatApiDTO();
-            StatValueApiDTO statsValueDto = new StatValueApiDTO();
-            statsValueDto.setAvg(record.getValues().getAvg());
-            statsValueDto.setMax(record.getValues().getMax());
-            statsValueDto.setMin(record.getValues().getMin());
-            statsValueDto.setTotal(record.getValues().getTotal());
-            statsDto.setValues(statsValueDto);
-            StatValueApiDTO capacityDto = new StatValueApiDTO();
-            capacityDto.setAvg(record.getCapacity().getAvg());
-            capacityDto.setMax(record.getCapacity().getMax());
-            capacityDto.setMin(record.getCapacity().getMin());
-            capacityDto.setTotal(record.getCapacity().getTotal());
-            statsDto.setCapacity(capacityDto);
-            statsDto.setUnits(StringConstants.RI_COUPON_UNITS);
-            statsDto.setName(name);
-            statsDto.setValue(record.getValues().getAvg());
-            return statsDto;
+            return internalConvertRIStatsRecordsToStatSnapshotApiDTO(records, isRICoverage);
         }
 
         private List<StatSnapshotApiDTO> createRICostStatApiDTO(List<ReservedInstanceCostStat> rICostStats) {

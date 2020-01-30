@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 import java.util.Collections;
 import java.util.List;
@@ -28,7 +29,9 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.PlanReservedInstanceServiceMole;
+import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -46,18 +49,27 @@ public class PlanRIStatsSubQueryTest {
     private static final StatApiInputDTO RI_COST_INPUT = StatsTestUtil.statInput(StringConstants.RI_COST);
     private static final double DELTA = 0.01;
 
-    private PlanReservedInstanceServiceMole planReservedInstanceService = Mockito.spy(PlanReservedInstanceServiceMole.class);
-
+    private PlanReservedInstanceServiceMole planReservedInstanceService =
+            Mockito.spy(PlanReservedInstanceServiceMole.class);
+    private ReservedInstanceUtilizationCoverageServiceMole backend =
+            spy(ReservedInstanceUtilizationCoverageServiceMole.class);
     private final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
     private final StatsQueryContext context = Mockito.mock(StatsQueryContext.class);
 
     private PlanRIStatsSubQuery planRIStatsQuery;
 
     /**
-     * Set up a test GRPC server.
+     * Set up a test plan RI GRPC server.
      */
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(planReservedInstanceService);
+
+    /**
+     * Setup a test RI coverage and utilization GRPC server
+     */
+    @Rule
+    public GrpcTestServer riCoverageUtilizationTestServer = GrpcTestServer.newServer(backend);
+
 
     /**
      * Initialize instances before test.
@@ -75,6 +87,7 @@ public class PlanRIStatsSubQueryTest {
         Mockito.when(context.getPlanInstance()).thenReturn(Optional.of(planInstance));
         planRIStatsQuery = new PlanRIStatsSubQuery(repositoryApi,
                         PlanReservedInstanceServiceGrpc.newBlockingStub(testServer.getChannel()),
+                        ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(riCoverageUtilizationTestServer.getChannel()),
                         buyRiScopeHandler);
     }
 

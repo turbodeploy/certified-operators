@@ -390,19 +390,20 @@ public class UuidMapper implements RepositoryListener {
          */
         @Nonnull
         public Optional<Set<UIEntityType>> getScopeTypes() {
+            Optional<Set<UIEntityType>> scopeTypes = Optional.empty();
             if (isRealtimeMarket()) {
                 return Optional.empty();
+            } else if (isGroup()) {
+                scopeTypes = getCachedGroupInfo()
+                        .map(CachedGroupInfo::getEntityTypes);
+            } else if (isEntity()) {
+                scopeTypes = getCachedEntityInfo()
+                        .map(CachedEntityInfo::getEntityType)
+                        .map(Collections::singleton);
+            } else if (isPlan()) {
+                scopeTypes = getPlanInstance().map(MarketMapper::getPlanScopeTypes);
             }
-
-            final Optional<Set<UIEntityType>> groupTypes = getCachedGroupInfo()
-                            .map(CachedGroupInfo::getEntityTypes);
-
-            if (groupTypes.isPresent()) {
-                return groupTypes;
-            }
-
-            return getCachedEntityInfo().map(CachedEntityInfo::getEntityType)
-                .map(Collections::singleton);
+            return scopeTypes;
         }
 
         /**
