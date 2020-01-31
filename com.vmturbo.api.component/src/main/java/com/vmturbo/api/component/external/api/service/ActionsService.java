@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status.Code;
@@ -319,14 +321,16 @@ public class ActionsService implements IActionsService {
                 .map(Long::valueOf)
                 .collect(Collectors.toList());
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
-                multiActionRequest(actionIds));
+                multiActionRequest(actionIds, inputDto.getTopologyContextId()));
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(actionsIterator, 0), false)
                 .collect(Collectors.toMap(action -> Long.toString(action.getActionId()), this::getActionDetails));
     }
 
-    private MultiActionRequest multiActionRequest(List<Long> uuids) {
+    private MultiActionRequest multiActionRequest(@Nonnull final List<Long> uuids,
+                                                  @Nullable final String topologyContextId) {
         return MultiActionRequest.newBuilder()
-                .setTopologyContextId(realtimeTopologyContextId)
+                .setTopologyContextId(Strings.isNullOrEmpty(topologyContextId) ?
+                    realtimeTopologyContextId : Long.valueOf(topologyContextId))
                 .addAllActionIds(uuids)
                 .build();
     }
