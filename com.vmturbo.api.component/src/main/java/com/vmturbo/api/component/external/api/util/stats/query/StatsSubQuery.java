@@ -66,11 +66,7 @@ public interface StatsSubQuery {
      */
     default boolean containsStat(@Nonnull String statName,
                                  @Nonnull Set<StatApiInputDTO> requestedStats) {
-        if (requestedStats.isEmpty()) {
-            return true;
-        } else {
-            return requestedStats.stream()
+        return requestedStats.stream()
                 .anyMatch(stat -> stat.getName().equalsIgnoreCase(statName));
-        }
     }
 }

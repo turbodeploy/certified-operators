@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -31,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
@@ -152,7 +153,7 @@ public class PlanDaoImplTest {
         // verify that a plan project plan created without a user in the calling context will be
         // attributed to SYSTEM.
         PlanInstance planInstance = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.INITAL_PLACEMENT);
+                PlanProjectType.RESERVATION_PLAN);
 
         // should have the created by user set to SYSTEM.
         assertEquals(AuditLogUtils.SYSTEM, planInstance.getCreatedByUser());
@@ -321,7 +322,7 @@ public class PlanDaoImplTest {
                 .setTopologyId(1L)
                 .build());
         PlanInstance inst2 = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.INITAL_PLACEMENT);
+                PlanProjectType.RESERVATION_PLAN);
 
         // User plan instance should always be queued.
         Optional<PlanDTO.PlanInstance> inst = planDao.queuePlanInstance(inst1);
@@ -345,7 +346,8 @@ public class PlanDaoImplTest {
     @Test
     public void testListeners() throws Exception {
         PlanInstanceQueue planInstanceQueue = Mockito.mock(PlanInstanceQueue.class);
-        PlanInstanceCompletionListener listener = Mockito.spy(new PlanInstanceCompletionListener(planInstanceQueue));
+        PlanInstanceCompletionListener listener = Mockito.spy(
+                new PlanInstanceCompletionListener(planInstanceQueue));
         planDao.addStatusListener(listener);
         PlanDTO.PlanInstance inst = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)
@@ -390,11 +392,16 @@ public class PlanDaoImplTest {
             planDao.createPlanInstance(CreatePlanRequest.newBuilder().setTopologyId(2).build());
         final List<PlanInstance> expected = Arrays.asList(first, second);
 
-        final List<String> result = planDao.collectDiagsStream().collect(Collectors.toList());
-        assertEquals(2, result.size());
-        assertTrue(result.stream().map(string -> PlanDaoImpl.GSON.fromJson(string, PlanInstance.class))
-            .allMatch(expected::contains));
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        planDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
 
+        assertEquals(2, diags.getAllValues().size());
+        assertTrue(diags.getAllValues()
+                .stream()
+                .map(string -> PlanDaoImpl.GSON.fromJson(string, PlanInstance.class))
+                .allMatch(expected::contains));
     }
 
     @Test

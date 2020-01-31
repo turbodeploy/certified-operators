@@ -2,6 +2,7 @@ package com.vmturbo.cost.calculation.topology;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 
 import java.util.Collections;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.junit.Test;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -21,9 +23,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -69,6 +73,8 @@ public class TopologyEntityCloudTopologyTest {
                                                 .setConnectedEntityId(REGION_ID)
                                                 .setConnectedEntityType(EntityType.REGION_VALUE)
                                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(ComputeTierInfo.newBuilder()
+                            .setNumCoupons(5).build()).build())
                     .build();
 
     private static final TopologyEntityDTO DATABASE_TIER =
@@ -125,6 +131,7 @@ public class TopologyEntityCloudTopologyTest {
 
     private static final TopologyEntityDTO VM =
             constructTopologyEntity(VM_ID, DEFAULT_NAME, EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
                 .addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder()
                             .setProviderId(COMPUTE_TIER_ID)
@@ -152,6 +159,10 @@ public class TopologyEntityCloudTopologyTest {
 
     private static final TopologyEntityDTO EMPTY_VM =
             constructTopologyEntity(EMPTY_VM_ID, DEFAULT_NAME, EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setEntityState(EntityState.POWERED_ON)
+                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                            .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                                    .setBillingType(VMBillingType.BIDDING).build()).build())
                 .build();
 
     private static final TopologyEntityDTO DATABASE =
@@ -316,15 +327,24 @@ public class TopologyEntityCloudTopologyTest {
     @Test
     public void testGetAllEntities() {
         final List<TopologyEntityDTO> allRegions = CLOUD_TOPOLOGY.getAllRegions();
-        Assert.assertEquals(1, allRegions.size());
+        assertEquals(1, allRegions.size());
         final List<TopologyEntityDTO> allVMs = CLOUD_TOPOLOGY
             .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
-        Assert.assertEquals(2, allVMs.size());
+        assertEquals(2, allVMs.size());
         Set<Integer> entityTypeSet = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE,
             EntityType.STORAGE_VALUE);
         final List<TopologyEntityDTO> allEntitesOfTypes = CLOUD_TOPOLOGY.getAllEntitiesOfType(entityTypeSet);
-        Assert.assertEquals(2, allEntitesOfTypes.size());
+        assertEquals(2, allEntitesOfTypes.size());
         // testing the number of entities defined in the test
-        Assert.assertEquals(16, CLOUD_TOPOLOGY.size());
+        assertEquals(16, CLOUD_TOPOLOGY.size());
+    }
+
+    @Test
+    public void testGetRICoverageCapacityForEntity() {
+        long result = CLOUD_TOPOLOGY.getRICoverageCapacityForEntity(VM_ID);
+        assertEquals(5, result);
+        // VM with billing type as BIDDING.
+        result = CLOUD_TOPOLOGY.getRICoverageCapacityForEntity(EMPTY_VM_ID);
+        assertEquals(0, result);
     }
 }

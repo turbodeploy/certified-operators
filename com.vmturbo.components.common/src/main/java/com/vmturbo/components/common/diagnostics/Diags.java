@@ -59,6 +59,14 @@ public class Diags {
 
     @Override
     public String toString() {
-        return name + " : " + lines;
+        final String description;
+        if (lines != null) {
+            description = lines.toString();
+        } else if (bytes != null) {
+            description = bytes.length + "bytes";
+        } else {
+            description = null;
+        }
+        return name + " : " + description;
     }
 }

@@ -2,8 +2,8 @@
   "Contexts": [
     {
       "context": {
-        "csp": "AWS",
         "os": "LINUX",
+        "csp": "AWS",
         "region": 31,
         "billingAccount": 1,
         "tenancy": "DEFAULT"
@@ -17,14 +17,16 @@
             {
               "compute": 100.0,
               "license": 20.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 10.0,
               "license": 2.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 3
@@ -41,279 +43,340 @@
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100001
+          "currentTemplate": 100001,
+          "os": "LINUX"
         }
       ],
       "ReservedInstances": [
         {
           "oid": 1000001,
+          "keyOid":3000001,
           "name": "RI1",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000002,
+          "keyOid":3000001,
           "name": "RI2",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000003,
+          "keyOid":3000001,
           "name": "RI3",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000004,
+          "keyOid":3000001,
           "name": "RI4",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000005,
+          "keyOid":3000001,
           "name": "RI5",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000006,
+          "keyOid":3000001,
           "name": "RI6",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000007,
+          "keyOid":3000001,
           "name": "RI7",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000008,
+          "keyOid":3000001,
           "name": "RI8",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000009,
+          "keyOid":3000001,
           "name": "RI9",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000010,
+          "keyOid":3000001,
           "name": "RI10",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000011,
+          "keyOid":3000001,
           "name": "RI11",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000012,
+          "keyOid":3000001,
           "name": "RI12",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000013,
+          "keyOid":3000001,
           "name": "RI13",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000014,
+          "keyOid":3000001,
           "name": "RI14",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000015,
+          "keyOid":3000001,
           "name": "RI15",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000016,
+          "keyOid":3000001,
           "name": "RI16",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000017,
+          "keyOid":3000001,
           "name": "RI17",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000018,
+          "keyOid":3000001,
           "name": "RI18",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000019,
+          "keyOid":3000001,
           "name": "RI19",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000020,
+          "keyOid":3000001,
           "name": "RI20",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000021,
+          "keyOid":3000001,
           "name": "RI21",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000022,
+          "keyOid":3000001,
           "name": "RI22",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000023,
+          "keyOid":3000001,
           "name": "RI23",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000024,
+          "keyOid":3000001,
           "name": "RI24",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000025,
+          "keyOid":3000001,
           "name": "RI25",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000026,
+          "keyOid":3000001,
           "name": "RI26",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000027,
+          "keyOid":3000001,
           "name": "RI27",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
 	  "oid": 1000028,
+          "keyOid":3000001,
           "name": "RI28",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000029,
+          "keyOid":3000001,
           "name": "RI29",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         },
         {
           "oid": 1000030,
+          "keyOid":3000001,
           "name": "RI30",
           "businessAccount": 10,
           "utilization": 0,
           "zone": 21,
           "template": 100001,
-          "count": 1
+          "count": 1,
+          "isf": false
         }
       ]
     }

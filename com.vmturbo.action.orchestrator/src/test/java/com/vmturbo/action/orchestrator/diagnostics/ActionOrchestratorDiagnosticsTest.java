@@ -1,29 +1,20 @@
 package com.vmturbo.action.orchestrator.diagnostics;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
-import io.prometheus.client.CollectorRegistry;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,7 +44,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 
 /**
  * Unit tests for {@link ActionOrchestratorDiagnostics}.
@@ -66,9 +57,8 @@ public class ActionOrchestratorDiagnosticsTest {
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
-    private final DiagnosticsWriter diagnosticsWriter = Mockito.spy(new DiagnosticsWriter());
     private final ActionOrchestratorDiagnostics diagnostics =
-            new ActionOrchestratorDiagnostics(actionStorehouse, diagnosticsWriter, actionModeCalculator);
+            new ActionOrchestratorDiagnostics(actionStorehouse, actionModeCalculator);
     private final long realtimeTopologyContextId = 1234L;
 
     @Captor
@@ -293,21 +283,15 @@ public class ActionOrchestratorDiagnosticsTest {
         final List<Action> deserializedActions = actionCaptor.getValue().get(ActionPlanType.MARKET);
         Assert.assertEquals(1, deserializedActions.size());
         final Action deserializedAction = deserializedActions.get(0);
-
-        verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class), any(ZipOutputStream.class));
         ActionOrchestratorTestUtils.assertActionsEqual(action, deserializedAction);
     }
 
     private void dumpAndRestore() throws Exception {
-        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        final ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream);
-        diagnostics.dump(zipOutputStream);
-        zipOutputStream.close();
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        diagnostics.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender).appendString(diags.capture());
 
-        final String base64Str = Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
-
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64.getDecoder().decode(base64Str));
-        final ZipInputStream zipInputStream = new ZipInputStream(inputStream);
-        diagnostics.restore(zipInputStream);
+        diagnostics.restoreDiags(diags.getAllValues());
     }
 }

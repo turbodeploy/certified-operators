@@ -17,12 +17,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Stopwatch;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -31,13 +31,13 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.StreamingDiagnosable;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 @Immutable
 @ThreadSafe
-public class ProjectedRealtimeTopology implements StreamingDiagnosable {
+public class ProjectedRealtimeTopology {
     private final long topologyId;
 
     private final TopologyInfo originalTopologyInfo;
@@ -88,28 +88,16 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
             .filter(Objects::nonNull);
     }
 
-    @Nonnull
-    @Override
-    public Stream<String> collectDiags() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
-        return projectedEntities.values().stream()
-            .map(ProjectedEntity::getEntity)
-            .map(entity -> {
-                try {
-                    return printer.print(entity);
-                } catch (InvalidProtocolBufferException e) {
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull);
-    }
-
-    @Override
-    public void restoreDiags(@Nonnull final Stream<String> collectedDiags) throws DiagnosticsException {
-        // Restoring diags not supported for now.
-        //
-        // It's not an important use case - we typically restore diags to Topology Processor and
-        // broadcast.
+        for (ProjectedEntity entity: projectedEntities.values()) {
+            try {
+                final String str = printer.print(entity.getEntity());
+                appender.appendString(str);
+            } catch (InvalidProtocolBufferException e) {
+                throw new DiagnosticsException("Failed to serialize entity " + entity, e);
+            }
+        }
     }
 
     public static class ProjectedTopologyBuilder {

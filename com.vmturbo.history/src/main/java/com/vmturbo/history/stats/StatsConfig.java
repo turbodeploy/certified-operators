@@ -1,14 +1,11 @@
 package com.vmturbo.history.stats;
 
 import java.time.Clock;
-import java.util.Collection;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +14,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
@@ -26,6 +21,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
@@ -39,11 +35,6 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.PercentileReader;
-import com.vmturbo.history.stats.writers.HistUtilizationWriter;
-import com.vmturbo.history.stats.writers.LiveStatsWriter;
-import com.vmturbo.history.stats.writers.SystemLoadSnapshot;
-import com.vmturbo.history.stats.writers.SystemLoadWriter;
-import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Spring configuration for Stats RPC service related objects.
@@ -58,6 +49,9 @@ public class StatsConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
+    @Autowired
+    HistoryApiConfig historyApiConfig;
+
     @Value("${retention.numRetainedMinutes}")
     private int numRetainedMinutes;
 
@@ -67,14 +61,8 @@ public class StatsConfig {
     @Value("${latestTableTimeWindowMin}")
     private int latestTableTimeWindowMin;
 
-    @Value("${writeTopologyChunkSize}")
-    private int writeTopologyChunkSize;
-
-    @Value("${excludedCommodities}")
-    private String excludedCommodities;
-
     @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
+    public long realtimeTopologyContextId;
 
     @Value("${historyPaginationDefaultLimit}")
     private int historyPaginationDefaultLimit;
@@ -84,8 +72,6 @@ public class StatsConfig {
 
     @Value("${historyPaginationDefaultSortCommodity}")
     private String historyPaginationDefaultSortCommodity;
-    @Value("${statsWritersMaxPoolSize}")
-    private int statsWritersMaxPoolSize;
 
     @Value("${systemLoadRecordsPerChunk}")
     private int systemLoadRecordsPerChunk;
@@ -94,16 +80,25 @@ public class StatsConfig {
     @Value("${grpcReadingTimeoutMs}")
     private long grpcReadingTimeoutMs;
 
+
+    // TODO figure this out - plan stats writer probably needs to use bulk loader, etc.
     @Bean
     public StatsHistoryRpcService statsRpcService() {
-        return new StatsHistoryRpcService(realtimeTopologyContextId, liveStatsReader(),
-                planStatsReader(), clusterStatsReader(), clusterStatsWriter(),
+        return new StatsHistoryRpcService(
+                realtimeTopologyContextId,
+                liveStatsReader(),
+                planStatsReader(),
+                clusterStatsReader(),
+                clusterStatsWriter(),
                 historyDbConfig.historyDbIO(),
-                projectedStatsStore(), paginationParamsFactory(),
-                statSnapshotCreator(), statRecordBuilder(),
+                projectedStatsStore(),
+                paginationParamsFactory(),
+                statSnapshotCreator(),
+                statRecordBuilder(),
                 systemLoadReader(),
                 systemLoadRecordsPerChunk,
-                percentileReader(), statsWritersPool());
+                percentileReader(),
+                statsSvcThreadPool());
     }
 
     @Bean
@@ -162,104 +157,10 @@ public class StatsConfig {
         return new ProjectedStatsStore();
     }
 
-    /**
-     * Persist information in a Live Topology to the History DB. This includes persisting the
-     * entities, and for each entity write the stats, including commodities and entity attributes.
-     *
-     * @return instance of {@link StatsWriteCoordinator}.
-     */
-    @Bean
-    public StatsWriteCoordinator statsWriteCoordinator() {
-        final Collection<IStatsWriter> statsWriters = statsWriters();
-        final Collection<IStatsWriter> chunkedTopologyStatsWriters = statsWriters.stream()
-                        .filter(w -> !ICompleteTopologyStatsWriter.class.isInstance(w))
-                        .collect(Collectors.toSet());
-        final Collection<ICompleteTopologyStatsWriter> completeTopologyStatsWriters =
-                        statsWriters.stream().filter(ICompleteTopologyStatsWriter.class::isInstance)
-                                        .map(ICompleteTopologyStatsWriter.class::cast)
-                                        .collect(Collectors.toSet());
-        return new StatsWriteCoordinator(statsWritersPool(), chunkedTopologyStatsWriters,
-                        completeTopologyStatsWriters, writeTopologyChunkSize);
-    }
-
-    @Bean
-    public Collection<IStatsWriter> statsWriters() {
-        return ImmutableSet.of(systemLoadSnapshot(), histUtilizationWriter(), liveStatsWriter());
-    }
-
-    /**
-     * {@link IStatsWriter} implementation which is writing live statistics into the database.
-     *
-     * @return instance of {@link LiveStatsWriter}.
-     */
-    @Bean
-    public IStatsWriter liveStatsWriter() {
-        return new LiveStatsWriter(historyDbConfig.historyDbIO(), writeTopologyChunkSize,
-                        excludedCommoditiesList());
-    }
-
-    /**
-     * Thread pool to schedule stats writers tasks.
-     *
-     * @return thread pool.
-     */
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService statsWritersPool() {
-        final int numberOfThreads = Math.min(statsWritersMaxPoolSize, statsWriters().size());
-        return new ThreadPoolExecutor(numberOfThreads, numberOfThreads, 0L, TimeUnit.MILLISECONDS,
-                        new ReversedBlockingQueue<>(),
-                        new ThreadFactoryBuilder().setNameFormat("Chunked Topology Stats Writer#%d")
-                                        .build());
-    }
-
-    /**
-     * {@link IStatsWriter} implementation saves information about the current shapshot of the
-     * system, using the commodities participating in the calculation of system load.
-     *
-     * @return instance of {@link SystemLoadSnapshot}.
-     */
-    @Bean
-    public IStatsWriter systemLoadSnapshot() {
-        return new SystemLoadSnapshot(groupServiceClient(), systemLoadHelper());
-    }
-
-    /**
-     * {@link IStatsWriter} implementation which is going to save historical utilization information
-     * into database.
-     *
-     * @return instance of {@link HistUtilizationWriter}.
-     */
-    @Bean
-    public IStatsWriter histUtilizationWriter() {
-        return new HistUtilizationWriter();
-    }
-
-    @Bean
-    public GroupServiceBlockingStub groupServiceClient() {
-        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
-
-    @Bean
-    public SystemLoadWriter systemLoadWriter() {
-        SystemLoadWriter systemLoadWriter = new SystemLoadWriter(historyDbConfig.historyDbIO());
-        return systemLoadWriter;
-    }
-
     @Bean
     public SystemLoadReader systemLoadReader() {
         SystemLoadReader systemLoadReader = new SystemLoadReader(historyDbConfig.historyDbIO());
         return systemLoadReader;
-    }
-
-    @Bean
-    public SystemLoadHelper systemLoadHelper() {
-        SystemLoadHelper systemLoadUtils = new SystemLoadHelper(systemLoadReader(), systemLoadWriter());
-        return systemLoadUtils;
-    }
-
-    @Bean
-    Set<String> excludedCommoditiesList() {
-        return ImmutableSet.copyOf(excludedCommodities.toLowerCase().split(" "));
     }
 
     @Bean
@@ -287,11 +188,6 @@ public class StatsConfig {
     }
 
     @Bean
-    public PlanStatsWriter planStatsWriter() {
-        return new PlanStatsWriter(historyDbConfig.historyDbIO());
-    }
-
-    @Bean
     public PlanStatsReader planStatsReader() {
         return new PlanStatsReader(historyDbConfig.historyDbIO());
     }
@@ -304,6 +200,14 @@ public class StatsConfig {
     @Bean
     ClusterStatsWriter clusterStatsWriter() {
         return new ClusterStatsWriter(historyDbConfig.historyDbIO());
+    }
+
+    @Bean
+    ExecutorService statsSvcThreadPool() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("stats-hist-svc-pool-%d")
+                .build();
+        return Executors.newCachedThreadPool(threadFactory);
     }
 
 }

@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 
 import org.jooq.Condition;
 import org.jooq.TableField;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;

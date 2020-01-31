@@ -141,10 +141,10 @@ public class SupplyChainCalculator {
                                               @Nonnull Set<Integer> providerTypes,
                                               @Nonnull E1 entity) {
         providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getProviders()));
-        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getOwnersOrAggregators()));
+        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getAggregatorsAndOwner()));
         providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getOutboundAssociatedEntities()));
         consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getConsumers()));
-        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getOwnedOrAggregatedEntities()));
+        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getAggregatedAndOwnedEntities()));
         consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getInboundAssociatedEntities()));
     }
 
@@ -234,7 +234,7 @@ public class SupplyChainCalculator {
         /**
          * We are traversing owners and aggregators.
          */
-        INCLUDED_BY
+        AGGREGATED_BY
     }
 
     /**

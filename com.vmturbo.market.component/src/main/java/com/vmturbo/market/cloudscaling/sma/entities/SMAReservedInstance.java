@@ -5,18 +5,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.tuple.MutablePair;
-
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Stable marriage algorithm representation of an RI.
@@ -24,13 +20,23 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 public class SMAReservedInstance {
     /*
-     * unique identifier
+     * Set by the constructor
+     */
+    /*
+     * identifier of RIBought. Unique identifier.
      */
     private final long oid;
+    /*
+     * identifier of riKey. it is generated from the ReservedInstanceSpec and
+     * ReservedInstanceBought DTOs to identify the attributes
+     * that allow RIs to be aggregated without violating scoping rules.
+     */
+    private final long riKeyOid;
     /*
      * name of RI
      */
     private final String name;
+
     /*
      * BusinessAccount, subaccount of billing account.
      */
@@ -41,6 +47,18 @@ public class SMAReservedInstance {
 
     private final SMATemplate template;
 
+
+    private final int count;
+
+    /*
+     * Reserved Instance is InstanceSizeFlexible or not based on context.
+     */
+    private final boolean isf;
+
+
+    /*
+     * Additional instance variables.
+     */
     // the least cost template in the family for ISF RI's
     private SMATemplate normalizedTemplate;
 
@@ -53,13 +71,13 @@ public class SMAReservedInstance {
      */
     /*  We therefore compute coupons to list of pairs..
         the pair is the vm and the actual index in the RI preference list.
-        assume the ri can discount 5 vms (vma vmb vmc vmd vme) in this order and they
+        assume the RI can discount 5 vms (vma vmb vmc vmd vme) in this order and they
         need 2 4 1 2 1 coupons respectively. Then couponToBestVM will look like this.
            1 -> [(vmc,2),(vme,5)]
            2 -> [(vma,0),(vmd,4)]
            4 -> [(vmb,1)]
 
-        This is done so that we can know the preference of ri within a coupon family.
+        This is done so that we can know the preference of RI within a coupon family.
         Also we can get the most preferred vm which needs < x coupons efficiently.
      */
     private HashMap<Integer, List<Pair<SMAVirtualMachine, Integer>>> couponToBestVM;
@@ -74,19 +92,11 @@ public class SMAReservedInstance {
     /*
      * Total count is the count after we normalize the RI and combine the RIs.
      */
-    private float totalCount;
-
-    private final int count;
-
-    /*
-     * Reserved Instance is InstanceSizeFlexible or not based on context.
-     */
-    private final boolean isf;
-
+    private float normalizedCount;
 
     // map to keep track of RI Coverage for each group.
     // Saved to avoid recomputing everytime.
-    // RI OID x Pair<couponsCovered, totalCoupons>
+    // ASG Group Name x Pair<couponsCoveredOfASG, totalCouponsOfASG>
     private HashMap<String, Pair<Float, Float>> riCoveragePerGroup;
 
     // last discounted VM
@@ -95,31 +105,33 @@ public class SMAReservedInstance {
     /**
      * SMA Reserved Instance.
      *
-     * @param oid             unique identifier
+     * @param oid             oid of RI bought.
+     * @param riKeyOid        generated keyid for ReservedInstanceKey
      * @param name            name of RI
      * @param businessAccount business account
      * @param template        compute tier
      * @param zone            availabilty zone
      * @param count           number of RIs
-     * @param context         context
+     * @param isf             true if RI is instance size flexible
      */
     public SMAReservedInstance(final long oid,
+                               final long riKeyOid,
                                @Nonnull final String name,
                                final long businessAccount,
                                @Nonnull final SMATemplate template,
                                final long zone,
                                final int count,
-                               @Nonnull final SMAContext context) {
+                               @Nonnull final boolean isf) {
         this.oid = oid;
+        this.riKeyOid = riKeyOid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.businessAccount = businessAccount;
         this.template = Objects.requireNonNull(template, "template is null!");
         this.normalizedTemplate = template;
         this.zone = zone;
-        this.totalCount = count;
+        this.normalizedCount = count;
         this.count = count;
-        Objects.requireNonNull(context, "context is null!");
-        this.isf = computeInstanceSizeFlexible(context);
+        this.isf = isf;
         couponToBestVM = new HashMap<>();
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
@@ -134,21 +146,8 @@ public class SMAReservedInstance {
         this.lastDiscountedVM = lastDiscountedVM;
     }
 
-    /**
-     * Finds if an Reserved Instance is InstanceSizeFlexible based on context.
-     *
-     * @param context the context the Reserved Instance belongs to.
-     * @return true if the Reserved Instance is InstanceSizeFlexible
-     */
-    public boolean computeInstanceSizeFlexible(SMAContext context) {
-        if (context.getCsp() == SMACSP.AZURE ||
-                (context.getCsp() == SMACSP.AWS &&
-                        context.getTenancy() == Tenancy.DEFAULT &&
-                        SMAUtils.LINUX_OS.contains(context.getOs()) &&
-                        zone == SMAUtils.NO_ZONE)) {
-            return true;
-        }
-        return false;
+    public long getOid() {
+        return oid;
     }
 
     public boolean isIsf() {
@@ -167,8 +166,8 @@ public class SMAReservedInstance {
     }
 
     @Nonnull
-    public long getOid() {
-        return oid;
+    public long getRiKeyOid() {
+        return riKeyOid;
     }
 
     @Nonnull
@@ -202,31 +201,29 @@ public class SMAReservedInstance {
         return zone;
     }
 
-    public float getTotalCount() {
-        return totalCount;
+    public float getNormalizedCount() {
+        return normalizedCount;
     }
 
     public void setNormalizedTemplate(final SMATemplate normalizedTemplate) {
         this.normalizedTemplate = normalizedTemplate;
     }
 
-    public void setTotalCount(final float totalCount) {
-        this.totalCount = totalCount;
+    public void setNormalizedCount(final float normalizedCount) {
+        this.normalizedCount = normalizedCount;
     }
 
     /**
      * Normalize the RI to the cheapest template in the family for ISF RIs.
      *
-     * @param familyNameToCheapestTemplate map from family to the cheapest template in the family
+     * @param newTemplate new normalized template.
      */
 
-    public void normalizeTemplate(Map<String, SMATemplate> familyNameToCheapestTemplate) {
+    public void normalizeTemplate(SMATemplate newTemplate) {
         if (isIsf()) {
             SMATemplate oldTemplate = getNormalizedTemplate();
-            SMATemplate newTemplate = familyNameToCheapestTemplate
-                    .get(getNormalizedTemplate().getFamily());
             float countMultiplier = (float)oldTemplate.getCoupons() / (float)newTemplate.getCoupons();
-            setTotalCount(getCount() * countMultiplier);
+            setNormalizedCount(getCount() * countMultiplier);
             setNormalizedTemplate(newTemplate);
         }
     }
@@ -242,11 +239,12 @@ public class SMAReservedInstance {
     }
 
     /**
-     * add  the pair (vm,vmIndex) to couponToBestVM.get(coupon).
+     * Add  the pair (VM, vmIndex) to couponToBestVM.get(coupon).
+     * Side Effect: updates discountableVMs.
      *
      * @param coupon  the key to search in couponToBestVM
-     * @param vmIndex the index of vm in RI's preference list.
-     * @param vm      the vm to be added.
+     * @param vmIndex the index of VM in RI's preference list.
+     * @param vm      the VM to be added.
      */
     public void addVMToCouponToBestVM(int coupon, Integer vmIndex, SMAVirtualMachine vm) {
         if (couponToBestVM.get(coupon) == null) {
@@ -265,6 +263,7 @@ public class SMAReservedInstance {
 
     /**
      * remove the 0th entry from couponToBestVM.get(coupon).
+     * Side Effect: updates discountableVMs.
      *
      * @param coupon the key to search in couponToBestVM
      */
@@ -322,7 +321,7 @@ public class SMAReservedInstance {
         float coverage = 0;
         float total = 0;
         for (SMAVirtualMachine member : virtualMachineGroup.getVirtualMachines()) {
-            if (isSingleVMDiscounted(member)) {
+            if (isVMDiscountedByThisRI(member)) {
                 coverage = coverage + member.getCurrentRICoverage();
             }
             total = total + member.getCurrentTemplate().getCoupons();
@@ -343,7 +342,7 @@ public class SMAReservedInstance {
             riCoverage = riCoveragePerGroup.get(vm.getGroupName()).first
                     / riCoveragePerGroup.get(vm.getGroupName()).second;
         } else {
-            if (isSingleVMDiscounted(vm)) {
+            if (isVMDiscountedByThisRI(vm)) {
                 riCoverage = vm.getCurrentRICoverage()
                         / vm.getCurrentTemplate().getCoupons();
             } else {
@@ -360,60 +359,54 @@ public class SMAReservedInstance {
      * @return true if the vm is currently discounted.
      */
 
-    public boolean isSingleVMDiscounted(SMAVirtualMachine vm) {
+    public boolean isVMDiscountedByThisRI(SMAVirtualMachine vm) {
         float riCoverage = vm.getCurrentRICoverage();
-        if (riCoverage > SMAUtils.EPSILON) {
-            if (!isIsf()) {
-                return (vm.getCurrentTemplate().getOid()
-                        == getTemplate().getOid());
-            } else {
-                return (vm.getCurrentTemplate().getFamily()
-                        .equals(getTemplate().getFamily()));
-            }
-        }
-        return false;
+        return (riCoverage > SMAUtils.EPSILON && vm.getCurrentRIKey() == getRiKeyOid());
     }
 
-    @Override
-    public String toString() {
-        return "SMAReservedInstance{" +
-                "OID='" + oid + "'" +
-                ", name='" + name + "'" +
-                ", businessAccount='" + businessAccount + "'" +
-                ", normalizedTemplate=" + normalizedTemplate +
-                ", zone='" + zone + "'" +
-                ", totalCount=" + totalCount +
-                '}';
-    }
 
-    /*
-     * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
-     * If the RIs are regional, then zone == NO_ZONE.
+    /**
+     * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
+     * @return hash code based on oid
      */
     @Override
     public int hashCode() {
-       return Objects.hash(oid, name, businessAccount, template.getOid(), zone, count);
+        return Objects.hash(oid);
     }
 
-    /**
+    /*
      * RI's that have same businessAccount,normalizedTemplate and zone should be combined. This allows
      * multiple RI's to discount a single VM in case of ISF. Multiple RI to discount multiple VMs in case
      * of ASG.
+     */
+    /**
+     * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
+     * @param obj the other RI
+     * @return true if the RI's are equivalent.
      */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-         if (obj == null || getClass() != obj.getClass()) {
-             return false;
-         }
-         final SMAReservedInstance that = (SMAReservedInstance)obj;
-         return oid == that.oid &&
-             name.equals(that.name) &&
-             businessAccount == that.businessAccount &&
-             template.getOid() == that.template.getOid() &&
-             zone == that.zone &&
-             count == that.count;
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        final SMAReservedInstance that = (SMAReservedInstance)obj;
+        return oid == that.oid;
+    }
+
+    @Override
+    public String toString() {
+        return "SMAReservedInstance{" +
+                "OID='" + oid + "'" +
+                ", keyOID='" + riKeyOid + "'" +
+                ", name='" + name + "'" +
+                ", businessAccount='" + businessAccount + "'" +
+                ", zone='" + zone + "'" +
+                ", normalizedCount=" + normalizedCount +
+                ", isf=" + isf +
+                ", normalizedTemplate=" + normalizedTemplate.toStringWithOutCost() +
+                '}';
     }
 }

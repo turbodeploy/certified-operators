@@ -50,8 +50,9 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
 
     private static final String ENV_VAR_FORMAT = "%s=%s";
     private static final Pattern ENV_VAR_NAME_PATTERN = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_]*");
+
     /**
-     * Execute an action script via SSH
+     * Execute an action script via SSH.
      *
      * @param accountValues   {@link ActionScriptProbeAccount} values from the target
      * @param session         {@link ClientSession} over which the code will be executed
@@ -71,7 +72,8 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
             .collect(Collectors.joining(" "));
         if (!badParamNames.isEmpty()) {
             logger.warn("Action script remote execution failed due to invalid parameter names: " + badParamNames);
-            completion.setException(new IllegalArgumentException("Invalid parameter names for action script execution: "+badParamNames));
+            completion.setException(new IllegalArgumentException(
+                    "Invalid parameter names for action script execution: " + badParamNames));
         } else {
             // We can't reliably use the setEnv() method of the SSH channel object that will manage the
             // execution, because most sshd servers are configured to discard environment variables
@@ -107,7 +109,7 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                 channel.setErr(stderr);
                 // opening the channel is what actually starts the remote command execution
                 channel.open().verify();
-                handleChannelEvents(channel, getMaxEndTime(workflow));
+                handleChannelEvents(channel, workflow);
                 // command has terminated; capture info and make sure we grab any in-flight output
                 completion.setExitStatus(channel.getExitStatus());
                 completion.setExitSignal(channel.getExitSignal());
@@ -125,6 +127,7 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
 
     private static final String APOSTROPHE = "'";
     private static final String EMBEDDED_APOSTROPHE = "'\"'\"'";
+
     /**
      * Prepare a string for use in a command line sent to SSH. The overall string is quoted with
      * apostrophes. Embedded apostrophes are replaced with this funky looking chunk: '"'"'
@@ -139,7 +142,8 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
         return APOSTROPHE + s.replaceAll(APOSTROPHE, EMBEDDED_APOSTROPHE) + APOSTROPHE;
     }
 
-    private final static long UNLIMITED_WAIT = -1;
+    private static final long UNLIMITED_WAIT = -1;
+
     /**
      * Translate a time limit into a deadline for execution to complete. We'll compute timeouts
      * based on this and current time in the channel handler.
@@ -148,30 +152,34 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
      * @return deadline (milliseconds since epoch) based on script's time limit and current time
      */
     private long getMaxEndTime(final @Nonnull Workflow workflow) {
-        final long limitInSeconds = workflow.hasTimeLimitSeconds()
-            ? workflow.getTimeLimitSeconds()
-            : actionScriptExecutor.getDefaultTimeoutSeconds();
+        final long limitInSeconds = getWorkflowTimeLimitSecs(workflow);
         return limitInSeconds < 0L ? UNLIMITED_WAIT : System.currentTimeMillis() + limitInSeconds * 1000;
+    }
+
+    private long getWorkflowTimeLimitSecs(@Nonnull final Workflow workflow) {
+        return workflow.hasTimeLimitSeconds()
+                ? workflow.getTimeLimitSeconds()
+                : actionScriptExecutor.getDefaultTimeoutSeconds();
     }
 
 
     /**
-     * channel events that we'll be watching for in {@link #handleChannelEvents(SignalingSshChannelExec, long)}
+     * channel events that we'll be watching for in {@link #handleChannelEvents(SignalingSshChannelExec, Workflow)}
      *
-     * The "events" are not really events at all - they're persistent properties of the channel. E.g. if you include
+     * <p>The "events" are not really events at all - they're persistent properties of the channel. E.g. if you include
      * the OPENED event in your waitFor list, then once the channel enters OPENED state, you'll never wait, and an
-     * OPENED "event" will always be reported until the channel becomes closed.
+     * OPENED "event" will always be reported until the channel becomes closed.</p>
      *
-     * What we're really after is to know when the channel becomes closed, and that corresponds to the CLOSED "event".
+     * <p>What we're really after is to know when the channel becomes closed, and that corresponds to the CLOSED "event".
      * We're not interested in intermediate transitions, like EXIT_STATUS that indicates that an exit status has been
      * set. Once it's set, we can retrieve thereafter from the channel, so we don't need to know when it actually
-     * happens.
+     * happens.</p>
      *
-     * The TIMEOUT value of ClientChannelEvent is the only value that actually acts like an event,
+     * <p>The TIMEOUT value of ClientChannelEvent is the only value that actually acts like an event,
      * but it's not necessary to include it in the waitFor list - it'll be delivered if your wait
-     * times out, regardless.
+     * times out, regardless.</p>
      *
-     * That's why our waitFor list ends up only including CLOSED.
+     * <p>That's why our waitFor list ends up only including CLOSED.</p>
      */
     private static final Collection<ClientChannelEvent> EVENTS_OF_INTEREST = Collections.singletonList(ClientChannelEvent.CLOSED);
 
@@ -179,10 +187,13 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
      * Loop, handling events reported by the SSH channel, until a terminating event is
      * handled.
      *
-     * @param channel    the channel whose events we're monitoring
-     * @param maxEndTime deadline for completion
+     * @param channel  the channel whose events we're monitoring
+     * @param workflow the workflow that's executing
      */
-    private void handleChannelEvents(@Nonnull SignalingSshChannelExec channel, long maxEndTime) {
+    private void handleChannelEvents(@Nonnull SignalingSshChannelExec channel,
+            @Nonnull Workflow workflow) {
+        // deadline for execution to complete
+        long maxEndTime = getMaxEndTime(workflow);
         // true once we've gone past our deadline
         boolean timedOut = false;
         // true immediately after timeout, and until a subsequent grace period expires (waiting
@@ -198,10 +209,17 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                     // we were in grace period, but we've exceeded it
                     inGracePeriod = false;
                     timeLimit = UNLIMITED_WAIT; // no more timeouts after grace period
+                    logger.warn("Action script {} did not terminate within grace period after " +
+                                    "being sent SIGTERM signal; no further attempt will be made " +
+                                    "to terminate the script",
+                            workflow.getDisplayName());
                     // TODO Notify that we timed out and process did not terminate quickly
                 } else if (!timedOut && maxEndTime > 0) {
                     // we've just hit our deadline - signal the process
                     try {
+                        logger.warn("Action script {} exceeded time limit of {} seconds, " +
+                                        "sending SIGTERM signal",
+                                workflow.getDisplayName(), getWorkflowTimeLimitSecs(workflow));
                         channel.signal("TERM");
                     } catch (IOException e) {
                         logger.warn("Apparently failed to signal action script process with termination signal");
@@ -239,9 +257,8 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
         }
     }
 
-
     /**
-     * Compute timeout for next event wait
+     * Compute timeout for next event wait.
      *
      * @param maxEndTime    deadline for script termination
      * @param timedOut      whether we've already hit that deadline

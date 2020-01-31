@@ -7,7 +7,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -22,14 +21,16 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 
 /**
  * Parse a Template spec Json file, it contains pre-defined template specs which contains information
  * about how to display template fields on UI.
  */
-public class TemplateSpecParser implements Diagnosable {
+public class TemplateSpecParser implements DiagsRestorable {
 
     private final Logger log = LogManager.getLogger();
 
@@ -76,11 +77,11 @@ public class TemplateSpecParser implements Diagnosable {
      *                              to any errors that may occur deserializing or restoring a
      *                              templates.
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
-        log.info("Collecting diagnostics for map of {} template specs", getTemplateSpecMap().size());
-        return Stream.of(GSON.toJson(getTemplateSpecMap(), TYPE));
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
+        log.info("Collecting diagnostics for map of {} template specs",
+                getTemplateSpecMap().size());
+        appender.appendString(GSON.toJson(getTemplateSpecMap(), TYPE));
     }
 
     /**
@@ -91,7 +92,7 @@ public class TemplateSpecParser implements Diagnosable {
      * if the correct diags file is being read.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
      * @throws DiagnosticsException if template specs are already present, or in response
      *                              to any errors that may occur deserializing or restoring the
      *                              template spec map.
@@ -130,5 +131,11 @@ public class TemplateSpecParser implements Diagnosable {
             throw new DiagnosticsException(errors);
         }
 
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "TemplateSpecs";
     }
 }

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.spy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -22,11 +23,14 @@ import org.jooq.DSLContext;
 import org.jooq.TransactionalCallable;
 import org.jooq.TransactionalRunnable;
 import org.jooq.exception.DataAccessException;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
@@ -35,6 +39,7 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceSta
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
@@ -516,16 +521,23 @@ public class ScheduleStoreTest {
         scheduleStore.assignScheduleToSettingPolicy(policy1.getId(), schedule1.getId());
         scheduleStore.assignScheduleToSettingPolicy(policy2.getId(), schedule2.getId());
 
-        List<String> diags = scheduleStore.collectDiagsStream().collect(Collectors.toList());
-        assertNotNull(diags);
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        scheduleStore.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+
+        final DiagnosticsAppender settingsAppender = Mockito.mock(DiagnosticsAppender.class);
+        settingStore.collectDiags(settingsAppender);
+        final ArgumentCaptor<String> settingDiags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(settingsAppender, Mockito.atLeastOnce()).appendString(settingDiags.capture());
+
+        Assert.assertNotEquals(Collections.emptyList(), diags.getAllValues());
         assertEquals(2, scheduleStore.getSchedules().collect(Collectors.toList()).size());
-        final List<String> settingDiags = settingStore.collectDiagsStream()
-            .collect(Collectors.toList());
         settingStore.createUserSettingPolicy(info.toBuilder().setName("test3").build());
-        settingStore.restoreDiags(settingDiags);
+        settingStore.restoreDiags(settingDiags.getAllValues());
         assertEquals(2, settingStore.getSettingPolicies(
             SettingPolicyFilter.newBuilder().build()).collect(Collectors.toList()).size());
-        scheduleStore.restoreDiags(diags);
+        scheduleStore.restoreDiags(diags.getAllValues());
         assertEquals(2, scheduleStore.getSchedules().collect(Collectors.toList()).size());
         assertTrue(scheduleStore.getSchedule(schedule1.getId()).isPresent());
         assertTrue(scheduleStore.getSchedule(schedule2.getId()).isPresent());
@@ -538,9 +550,12 @@ public class ScheduleStoreTest {
     @Test(expected = DiagnosticsException.class)
     public void testDiagsWrongDiagsSize() throws Exception {
         Schedule schedule1 = scheduleStore.createSchedule(testScheduleWithLastDate);
-        List<String> diags = scheduleStore.collectDiagsStream().collect(Collectors.toList());
-        assertNotNull(diags);
-        List clonedDiags = new ArrayList(diags);
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        scheduleStore.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+        Assert.assertNotEquals(Collections.emptyList(), diags.getAllValues());
+        final List<String> clonedDiags = new ArrayList(diags.getAllValues());
         clonedDiags.remove(0);
         scheduleStore.restoreDiags(clonedDiags);
     }
@@ -554,7 +569,7 @@ public class ScheduleStoreTest {
         doThrow(DataAccessException.class).when(dslContextSpy)
             .transactionResult(any(TransactionalCallable.class));
         thrown.expect(DiagnosticsException.class);
-        scheduleStore.collectDiagsStream();
+        scheduleStore.collectDiags(Mockito.mock(DiagnosticsAppender.class));
     }
 
     /**

@@ -284,10 +284,9 @@ public class RepositoryApi {
                                                 @Nullable EntityAspectMapper aspectMapper) {
             final Map<Long, ServiceEntityApiDTO> entities;
             if (aspectMapper == null) {
-                entities = getEntities()
-                    .collect(Collectors.toMap(
-                        ApiPartialEntity::getOid,
-                        serviceEntityMapper::toServiceEntityApiDTO));
+                // Do the conversion in bulk.
+                entities = serviceEntityMapper.toServiceEntityApiDTOMap(getEntities()
+                        .collect(Collectors.toList()));
             } else {
                 entities = getFullEntities()
                     .collect(Collectors.toMap(

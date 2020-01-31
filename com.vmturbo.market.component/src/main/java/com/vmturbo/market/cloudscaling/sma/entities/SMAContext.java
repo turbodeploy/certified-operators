@@ -34,7 +34,6 @@ public class SMAContext {
 
     /**
      * SMAContext constructor.
-     *
      * @param csp  csp
      * @param osType operating system
      * @param regionId the corresponding region
@@ -58,6 +57,8 @@ public class SMAContext {
         return csp;
     }
 
+
+
     @Nonnull
     public OSType getOs() {
         return osType;
@@ -79,7 +80,7 @@ public class SMAContext {
 
     @Override
     public int hashCode() {
-        return Objects.hash(csp, osType, regionId, billingAccountId, tenancy);
+        return Objects.hash(osType, regionId, billingAccountId, tenancy);
     }
 
     @Override
@@ -91,8 +92,7 @@ public class SMAContext {
             return false;
         }
         final SMAContext that = (SMAContext)obj;
-        return csp == that.csp &&
-                osType == that.osType &&
+        return osType == that.osType &&
                 Objects.equals(regionId, that.regionId) &&
                 Objects.equals(billingAccountId, that.billingAccountId) &&
                 tenancy == that.tenancy;

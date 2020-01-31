@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -126,12 +127,13 @@ public class BusinessAccountRetriever {
                 .map(Long::parseLong)
                 .collect(Collectors.toSet());
 
+        Set<Long> targetIds = new HashSet<>();
         if (!numericIds.isEmpty()) {
             // We need to distinguish between the "get all business accounts" case and the
             // "get some" business accounts case. For now, the presence of scope targets is
             // sufficient. When we support additional scopes this will need to change.
             allAccounts = false;
-            final Set<Long> targetIds = numericIds.stream()
+           targetIds = numericIds.stream()
                 .filter(oid -> thinTargetCache.getTargetInfo(oid).isPresent())
                 .collect(Collectors.toSet());
 
@@ -161,7 +163,7 @@ public class BusinessAccountRetriever {
         } else {
             logger.debug("The input scope list doesn't contain numeric IDs. Returning all Business Units.");
         }
-        // We add the usual entity search filter if there is somthing to filter on or if
+        // We add the usual entity search filter if there is something to filter on or if
         // there is nothing in search parameters yet.
         if ((!CollectionUtils.isEmpty(criterias)) || searchParameters.isEmpty()) {
             searchParameters.addAll(
@@ -171,15 +173,19 @@ public class BusinessAccountRetriever {
         final List<SearchParameters> effectiveParameters = searchParameters.stream()
                 .map(filterResolver::resolveExternalFilters)
                 .collect(Collectors.toList());
-        final List<TopologyEntityDTO> businessAccounts =
-                repositoryApi.newSearchRequestMulti(effectiveParameters)
-                        .getFullEntities()
-                        // OM-53266: Only accounts that are monitored by a probe should be converted.
-                        // Accounts that are only submitted as a member of a BillingFamily should not be converted.
-                        .filter(businessAccount -> businessAccount.hasTypeSpecificInfo())
-                        .filter(businessAccount -> businessAccount.getTypeSpecificInfo().hasBusinessAccount())
-                        .filter(businessAccount -> businessAccount.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
-                        .collect(Collectors.toList());
+        final List<TopologyEntityDTO> businessAccounts = (targetIds.isEmpty() ?
+                  repositoryApi.newSearchRequestMulti(effectiveParameters)
+                      .getFullEntities()
+                      // OM-53266: Only accounts that are monitored by a probe should be converted.
+                      // Accounts that are only submitted as a member of a BillingFamily should not be converted.
+                      .filter(businessAccount -> businessAccount.hasTypeSpecificInfo())
+                      .filter(businessAccount -> businessAccount.getTypeSpecificInfo().hasBusinessAccount())
+                      .filter(businessAccount -> businessAccount.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
+                      .collect(Collectors.toList())
+                  :
+                  repositoryApi.newSearchRequestMulti(effectiveParameters)
+                      // No filtering required when one ore more target IDs exist
+                      .getFullEntities().collect(Collectors.toList()));
 
         return businessAccountMapper.convert(businessAccounts, allAccounts);
     }

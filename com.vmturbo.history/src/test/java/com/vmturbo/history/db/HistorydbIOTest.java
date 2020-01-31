@@ -1,15 +1,12 @@
 package com.vmturbo.history.db;
 
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.doubl;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.select;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.any;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -44,6 +41,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.HistorydbIO.SeekPaginationCursor;
+import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -64,11 +62,11 @@ public class HistorydbIOTest {
     private HistorydbIO historydbIO;
 
     final Field<BigDecimal> avgValue =
-        avg(doubl(dField(VmStatsLatest.VM_STATS_LATEST, StringConstants.AVG_VALUE))).as(StringConstants.AVG_VALUE);
+        avg(JooqUtils.getDoubleField(VmStatsLatest.VM_STATS_LATEST, StringConstants.AVG_VALUE)).as(StringConstants.AVG_VALUE);
     final Field<BigDecimal> avgCapacity =
-        avg(doubl(dField(VmStatsLatest.VM_STATS_LATEST, StringConstants.CAPACITY))).as(StringConstants.CAPACITY);
+        avg(JooqUtils.getDoubleField(VmStatsLatest.VM_STATS_LATEST, StringConstants.CAPACITY)).as(StringConstants.CAPACITY);
     final Field<String> uuid =
-        str(dField(VmStatsLatest.VM_STATS_LATEST, StringConstants.UUID));
+        JooqUtils.getStringField(VmStatsLatest.VM_STATS_LATEST, StringConstants.UUID);
     Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats =
         select(uuid, avgValue, avgCapacity)
             .from(VmStatsLatest.VM_STATS_LATEST).asTable("aggregatedStats");
@@ -177,7 +175,7 @@ public class HistorydbIOTest {
         final HashMap<String, String> entityTypesMap = new HashMap<>();
         entityTypesMap.put("foo", EntityType.PHYSICAL_MACHINE.getClsName());
         when(mockHistorydbIO.getTypesForEntities(Mockito.anySet())).thenReturn(entityTypesMap);
-        when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(Mockito.any())).thenCallRealMethod();
+        when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(any())).thenCallRealMethod();
 
         //THEN
         assertEquals(mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope), EntityType.PHYSICAL_MACHINE);
@@ -203,7 +201,7 @@ public class HistorydbIOTest {
 
         final Map<String, String> entityTypes = new HashMap<>();
         when(mockHistorydbIO.getTypesForEntities(Mockito.anySet())).thenReturn(entityTypes);
-        when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(Mockito.any())).thenCallRealMethod();
+        when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(any())).thenCallRealMethod();
 
         //THEN
         assertNull(mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope));
@@ -230,7 +228,7 @@ public class HistorydbIOTest {
         final HashMap<String, String> entityTypesMap = new HashMap<>();
         entityTypesMap.put("foo1", "bar");
         when(mockHistorydbIO.getTypesForEntities(Mockito.anySet())).thenReturn(entityTypesMap);
-        when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(Mockito.any())).thenCallRealMethod();
+        when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(any())).thenCallRealMethod();
 
         //When
         mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope);
@@ -262,28 +260,32 @@ public class HistorydbIOTest {
      */
     @Test
     public void testGetNextPageGettingTotalRecordCount() throws VmtDbException {
-        //GIVEN
-        setupDatabase();
+        try {
+            //GIVEN
+            setupDatabase();
 
-        final Stats.EntityStatsScope entityStatsScope = Stats.EntityStatsScope.newBuilder()
-                .setEntityList(Stats.EntityStatsScope.EntityList.newBuilder()
-                        .addEntities(1))
-                .build();
+            final Stats.EntityStatsScope entityStatsScope = Stats.EntityStatsScope.newBuilder()
+                    .setEntityList(Stats.EntityStatsScope.EntityList.newBuilder()
+                            .addEntities(1))
+                    .build();
 
-        EntityStatsPaginationParams paginationParams = new EntityStatsPaginationParams(
-                20,
-                100,
-                "sortBy",
-                PaginationParameters.newBuilder().setCursor("sdf:2134").build());
+            EntityStatsPaginationParams paginationParams = new EntityStatsPaginationParams(
+                    20,
+                    100,
+                    "sortBy",
+                    PaginationParameters.newBuilder().setCursor("sdf:2134").build());
 
-        HistorydbIO historydbIOSpy = spy(historydbIO);
-        doReturn(100).when(historydbIOSpy).getTotalRecordsCount(any(), any());
+            HistorydbIO historydbIOSpy = spy(historydbIO);
+            doReturn(100).when(historydbIOSpy).getTotalRecordsCount(any(), any());
 
-        //WHEN
-        NextPageInfo nextPageInfo = historydbIOSpy.getNextPage(entityStatsScope, new Timestamp(1L), TimeFrame.LATEST, paginationParams, EntityType.VIRTUAL_MACHINE);
+            //WHEN
+            NextPageInfo nextPageInfo = historydbIOSpy.getNextPage(entityStatsScope, new Timestamp(1L), TimeFrame.LATEST, paginationParams, EntityType.VIRTUAL_MACHINE);
 
-        //THEN
-        verify(historydbIOSpy, times(1)).getTotalRecordsCount(any(), any());
-        assertTrue(nextPageInfo.getTotalRecordCount().get().equals(100));
+            //THEN
+            verify(historydbIOSpy, times(1)).getTotalRecordsCount(any(), any());
+            assertTrue(nextPageInfo.getTotalRecordCount().get().equals(100));
+        } finally {
+            teardownDatabase();
+        }
     }
 }

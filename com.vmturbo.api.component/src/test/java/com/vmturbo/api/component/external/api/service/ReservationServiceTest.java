@@ -89,60 +89,10 @@ public class ReservationServiceTest {
         reservationMapper = Mockito.mock(ReservationMapper.class);
         reservationsService = new ReservationsService(
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                reservationMapper,
-                INITIAL_PLACEMENT_TIMEOUT_SECONDS,
-                PlanServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                PlanServiceGrpc.newFutureStub(grpcServer.getChannel()),
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                reservationMapper);
     }
 
-    @Test
-    public void testCreateReservationForDemand() throws Exception {
-        final DemandReservationApiInputDTO demandApiInputDTO = new DemandReservationApiInputDTO();
-        final DemandReservationApiDTO demandReservationApiDTO = new DemandReservationApiDTO();
-        demandReservationApiDTO.setCount(2);
-        final ScenarioChange scenarioChange = ScenarioChange.newBuilder()
-                .setTopologyAddition(TopologyAddition.newBuilder()
-                        .setAdditionCount(1)
-                        .setTemplateId(222L))
-                .build();
 
-        Mockito.when(reservationMapper.placementToScenarioChange(Mockito.any()))
-                .thenReturn(Lists.newArrayList(scenarioChange));
-
-        Mockito.when(reservationServiceMole.initialPlacement(InitialPlacementRequest.newBuilder()
-                .setScenarioInfo(ScenarioInfo.newBuilder()
-                        .addChanges(scenarioChange))
-                .build()))
-                .thenReturn(InitialPlacementResponse.newBuilder()
-                        .setPlanId(123L)
-                        .build());
-        Mockito.when(planServiceMole.getPlan(PlanId.newBuilder()
-                .setPlanId(123L)
-                .build()))
-                .thenReturn(OptionalPlanInstance.newBuilder()
-                        .setPlanInstance(PlanInstance.newBuilder()
-                                .setPlanId(123L)
-                                .setStatus(PlanStatus.SUCCEEDED))
-                        .build());
-        Mockito.when(reservationMapper.convertToDemandReservationApiDTO(Mockito.any(),
-                Mockito.any()))
-                .thenReturn(demandReservationApiDTO);
-        final DemandReservationApiDTO result =
-                reservationsService.createReservationForDemand(false, PLACEMENT,
-                        demandApiInputDTO);
-        Mockito.verify(reservationServiceMole, Mockito.times(1))
-                .initialPlacement(InitialPlacementRequest.newBuilder()
-                        .setScenarioInfo(ScenarioInfo.newBuilder()
-                                .addChanges(scenarioChange))
-                        .build());
-        Mockito.verify(planServiceMole, Mockito.times(1))
-                .getPlan(PlanId.newBuilder()
-                        .setPlanId(123L)
-                        .build());
-        assertEquals(2L, (int)result.getCount());
-    }
 
     @Test
     public void testCreateReservationForReservation() throws Exception {
@@ -166,93 +116,4 @@ public class ReservationServiceTest {
         assertEquals(2L, (int)result.getCount());
     }
 
-    @Test
-    public void testGetPlacementResults() {
-        final long planId = 123L;
-        final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
-                .setTopologyContextId(planId)
-                .setFilter(ActionQueryFilter.newBuilder()
-                        .addTypes(ActionType.ACTIVATE))
-                .setPaginationParams(PaginationParameters.getDefaultInstance())
-                .build();
-        final ActionOrchestratorAction placementMoveAction = ActionOrchestratorAction.newBuilder()
-                        .setActionId(1L)
-                        .setActionSpec(ActionSpec.newBuilder()
-                            .setRecommendation(Action.newBuilder()
-                                .setId(90)
-                                .setDeprecatedImportance(10.0)
-                                .setExplanation(Explanation.newBuilder()
-                                    .setMove(MoveExplanation.newBuilder()
-                                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
-                                        .setInitialPlacement(
-                                            InitialPlacement.getDefaultInstance())))
-                                    .build())
-                                .setInfo(ActionInfo.newBuilder()
-                                    .setMove(Move.newBuilder()
-                                        .setTarget(ActionEntity.newBuilder()
-                                                .setId(111L)
-                                                .setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                                        .addChanges(ChangeProvider.newBuilder()
-                                            .setSource(ApiUtilsTest.createActionEntity(0L))
-                                            .setDestination(ApiUtilsTest.createActionEntity(78910))
-                                            .build())
-                                        .build())
-                                    .build())
-                                .build())
-                            .build())
-                        .build();
-        final ActionOrchestratorAction reservationMoveAction = ActionOrchestratorAction.newBuilder()
-                .setActionId(2L)
-                .setActionSpec(ActionSpec.newBuilder()
-                    .setRecommendation(Action.newBuilder()
-                        .setId(91)
-                        .setDeprecatedImportance(11.0)
-                        .setExplanation(Explanation.newBuilder()
-                            .setMove(MoveExplanation.newBuilder()
-                                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
-                                    .setInitialPlacement(
-                                        InitialPlacement.getDefaultInstance())))
-                            .build())
-                        .setInfo(ActionInfo.newBuilder()
-                            .setMove(Move.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(222L)
-                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                                .addChanges(ChangeProvider.newBuilder()
-                                    .setSource(ApiUtilsTest.createActionEntity(0L))
-                                    .setDestination(ApiUtilsTest.createActionEntity(78911))
-                                    .build())
-                                .build())
-                            .build())
-                        .build())
-                    .build())
-                .build();
-        Mockito.when(actionsServiceMole.getAllActions(actionRequest))
-            .thenReturn(FilteredActionResponse.newBuilder()
-                .addActions(placementMoveAction)
-                .addActions(reservationMoveAction)
-                .build());
-        final GetReservationByStatusRequest reservationRequest = GetReservationByStatusRequest.newBuilder()
-                .setStatus(ReservationStatus.RESERVED)
-                .build();
-        final Reservation reservation = Reservation.newBuilder()
-                .setId(333L)
-                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                        .addReservationTemplate(ReservationTemplate.newBuilder()
-                                .addReservationInstance(ReservationInstance.newBuilder()
-                                        .setEntityId(222L))))
-                .setName("test-reservation")
-                .build();
-        Mockito.when(reservationServiceMole.getReservationByStatus(reservationRequest))
-                .thenReturn(Lists.newArrayList(reservation));
-        final Set<Integer> entityTypes = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE);
-        final List<PlacementInfo> placementInfos = reservationsService.getPlacementResults(planId, entityTypes);
-        assertEquals(1, placementInfos.size());
-        assertEquals(111L, placementInfos.get(0).getEntityId());
-        assertEquals(1L, placementInfos.get(0).getProviderIds().size());
-        assertTrue(placementInfos.stream()
-                .map(PlacementInfo::getProviderIds)
-                .flatMap(List::stream)
-                .allMatch(providerId -> providerId.equals(78910L)));
-    }
 }

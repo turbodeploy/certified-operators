@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,7 +42,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
@@ -535,16 +535,17 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * This method retrieves all templates and serializes them as JSON strings.
      *
      * @return a list of serialized templates
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException on exceptions occurred
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender)
+            throws DiagnosticsException {
         final Set<TemplateDTO.Template> templates =
             getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         logger.info("Collecting diagnostics for {} templates", templates.size());
-        return templates.stream()
-            .map(template -> GSON.toJson(template, TemplateDTO.Template.class));
+        for (TemplateDTO.Template template: templates) {
+            appender.appendString(GSON.toJson(template, TemplateDTO.Template.class));
+        }
     }
 
     /**
@@ -554,7 +555,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * templates from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains templates, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              template.
@@ -606,6 +607,12 @@ public class TemplatesDaoImpl implements TemplatesDao {
             throw new DiagnosticsException(errors);
         }
 
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "Templates";
     }
 
     /**

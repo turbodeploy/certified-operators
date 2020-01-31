@@ -13,9 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -54,14 +51,16 @@ public interface CloudCostDataProvider {
      * The bundle of non-topology data required to compute costs. This can include things like
      * the {@link PriceTable} from the cost probes, the discounts for various business accounts,
      * and the reserved instance coverage.
+     *
+     * @param <T> The class used to represent entities in the topology. For example,
+     *            TopologyEntityDTO for the real time topology.
      */
     @Immutable
-    class CloudCostData {
+    class CloudCostData<T> {
 
-        private static final Logger logger = LogManager.getLogger();
-
-        private static final CloudCostData EMPTY = new CloudCostData(Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+        private static final CloudCostData EMPTY = new CloudCostData<>(Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap());
 
         private final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId;
 
@@ -69,14 +68,15 @@ public interface CloudCostDataProvider {
 
         private final Map<Long, ReservedInstanceData> buyRIBoughtDataById;
 
-        private final Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid;
+        private final Map<Long, AccountPricingData<T>> accountPricingDataByBusinessAccountOid;
 
 
         public CloudCostData(@Nonnull final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId,
                              @Nonnull final Map<Long, ReservedInstanceBought> riBoughtById,
                              @Nonnull final Map<Long, ReservedInstanceSpec> riSpecById,
                              @Nonnull final Map<Long, ReservedInstanceBought> buyRIBoughtById,
-                             @Nonnull final Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid) {
+                             @Nonnull final Map<Long, AccountPricingData<T>>
+                                     accountPricingDataByBusinessAccountOid) {
             this.riCoverageByEntityId = Objects.requireNonNull(riCoverageByEntityId);
             this.accountPricingDataByBusinessAccountOid = Objects.requireNonNull(accountPricingDataByBusinessAccountOid);
             // Combine RI Bought and RI Specs.
@@ -98,7 +98,7 @@ public interface CloudCostDataProvider {
              *
              * @return The account pricing data corresponding to the business account oid.
              */
-        public Optional<AccountPricingData> getAccountPricingData(Long businessAccountOid) {
+        public Optional<AccountPricingData<T>> getAccountPricingData(Long businessAccountOid) {
             return Optional.ofNullable(accountPricingDataByBusinessAccountOid.get(businessAccountOid));
         }
 

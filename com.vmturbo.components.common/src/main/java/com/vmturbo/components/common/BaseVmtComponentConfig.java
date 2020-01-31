@@ -41,6 +41,9 @@ public class BaseVmtComponentConfig {
     private double maxHealthyUsedMemoryRatio;
 
 
+    @Value("${enableMemoryMonitor:false}")
+    private boolean enableMemoryMonitor;
+
     /**
      * Required to fill @{...} @Value annotations referencing
      * properties from the diagnostic.properties.
@@ -93,7 +96,7 @@ public class BaseVmtComponentConfig {
     @Bean
     public MemoryMonitor memoryMonitor() {
         // creates a memory monitor that reports unhealthy when old gen seems to be full
-        return new MemoryMonitor(maxHealthyUsedMemoryRatio);
+        return enableMemoryMonitor ? new MemoryMonitor(maxHealthyUsedMemoryRatio) : null;
     }
 
     @Bean

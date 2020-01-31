@@ -1534,21 +1534,20 @@ public class ActionSpecMapper {
                 .newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
-                        // For cloud scale actions, the action savings will reflect only the savings from
-                        // accepting the specific action, ignoring any potential discount from Buy RI actions.
-                        // Therefore, we want the projected on-demand cost in the actions details to only
-                        // reflect the cost from accepting this action. We filter out BUY_RI_DISCOUNT here
-                        // to be consistent with the action savings calculation and to avoid double counting
-                        // potential savings from Buy RI actions
-                        .setCostSourceFilter(CostSourceFilter.newBuilder()
-                                .setExclusionFilter(true)
-                                .addCostSources(CostSource.BUY_RI_DISCOUNT)
-                                .build())
+                // For cloud scale actions, the action savings will reflect only the savings from
+                // accepting the specific action, ignoring any potential discount from Buy RI actions.
+                // Therefore, we want the projected on-demand cost in the actions details to only
+                // reflect the cost from accepting this action. We filter out BUY_RI_DISCOUNT here
+                // to be consistent with the action savings calculation and to avoid double counting
+                // potential savings from Buy RI actions
+                .setCostSourceFilter(CostSourceFilter.newBuilder()
+                        .setExclusionFilter(true)
+                        .addCostSources(CostSource.BUY_RI_DISCOUNT))
                 .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                         .setExclusionFilter(false)
                         .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
-                        .build()).build())
+                        .addCostCategory(CostCategory.RESERVED_LICENSE)))
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();

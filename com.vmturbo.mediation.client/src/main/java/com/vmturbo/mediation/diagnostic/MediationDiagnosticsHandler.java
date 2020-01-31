@@ -20,12 +20,14 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 public class MediationDiagnosticsHandler {
 
     private final Logger logger = LogManager.getLogger();
-    private final DiagnosticsWriter diagnosticsWriter;
     private final String envTmpDiagsDir;
 
-    public MediationDiagnosticsHandler(@Nonnull final DiagnosticsWriter diagnosticsWriter,
-                                       @Nonnull final String envTmpDiagsDir) {
-        this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
+    /**
+     * Constructs diagnostics handler.
+     *
+     * @param envTmpDiagsDir environment temporary directory to use
+     */
+    public MediationDiagnosticsHandler(@Nonnull final String envTmpDiagsDir) {
         this.envTmpDiagsDir = Objects.requireNonNull(envTmpDiagsDir);
     }
 
@@ -35,7 +37,8 @@ public class MediationDiagnosticsHandler {
      * @param diagnosticZip stream to collect all the diags.
      */
     public void dump(@Nonnull final ZipOutputStream diagnosticZip) {
-        iterateOverAllInPath(diagnosticZip, new File(envTmpDiagsDir));
+        final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+        iterateOverAllInPath(diagsWriter, new File(envTmpDiagsDir));
     }
 
     /**
@@ -46,23 +49,25 @@ public class MediationDiagnosticsHandler {
      * @param diagnosticZip response stream to add all the diagnostic files.
      * @param path that contains all the diagnostic files.
      */
-    private void iterateOverAllInPath(final ZipOutputStream diagnosticZip, File path) {
+    private void iterateOverAllInPath(@Nonnull final DiagnosticsWriter diagnosticZip,
+            @Nonnull File path) {
         File[] probeDiagsFiles = path.listFiles();
         if (probeDiagsFiles != null) {
             for (File probeDiagsFile : probeDiagsFiles) {
                 if (probeDiagsFile.isDirectory()) {
                     iterateOverAllInPath(diagnosticZip, probeDiagsFile);
                 } else {
-                    writeDiagsFileToStream(probeDiagsFile.toString(), diagnosticZip);
+                    writeDiagsFileToStream(diagnosticZip, probeDiagsFile.toString());
                 }
             }
         }
     }
 
-    private void writeDiagsFileToStream(String diagsFileName, ZipOutputStream diagsZip) {
+    private void writeDiagsFileToStream(@Nonnull DiagnosticsWriter diagsWriter,
+            @Nonnull String diagsFileName) {
         try {
             Stream<String> streamValuesToWrite = Files.lines(Paths.get(diagsFileName));
-            diagnosticsWriter.writeZipEntry(diagsFileName, streamValuesToWrite, diagsZip);
+            diagsWriter.writeZipEntry(diagsFileName, streamValuesToWrite.iterator());
         } catch (Exception e) {
             logger.error("Failed to collect diags {}", diagsFileName, e);
         }

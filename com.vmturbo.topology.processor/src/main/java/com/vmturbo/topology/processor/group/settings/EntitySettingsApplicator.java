@@ -423,21 +423,15 @@ public class EntitySettingsApplicator {
      * to turn on bundled moves on compute and storage resources.
      */
     private static class VMShopTogetherApplicator implements SettingApplicator {
-        // a flag to indicate if the shop together should be set to false based on action settings
-        private final boolean disableShopTogether;
 
         private VMShopTogetherApplicator(TopologyInfo topologyInfo) {
             super();
-            // In case of initial placement, the template VM shop together should always be true
-             // regardless of action settings.
-            disableShopTogether = topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo()
-                    .getPlanProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
         }
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                 @Nonnull Map<EntitySettingSpecs, Setting> settings) {
-            if (!disableShopTogether && entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
                     && settings.containsKey(EntitySettingSpecs.Move)
                     && settings.containsKey(EntitySettingSpecs.StorageMove)) {
                 // TODO: For migration plans from on prem to cloud or from cloud to cloud,
@@ -450,7 +444,10 @@ public class EntitySettingsApplicator {
                                 || computeMoveSetting.equals(ActionMode.MANUAL.name());
                 // Note: if a VM does not support shop together execution, even when move and storage
                 // move sets to Manual or Automatic, dont enable shop together.
-                if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual
+                // If the entity is a reserved VM then it should always shop together.
+                if (entity.getOrigin().hasReservationOrigin()) {
+                    entity.getAnalysisSettingsBuilder().setShopTogether(true);
+                } else if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual
                         || entity.getEnvironmentType() == EnvironmentType.CLOUD) {
                     // user has to change default VM action settings to explicitly indicate they
                     // want to have compound move actions generated considering best placements in

@@ -179,9 +179,10 @@ public class PercentileEditor extends
     @Override
     public void initContext(@Nonnull GraphWithSettings graph,
                             @Nonnull ICommodityFieldAccessor accessor,
+                            @Nonnull List<EntityCommodityReference> eligibleComms,
                             boolean isPlan)
                     throws HistoryCalculationException, InterruptedException {
-        super.initContext(graph, accessor, isPlan);
+        super.initContext(graph, accessor, eligibleComms, isPlan);
         this.graph = graph.getTopologyGraph();
 
         loadPersistedData();

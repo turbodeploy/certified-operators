@@ -27,7 +27,6 @@ import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -59,6 +58,7 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
 
     private final RepositoryClient repositoryClient;
 
+    private boolean storeReady = false;
 
     public ProjectedEntityCostStore(@Nonnull RepositoryClient repositoryClient, @Nonnull
             SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
@@ -82,6 +82,7 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
         synchronized (entityCostMapLock) {
             projectedEntityCostByEntity = Collections.unmodifiableMap(newCostsByEntity);
         }
+        storeReady = true;
     }
 
     @Nonnull
@@ -190,26 +191,21 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
 
     /**
      * Helper method to hold collection of aggregated stat record.
-     *
+     * @param groupByList list of groupBy criteria.
+     * @param entityCostFilter entity filter to be used for aggregation.
      * @return List of {@link StatRecord}.
      */
     @Nonnull
     @VisibleForTesting
-    public Collection<StatRecord> getProjectedStatRecordsByGroup(final List<GroupBy> groupByList,
+    public Collection<StatRecord> getProjectedStatRecordsByGroup(@Nonnull final List<GroupBy> groupByList,
                                                                  @Nonnull final EntityCostFilter entityCostFilter) {
         Preconditions.checkArgument(entityCostFilter.getCostGroupBy() != null &&
                 !entityCostFilter.getCostGroupBy().getGroupByFields().isEmpty(), "GroupBy list should not be empty.");
-        Set<Integer> costCategoryFilter = new HashSet<>();
-        if (entityCostFilter.getCostCategoryFilter().isPresent()) {
-            costCategoryFilter = entityCostFilter.getCostCategoryFilter().get()
-                    .getCostCategoryList().stream().map(CostCategory::getNumber)
-                    .collect(Collectors.toSet());
-        }
         Map<Long, EntityCost> costSnapshot = getProjectedEntityCosts(entityCostFilter);
         Collection<StatRecord>  result = Lists.newArrayList();
-        if (costCategoryFilter.size() > 2 ) {
+        if (groupByList.size() > 2 ) {
             // because groupBy > 2 is actually all the rows.
-            return getProjectedStatRecords(entityCostFilter);
+            return EntityCostToStatRecordConverter.convertEntityToStatRecord(costSnapshot.values());
         } else {
             for (final EntityCost value : costSnapshot.values()) {
                 result.addAll(EntityCostToStatRecordConverter.convertEntityToStatRecord(value));
@@ -217,5 +213,14 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
             result = aggregateByGroup(groupByList, result);
         }
         return result;
+    }
+
+    /**
+     * Returns when we see an update to {@link #projectedEntityCostByEntity}.
+     *
+     * @return true if store ready.
+     */
+    public boolean isStoreReady() {
+        return storeReady;
     }
 }

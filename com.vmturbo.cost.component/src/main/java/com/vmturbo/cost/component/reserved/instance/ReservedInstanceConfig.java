@@ -124,7 +124,8 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanReservedInstanceStore planReservedInstanceStore() {
-        return new PlanReservedInstanceStore(databaseConfig.dsl(), identityProviderConfig.identityProvider());
+        return new PlanReservedInstanceStore(databaseConfig.dsl(), identityProviderConfig.identityProvider(),
+                        repositoryInstanceCostCalculator());
     }
 
     @Bean
@@ -171,7 +172,7 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanReservedInstanceRpcService planReservedInstanceRpcService() {
-        return new PlanReservedInstanceRpcService(planReservedInstanceStore());
+        return new PlanReservedInstanceRpcService(planReservedInstanceStore(), buyReservedInstanceStore());
     }
 
     @Bean

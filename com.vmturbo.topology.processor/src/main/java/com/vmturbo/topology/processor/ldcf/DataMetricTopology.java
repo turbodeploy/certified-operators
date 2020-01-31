@@ -53,7 +53,7 @@ public class DataMetricTopology extends DataMetricLOB {
             if (anonymized_) {
                 handler_.dumpAnonymizedDiags(zipOutputStream);
             } else {
-                handler_.dumpDiags(zipOutputStream);
+                handler_.dump(zipOutputStream);
             }
         }
         return new AutoDeleteInputStream(file);

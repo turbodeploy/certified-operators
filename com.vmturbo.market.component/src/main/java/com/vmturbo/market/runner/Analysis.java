@@ -24,7 +24,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
@@ -105,17 +104,6 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  */
 public class Analysis {
 
-    private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
-            .withName("mkt_economy_scoping_duration_seconds")
-            .withHelp("Time to scope the economy for analysis.")
-            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-            .withMaxAgeSeconds(60 * 10) // 10 mins.
-            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
-            .build()
-            .register();
-
     private static final DataMetricSummary TOPOLOGY_CONVERT_TO_TRADER_SUMMARY = DataMetricSummary.builder()
             .withName("mkt_economy_convert_to_traders_duration_seconds")
             .withHelp("Time to convert from TopologyDTO to TraderTO before sending for analysis.")
@@ -166,8 +154,6 @@ public class Analysis {
     private final String logPrefix;
 
     private TopologyConverter converter;
-
-    private Map<Long, TopologyEntityDTO> scopeEntities = Collections.emptyMap();
 
     private Map<Long, ProjectedTopologyEntity> projectedEntities = null;
 
@@ -227,8 +213,6 @@ public class Analysis {
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
      * in the market analysis or not.
-     *
-     * The scoping algorithm is described more completely below - {@link #scopeTopology}.
      *
      * @param topologyInfo descriptive info about the topology - id, type, etc
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
@@ -390,31 +374,9 @@ public class Analysis {
                 }
                 conversionTimer.observe();
 
-                // if a scope 'seed' entity OID list is specified, then scope the topology starting with
-                // the given 'seed' entities
-                if (!stopAnalysis) {
-                    if (isScoped()) {
-                        try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
-                            traderTOs = scopeTopology(traderTOs,
-                                    ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
-                            // add back fake traderTOs for suspension throttling as it may be removed due
-                            // to scoping
-                            traderTOs.addAll(fakeTraderTOs);
-                        }
-                        final Map<Long, TopologyEntityDTO> myFakeEntityDTOs = new HashMap<>(fakeEntityDTOs);
-                        // save the scoped topology for later broadcast
-                        scopeEntities = traderTOs.stream()
-                                // convert the traders in the scope into topologyEntities
-                                .map(trader -> topologyDTOs.get(trader.getOid()))
-                                // remove the topologyEntities that were created as fake because of suspension throttling
-                                .filter(topologyEntityDTO -> !myFakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
-                                // convert it to a map
-                                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
-                                        trader -> topologyDTOs.get(trader.getOid())));
-                    } else {
-                        scopeEntities = topologyDTOs;
-                    }
-                }
+                // add back fake traderTOs for suspension throttling as it may be removed due
+                // to scoping
+                traderTOs.addAll(fakeTraderTOs);
 
                 // remove skipped entities we don't want to send to market
                 converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
@@ -495,12 +457,12 @@ public class Analysis {
                     processResultTime = RESULT_PROCESSING.startTimer();
                 }
                 // Calculate reservedCapacity and generate resize actions
-                ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(scopeEntities);
-                reservedCapacityAnalysis.execute();
+                ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
+                reservedCapacityAnalysis.execute(converter.getConsistentScalingHelper());
 
                 // Execute wasted file analysis
                 WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                        topologyInfo, scopeEntities, this.clock, topologyCostCalculator, originalCloudTopology);
+                        topologyInfo, topologyDTOs, this.clock, topologyCostCalculator, originalCloudTopology);
                 final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
 
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
@@ -655,7 +617,7 @@ public class Analysis {
                 originalCloudTopology.getAllEntitiesOfType(
                         TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream();
         final Stream<TopologyEntityDTO> projectedEntitiesFromSkippedEntities =
-                converter.getSkippedEntitiesInScope(scopeEntities.keySet()).stream();
+                converter.getSkippedEntitiesInScope(topologyDTOs.keySet()).stream();
         final Set<ProjectedTopologyEntity> entitiesToAdd = Stream
                 .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
                 // Exclude Volumes that have been already added to projected entities
@@ -908,7 +870,7 @@ public class Analysis {
      * @return an unmodifiable view of the map of topology entity DTOs that this analysis run is executed on
      */
     public Map<Long, TopologyEntityDTO> getTopology() {
-        return isScoped() ? scopeEntities : Collections.unmodifiableMap(topologyDTOs);
+        return Collections.unmodifiableMap(topologyDTOs);
     }
 
     /**

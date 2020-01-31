@@ -93,7 +93,7 @@ public class StatsUtils {
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported
                 // types will be ignored
-                .map(scopeEntityTypes -> !Sets.union(SUPPORTED_RI_FILTER_TYPES, scopeEntityTypes).isEmpty())
+                .map(scopeEntityTypes -> !Sets.intersection(SUPPORTED_RI_FILTER_TYPES, scopeEntityTypes).isEmpty())
                 // this is a global or plan scope
                 .orElse(true);
     }

@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -37,20 +38,14 @@ public class GcpConversionProbe extends GcpProbe {
      * List of new cloud entity types to create supply chain nodes for, which don't exist in
      * original GCP probe supply chain definition.
      */
-    private static Set<EntityType> NEW_SHARED_ENTITY_TYPES = ImmutableSet.of(
+    @VisibleForTesting
+    protected static final Set<EntityType> NEW_ENTITY_TYPES = ImmutableSet.of(
             EntityType.CLOUD_SERVICE,
             EntityType.COMPUTE_TIER,
             EntityType.STORAGE_TIER,
             EntityType.DATABASE_SERVER_TIER,
             EntityType.AVAILABILITY_ZONE,
-            EntityType.REGION
-    );
-
-    /**
-     * List of new non-shared cloud entity types to create supply chain nodes for, which don't
-     * exist in original GCP probe supply chain definition.
-     */
-    private static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
+            EntityType.REGION,
             EntityType.VIRTUAL_VOLUME
     );
 
@@ -102,16 +97,8 @@ public class GcpConversionProbe extends GcpProbe {
             }
         }
 
-        // create supply chain nodes for new shared entities and add stitching metadata
-        for (EntityType entityType : NEW_SHARED_ENTITY_TYPES) {
-            sc.add(new SupplyChainNodeBuilder()
-                    .entity(entityType)
-                    .mergedBy(createMergedEntityMetadataBuilder().build())
-                    .buildEntity());
-        }
-
-        // create supply chain nodes for new non-shared entities
-        for (EntityType entityType : NEW_NON_SHARED_ENTITY_TYPES) {
+        // create supply chain nodes for new entity types
+        for (EntityType entityType : NEW_ENTITY_TYPES) {
             sc.add(new SupplyChainNodeBuilder()
                     .entity(entityType)
                     .buildEntity());

@@ -242,6 +242,9 @@ public enum EntitySettingSpecs {
      * VCPURequest utilization threshold.
      * Setting VCPURequest utilization threshold to 0.9999 to avoid rounding errors due to
      * conversion from kubernetes millicores to MHz.
+     * This is an internal setting, which should not be modified by user. Therefore, it is
+     * hidden from API. The list of category path below is empty as there is no need to specify
+     * category grouping for this setting.
      */
     VCPURequestUtilization("vcpuRequestUtilization", "VCPU Request Utilization",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -350,6 +353,15 @@ public enum EntitySettingSpecs {
             numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
+     * Max observation period for desktop pool. Used for timeslot feature.
+     */
+    MaxObservationPeriodDesktopPool("maxObservationPeriodDesktopPool",
+                                     SettingConstants.MAX_OBSERVATION_PERIOD,
+                                     Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+                                     SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DESKTOP_POOL),
+                                     numeric(3, 30, 7), true),
+
+    /**
      * Resize target Utilization for Image CPU.
      */
     ResizeTargetUtilizationImageCPU("resizeTargetUtilizationImageCPU",
@@ -398,8 +410,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER, EntityType.DATABASE,
-                    EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
@@ -408,8 +419,7 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER, EntityType.DATABASE,
-                    EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
@@ -540,14 +550,23 @@ public enum EntitySettingSpecs {
 
     /**
      * Automation Policy for the Move Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a resize action is generated and executed.
+     * Orchestration workflow to invoke when a move action is generated and executed.
      */
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
+                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
         string(), true),
+
+    /**
+     * Same as {@link #MoveActionWorkflow} but with different default value.
+     */
+    MoveActionWorkflowWithNativeAsDefault("moveActionWorkflowWithNativeAsDefault", "Move Workflow",
+                       Collections.singletonList(CategoryPathConstants.AUTOMATION),
+                       SettingTiebreaker.SMALLER,
+                       EnumSet.of(EntityType.BUSINESS_USER),
+                       string("false"), true),
 
     /**
      * Automation Policy for the Move Workflow pre workflow. The value is the name of an
@@ -857,6 +876,16 @@ public enum EntitySettingSpecs {
             string(), true),
 
     /**
+     * Yet another hack that described in javadoc of {@link #ProvisionActionScript}.
+     * TODO: remove this as part of fix OM-38669
+     */
+    MoveActionScript("moveActionScript", "Move",
+                     Collections.singletonList(CategoryPathConstants.ACTIONSCRIPT),
+                     SettingTiebreaker.SMALLER,
+                     EnumSet.of(EntityType.BUSINESS_USER),
+                     string("false"), true),
+
+    /**
      * Indicates whether to enforce consistent resizing on a group.  Applies to: VM, Container
      */
     EnableConsistentResizing("consistentResizing", "Enable Consistent Resizing",
@@ -908,7 +937,19 @@ public enum EntitySettingSpecs {
     ViewPodActiveSessionsCapacity("viewPodActiveSessionCapacity", "Active Sessions Capacity",
                           Collections.emptyList(), SettingTiebreaker.SMALLER,
                           EnumSet.of(EntityType.VIEW_POD),
-                          numeric(0f, 10000f, 8000f), true);
+                          numeric(0f, 10000f, 8000f), true),
+
+    /**
+     * Count of observation window per day for desktop pools. Used for "timeslot" feature.
+     */
+    DailyObservationWindowDesktopPool("dailyObservationWindowDesktopPool",
+                                      "Daily Observation Windows",
+                                      Collections.emptyList(),
+                                      SettingTiebreaker.SMALLER,
+                                      EnumSet.of(EntityType.DESKTOP_POOL),
+                                      new EnumSettingDataType<>(DailyObservationWindowsCount.THREE,
+                                                                DailyObservationWindowsCount.class),
+                                      true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(

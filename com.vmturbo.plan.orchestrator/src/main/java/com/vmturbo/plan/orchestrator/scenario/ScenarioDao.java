@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -24,15 +23,17 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario;
 import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
 
 /**
  * This class provides access to the scenario db.
  */
-public class ScenarioDao implements Diagnosable {
+public class ScenarioDao implements DiagsRestorable {
 
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -128,17 +129,16 @@ public class ScenarioDao implements Diagnosable {
      *
      * This method retrieves all scenarios and serializes them as JSON strings.
      *
-     * @return
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException on exception during diagostics
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final List<Scenario> scenarios = getScenarios();
 
         logger.info("Collecting diagnostics for {} scenarios", scenarios.size());
-        return scenarios.stream()
-            .map(scenario -> GSON.toJson(scenario, Scenario.class));
+        for (Scenario scenario: scenarios) {
+            appender.appendString(GSON.toJson(scenario, Scenario.class));
+        }
     }
 
     /**
@@ -148,7 +148,7 @@ public class ScenarioDao implements Diagnosable {
      * scenarios from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)} ()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains scenarios, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              scenario.
@@ -199,6 +199,12 @@ public class ScenarioDao implements Diagnosable {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "Scenarios";
     }
 
     /**

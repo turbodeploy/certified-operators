@@ -31,25 +31,18 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStatsChunk
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
-import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.repository.service.PlanStatsService.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
+import com.vmturbo.repository.service.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
 
@@ -74,6 +67,12 @@ public class PlanStatsService {
     private static final Predicate<TopologyEntityDTO> ENTITY_SUSPENDED =
         topologyEntityDTO -> topologyEntityDTO.hasEntityState()
             && EntityState.SUSPENDED == topologyEntityDTO.getEntityState();
+
+    /**
+     * A predicate to test whether a given {@link TopologyEntityDTO} is placed.
+     */
+    private static final Predicate<TopologyEntityDTO> ENTITY_PLACED =
+        topologyEntityDTO -> TopologyDTOUtil.isPlaced(topologyEntityDTO);
 
     /**
      * A factory for creating {@link EntityStatsPaginationParams}.
@@ -159,10 +158,17 @@ public class PlanStatsService {
         long sourceSnapshotTime = statsFilter.getStartDate();
 
         // For source topologies, filter entities added via scenario changes
-        final Predicate<TopologyEntityDTO> updatedEntityPredicate =
+        Predicate<TopologyEntityDTO> updatedEntityPredicate =
             StatEpoch.PLAN_SOURCE == statEpoch
                 ? entityPredicate.and(ENTITY_ADDED_BY_SCENARIO.negate())
                 : entityPredicate;
+
+        updatedEntityPredicate = updatedEntityPredicate
+            // Filter suspended entities from both the source and projected topologies
+            .and(ENTITY_SUSPENDED.negate())
+            // Filter unplaced entities from both the source and projected topologies (though we
+            // generally only expect to encounter them in the projected topology)
+            .and(ENTITY_PLACED);
 
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> entities = retrieveTopologyEntitiesAndStats(
@@ -257,18 +263,21 @@ public class PlanStatsService {
         // Similar logic applies to projected stats, where the endDate must be greater than planStartTime.
         long sourceSnapshotTime = statsFilter.getStartDate();
         long projectedSnapshotTime = statsFilter.getEndDate();
-        // Filter suspended entities from both the source and projected topologies
-        final Predicate<TopologyEntityDTO> projectedEntityPredicate = entityPredicate
-            .and(ENTITY_SUSPENDED.negate());
+        final Predicate<TopologyEntityDTO> updatedEntityPredicate = entityPredicate
+            // Filter suspended entities from both the source and projected topologies
+            .and(ENTITY_SUSPENDED.negate())
+            // Filter unplaced entities from both the source and projected topologies (though we
+            // generally only expect to encounter them in the projected topology)
+            .and(ENTITY_PLACED);
         // Filter entities added via scenario changes from the source topology response
-        final Predicate<TopologyEntityDTO> sourceEntityPredicate = projectedEntityPredicate
+        final Predicate<TopologyEntityDTO> sourceEntityPredicate = updatedEntityPredicate
             .and(ENTITY_ADDED_BY_SCENARIO.negate());
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> sourceEntities =
             retrieveTopologyEntitiesAndStats(sourceReader, sourceEntityPredicate, statsFilter,
                 StatEpoch.PLAN_SOURCE, sourceSnapshotTime);
         final Map<Long, EntityAndStats> projectedEntities =
-            retrieveTopologyEntitiesAndStats(projectedReader, projectedEntityPredicate, statsFilter,
+            retrieveTopologyEntitiesAndStats(projectedReader, updatedEntityPredicate, statsFilter,
                 StatEpoch.PLAN_PROJECTED, projectedSnapshotTime);
 
         // Determine which topology to sort on
@@ -407,146 +416,6 @@ public class PlanStatsService {
             entityCombinedStatsResponseBuilder
                 .setEntityCombinedStatsWrapper(planEntityAndCombinedStatsChunkBuilder);
             responseObserver.onNext(entityCombinedStatsResponseBuilder.build());
-        }
-    }
-
-    /**
-     * A utility to convert extract requested stats from {@link TopologyEntityDTO}.
-     * Split apart mostly for unit testing purposes, so that methods relying on this extraction
-     * can be tested separately.
-     */
-    @FunctionalInterface
-    interface PlanEntityStatsExtractor {
-
-        /**
-         * Extract the stats values from a given {@link ProjectedTopologyEntity} and add them to a new
-         * {@link EntityStats} object.
-         *
-         * @param projectedEntity the {@link ProjectedTopologyEntity} to transform
-         * @param statsFilter the stats filter to use to build the stat snapshot
-         * @param statEpoch the type of epoch to set on the stat snapshot
-         * @param snapshotDate the snapshot date to use for the stat snapshot
-         * @return an {@link EntityStats} object populated from the current stats for the
-         * given {@link ProjectedTopologyEntity}
-         */
-        @Nonnull
-        EntityStats.Builder extractStats(@Nonnull ProjectedTopologyEntity projectedEntity,
-                                         @Nonnull StatsFilter statsFilter,
-                                         @Nullable StatEpoch statEpoch,
-                                         long snapshotDate);
-
-        /**
-         * The default implementation of {@link PlanEntityStatsExtractor} for use in production.
-         */
-        class DefaultPlanEntityStatsExtractor implements PlanEntityStatsExtractor {
-            @Nonnull
-            @Override
-            public EntityStats.Builder extractStats(@Nonnull final ProjectedTopologyEntity projectedEntity,
-                                                    @Nonnull final StatsFilter statsFilter,
-                                                    @Nullable final StatEpoch statEpoch,
-                                                    final long snapshotDate) {
-                Set<String> commodityNames = StatsUtils.collectCommodityNames(statsFilter);
-                logger.debug("Extracting stats for commodities: {}", commodityNames);
-                StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
-                if (statEpoch != null) {
-                    snapshot.setStatEpoch(statEpoch);
-                }
-                snapshot.setSnapshotDate(snapshotDate);
-
-                // commodities bought - TODO: compute capacity of commodities bought = seller capacity
-                for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
-                    projectedEntity.getEntity().getCommoditiesBoughtFromProvidersList()) {
-                    String providerOidString = Long.toString(commoditiesBoughtFromProvider.getProviderId());
-                    logger.debug("   provider  id {}", providerOidString);
-                    commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO ->
-                        buildStatRecord(commodityBoughtDTO.getCommodityType(), commodityBoughtDTO.getPeak(),
-                            commodityBoughtDTO.getUsed(), 0, providerOidString, commodityNames)
-                            .ifPresent(snapshot::addStatRecords));
-                }
-                // commodities sold
-                String entityOidString = Long.toString(projectedEntity.getEntity().getOid());
-                final List<CommoditySoldDTO> commoditySoldListList = projectedEntity.getEntity().getCommoditySoldListList();
-                for (CommoditySoldDTO commoditySoldDTO : commoditySoldListList) {
-                    buildStatRecord(commoditySoldDTO.getCommodityType(), commoditySoldDTO.getPeak(),
-                        commoditySoldDTO.getUsed(), commoditySoldDTO.getCapacity(),
-                        entityOidString, commodityNames)
-                        .ifPresent(snapshot::addStatRecords);
-                }
-
-                if (commodityNames.contains(PRICE_INDEX)) {
-                    final float projectedPriceIdx = (float)projectedEntity.getProjectedPriceIndex();
-                    final StatRecord priceIdxStatRecord = StatRecord.newBuilder()
-                        .setName(PRICE_INDEX)
-                        .setCurrentValue(projectedPriceIdx)
-                        .setUsed(buildStatValue(projectedPriceIdx))
-                        .setPeak(buildStatValue(projectedPriceIdx))
-                        .setCapacity(buildStatValue(projectedPriceIdx))
-                        .build();
-                    snapshot.addStatRecords(priceIdxStatRecord);
-                }
-
-                return EntityStats.newBuilder()
-                    .setOid(projectedEntity.getEntity().getOid())
-                    .addStatSnapshots(snapshot);
-            }
-
-            /**
-             * If the commodityType is in the given list, return an Optional with a new StatRecord
-             * with values populated.
-             * If the commodityType is not in the given list, return Optional.empty().
-             *
-             * @param commodityType the numeric (SDK) type of the commodity
-             * @param peak peak value recorded for one sample
-             * @param used used (or current) value recorded for one sample
-             * @param capacity the total capacity for the commodity
-             * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
-             *                          SE for bought commodities
-             * @param commodityNames the Set of commodity names (DB String) that are to be included.
-             * @return either an Optional containing a new StatRecord initialized from the given values, or
-             * if the given commodity is not on the list, then return Optional.empty().
-             */
-            private Optional<StatRecord> buildStatRecord(TopologyDTO.CommodityType commodityType,
-                                                         double peak, double used, double capacity,
-                                                         String providerOidString,
-                                                         Set<String> commodityNames) {
-                final String commodityStringName =
-                    UICommodityType.fromType(commodityType.getType()).apiStr();
-                if (commodityNames.isEmpty() || commodityNames.contains(commodityStringName)) {
-                    final String units = CommodityTypeUnits.fromString(commodityStringName).getUnits();
-                    final String key = commodityType.getKey();
-                    // create a stat record from the used and peak values
-                    // todo: capacity value, which comes from provider, is not set - may not be needed
-                    StatRecord statRecord = StatRecord.newBuilder()
-                        .setName(commodityStringName)
-                        .setUnits(units)
-                        .setCurrentValue((float)used)
-                        .setUsed(buildStatValue((float)used))
-                        .setPeak(buildStatValue((float)peak))
-                        .setCapacity(buildStatValue((float)capacity))
-                        .setStatKey(key)
-                        .setProviderUuid(providerOidString)
-                        .build();
-                    return Optional.of(statRecord);
-                } else {
-                    return Optional.empty();
-                }
-            }
-
-            /**
-             * Create a {@link StatRecord.StatValue} initialized from a single value. All the fields
-             * are set to the same value.
-             *
-             * @param value the value to initialize the StatValue with
-             * @return a {@link StatRecord.StatValue} initialized with all fields set from the given value
-             */
-            private StatRecord.StatValue buildStatValue(float value) {
-                return StatRecord.StatValue.newBuilder()
-                    .setAvg(value)
-                    .setMin(value)
-                    .setMax(value)
-                    .setTotal(value)
-                    .build();
-            }
         }
     }
 

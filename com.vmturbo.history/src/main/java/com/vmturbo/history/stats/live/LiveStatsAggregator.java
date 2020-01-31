@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,7 +15,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -57,9 +58,10 @@ public class LiveStatsAggregator {
     /**
      * Each string should be a value of {@link CommodityType}.
      */
-    private final ImmutableList<String> commoditiesToExclude;
+    private final Set<String> commoditiesToExclude;
 
-    private final int writeTopologyChunkSize;
+    // supplier of loaders for the records we produce
+    private final SimpleBulkLoaderFactory loaders;
 
     /**
      * Cache for sold commodity capacities, so bought commodity records can include seller capacities.
@@ -89,15 +91,20 @@ public class LiveStatsAggregator {
 
     /**
      * Metrics used for counting DB operations so as to better understand DB performance.
+     *
+     * @param historydbIO          db methods
+     * @param topologyInfo         topology info
+     * @param commoditiesToExclude commodities for which we will not record metrics
+     * @param loaders              bulk loader factory
      */
     public LiveStatsAggregator(@Nonnull final HistorydbIO historydbIO,
-                               @Nonnull final TopologyInfo topologyInfo,
-                               ImmutableList<String> commoditiesToExclude,
-                               int writeTopologyChunkSize) {
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull Set<String> commoditiesToExclude,
+            @Nonnull SimpleBulkLoaderFactory loaders) {
         this.historydbIO = historydbIO;
         this.topologyInfo = topologyInfo;
         this.commoditiesToExclude = commoditiesToExclude;
-        this.writeTopologyChunkSize = writeTopologyChunkSize;
+        this.loaders = loaders;
     }
 
     /**
@@ -132,9 +139,9 @@ public class LiveStatsAggregator {
      * processed the provider sold commodities, we can write these rows.
      *
      * @param providerId the provider OID
-     * @throws VmtDbException when there is a problem writing to the DD.
+     * @throws InterruptedException if interrupted
      */
-    private void handleDelayedCommoditiesBought(Long providerId) throws VmtDbException {
+    private void handleDelayedCommoditiesBought(Long providerId) throws InterruptedException {
         Collection<DelayedCommodityBoughtWriter> list = delayedCommoditiesBought.get(providerId);
         if (!list.isEmpty()) { // Multimap.get is never null
             for (DelayedCommodityBoughtWriter action : list) {
@@ -149,15 +156,16 @@ public class LiveStatsAggregator {
      * Gather entity stats to be persisted into chunks by entity type. When chunks are full,
      * write them to the database.
      *
-     * @param entityDTO a topology entity DTO
-     * @throws VmtDbException if writing to the DB fails.
+     * @param entityDTO   a topology entity DTO
+     * @param entityByOid map of entities by OID
+     * @throws InterruptedException if interrupted
      */
     private void aggregateEntityStats(TopologyEntityDTO entityDTO,
-            Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
+            Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         final int sdkEntityType = entityDTO.getEntityType();
         // determine the DB Entity Type for this SDK Entity Type
         final Optional<EntityType> entityDBInfo =
-            entityTypes.computeIfAbsent(sdkEntityType, historydbIO::getEntityType);
+                entityTypes.computeIfAbsent(sdkEntityType, historydbIO::getEntityType);
         if (!entityDBInfo.isPresent()) {
             logger.debug("DB info for entity type {}[{}] not present.",
                     EntityDTO.EntityType.forNumber(sdkEntityType), sdkEntityType);
@@ -175,11 +183,10 @@ public class LiveStatsAggregator {
         final String baseEntityType = baseEntityTypeOptional.get();
 
         MarketStatsAccumulator marketStatsAccumulator =
-            accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
+                accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
         if (marketStatsAccumulator == null) {
             marketStatsAccumulator = new MarketStatsAccumulator(topologyInfo, baseEntityType,
-                entityDTO.getEnvironmentType(), historydbIO, writeTopologyChunkSize,
-                commoditiesToExclude);
+                    entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders);
             accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
         }
 
@@ -188,10 +195,11 @@ public class LiveStatsAggregator {
 
     /**
      * The number of pending commodities bought maps.
+     *
      * @return then number of pending commodities bought maps
      */
     @VisibleForTesting
-    protected int numPendingBought() {
+    int numPendingBought() {
         return delayedCommoditiesBought.size();
     }
 
@@ -211,8 +219,9 @@ public class LiveStatsAggregator {
      * incoming message chunks.
      *
      * @throws VmtDbException when there is a problem writing to the DB.
+     * @throws InterruptedException if interrupted
      */
-    public void writeFinalStats() throws VmtDbException {
+    public void writeFinalStats() throws VmtDbException, InterruptedException {
         for (final MarketStatsAccumulator statsAccumulator : accumulatorsByEntityAndEnvType.values()) {
             statsAccumulator.writeFinalStats();
         }
@@ -222,11 +231,12 @@ public class LiveStatsAggregator {
      * Record stats information from the given {@link EntityDTO}. Stats data will be
      * batched to optimize the number of commands sent to the Relational Database.
      *
-     * @param entityDTO the {@link EntityDTO} to records the stats from
-     * @throws VmtDbException if there is an error persisting to the database
+     * @param entityDTO   the {@link EntityDTO} to records the stats from
+     * @param entityByOid map of entities by oid
+     * @throws InterruptedException if interrupted
      */
     public void aggregateEntity(TopologyEntityDTO entityDTO,
-            Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
+            Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         // save commodity sold capacities for filling other commodity bought capacities
         cacheCapacities(entityDTO);
         // provide commodity sold capacitites for previously unsatisfied commodity bought

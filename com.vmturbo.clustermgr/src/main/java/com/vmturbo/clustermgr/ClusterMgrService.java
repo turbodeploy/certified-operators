@@ -287,17 +287,13 @@ public class ClusterMgrService {
 
     /**
      * Fetch the set of Components known to VMTurbo from the Consul K/V store.
-     * Components are "known" if there is a configuration key "{@code /vmturbo/components/{component-name}/}".
+     * Components are "known" if there is a configuration key "{@code /<component-type>-1}/}", e.g.: "api-1".
      *
-     * <p>If no matching configuration keys are found, then the global key/value store is initialized from the
-     * default Component list in application.yml.
-     *
-     * @return the set of all component names known to VMTurbo.
+     * @return the set of all known component names.
      */
     @Nonnull
     public Set<String> getKnownComponents() {
-        String compositeKey = getComponentsBaseKey();
-        return getComponentsWithPrefix(compositeKey);
+        return consulService.getAllServiceInstances().keySet();
     }
 
     /**

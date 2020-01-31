@@ -57,6 +57,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
 import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
+import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -253,17 +254,16 @@ public class PlanTestConfig {
     @Bean
     public ReservationPlacementHandler reservationPlacementHandler() {
         ReservationPlacementHandler reservationPlacementHandler =
-                Mockito.spy(new ReservationPlacementHandler(reservationDao(),
+                Mockito.spy(new ReservationPlacementHandler(reservationManager(),
                         repositoryServiceBlockingStub()));
         Mockito.doNothing().when(reservationPlacementHandler).updateReservations(Mockito.anyLong(),
-                Mockito.anyLong());
+                Mockito.anyLong(), Mockito.anyBoolean());
         return reservationPlacementHandler;
     }
 
     @Bean
-    public ReservationDao reservationDao() {
-        return Mockito.spy(
-                new ReservationDaoImpl(dbConfig.dsl()));
+    public ReservationManager reservationManager() {
+        return Mockito.mock(ReservationManager.class);
     }
 
     @Bean

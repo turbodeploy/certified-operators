@@ -14,13 +14,13 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -505,7 +505,8 @@ public class RepositoryApiTest {
         se.setUuid("7");
 
         final ApiPartialEntity ret = entity(7L);
-        when(serviceEntityMapper.toServiceEntityApiDTO(any(ApiPartialEntity.class))).thenReturn(se);
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(Collections.singletonList(ret)))
+            .thenReturn(Collections.singletonMap(ret.getOid(), se));
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
             .addEntities(PartialEntity.newBuilder()
@@ -523,7 +524,7 @@ public class RepositoryApiTest {
         assertThat(req.getTopologyType(), is(TopologyType.SOURCE));
         assertThat(req.getReturnType(), is(Type.API));
 
-        verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
+        verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
         verify(severityPopulator).populate(realtimeContextId, ImmutableMap.of(7L, se));
     }
 
@@ -706,7 +707,8 @@ public class RepositoryApiTest {
         se.setUuid("7");
 
         final ApiPartialEntity ret = entity(7L);
-        when(serviceEntityMapper.toServiceEntityApiDTO(any(ApiPartialEntity.class))).thenReturn(se);
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(Collections.singletonList(ret)))
+            .thenReturn(Collections.singletonMap(7L, se));
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
             .addEntities(PartialEntity.newBuilder()
@@ -722,7 +724,7 @@ public class RepositoryApiTest {
         assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.API));
 
-        verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
+        verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
         verify(severityPopulator).populate(realtimeContextId, ImmutableMap.of(7L, se));
     }
 }

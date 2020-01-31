@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 
 /**
  * A {@link CloudTopology} for {@link TopologyEntityDTO}, to be used when running the cost
@@ -374,10 +375,13 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 .map(entity -> {
                     switch (entity.getEntityType()) {
                         case EntityType.VIRTUAL_MACHINE_VALUE:
+                            final VMBillingType billingType = entity.getTypeSpecificInfo()
+                                    .getVirtualMachine().getBillingType();
+
                             // capacity will only reflect the computeTier capacity, if the entity
                             // is in a state in which it can be covered by an RI.
                             final EntityState entityState = entity.getEntityState();
-                            return entityState == EntityState.POWERED_ON ?
+                            return (entityState == EntityState.POWERED_ON && billingType != VMBillingType.BIDDING) ?
                                     getComputeTier(entity.getOid())
                                             .map(computeTier -> (long)computeTier.getTypeSpecificInfo()
                                                     .getComputeTier().getNumCoupons())

@@ -22,15 +22,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.jooq.Record;
-import org.jooq.Result;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,7 +40,6 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
@@ -225,32 +221,6 @@ public class PersistentWorkflowIdentityStoreTest {
                 .getValues(WORKFLOW.ID, Long.class);
         assertThat(workflowsRemaining.size(), equalTo(1));
         assertThat(workflowsRemaining.iterator().next(), equalTo(WORKFLOW_2_OID));
-    }
-
-    /**
-     * Test that collecting and restoring work flow identifiers diags.
-     *
-     * @throws DiagnosticsException - should never happen
-     */
-    @Test
-    public void testDiagsCollectAndRestore() throws DiagnosticsException {
-        PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
-        persistBothWorkflowOids();
-        final List<String> diags = testIdentityStore.collectDiagsStream()
-            .collect(Collectors.toList());
-        assertEquals(2, diags.size());
-        // Clean up db before restore
-        dsl.delete(WORKFLOW_OID).execute();
-        testIdentityStore.restoreDiags(diags);
-        final Result<Record> rs = dsl.select()
-                .from(WORKFLOW_OID)
-                .fetch();
-        assertEquals(2, rs.size());
-        assertThat(rs.getValues(WORKFLOW_OID.ID), containsInAnyOrder(WORKFLOW_1_OID, WORKFLOW_2_OID));
-        assertThat(rs.getValues(WORKFLOW_OID.TARGET_ID),
-                containsInAnyOrder(WORKFLOW_1_TARGET_ID, WORKFLOW_2_TARGET_ID));
-        assertThat(rs.getValues(WORKFLOW_OID.EXTERNAL_NAME),
-                containsInAnyOrder(WORKFLOW_1_NAME, WORKFLOW_2_NAME));
     }
 
     /**

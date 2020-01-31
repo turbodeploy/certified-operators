@@ -6,11 +6,15 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * SMA representation of a provide, either on-demand or discounted.
@@ -23,7 +27,7 @@ public class SMATemplate {
      * Instance variables set in the contstructor.
      */
     /*
-     * Unique identifier of Template
+     * Unique identifier of Template within the scope of a context
      */
     private final long oid;
 
@@ -59,21 +63,13 @@ public class SMATemplate {
     /*
      *  Map from business account to on-demand cost
      */
-    private Map<Long, SMACost> onDemandCosts = new HashMap<>();
+    private Table<Long, OSType, SMACost> onDemandCosts = HashBasedTable.create();
 
     /*
      * Map from business account to discounted cost (only Azure).
      * For AWS, discountedCosts is always 0.
      */
-    private Map<Long, SMACost> discountedCosts = new HashMap<>();
-
-    public Map<Long, SMACost> getDiscountedCosts() {
-        return discountedCosts;
-    }
-
-    public Map<Long, SMACost> getOnDemandCosts() {
-        return onDemandCosts;
-    }
+    private Table<Long, OSType, SMACost> discountedCosts = HashBasedTable.create();
 
     /**
      * Constructor of the SMATemplate.
@@ -122,34 +118,45 @@ public class SMATemplate {
         return computeTier;
     }
 
+    public Table<Long, OSType, SMACost> getDiscountedCosts() {
+        return discountedCosts;
+    }
+
+    public Table<Long, OSType, SMACost> getOnDemandCosts() {
+        return onDemandCosts;
+    }
+
     /**
      * Given a business account ID, set the on-demand cost.
      * @param businessAccountId business account ID
+     * @param osType OS
      * @param cost cost
      */
-    public void setOnDemandCost(long businessAccountId, @Nonnull SMACost cost) {
-        onDemandCosts.put(businessAccountId, Objects.requireNonNull(cost));
+    public void setOnDemandCost(long businessAccountId, @Nonnull OSType osType, @Nonnull SMACost cost) {
+        onDemandCosts.put(businessAccountId, Objects.requireNonNull(osType), Objects.requireNonNull(cost));
     }
 
     /**
      * Given a business account ID, set the discounted cost.
      * @param businessAccountId business account ID
+     * @param osType OS.
      * @param cost discounted cost
      */
-    public void setDiscountedCost(long businessAccountId, @Nonnull SMACost cost) {
-        this.discountedCosts.put(businessAccountId, Objects.requireNonNull(cost));
+    public void setDiscountedCost(long businessAccountId, @Nonnull OSType osType, @Nonnull SMACost cost) {
+        this.discountedCosts.put(businessAccountId, Objects.requireNonNull(osType), Objects.requireNonNull(cost));
     }
 
     /**
      * Lookup the on-demand total cost for the business account.
      * @param businessAccountId the business account ID.
+     * @param osType OS.
      * @return on-demand total cost or 0 if not found.
      */
-    public float getOnDemandTotalCost(long businessAccountId) {
-        SMACost cost = onDemandCosts.get(businessAccountId);
+    public float getOnDemandTotalCost(long businessAccountId, OSType osType) {
+        SMACost cost = onDemandCosts.get(businessAccountId, osType);
         if (cost == null) {
-            logger.warn("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={}!",
-                oid, name, businessAccountId);
+            logger.warn("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
+                oid, name, businessAccountId, osType.name());
             return 0f;
         }
         return SMAUtils.round(cost.getTotal());
@@ -159,13 +166,14 @@ public class SMATemplate {
     /**
      * Lookup the discounted total cost for the business account.
      * @param businessAccountId the business account ID.
+     * @param osType OS.
      * @return discounted total cost or 0 if not found.
      */
-    public float getDiscountedTotalCost(long businessAccountId) {
-        SMACost cost = discountedCosts.get(businessAccountId);
+    public float getDiscountedTotalCost(long businessAccountId, OSType osType) {
+        SMACost cost = discountedCosts.get(businessAccountId, osType);
         if (cost == null) {
-            logger.warn("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={}!",
-                oid, name, businessAccountId);
+            logger.warn("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
+                oid, name, businessAccountId, osType.name());
             return 0f;
         }
         return SMAUtils.round(cost.getTotal());
@@ -177,17 +185,18 @@ public class SMATemplate {
      * For Azure, their may be a non zero discounted cost, which is applied to the discounted coupons.
      *
      * @param businessAccountId business account ID
+     * @param osType OS.
      * @param discountedCoupons discounted coupons
      * @return cost after applying discounted coupons.
      */
-    public float getNetCost(long businessAccountId, float discountedCoupons) {
+    public float getNetCost(long businessAccountId, OSType osType, float discountedCoupons) {
         float netCost = 0f;
         if (discountedCoupons > coupons || coupons == 0) {
-            netCost = getDiscountedTotalCost(businessAccountId);
+            netCost = getDiscountedTotalCost(businessAccountId, osType);
         } else {
             float discountPercentage = discountedCoupons / coupons;
-            netCost = (getDiscountedTotalCost(businessAccountId) * discountPercentage) +
-                    (getOnDemandTotalCost(businessAccountId) * (1 - discountPercentage));
+            netCost = (getDiscountedTotalCost(businessAccountId, osType) * discountPercentage) +
+                    (getOnDemandTotalCost(businessAccountId, osType) * (1 - discountPercentage));
         }
         return SMAUtils.round(netCost);
     }
@@ -195,12 +204,28 @@ public class SMATemplate {
     @Override
     public String toString() {
         return "SMATemplate{" +
-                "OID='" + oid + "'" +
-                ", name='" + name + '\'' +
-                ", family='" + family + '\'' +
-                ", onDemandCosts=" + onDemandCosts.size() +
-                ", discountedCosts=" + discountedCosts.size() +
-                ", coupons=" + coupons +
-                '}';
+            "OID='" + oid + "'" +
+            ", name='" + name + '\'' +
+            ", family='" + family + '\'' +
+            ", coupons=" + coupons +
+            ", onDemandCosts=" + onDemandCosts +
+            ", discountedCosts=" + discountedCosts +
+            '}';
+    }
+
+    /**
+     * toString without dumping the details of the cost maps.  Dumps the set of account IDs and
+     * OSTypes that there is cost information for.
+     * @return the templates fields with the list of business accounts and OSTypes in the on-demand costs.
+     */
+    public String toStringWithOutCost() {
+        return "SMATemplate{" +
+            "OID='" + oid + "'" +
+            ", name='" + name + '\'' +
+            ", family='" + family + '\'' +
+            ", coupons=" + coupons +
+            ", accounts=" + onDemandCosts.rowKeySet() +
+            ", OSTypes=" + onDemandCosts.columnKeySet() +
+            '}';
     }
 }

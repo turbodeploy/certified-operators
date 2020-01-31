@@ -33,7 +33,7 @@ class ReservedInstanceAggregator {
     private static final Logger logger = LogManager.getLogger();
 
     // contains the all the ReservedInstanceData returned by the costProbe
-    private final CloudCostData cloudCostData;
+    private final CloudCostData<TopologyEntityDTO> cloudCostData;
 
     private final Map<Long, TopologyEntityDTO> topology;
 

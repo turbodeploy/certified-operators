@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Class to test the methods in StableMarriagePerContext.
@@ -21,27 +22,28 @@ public class StableMarriagePerContextTest {
      */
     @Test
     public void testComputeFamilyToTemplateMap() {
+        OSType os = OSType.LINUX;
         SMACost cost = new SMACost(2.0f, 1.0f);
         long templateOid = SMATestConstants.TEMPLATE_BASE + 1;
         SMATemplate f1t1 = new SMATemplate(templateOid, "f1." + templateOid, "f1", 2, SMAUtils.BOGUS_CONTEXT, null);
-        f1t1.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
-        f1t1.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
+        f1t1.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
+        f1t1.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
         templateOid++;
         SMATemplate f1t2 = new SMATemplate(templateOid, "f1." + templateOid, "f1",4, SMAUtils.BOGUS_CONTEXT, null);
-        f1t2.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
-        f1t2.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
+        f1t2.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
+        f1t2.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
         templateOid++;
         SMATemplate f1t3 = new SMATemplate(templateOid, "f1." + templateOid, "f1",8, SMAUtils.BOGUS_CONTEXT, null);
-        f1t3.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
-        f1t3.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
+        f1t3.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
+        f1t3.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
         templateOid = SMATestConstants.TEMPLATE_BASE + 11;
         SMATemplate f2t1 = new SMATemplate(templateOid, "f1." + templateOid, "f2",2, SMAUtils.BOGUS_CONTEXT, null);
-        f2t1.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
-        f2t1.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
+        f2t1.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
+        f2t1.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
         templateOid = SMATestConstants.TEMPLATE_BASE + 14;
         SMATemplate f2t4 = new SMATemplate(templateOid, "f1." + templateOid, "f2",16, SMAUtils.BOGUS_CONTEXT, null);
-        f2t4.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
-        f2t4.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, cost);
+        f2t4.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
+        f2t4.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE, os, cost);
         templateOid = SMATestConstants.TEMPLATE_BASE + 14;
         List<SMATemplate> templates = new ArrayList<>();
         templates.add(f1t1);

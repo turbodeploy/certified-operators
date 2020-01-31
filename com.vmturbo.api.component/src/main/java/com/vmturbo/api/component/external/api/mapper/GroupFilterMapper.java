@@ -100,6 +100,7 @@ public class GroupFilterMapper {
                     .put(GroupType.RESOURCE, StringConstants.TAGS_ATTR, RESOURCE_GROUP_BY_TAG_FILTER_TYPE)
                     .put(GroupType.RESOURCE, StringConstants.ACCOUNTID, RESOURCE_GROUP_BY_OWNER_FILTER_TYPE)
                     .put(GroupType.RESOURCE, StringConstants.OID, RESOURCE_GROUP_BY_ID_FILTER_TYPE)
+                    .put(GroupType.BILLING_FAMILY, SearchableProperties.DISPLAY_NAME, BILLING_FAMILY_FILTER_TYPE)
                     .build();
 
     /**
@@ -128,6 +129,7 @@ public class GroupFilterMapper {
                     .put(RESOURCE_GROUP_BY_TAG_FILTER_TYPE, GroupFilterMapper::convertTagFilterApiToPropertyFilterFunction)
                     .put(RESOURCE_GROUP_BY_OWNER_FILTER_TYPE, GroupFilterMapper::convertMultiValueFilterApiToPropertyFilterFunction)
                     .put(RESOURCE_GROUP_BY_ID_FILTER_TYPE, GroupFilterMapper::convertMultiValueFilterApiToPropertyFilterFunction)
+                    .put(BILLING_FAMILY_FILTER_TYPE, GroupFilterMapper::convertDisplayNameFilterApiToPropertyFilterFunction)
                     .build();
 
 

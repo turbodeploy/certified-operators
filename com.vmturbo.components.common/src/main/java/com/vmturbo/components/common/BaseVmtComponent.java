@@ -229,6 +229,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${server.grpcMaxMessageBytes:4194304}")
     private int grpcMaxMessageBytes;
 
+    @Value("${enableMemoryMonitor:false}")
+    private boolean enableMemoryMonitor;
 
     private static final SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
 
@@ -360,7 +362,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
         // add the additional health checks if they aren't already registered
         Map<String, HealthStatusProvider> healthChecks = getHealthMonitor().getDependencies();
-        if (!healthChecks.containsKey(baseVmtComponentConfig.memoryMonitor().getName())) {
+        if (enableMemoryMonitor && !healthChecks.containsKey(baseVmtComponentConfig.memoryMonitor().getName())) {
             logger.info("Adding memory health check.");
             getHealthMonitor().addHealthCheck(baseVmtComponentConfig.memoryMonitor());
         }

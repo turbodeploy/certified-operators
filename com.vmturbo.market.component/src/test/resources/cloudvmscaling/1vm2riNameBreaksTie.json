@@ -2,8 +2,8 @@
   "Contexts": [
     {
       "context": {
-        "csp": "AWS",
         "os": "LINUX",
+        "csp": "AWS",
         "region": 31,
         "billingAccount": 1,
         "tenancy": "DEFAULT"
@@ -17,14 +17,16 @@
             {
               "compute": 1.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 1
@@ -37,14 +39,16 @@
             {
               "compute": 2.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 2
@@ -57,14 +61,16 @@
             {
               "compute": 4.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 4
@@ -77,14 +83,16 @@
             {
               "compute": 4.1,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "discountedCost": [
             {
               "compute": 0.0,
               "license": 0.0,
-              "businessAccount": 10
+              "businessAccount": 10,
+              "os": "LINUX"
             }
           ],
           "coupons": 4
@@ -102,25 +110,30 @@
           ],
           "zone": 21,
           "currentRICoverage": 0,
-          "currentTemplate": 100003
+          "currentTemplate": 100003,
+          "os": "LINUX"
         }
       ],
       "ReservedInstances": [
         {
 	  "oid": 1000001,
+          "keyOid":3000001,
           "name": "RI1",
           "businessAccount": 10,
           "utilization": 0,
           "template": 100001,
-          "count": 4
+          "count": 4,
+          "isf": true
         },
         {
 	  "oid": 1000002,
+          "keyOid":3000002,
           "name": "RI2",
           "businessAccount": 10,
           "utilization": 0,
           "template": 100001,
-          "count": 4
+          "count": 4,
+          "isf": true
         }
       ],
       "Matching": [

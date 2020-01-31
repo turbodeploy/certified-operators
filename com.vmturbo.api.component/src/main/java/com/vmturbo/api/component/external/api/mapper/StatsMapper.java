@@ -84,15 +84,17 @@ public class StatsMapper {
     public static final String FILTER_NAME_KEY = "key";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
-    private static final ImmutableMap<String, Optional<String>> dbToUiStatTypes = ImmutableMap.of(
-               RelationType.COMMODITIES.getLiteral(), Optional.of("sold"),
-               RelationType.COMMODITIESBOUGHT.getLiteral(), Optional.of("bought"),
-               // (June 12, 2017): This is not a relation that the UI understands,
-               // so don't map it to any relation type.
-               RelationType.METRICS.getLiteral(), Optional.empty(),
-               // (June 8, 2017): "plan" is not valid relation type from the UI's point of view,
-               // so don't map it to any relation type when constructing results for the UI.
-               "plan", Optional.empty());
+    private static final ImmutableSet<String> apiRelationTypes = ImmutableSet.of(
+        StringConstants.RELATION_SOLD,
+        StringConstants.RELATION_BOUGHT);
+
+    private static final ImmutableMap<String, Optional<String>> historyToApiStatTypes = ImmutableMap.of(
+        // Map the relation types specific to the History component
+        RelationType.COMMODITIES.getLiteral(), Optional.of(StringConstants.RELATION_SOLD),
+        RelationType.COMMODITIESBOUGHT.getLiteral(), Optional.of(StringConstants.RELATION_BOUGHT),
+        // (June 12, 2017): This is not a relation that the UI understands,
+        // so don't map it to any relation type.
+        RelationType.METRICS.getLiteral(), Optional.empty());
 
     /**
      * The UI distinguishes between "metrics" and "commodities". Commodities are expected to contain
@@ -443,10 +445,10 @@ public class StatsMapper {
 
     @Nonnull
     private Optional<StatFilterApiDTO> relationFilter(@Nonnull final String relation) {
-        return getUIValue(relation).map(uiRelation -> {
+        return getApiRelationValue(relation).map(apiRelation -> {
             final StatFilterApiDTO filter = new StatFilterApiDTO();
             filter.setType(RELATION_FILTER_TYPE);
-            filter.setValue(uiRelation);
+            filter.setValue(apiRelation);
             return filter;
         });
     }
@@ -607,14 +609,17 @@ public class StatsMapper {
     }
 
     @Nonnull
-    private Optional<String> getUIValue(@Nonnull final String dbValue) {
-        final Optional<String> uiValue = dbToUiStatTypes.get(dbValue);
-
-        if (uiValue == null) {
-            throw new IllegalArgumentException("Illegal statistic type [" + dbValue + "]");
+    private Optional<String> getApiRelationValue(@Nonnull final String relationValue) {
+        // Preserve the relation types if they are already in the API format
+        if (apiRelationTypes.contains(relationValue)) {
+            return Optional.of(relationValue);
         }
-
-        return uiValue;
+        // Otherwise, try to convert from the History format
+        final Optional<String> apiValue = historyToApiStatTypes.get(relationValue);
+        if (apiValue == null) {
+            throw new IllegalArgumentException("Illegal statistic type [" + apiValue + "]");
+        }
+        return apiValue;
     }
 
     /**

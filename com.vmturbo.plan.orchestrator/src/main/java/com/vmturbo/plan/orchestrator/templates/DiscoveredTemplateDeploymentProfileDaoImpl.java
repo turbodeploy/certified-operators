@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.plan.orchestrator.db.enums.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,7 +34,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.plan.orchestrator.db.tables.records.DeploymentProfileRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfileRecord;
-
+import com.vmturbo.plan.orchestrator.reservation.ReservationStatusConverter;
 
 /**
  * Store discovered templates and deployment profiles into database. And right now,
@@ -114,7 +114,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
     private List<ReservationRecord> invalidateReservation(List<ReservationRecord> oldRecords) {
         return oldRecords.stream()
                 .map(r -> new ReservationRecord(r.getId(), r.getName(), r.getStartTime(), r.getExpireTime(),
-                        ReservationStatus.invalid, r.getReservationTemplateCollection(), r.getConstraintInfoCollection()))
+                         r.getReservationTemplateCollection(), r.getConstraintInfoCollection(),
+                        ReservationStatusConverter.typeToDb(ReservationStatus.INVALID)))
                 .collect(Collectors.toList());
     }
 

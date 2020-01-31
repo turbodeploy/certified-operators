@@ -1,12 +1,14 @@
 package com.vmturbo.history.utils;
 
 import java.util.Map;
+
 import com.google.common.collect.Maps;
 
 /**
  * The class StoragesSumCapacities stores the sums of capacities per slice for the commodities
  * sold by storages.
  */
+// TODO Should this really be a collection of static maps with no coordation of reads and writes?
 public class StoragesSumCapacities {
     private static Map<String, Double> storage_access = Maps.newHashMap();
     private static Map<String, Double> storage_provisioned = Maps.newHashMap();

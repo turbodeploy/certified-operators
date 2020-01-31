@@ -312,17 +312,6 @@ public class RIStatsSubQueryTest {
         new RIStatsMapper(buyRiScopeHandler).createUtilizationRequest(context);
     }
 
-    @Test(expected = OperationFailedException.class)
-    public void testUtilizationUnsupportedEntityType() throws OperationFailedException {
-        when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeTypes()).thenReturn(Optional.of(
-                        Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
-        when(context.isGlobalScope()).thenReturn(false);
-
-        new RIStatsMapper(buyRiScopeHandler).createUtilizationRequest(context);
-    }
-
-
     @Test
     public void testCreateCoverageRequestGlobalScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));

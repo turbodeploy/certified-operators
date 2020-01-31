@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
@@ -48,6 +49,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -180,11 +182,8 @@ public class ReservationManagerTest {
         ArgumentCaptor<UpdateReservationsRequest> updateRequestCaptor =
                 ArgumentCaptor.forClass(UpdateReservationsRequest.class);
         topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
-        // test future reservation should be active now
-        final boolean isActiveNow = reservationManager.isReservationActiveNow(futureReservation);
-        assertTrue(isActiveNow);
 
-        reservationManager.applyReservation(topology);
+        reservationManager.applyReservation(topology, TopologyType.REALTIME, PlanProjectType.USER);
         assertEquals(3L, topology.size());
         assertTrue(topology.containsKey(1L));
         assertTrue(topology.containsKey(2L));
@@ -239,12 +238,6 @@ public class ReservationManagerTest {
 
     private class TestReservationService extends ReservationServiceImplBase {
 
-        @Override
-        public void initialPlacement(InitialPlacementRequest request,
-                                     StreamObserver<InitialPlacementResponse> responseObserver) {
-            responseObserver.onNext(InitialPlacementResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
 
         @Override
         public void getAllReservations(GetAllReservationsRequest request,

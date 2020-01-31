@@ -33,6 +33,16 @@ public class ReservationConfig {
     @Bean
     public ReservationRpcService reservationRpcService() {
         return new ReservationRpcService(planConfig.planDao(), templatesConfig.templatesDao(),
+                dbConfig.reservationDao(), planConfig.planService(), reservationManager());
+    }
+
+    /**
+     * create a ReservationManager.
+     * @return a new ReservationManager
+     */
+    @Bean
+    public ReservationManager reservationManager() {
+        return new ReservationManager(planConfig.planDao(),
                 dbConfig.reservationDao(), planConfig.planService());
     }
 
@@ -43,7 +53,7 @@ public class ReservationConfig {
 
     @Bean
     public ReservationPlacementHandler reservationPlacementHandler() {
-        return new ReservationPlacementHandler(dbConfig.reservationDao(),
+        return new ReservationPlacementHandler(reservationManager(),
                 repositoryConfig.repositoryServiceBlockingStub());
     }
 }

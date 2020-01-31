@@ -53,7 +53,6 @@ data:
             serverAddress: ws://topology-processor:8080/remoteMediation
             silentRetryTime: 0
             connRetryIntervalSeconds: 10
-            websocket.pong.timeout: 30000
             # Remote iterator consumers - 10 minutes max wait for next chunk
             com.vmturbo.communication.remote.iterator.timeout: 600000
             # driver property settings must be suitable for inclusion in a URL query
@@ -68,8 +67,6 @@ data:
             dbSchemaName: action
             entityTypeRetryIntervalMillis: 1000
             entityTypeMaxRetries: 6
-            # One entity should be approximately 0.01KB, we are aiming at keeping the grpc message size at 50KB
-            maxAmountOfEntitiesPerGrpcMessage: 5000
             maxLiveActionPlanAgeSeconds: 600
             failedGroupUpdateDelaySeconds: 10
             actionStatRollup.corePoolSize: 1
@@ -87,7 +84,6 @@ data:
             # Should be long enough to accommodate any long-running actions (e.g. storage move of a huge disk).
             # 6 hrs by default.
             actionExecution.timeoutMins: 360
-            actionExecution.concurrentAutomatedActions: 5
         api:
             identityGeneratorPrefix: 5
             multipartConfigMaxFileSizeKb: 50
@@ -102,7 +98,6 @@ data:
             settingManagersFile: settingManagers.json
             settingStyleFile: settingSpecStyle.json
             initialPlacementTimeoutSeconds: 600
-            samlEnabled: false
             externalApiSwaggerUri: /vmturbo/apidoc/**
             externalApiFileSystemBase: file:/swagger/
             cpuInfoCacheLifetimeHours: 8
@@ -122,8 +117,6 @@ data:
             # DB properties
             dbSchemaName: cost
             persistEntityCostChunkSize: 1000
-            # Cache
-            riCoverageCacheExpireMinutes: 120
             # CurrentWeight for calculating the weighted_value in
             # instance_type_hourly_by_week table.
             # Value range from [0.0, 1.0]
@@ -138,9 +131,6 @@ data:
             reservedInstanceStatCleanup.corePoolSize: 1
             # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
             reservedInstanceStatCleanup.maxPoolSize: 8
-            reservedInstanceStatCleanup.threadKeepAliveMins: 1
-            reservedInstanceStatCleanup.executorQueueSize: 10
-            reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes: 60
             # Schedule for the Reserved Instance tables cleanup scheduler
             reservedInstanceStatCleanup.scheduler: 360000
             retention.updateRetentionIntervalSeconds: 10
@@ -170,14 +160,73 @@ data:
             # note = excluded commodities are case-insensitive, but in mixed case here for readability
             # and to match exactly the values from discovery
             # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
-            # The commodities for which stats are not maintained/tracked in the DB. These are typically access commodities.
-            excludedCommodities: ApplicationCommodity CLUSTERCommodity DATACENTERCommodity DATASTORECommodity DRSSEGMENTATIONCommodity DSPMAccessCommodity NETWORKCommodity SEGMENTATIONCommodity STORAGECLUSTERCommodity VAPPAccessCommodity VDCCommodity VMPMAccessCommodity
+            # The commodities for which stats are not maintained/tracked in the DB.
+            # These are typically access commodities.
+            excludedCommodities: >-
+                ApplicationCommodity
+                CLUSTERCommodity
+                DATACENTERCommodity
+                DATASTORECommodity
+                DRSSEGMENTATIONCommodity
+                DSPMAccessCommodity
+                NETWORKCommodity
+                SEGMENTATIONCommodity
+                STORAGECLUSTERCommodity
+                VAPPAccessCommodity
+                VDCCommodity
+                VMPMAccessCommodity
             retention.updateRetentionIntervalSeconds: 10
             statsWritersMaxPoolSize: 6
             systemLoadRecordsPerChunk: 500
             timeToWaitNetworkReadinessMs: 10
             # 5-minutes timeout to send big data through GRPC procedure calls
             grpcReadingTimeoutMs: 300000
+
+            # number of BulkInserter batch inserts that can run concurrently
+            bulk.parallelBatchInserts: 8
+            # default insert batch size
+            bulk.batchSize: 1000
+            # maximum number of retry attempts for a failed batch insert, before abandoning it as a lost batch
+            bulk.maxBatchRetries: 10
+            # backoff period before final retry attempt; backoffs for prior retries are computed from this
+            bulk.maxRetryBackoffMsec: 60000
+            # maximum number of batches that can be submitted for execution at the same time by a single writer
+            bulk.maxPendingBatches: 8
+
+            # whether to commit DB operations at chunk boundaries when processing topologies
+            ingest.perChunkCommit: false
+
+            # how long to keep processing status in topology coordinator (4 hours = 14400 seconds)
+            ingest.topologyStatusRetentionSecs: 14400
+
+            # how long a received topology can sit around waiting to be processed before the listener
+            # times out and skips the topology
+            ingest.ingestionTimeoutSecs: 1200
+
+            # how long to wait for a snapshot to become eligible for hourly rollup processing, before
+            # the associated ingestions are forced into a resolved status to permit the rollups to
+            # proceed
+            ingest.hourlyRollupTimeoutSecs: 3600
+
+            # how long we can go without repartitioning the stats tables. The longer this doesn't happen,
+            # the higher the risk of running out of space on the database server.
+            # Normally this happens as a side-effect of daily/monthly rollups, but this is here as a safety
+            # valve
+            ingest.repartitioningTimeoutSecs: 7200
+
+            # max time processing loop will wait before checking for more work
+            ingest.processingLoopMaxSleepSecs: 60
+
+            # default max time allowed for a single writer to process a single chunk
+            ingest.defaultChunkTimeLimitMsec: 60000
+
+            # timeouts for various execution "styles" used in HistorydbIO
+            # 20 seconds
+            executeTimeoutMsec.IMMEDIATE: 20000
+            # 1 minute
+            executeTimeoutMsec.PATIENT: 60000
+            # 2 minutes
+            executeTimeoutMsec.FORCED: 120000
         market:
             identityGeneratorPrefix: 2
             # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
@@ -188,8 +237,6 @@ data:
             # If entity utilization is above the upper watermark, Market could generate resize up actions.
             rightsizeUpperWatermark: 0.7
             # The maximum ratio of on-demand cost for the new template to current template of a vm for analysis engine to
-            # recommend to change to that template to utilize that RI.
-            discountedComputeCostFactor: 4.0
             # Quote Factor to be used by alleviate pressure plans.
             alleviatePressureQuoteFactor: 0.2
             # Suspension throttling configuration
@@ -198,17 +245,6 @@ data:
             standardQuoteFactor: 0.68
             # Move cost factor for controlling aggressiveness of market in generating on-prem live market move actions.
             liveMarketMoveCostFactor: 0.05
-            # Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
-            enableSMA: false
-        mediation.client:
-            silentRetryTime: 0
-            connRetryIntervalSeconds: 10
-            # Time in ms
-            websocket.pong.timeout: 120000
-            # this setting is for mediation-aws, mediation-awsbilling, and mediation-awscost
-            turbonomic.ratecards.persistent.path: /home/turbonomic/data/
-            # Setting the directory that the diagnostics will be collected from
-            diags_tmpdir_path: /tmp/diags/
         ml-datastore:
             influxdbHealthCheckIntervalSeconds: 60
             influxHost: influxdb
@@ -397,8 +433,6 @@ data:
             # The interval hours that how long the new discovered entities can not be generated
             # resize down actions by Market.
             resizeDownWarmUpIntervalHours: 4
-            # Default timeout for async requests to topology processor.
-            asyncRestRequestTimeoutSeconds: 300
             # Whether or not to periodically collect changes for random entities during stitching
             # in the stitching journal. Use the journal-related parameters below to tune
             # how much information is collected.
@@ -443,12 +477,6 @@ data:
             # How often to checkpoint the percentile cache in the persistence store
             historyAggregation.percentileMaintenanceWindowHours: 24
             # The maximum message size for serializing percentile blobs
-            # Typical size for 10 millions of commodities is 120mb
-            historyAggregation.grpcChannelMaxMessageSizeKb: 204800
-            # The timeout in seconds to history access streaming operations
-            historyAggregation.grpcStreamTimeoutSec: 300
-            # The chunk size for history access streaming operations
-            historyAggregation.blobReadWriteChunkSizeKb: 128
             # Whether to enable consistent scaling
             consistentScalingEnabled: true
 {{- if .Values.properties }}

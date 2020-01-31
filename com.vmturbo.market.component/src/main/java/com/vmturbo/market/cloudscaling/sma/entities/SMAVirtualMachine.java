@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Stable Marriage Algorithm representation of a VM.
@@ -34,9 +35,9 @@ public class SMAVirtualMachine {
      */
     private final String groupName;
     /*
-     * BusinessAccount, subaccount of billing account
+     * BusinessAccount, subaccount of billing account.  Needed to compute template cost.
      */
-    private final long businessAccount;
+    private final long businessAccountId;
     /*
      * VM's current template.  Infer CSP, family and coupons
      */
@@ -56,7 +57,19 @@ public class SMAVirtualMachine {
     /*
      * Cloud Zone
      */
-    private final long zone;
+    private final long zoneId;
+    /*
+     * Current RIKeyID.
+     */
+    private long currentRIKey;
+    /*
+     * OSType: needed to compute template cost
+     */
+    private final OSType osType;
+
+    /*
+     * Computed attributes.
+     */
     /*
      * List of groupProviders (templates) that this VM could move to.
      * If the VM is in an ASG and not the leader, groupProviders is set to null
@@ -92,30 +105,36 @@ public class SMAVirtualMachine {
      * @param oid the unique id of the virtual machine
      * @param name the display name of the
      * @param groupName unique name of the group the VM belongs to.
-     * @param businessAccount the buisness account
-     * @param currentTemplate the current template of the vm
-     * @param providers the list of templates that the vm can fit in.
+     * @param businessAccountId the business account ID
+     * @param currentTemplate the current template of the VM
+     * @param providers the list of templates that the VM can fit in.
      * @param currentRICoverage the current RI converage of the VM
-     * @param zone the zone to which the vm belongs to.
+     * @param zoneId the zone ID to which the VM belongs to.
+     * @param currentRIKey ID of the current RI covering the VM.
+     * @param osType  OS.
      */
     public SMAVirtualMachine(final long oid,
                              @Nonnull final String name,
                              final String groupName,
-                             final long businessAccount,
+                             final long businessAccountId,
                              SMATemplate currentTemplate,
                              @Nonnull List<SMATemplate> providers,
                              final float currentRICoverage,
-                             final long zone) {
+                             final long zoneId,
+                             final long currentRIKey,
+                             final OSType osType) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupName = groupName;
         this.currentTemplate = currentTemplate;
-        this.businessAccount = businessAccount;
+        this.businessAccountId = businessAccountId;
         this.currentRICoverage = currentRICoverage;
         this.groupProviders = Objects.requireNonNull(providers, "providers are null!");
         this.providers = new ArrayList(providers);
-        this.zone = zone;
+        this.zoneId = zoneId;
         this.groupSize = 1;
+        this.currentRIKey = currentRIKey;
+        this.osType = osType;
     }
 
     /**
@@ -133,19 +152,19 @@ public class SMAVirtualMachine {
             minCostPerFamily.put(template.getFamily(), Float.MAX_VALUE);
         }
         for (SMATemplate template : groupProviders) {
-            if (template.getOnDemandTotalCost(businessAccount) - minCost < (-1.0 * SMAUtils.EPSILON)) {
-                minCost = template.getOnDemandTotalCost(businessAccount);
+            if (template.getOnDemandTotalCost(businessAccountId, osType) - minCost < (-1.0 * SMAUtils.EPSILON)) {
+                minCost = template.getOnDemandTotalCost(businessAccountId, osType);
                 minCostProvider = Optional.of(template);
             } else {
                 // Template cost is equal, then switch if the new template is the natural
                 // template.
-                if ((Math.abs(template.getOnDemandTotalCost(businessAccount) - minCost) < SMAUtils.EPSILON) &&
+                if ((Math.abs(template.getOnDemandTotalCost(businessAccountId, osType) - minCost) < SMAUtils.EPSILON) &&
                         getCurrentTemplate().equals(template)) {
                         minCostProvider = Optional.of(template);
                 }
             }
-            if (template.getOnDemandTotalCost(businessAccount) - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
-                minCostPerFamily.put(template.getFamily(), template.getOnDemandTotalCost(businessAccount));
+            if (template.getOnDemandTotalCost(businessAccountId, osType) - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
+                minCostPerFamily.put(template.getFamily(), template.getOnDemandTotalCost(businessAccountId, osType));
                 minCostProviderPerFamily.put(template.getFamily(), template);
             }
 
@@ -179,8 +198,13 @@ public class SMAVirtualMachine {
     }
 
     @Nonnull
-    public long getBusinessAccount() {
-        return businessAccount;
+    public long getBusinessAccountId() {
+        return businessAccountId;
+    }
+
+    @Nonnull
+    public OSType getOsType() {
+        return osType;
     }
 
     @Nonnull
@@ -242,8 +266,16 @@ public class SMAVirtualMachine {
         currentRICoverage = coverage;
     }
 
-    public long getZone() {
-        return zone;
+    public long getCurrentRIKey() {
+        return currentRIKey;
+    }
+
+    public void setCurrentRIKey(final long currentRIKey) {
+        this.currentRIKey = currentRIKey;
+    }
+
+    public long getZoneId() {
+        return zoneId;
     }
 
     /**
@@ -256,13 +288,14 @@ public class SMAVirtualMachine {
         StringBuffer buffer = new StringBuffer();
         buffer.append("SMAVirtualMachine{")
                 .append("OID='").append(oid)
-                .append("name='").append(name)
-                .append("', businessAccount='").append(businessAccount)
-                .append("', currentTemplate=").append(currentTemplate)
-                .append(", naturalTemplate=").append(naturalTemplate)
+                .append(", name='").append(name)
+                .append("', businessAccount='").append(businessAccountId)
                 .append(", groupProviders=").append(groupProviders.size())
                 .append(", currentRICoverage=").append(currentRICoverage)
-                .append(", zone='").append(zone).append("\'}");
+                .append(", zone='").append(zoneId)
+                .append("', currentTemplate=").append(currentTemplate.toStringWithOutCost())
+                .append(", naturalTemplate=").append(naturalTemplate.toStringWithOutCost())
+            .append("\'}");
         return buffer.toString();
     }
 
@@ -275,12 +308,13 @@ public class SMAVirtualMachine {
         buffer.append("SMAVirtualMachine{")
                  .append("OID='").append(oid)
                 .append(", name='").append(name)
-                .append("', businessAccount='").append(businessAccount)
+                .append("', businessAccount='").append(businessAccountId)
+                .append("', OS='").append(osType.name())
                 .append("', currentTemplate=").append(currentTemplate.getName())
                 .append(", naturalTemplate=").append(naturalTemplate.getName())
                 .append(", groupProviders=").append(groupProviders.size())
                 .append(", currentRICoverage=").append(currentRICoverage)
-                .append(", zone='").append(zone).append("\'}");
+                .append(", zone='").append(zoneId).append("\'}");
         return buffer.toString();
     }
 
@@ -289,15 +323,15 @@ public class SMAVirtualMachine {
      *
      * @param ri the reserved instance
      * @param virtualMachineGroupMap  the virtual Machine Group info
-     * @return true if the vm and ri belong to the same zone or if the ri is region scoped
+     * @return true if the VM and RI belong to the same zone or if the RI is region scoped
      */
     public boolean zoneCompatible(SMAReservedInstance ri,
                                   Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         /*
-         * If the vm is the leader of ASG and the vms belong to different zones only a regional RI can
+         * If the VM is the leader of ASG and the VMs belong to different zones only a regional RI can
          * discount it.
-         * All vms same zone -> both regional RI and zonal RI on same zone can discount it. isZonalDiscountable = true;
-         * vms belong to different zone -> only regional RI can discount it. isZonalDiscountable = false;
+         * All VMs same zone -> both regional RI and zonal RI on same zone can discount it. isZonalDiscountable = true;
+         * VMs belong to different zone -> only regional RI can discount it. isZonalDiscountable = false;
          *
          */
 
@@ -309,7 +343,7 @@ public class SMAVirtualMachine {
         if (ri.isRegionScoped()) {
             return true;
         } else {
-            if (zone == ri.getZone()) {
+            if (zoneId == ri.getZone()) {
                 return true;
             }
         }
@@ -328,7 +362,7 @@ public class SMAVirtualMachine {
 
      @Override
      public int hashCode() {
-         return Objects.hash(oid, name, businessAccount, zone);
+         return Objects.hash(oid, name, businessAccountId, zoneId);
      }
 
      @Override
@@ -342,7 +376,7 @@ public class SMAVirtualMachine {
          final SMAVirtualMachine that = (SMAVirtualMachine)o;
          return oid == that.oid &&
              name.equals(that.name) &&
-             businessAccount == that.businessAccount &&
-             zone == that.zone;
+             businessAccountId == that.businessAccountId &&
+             zoneId == that.zoneId;
      }
 }

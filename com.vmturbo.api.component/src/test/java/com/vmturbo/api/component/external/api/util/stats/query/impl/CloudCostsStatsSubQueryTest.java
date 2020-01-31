@@ -6,6 +6,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -16,6 +18,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -23,8 +27,6 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -64,6 +66,7 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -359,6 +362,57 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     /**
+     * Test getAggregatedStats for resource group. Resource group contains only Virtual Volume as
+     * member, so request cost cloud stats only for this entity type.
+     *
+     * @throws OperationFailedException on exceptions occur
+     */
+    @Test
+    public void testGetAggregateStatsForResourceGroupScope() throws OperationFailedException {
+        final Set<StatApiInputDTO> requestedStats = createRequestStatsForResourceGroup();
+
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.RESOURCE);
+
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+
+        final ApiId apiId = mock(ApiId.class);
+        when(apiId.getScopeTypes()).thenReturn(
+                Optional.of(Sets.newHashSet(UIEntityType.VIRTUAL_VOLUME)));
+        when(apiId.isCloud()).thenReturn(true);
+        when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(context.getInputScope()).thenReturn(apiId);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L, 2L));
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
+
+        // test that there is no scope expanding for resource groups
+        verify(context.getQueryScope(), times(0)).getExpandedOids();
+
+        final ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+                ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        final Cost.GetCloudCostStatsResponse response =
+                Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        query.getAggregateStats(requestedStats, context);
+        final List<CloudCostStatsQuery> cloudCostStatsQueryList =
+                costParamCaptor.getValue().getCloudCostStatsQueryList();
+
+        // Check that requests cost only for entity types existed in resource group.
+        // In our case request only stats for volume and don't request for vms, dbs and
+        // dbServers
+        Assert.assertEquals(cloudCostStatsQueryList.size(), 1);
+        final List<Integer> entityTypeIds =
+                cloudCostStatsQueryList.get(0).getEntityTypeFilter().getEntityTypeIdList();
+        Assert.assertEquals(entityTypeIds.size(), 1);
+        Assert.assertEquals(EntityType.VIRTUAL_VOLUME.getNumber(), entityTypeIds.get(0).intValue());
+    }
+
+    /**
      * Tests the case where we are getting the stats grouped by cloud provider.
      */
     @Test
@@ -425,14 +479,35 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     private Set<StatApiInputDTO> createRequestStats() {
-        StatFilterApiDTO computeFilter = new StatFilterApiDTO();
+        return Collections.singleton(createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                UIEntityType.VIRTUAL_MACHINE.apiStr()));
+    }
+
+    private Set<StatApiInputDTO> createRequestStatsForResourceGroup() {
+        final StatApiInputDTO vmStat =
+                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                        UIEntityType.VIRTUAL_MACHINE.apiStr());
+        final StatApiInputDTO dbServerStat =
+                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                        UIEntityType.DATABASE_SERVER.apiStr());
+        final StatApiInputDTO dbStat =
+                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                        UIEntityType.DATABASE.apiStr());
+        final StatApiInputDTO volumeStat =
+                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                        UIEntityType.VIRTUAL_VOLUME.apiStr());
+        return Sets.newHashSet(vmStat, dbStat, dbServerStat, volumeStat);
+    }
+
+    private StatApiInputDTO createRequestStat(String statName, String relatedEntityType) {
+        final StatFilterApiDTO computeFilter = new StatFilterApiDTO();
         computeFilter.setType(CloudCostsStatsSubQuery.COST_COMPONENT);
         computeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
-        StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
-        vmCostStatApi.setName(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY);
-        vmCostStatApi.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
-        vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
-        return Collections.singleton(vmCostStatApi);
+        final StatApiInputDTO costStatApi = new StatApiInputDTO();
+        costStatApi.setName(statName);
+        costStatApi.setRelatedEntityType(relatedEntityType);
+        costStatApi.setFilters(Collections.singletonList(computeFilter));
+        return costStatApi;
     }
 
     /**
@@ -525,6 +600,7 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isCloud()).thenReturn(true);
         when(inputScope.isEntity()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
         // Behaviors associated to costRpcService
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
             ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
@@ -581,6 +657,7 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isGroup()).thenReturn(false);
         when(inputScope.getScopeTypes()).thenReturn(Optional
                 .of(Collections.singleton(UIEntityType.REGION)));
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
 
         // Behaviors associated to costRpcService
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =

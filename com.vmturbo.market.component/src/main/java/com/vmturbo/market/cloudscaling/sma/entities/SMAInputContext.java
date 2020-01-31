@@ -3,9 +3,10 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 
 /**
  * The Stable Marriage algorithm input context.
@@ -64,27 +65,32 @@ public class SMAInputContext {
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                     oldVM.getName(),
                     oldVM.getGroupName(),
-                    oldVM.getBusinessAccount(),
+                    oldVM.getBusinessAccountId(),
                     oldVM.getCurrentTemplate(),
                     oldVM.getProviders(),
                     oldVM.getCurrentRICoverage(),
-                    oldVM.getZone());
+                    oldVM.getZoneId(),
+                    oldVM.getCurrentRIKey(),
+                    oldVM.getOsType());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
         List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
         List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
-        for (int i = 0; i < inputContext.getReservedInstances().size(); i++) {
-            SMAReservedInstance oldRI = oldReservedInstances.get(i);
-            SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+        if (oldReservedInstances != null) {
+            for (int i = 0; i < oldReservedInstances.size(); i++) {
+                SMAReservedInstance oldRI = oldReservedInstances.get(i);
+                SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                    oldRI.getRiKeyOid(),
                     oldRI.getName(),
                     oldRI.getBusinessAccount(),
                     oldRI.getTemplate(),
                     oldRI.getZone(),
                     oldRI.getCount(),
-                    context);
-            newReservedInstances.add(newRI);
+                    oldRI.isIsf());
+                newReservedInstances.add(newRI);
+            }
         }
         this.reservedInstances = newReservedInstances;
     }
@@ -106,24 +112,30 @@ public class SMAInputContext {
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                     oldVM.getName(),
                     oldVM.getGroupName(),
-                    oldVM.getBusinessAccount(),
+                    oldVM.getBusinessAccountId(),
                     smaMatch.getTemplate(),
                     oldVM.getProviders(),
                     (float)smaMatch.getDiscountedCoupons(),
-                    oldVM.getZone());
+                    oldVM.getZoneId(),
+                    smaMatch.getReservedInstance() == null ?
+                            SMAUtils.NO_CURRENT_RI :
+                            smaMatch.getReservedInstance().getRiKeyOid(),
+                    oldVM.getOsType());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
         List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
         for (SMAReservedInstance oldRI : inputContext.getReservedInstances()) {
-            SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+            SMAReservedInstance newRI = new SMAReservedInstance(
+                    oldRI.getOid(),
+                    oldRI.getRiKeyOid(),
                     oldRI.getName(),
                     oldRI.getBusinessAccount(),
                     oldRI.getTemplate(),
                     oldRI.getZone(),
                     oldRI.getCount(),
-                    context);
+                    oldRI.isIsf());
             newReservedInstances.add(newRI);
         }
         this.reservedInstances = newReservedInstances;
@@ -155,7 +167,7 @@ public class SMAInputContext {
         return "SMAInputContext{" +
                 "context=" + context +
                 ", virtualMachines=" + virtualMachines.size() +
-                ", reservedInstances=" + reservedInstances.size() +
+                ", reservedInstances=" + reservedInstances == null ? "" + 0 : reservedInstances.size() +
                 ", templates=" + templates.size() +
                 '}';
     }

@@ -284,7 +284,8 @@ public class GroupMapper {
                 }
                 // Trying to determine the cloud type
                 if (entity.getDiscoveringTargetIdsCount() > 0 && !envType.equals(EnvironmentTypeEnum.EnvironmentType.ON_PREM)) {
-                    // The first element is good enough to indicate the cloud type
+                    // If entity is discovered by several targets iterate over
+                    // loop before finding target with cloud type
                     for (Long targetId : entity.getDiscoveringTargetIdsList()) {
                         Optional<ThinTargetCache.ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(targetId);
                         if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
@@ -298,8 +299,11 @@ public class GroupMapper {
                             }
                         }
                     }
-                    // Once we get more than one, we know it's HYBRID
-                    if (cloudTypes.size() > 1) {
+                    // Once we get more than one cloudType, we know that cloudType is HYBRID.
+                    // Also check that environmentType is already Hybrid.
+                    // If two conditions is true we can break loop through the entities in other case continue iterating in
+                    // order to not to miss entities with environmentType different from current envType.
+                    if (cloudTypes.size() > 1 && envType == EnvironmentTypeEnum.EnvironmentType.HYBRID) {
                         break;
                     }
                 }

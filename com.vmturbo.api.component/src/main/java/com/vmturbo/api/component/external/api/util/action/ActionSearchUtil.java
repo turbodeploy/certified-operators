@@ -78,6 +78,10 @@ public class ActionSearchUtil {
             throws  InterruptedException, OperationFailedException,
                     UnsupportedActionException, ExecutionException {
         final Set<Long> scope = groupExpander.expandOids(ImmutableSet.of(scopeId.oid()));
+        if (scope.isEmpty()) {
+            return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
+        }
+
         final Set<Long> expandedScope;
         // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain

@@ -92,7 +92,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             return Optional.empty();
         }
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
-        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons(), tierInfo.getNumCores()));
+        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons(), tierInfo.getNumCores(), tierInfo.getBurstableCPU()));
     }
 
     @Override
@@ -106,8 +106,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
                 return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
                     dbConfig.getEngine(),
-                    dbConfig.getLicenseModel(),
-                    dbConfig.getDeploymentType()));
+                    dbConfig.hasLicenseModel() ? dbConfig.getLicenseModel() : null,
+                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null));
             }
         }
         return Optional.empty();

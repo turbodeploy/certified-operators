@@ -52,6 +52,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSetti
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -1372,10 +1373,10 @@ public class SettingsMapperTest {
                     .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                     .build()));
 
-        final Map<SettingsMapper.SettingApiDtoKey, Setting> convertedSettings =
+        final Map<SettingValueEntityTypeKey, Setting> convertedSettings =
                 mapper.toProtoSettings(Collections.singletonList(setting));
 
-        SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
 
         assertTrue(convertedSettings.containsKey(key));
         assertThat(convertedSettings.get(key), is(Setting.newBuilder()
@@ -1423,5 +1424,86 @@ public class SettingsMapperTest {
         cal.setTime(date);
         cal.set(Calendar.DAY_OF_WEEK, dayOfWeek);
         return cal.getTime();
+    }
+
+    /**
+     * Tests the SettingsMapper.toProtoSettings handles duplicate {@link SettingValueEntityTypeKey}.
+     */
+    @Test
+    public void testToProtoSettingsHandlesDuplicateSettingApiDtoKey() {
+        //GIVEN
+        String entityType = UIEntityType.PHYSICAL_MACHINE.apiStr();
+        String uuid = "provision";
+
+        SettingApiDTO settingApiDTO1 = new SettingApiDTO();
+        SettingApiDTO settingApiDTO2 = new SettingApiDTO();
+
+        settingApiDTO1.setEntityType(entityType);
+        settingApiDTO2.setEntityType(entityType);
+
+        settingApiDTO1.setUuid(uuid);
+        settingApiDTO2.setUuid(uuid);
+
+        final SettingsMapper mapper =
+                new SettingsMapper(settingMgrMapping, settingStyleMapping, settingSpecMapper,
+                        policyMapper, grpcServer.getChannel());
+        when(settingBackend.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
+                .addSettingSpecName("provision")
+                .build()))
+                .thenReturn(Collections.singletonList(SettingSpec.newBuilder()
+                        .setName("provision")
+                        .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+                        .build()));
+
+        //WHEN
+        Map<SettingValueEntityTypeKey, Setting> settingProtoOverrides =
+                mapper.toProtoSettings(Arrays.asList(settingApiDTO1, settingApiDTO2));
+
+        //THEN
+        assertTrue(settingProtoOverrides.size() == 1);
+        assertTrue(settingProtoOverrides.containsKey(SettingsMapper.getSettingValueEntityTypeKey(settingApiDTO1)));
+        assertTrue(settingProtoOverrides.containsKey(SettingsMapper.getSettingValueEntityTypeKey(settingApiDTO2)));
+    }
+
+    /**
+     * Tests the SettingsMapper.toProtoSettings handles same setting with different values {@link SettingValueEntityTypeKey}.
+     */
+    @Test
+    public void testToProtoSettingsHandlesDuplicateSettingsButWithDifferentSetValues() {
+        //GIVEN
+        String entityType = UIEntityType.PHYSICAL_MACHINE.apiStr();
+        String uuid = "provision";
+
+        SettingApiDTO<String> settingApiDTO1 = new SettingApiDTO();
+        SettingApiDTO<String> settingApiDTO2 = new SettingApiDTO();
+
+        settingApiDTO1.setEntityType(entityType);
+        settingApiDTO2.setEntityType(entityType);
+
+        settingApiDTO1.setUuid(uuid);
+        settingApiDTO2.setUuid(uuid);
+
+        settingApiDTO1.setValue("gummy");
+        settingApiDTO2.setValue("bear");
+
+        final SettingsMapper mapper =
+                new SettingsMapper(settingMgrMapping, settingStyleMapping, settingSpecMapper,
+                        policyMapper, grpcServer.getChannel());
+        when(settingBackend.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
+                .addSettingSpecName("provision")
+                .build()))
+                .thenReturn(Collections.singletonList(SettingSpec.newBuilder()
+                        .setName("provision")
+                        .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+                        .build()));
+
+        //WHEN
+        Map<SettingValueEntityTypeKey, Setting> settingProtoOverrides =
+                mapper.toProtoSettings(Arrays.asList(settingApiDTO1, settingApiDTO2));
+
+        //THEN
+        assertTrue(settingProtoOverrides.size() == 2);
+        assertTrue(settingProtoOverrides.containsKey(SettingsMapper.getSettingValueEntityTypeKey(settingApiDTO1)));
+        assertTrue(settingProtoOverrides.containsKey(SettingsMapper.getSettingValueEntityTypeKey(settingApiDTO2)));
     }
 }

@@ -46,6 +46,12 @@ public class PartialEntityConverterTest {
         .setCapacity(123)
         .build();
 
+    private static final TopologyEntityDTO CONSUMER = TopologyEntityDTO.newBuilder()
+        .setEntityType(UIEntityType.APPLICATION.typeNumber())
+        .setDisplayName("consumer")
+        .setOid(666L)
+        .build();
+
     private static final TopologyEntityDTO PROVIDER = TopologyEntityDTO.newBuilder()
         .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("provider")
@@ -107,6 +113,7 @@ public class PartialEntityConverterTest {
         RepoGraphEntity.Builder ownsBldr = RepoGraphEntity.newBuilder(OWNS);
         RepoGraphEntity.Builder graphBldr = RepoGraphEntity.newBuilder(ENTITY);
         graphBldr.addProvider(providerBldr);
+        graphBldr.addConsumer(RepoGraphEntity.newBuilder(CONSUMER));
         graphBldr.addOutboundAssociation(connectedToBldr);
         graphBldr.addOwnedEntity(ownsBldr);
 
@@ -261,6 +268,11 @@ public class PartialEntityConverterTest {
             .setEntityType(PROVIDER.getEntityType())
             .setOid(PROVIDER.getOid())
             .setDisplayName(PROVIDER.getDisplayName())
+            .build()));
+        assertThat(apiEntity.getConsumersList(), contains(RelatedEntity.newBuilder()
+            .setEntityType(CONSUMER.getEntityType())
+            .setOid(CONSUMER.getOid())
+            .setDisplayName(CONSUMER.getDisplayName())
             .build()));
         assertThat(apiEntity.getConnectedToList(), contains(
             RelatedEntity.newBuilder()

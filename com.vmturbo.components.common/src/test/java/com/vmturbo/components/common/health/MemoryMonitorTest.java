@@ -6,16 +6,23 @@ import java.lang.management.MemoryUsage;
 import java.time.Duration;
 
 import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
 
 /**
  * Tests for the Memory Monitor
  */
 public class MemoryMonitorTest {
 
-    //@Test
+    /**
+     * Test Memory Monitor
+     */
+    @Ignore // ignoring due to periodic timing issues with this test.
+    @Test
     public void testMemoryMonitor() {
         // create a test monitor that triggers when old gen used exceeds 25%.
-        MemoryMonitor memoryMonitor = new MemoryMonitor(0.10);
+        double targetRatio = 0.50;
+        MemoryMonitor memoryMonitor = new MemoryMonitor(targetRatio);
 
         // verify initial check is healthy.
         HealthStatus status = memoryMonitor.getHealthStatus();
@@ -27,7 +34,7 @@ public class MemoryMonitorTest {
         // to trigger old gen usage, we will to allocate a "humongous object" that should go right into old gen.
         //
         // To trigger the unhealthy state, the humongous object should also be over the threshold size.
-        int humongousObjectGuestimate = (int) (Math.ceil(memUsage.getMax() * 0.10));
+        int humongousObjectGuestimate = (int)(Math.ceil(memUsage.getMax() * targetRatio));
         System.out.println("MONGO is here!! Allocating humongous object of "+ humongousObjectGuestimate +" bytes.");
         // allocate a humongo, then trigger a GC that should result in a memory health check update
         byte[] mongo = new byte[humongousObjectGuestimate];
@@ -45,7 +52,7 @@ public class MemoryMonitorTest {
         // or the latest memory monitor status if we don't get one from last(). (due to timing
         // issues we could totally miss the status update in the time it takes to set up the flux)
         status = memoryMonitor.getStatusStream().take(Duration.ofMillis(100)).last(memoryMonitor.getHealthStatus()).block();
-        Assert.assertTrue("We should now be back under the threshold."+ status.getDetails(), status.isHealthy());
+        Assert.assertTrue("We should now be back under the threshold. " + status.getDetails(), status.isHealthy());
     }
 
 }

@@ -1,16 +1,15 @@
 package com.vmturbo.history.stats;
 
-import static org.jooq.impl.DSL.min;
 import static com.vmturbo.components.common.utils.StringConstants.CPU_HEADROOM;
 import static com.vmturbo.components.common.utils.StringConstants.MEM_HEADROOM;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_HEADROOM;
 import static com.vmturbo.components.common.utils.StringConstants.TOTAL_HEADROOM;
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.date;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
+import static com.vmturbo.history.db.jooq.JooqUtils.getDateField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
+import static org.jooq.impl.DSL.min;
 
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -21,15 +20,15 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
 import org.jooq.Condition;
 import org.jooq.Record;
 import org.jooq.Record5;
 import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO.Style;
@@ -288,10 +287,10 @@ class ClusterStatsReader {
                                                                                             @Nonnull List<Condition> conditions) {
         return historydbIO.JooqBuilder()
             .select(
-                date(dField(table, StringConstants.RECORDED_ON)),
-                str(dField(table, StringConstants.INTERNAL_NAME)),
-                str(dField(table, StringConstants.PROPERTY_TYPE)),
-                str(dField(table, StringConstants.PROPERTY_SUBTYPE)),
+                getDateField(table, StringConstants.RECORDED_ON),
+                getStringField(table, StringConstants.INTERNAL_NAME),
+                getStringField(table, StringConstants.PROPERTY_TYPE),
+                getStringField(table, StringConstants.PROPERTY_SUBTYPE),
                 JooqUtils.getBigDecimalField(table, StringConstants.VALUE)
             ).from(table)
             .where(conditions).getQuery();
@@ -329,18 +328,18 @@ class ClusterStatsReader {
             getConditionsForClusterStatsQuery(table, isDayTable, clusterUuid, startDate, endDate, TOTAL_HEADROOM_STATS);
 
         return historydbIO.JooqBuilder()
-            .select(date(dField(table, StringConstants.RECORDED_ON)),
-                str(dField(table, StringConstants.INTERNAL_NAME)),
-                DSL.inline(TOTAL_HEADROOM).as(dField(table, StringConstants.PROPERTY_TYPE)),
-                str(dField(table, StringConstants.PROPERTY_SUBTYPE)),
+            .select(getDateField(table, StringConstants.RECORDED_ON),
+                getStringField(table, StringConstants.INTERNAL_NAME),
+                DSL.inline(TOTAL_HEADROOM).as(getStringField(table, StringConstants.PROPERTY_TYPE)),
+                getStringField(table, StringConstants.PROPERTY_SUBTYPE),
                 min(JooqUtils.getBigDecimalField(table, StringConstants.VALUE))
                     .as(JooqUtils.getBigDecimalField(table, StringConstants.VALUE)))
             .from(table)
             .where(conditions)
             .groupBy(
-                date(dField(table, StringConstants.RECORDED_ON)),
-                str(dField(table, StringConstants.INTERNAL_NAME)),
-                str(dField(table, StringConstants.PROPERTY_SUBTYPE))
+                getDateField(table, StringConstants.RECORDED_ON),
+                getStringField(table, StringConstants.INTERNAL_NAME),
+                getStringField(table, StringConstants.PROPERTY_SUBTYPE)
             );
     }
 
@@ -362,12 +361,12 @@ class ClusterStatsReader {
                                                               @Nonnull Long endDate,
                                                               @Nonnull Set<String> commodityNames) {
         final List<Condition> conditions = new ArrayList<>();
-        conditions.add(str(dField(table, StringConstants.INTERNAL_NAME))
+        conditions.add(getStringField(table, StringConstants.INTERNAL_NAME)
             .eq(Long.toString(clusterUuid)));
 
         // Don't add inCommodityNames condition if commodityNames is empty.
         if (!commodityNames.isEmpty()) {
-            conditions.add(str(dField(table, PROPERTY_TYPE)).in(commodityNames));
+            conditions.add(getStringField(table, PROPERTY_TYPE).in(commodityNames));
         }
 
         conditions.add(getDateConditionForClusterStatsQuery(table, isDayTable, clusterUuid, startDate, endDate, commodityNames));
@@ -397,22 +396,22 @@ class ClusterStatsReader {
             //When querying the day table, if the startDate=endDate, create a subquery condition
             //to retrieve the most recent records
             final List<Condition> conditions = new ArrayList<>();
-            conditions.add(str(dField(table, StringConstants.INTERNAL_NAME)).eq(Long.toString(clusterUuid)));
+            conditions.add(getStringField(table, StringConstants.INTERNAL_NAME).eq(Long.toString(clusterUuid)));
 
             // Don't add inCommodityNames condition if commodityNames is empty.
             if (!commodityNames.isEmpty()) {
-                conditions.add(str(dField(table, PROPERTY_TYPE)).in(commodityNames));
+                conditions.add(getStringField(table, PROPERTY_TYPE).in(commodityNames));
             }
-            conditions.add(date(dField(table, StringConstants.RECORDED_ON)).lessOrEqual(new java.sql.Date(startDate)));
+            conditions.add(getDateField(table, StringConstants.RECORDED_ON).lessOrEqual(new java.sql.Date(startDate)));
 
             // Fetch the most recent records for this cluster
-            return date(dField(table, StringConstants.RECORDED_ON)).eq(
+            return getDateField(table, StringConstants.RECORDED_ON).eq(
                 historydbIO.JooqBuilder()
                     .select(CLUSTER_STATS_BY_DAY.RECORDED_ON.max())
                     .from(CLUSTER_STATS_BY_DAY)
                     .where(conditions));
         }
-        return date(dField(table, StringConstants.RECORDED_ON))
+        return getDateField(table, StringConstants.RECORDED_ON)
             .between(new java.sql.Date(startDate), new java.sql.Date(endDate));
     }
 }

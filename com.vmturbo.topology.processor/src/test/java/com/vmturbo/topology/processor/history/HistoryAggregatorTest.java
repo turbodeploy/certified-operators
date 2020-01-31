@@ -276,7 +276,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         }
 
         @Override
-        public void initContext(GraphWithSettings graph, ICommodityFieldAccessor accessor, boolean isPlan) {
+        public void initContext(GraphWithSettings graph, ICommodityFieldAccessor accessor,
+                                List<EntityCommodityReference> eligibleComms, boolean isPlan) {
         }
 
         @Override

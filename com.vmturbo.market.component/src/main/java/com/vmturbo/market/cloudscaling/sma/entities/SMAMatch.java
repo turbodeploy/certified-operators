@@ -1,13 +1,8 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
-
-import com.vmturbo.auth.api.Pair;
 
 /**
  * Stable Marriage Algorithm representation of a SMAOutput.

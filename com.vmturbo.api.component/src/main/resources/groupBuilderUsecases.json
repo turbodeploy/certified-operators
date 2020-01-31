@@ -8,7 +8,7 @@
             {"inputType": "*", "elements": "DiskArray:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByDiskArrayName"},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByStorage"},
             {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
-            {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
+            {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:PRODUCES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState", "loadOptions": true},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag", "loadOptions": true},
@@ -20,7 +20,9 @@
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid", "loadOptions": true}
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid", "loadOptions": true},
+            {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"}
         ]
     },
 
@@ -34,7 +36,7 @@
     "PhysicalMachine" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"},
-            {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
+            {"inputType": "*", "elements": "MemberOf:Cluster:displayName", "filterCategory": "entity", "filterType": "pmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState", "loadOptions": true},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag", "loadOptions": true},
@@ -144,6 +146,7 @@
     "ResourceGroup" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "resourceGroupByName"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "resourceGroupByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid", "filterCategory": "entity", "filterType": "resourceGroupByBusinessAccountUuid", "loadOptions": true}
         ]
     },
@@ -203,7 +206,32 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessAccountByName"},
             {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "businessAccountCloudProvider", "loadOptions": true},
             {"inputType": "*", "elements": "discoveredBy:displayName", "filterCategory": "property", "filterType": "businessAccountTargetName"},
-            {"inputType": "s", "elements": "discoveredBy:validationStatus", "filterCategory": "property", "filterType": "businessAccountValidationStatus", "loadOptions": true}
+            {"inputType": "s", "elements": "discoveredBy:validationStatus", "filterCategory": "property", "filterType": "businessAccountValidationStatus", "loadOptions": true},
+            {"inputType": "s", "elements": "OwnerOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "businessAccountByResourceGroup", "loadOptions": true}
         ]
+    },
+
+    "BillingFamily" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "billingFamilyByName"}
+      ]
+    },
+
+    "Region" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "regsByName"}
+      ]
+    },
+
+    "AvailabilityZone" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "zonsByName"}
+      ]
+    },
+
+    "LoadBalancer" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "lbsByName"}
+      ]
     }
 }

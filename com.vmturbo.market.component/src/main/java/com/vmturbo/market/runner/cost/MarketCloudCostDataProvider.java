@@ -40,8 +40,6 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 
 /**
  * An implementation of {@link CloudCostDataProvider} that gets the relevant
@@ -66,13 +64,17 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
      * @param discountApplicatorFactory The discount applicator factory instance.
      * @param topologyEntityInfoExtractor The topology entity info extractor.
      */
-    public MarketCloudCostDataProvider(@Nonnull final Channel costChannel, @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
+    public MarketCloudCostDataProvider(@Nonnull final Channel costChannel,
+                                       @Nonnull DiscountApplicatorFactory<TopologyEntityDTO>
+                                               discountApplicatorFactory,
                                        @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
         this.riBoughtServiceClient = Objects.requireNonNull(ReservedInstanceBoughtServiceGrpc.newBlockingStub(costChannel));
         this.riSpecServiceClient = Objects.requireNonNull(ReservedInstanceSpecServiceGrpc.newBlockingStub(costChannel));
         this.buyRIServiceClient = Objects.requireNonNull(BuyReservedInstanceServiceGrpc.newBlockingStub(costChannel));
-        this.marketPricingResolver = Objects.requireNonNull(new MarketPricingResolver(PricingServiceGrpc.newBlockingStub(costChannel),
-                Objects.requireNonNull(CostServiceGrpc.newBlockingStub(costChannel)), discountApplicatorFactory, topologyEntityInfoExtractor));
+        this.marketPricingResolver = new MarketPricingResolver(
+                PricingServiceGrpc.newBlockingStub(costChannel),
+                Objects.requireNonNull(CostServiceGrpc.newBlockingStub(costChannel)),
+                discountApplicatorFactory, topologyEntityInfoExtractor);
         this.riUtilizationServiceClient =
                 Objects.requireNonNull(ReservedInstanceUtilizationCoverageServiceGrpc
                         .newBlockingStub(costChannel));
@@ -83,13 +85,15 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
      */
     @Nonnull
     @Override
-    public CloudCostData getCloudCostData(@Nonnull TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo,
+    public CloudCostData<TopologyEntityDTO> getCloudCostData(@Nonnull TopologyInfo topoInfo,
+    @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo,
                                           @Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor)
                     throws CloudCostDataRetrievalException {
         try {
 
             //Get a mapping of business account oid to Account Pricing Data.
-            final Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = marketPricingResolver
+            final Map<Long, AccountPricingData<TopologyEntityDTO>>
+                    accountPricingDataByBusinessAccountOid = marketPricingResolver
                     .getAccountPricingDataByBusinessAccount(cloudTopo);
 
             // Get the existing RI bought.
@@ -141,7 +145,7 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                             riUtilizationServiceClient.getEntityReservedInstanceCoverage(
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
-            return new CloudCostData(coverageResponse.getCoverageByEntityIdMap(),
+            return new CloudCostData<>(coverageResponse.getCoverageByEntityIdMap(),
                     riBoughtById,
                     riSpecsById,
                     buyRIBoughtById, accountPricingDataByBusinessAccountOid);

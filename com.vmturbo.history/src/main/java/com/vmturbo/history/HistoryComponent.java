@@ -29,16 +29,20 @@ import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
-import com.vmturbo.history.market.MarketListenerConfig;
+import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.stats.StatsConfig;
-import com.vmturbo.history.topology.TopologyListenerConfig;
 
 /**
- * The main configuration for the History Component.
+ * Spring configuration for history component.
  */
 @Configuration("theComponent")
-@Import({HistoryDbConfig.class, TopologyListenerConfig.class, MarketListenerConfig.class,
-    StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class, SpringSecurityConfig.class,
+@Import({
+    HistoryDbConfig.class,
+    IngestersConfig.class,
+    StatsConfig.class,
+    HistoryApiConfig.class,
+    ApiSecurityConfig.class,
+    SpringSecurityConfig.class,
     HistoryDiagnosticsConfig.class,
 })
 public class HistoryComponent extends BaseVmtComponent {
@@ -59,6 +63,13 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @Autowired
     private HistoryDiagnosticsConfig diagnosticsConfig;
+
+    /**
+     * This gives us access to the TopologyCoordinator instance, which manages ingestion and
+     * rollup activities related to topologies received by history component.
+     */
+    @Autowired
+    private IngestersConfig ingestersConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -103,10 +114,12 @@ public class HistoryComponent extends BaseVmtComponent {
         } catch (VmtDbException e) {
             throw new RuntimeException("DB Initialization / Migration error", e);
         }
+        log.info("Starting topology coordinator");
+        ingestersConfig.topologyCoordinator().startup();
 
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
-            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbConfig.historyDbIO()::connection));
+            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds, historyDbConfig.historyDbIO()::connection));
         getHealthMonitor().addHealthCheck(historyApiConfig.kafkaProducerHealthMonitor());
     }
 

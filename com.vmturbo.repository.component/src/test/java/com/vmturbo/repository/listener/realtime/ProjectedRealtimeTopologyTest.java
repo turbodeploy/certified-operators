@@ -10,17 +10,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
@@ -104,9 +107,15 @@ public class ProjectedRealtimeTopologyTest {
 
         final ProjectedRealtimeTopology topology = liveTopologyStore.getProjectedTopology().get();
 
-        final List<String> diags = topology.collectDiags().collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        topology.collectDiags(appender);
         JsonFormat.Parser parser = JsonFormat.parser();
-        final List<TopologyEntityDTO> deserializedDiags = topology.collectDiags()
+
+        final DiagnosticsAppender topologyAppender = Mockito.mock(DiagnosticsAppender.class);
+        topology.collectDiags(topologyAppender);
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(topologyAppender, Mockito.atLeastOnce()).appendString(captor.capture());
+        final List<TopologyEntityDTO> deserializedDiags = captor.getAllValues().stream()
             .map(entityDiag -> {
                 TopologyEntityDTO.Builder entityBldr = TopologyEntityDTO.newBuilder();
                 try {

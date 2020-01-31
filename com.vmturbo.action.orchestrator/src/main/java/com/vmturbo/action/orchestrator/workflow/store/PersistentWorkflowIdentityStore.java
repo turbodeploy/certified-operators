@@ -6,10 +6,10 @@ import static com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeEx
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.persistence.Column;
@@ -22,6 +22,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
@@ -143,21 +144,23 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
     }
 
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         try {
-            return fetchAllOidMappings().entrySet().stream()
-                    .map(entry -> {
-                        try {
-                            return new WorkflowHeader(entry.getKey(), entry.getValue());
-                        } catch (NumberFormatException | IdentityStoreException e) {
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .map(workflowHeader -> GSON.toJson(workflowHeader, WorkflowHeader.class));
+            for (Entry<IdentityMatchingAttributes, Long> entry : fetchAllOidMappings().entrySet()) {
+                final WorkflowHeader workflowHeader;
+                try {
+                    workflowHeader = new WorkflowHeader(entry.getKey(), entry.getValue());
+                } catch (NumberFormatException | IdentityStoreException e) {
+                    throw new DiagnosticsException("Failed to create workflow header for " + entry,
+                            e);
+                }
+                final String string = GSON.toJson(workflowHeader, WorkflowHeader.class);
+                appender.appendString(string);
+            }
         } catch (IdentityStoreException e) {
-            throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
-                    + "failed. %s", e));
+            throw new DiagnosticsException(
+                    String.format("Retrieving workflow identifiers from database " + "failed. %s",
+                            e));
         }
     }
 
@@ -179,6 +182,12 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
                         + "failed. %s", e));
             }
         });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return getClass().getSimpleName();
     }
 
     /**

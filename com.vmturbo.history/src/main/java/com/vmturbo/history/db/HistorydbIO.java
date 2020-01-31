@@ -15,16 +15,13 @@ import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.RELATION;
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.dateOrTimestamp;
-import static com.vmturbo.history.db.jooq.JooqUtils.doubl;
-import static com.vmturbo.history.db.jooq.JooqUtils.relType;
-import static com.vmturbo.history.db.jooq.JooqUtils.getBigDecimalField;
-import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
-import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
+import static com.vmturbo.history.db.jooq.JooqUtils.getDateOrTimestampField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.schema.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
@@ -67,7 +64,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.jooq.Condition;
 import org.jooq.Field;
-import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertSetStep;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
@@ -98,6 +95,8 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
@@ -105,9 +104,10 @@ import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.Scenarios;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
-import com.vmturbo.history.stats.MarketStatsAccumulator;
+import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -116,7 +116,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
 /**
  * Dbio Component for use within the History Component.
  **/
-public class  HistorydbIO extends BasedbIO {
+public class HistorydbIO extends BasedbIO {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -453,64 +453,64 @@ public class  HistorydbIO extends BasedbIO {
             .getClsName());
     }
 
-
     /**
      * Create an "insert" SQL statement for the given table  to be populated with values
      * for some number of rows to be inserted.
      *
-     * @param dbTable the xxx_stats_latest table into which the rows will be inserted
-     * @return a jooq insert statement to which values may be added.
+     * @param dbTable the xxx_stats_latest table into which the record will be inserted
+     * @param <R> record type
+     * @return a jooq {@link Record} object appropriate for that table
      */
-    public @Nonnull
-    InsertSetMoreStep<?> getCommodityInsertStatement(@Nonnull Table<?> dbTable) {
-        return (InsertSetMoreStep<?>) getJooqBuilder()
-            .insertInto(dbTable);
+    public @Nonnull <R extends Record> InsertSetStep<R> getCommodityInsertStatement(
+        @Nonnull Table<R> dbTable) {
+        return getJooqBuilder().insertInto(dbTable);
     }
 
 
     /**
-     * Create an "insert" SQL statement specifically for adding a row to the 'market_stats_latest'
-     * table.
+     * Create and populate a {@link MarketStatsLatestRecord} for insertion into the
+     * associated table.
      *
      * @param marketStatsData the data for one stats item; will be written to one row
      * @param topologyInfo    Information about the topology causing the market stats insert.
-     * @return an SQL statement to insert one row in the stats table
+     * @return a record to be inserted into the MarketStatsLatest table
      */
-    public InsertSetMoreStep<?> getMarketStatsInsertStmt(
-        @Nonnull final MarketStatsAccumulator.MarketStatsData marketStatsData,
+    public MarketStatsLatestRecord getMarketStatsRecord(
+        @Nonnull final MarketStatsData marketStatsData,
         @Nonnull final TopologyInfo topologyInfo) {
 
-        return getCommodityInsertStatement(MarketStatsLatest.MARKET_STATS_LATEST)
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.SNAPSHOT_TIME,
-                new Timestamp(topologyInfo.getCreationTime()))
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
-                topologyInfo.getTopologyContextId())
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_ID,
-                topologyInfo.getTopologyId())
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
-                marketStatsData.getEntityType())
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
-                marketStatsData.getEnvironmentType())
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE,
-                marketStatsData.getPropertyType())
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_SUBTYPE,
-                marketStatsData.getPropertySubtype())
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.CAPACITY,
-                clipValue(marketStatsData.getCapacity()))
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.AVG_VALUE,
-                clipValue(marketStatsData.getUsed()))
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.MIN_VALUE,
-                clipValue(marketStatsData.getMin()))
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.MAX_VALUE,
-                clipValue(marketStatsData.getMax()))
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.EFFECTIVE_CAPACITY,
-                clipValue(marketStatsData.getEffectiveCapacity()))
-            .set(MarketStatsLatest.MARKET_STATS_LATEST.RELATION,
-                marketStatsData.getRelationType());
+        final MarketStatsLatestRecord record = MarketStatsLatest.MARKET_STATS_LATEST.newRecord();
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.SNAPSHOT_TIME,
+                new Timestamp(topologyInfo.getCreationTime()));
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
+                topologyInfo.getTopologyContextId());
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_ID,
+                topologyInfo.getTopologyId());
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
+            marketStatsData.getEntityType());
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
+            marketStatsData.getEnvironmentType());
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE,
+            marketStatsData.getPropertyType());
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_SUBTYPE,
+            marketStatsData.getPropertySubtype());
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.CAPACITY,
+            clipValue(marketStatsData.getCapacity()));
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.AVG_VALUE,
+            clipValue(marketStatsData.getUsed()));
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.MIN_VALUE,
+            clipValue(marketStatsData.getMin()));
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.MAX_VALUE,
+            clipValue(marketStatsData.getMax()));
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.EFFECTIVE_CAPACITY,
+            clipValue(marketStatsData.getEffectiveCapacity()));
+        record.set(MarketStatsLatest.MARKET_STATS_LATEST.RELATION,
+            marketStatsData.getRelationType());
+        return record;
     }
 
     /**
-     * Populate an "insert" SQL statement with the values for this commodity.
+     * Populate a {@link Record} instance with commodity values
      *
      * @param propertyType      the string name of the property (mixed case)
      * @param snapshotTime      the time of the snapshot
@@ -520,22 +520,23 @@ public class  HistorydbIO extends BasedbIO {
      * @param capacity          the capacity of the commodity
      * @param effectiveCapacity the effective capacity of the commodity
      * @param commodityKey      the external association key for this commodity
-     * @param insertStmt        the insert SQL statement to insert the commodity row
+     * @param record            the record being populated
      * @param table             stats db table for this entity type
      */
-    public void initializeCommodityInsert(@Nonnull String propertyType,
-                                          long snapshotTime,
-                                          long entityId,
-                                          @Nonnull RelationType relationType,
-                                          @Nullable Long providerId,
-                                          @Nullable Double capacity,
-                                          @Nullable Double effectiveCapacity,
-                                          @Nullable String commodityKey,
-                                          @Nonnull InsertSetMoreStep<?> insertStmt,
-                                          @Nonnull Table<?> table) {
+    public void initializeCommodityRecord(
+        @Nonnull String propertyType,
+        long snapshotTime,
+        long entityId,
+        @Nonnull RelationType relationType,
+        @Nullable Long providerId,
+        @Nullable Double capacity,
+        @Nullable Double effectiveCapacity,
+        @Nullable String commodityKey,
+        @Nonnull Record record,
+        @Nonnull Table<?> table) {
         // providerId might be null
         String providerIdString = providerId != null ? Long.toString(providerId) : null;
-        insertStmt.set(str(dField(table, PRODUCER_UUID)), providerIdString);
+        record.set(getStringField(table, PRODUCER_UUID), providerIdString);
         // commodity_key is limited in length
         if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
             String longCommditiyKey = commodityKey;
@@ -544,41 +545,43 @@ public class  HistorydbIO extends BasedbIO {
                 longCommditiyKey.length(), commodityKey);
         }
         // populate the other fields; all fields are nullable based on DB design; Is that best?
-        insertStmt
-            .set(dateOrTimestamp(dField(table, SNAPSHOT_TIME)),
-                new java.sql.Timestamp(snapshotTime))
-            .set(str(dField(table, UUID)), Long.toString(entityId))
-            .set(str(dField(table, PROPERTY_TYPE)), propertyType)
-            // 5 = propertySubtype - to be filled in later
-            .set(doubl(dField(table, CAPACITY)), clipValue(capacity))
-            .set(doubl(dField(table, EFFECTIVE_CAPACITY)), clipValue(effectiveCapacity))
-            // 7, 8, 9 = avg, min, max - to be filled in later
-            .set(relType(dField(table, RELATION)), relationType)
-            .set(str(dField(table, COMMODITY_KEY)), commodityKey);
+        // property_subtype, avg_value, min_value, max_value are all set elsewhere
+        record.set(getDateOrTimestampField(table, SNAPSHOT_TIME),
+            new java.sql.Timestamp(snapshotTime));
+        record.set(getStringField(table, UUID), Long.toString(entityId));
+        record.set(getStringField(table, PROPERTY_TYPE), propertyType);
+        record.set(getDoubleField(table, CAPACITY), clipValue(capacity));
+        record.set(getDoubleField(table, EFFECTIVE_CAPACITY), clipValue(effectiveCapacity));
+        record.set(getRelationTypeField(table, RELATION), relationType);
+        record.set(getStringField(table, COMMODITY_KEY), commodityKey);
     }
 
     /**
-     * Set the values for the subtype of this property.
+     * Set the used and peak values for the subtype of this property.
      * <p>
-     * For commodities that have peak values set, it is sent as parameter
-     * For attributes that are saved like priceIndex, produces, there is
-     * no peak value 0 is sent
-     *
+     * For commodities that have peak values set, peak will contain a
+     * non-zero value while for attributes that do not have peak value,
+     * (Produces/PriceIndex etc.) 0 will be sent as parameter
+     *`
      * @param propertySubtype the subtype of the property, e.g. "used" or "utilization"
-     * @param used           the used (average) value of the commodity
+     * @param used           the average used value of the commodity
      * @param peak           the peak value of the commodity
-     * @param insertStmt      the SQL statement to insert the commodity row
-     * @param table           the xxx_stats_latest table where this data will be written
+     * @param record         the record being populated
+     * @param table          the xxx_stats_latest table where this data will be written
      */
-    public void setCommodityValues(@Nonnull String propertySubtype, double used, double peak,
-                                   @Nonnull InsertSetMoreStep insertStmt, @Nonnull Table<?> table) {
+    public void setCommodityValues(
+        @Nonnull String propertySubtype,
+        final double used,
+        final double peak,
+        @Nonnull Record record,
+        @Nonnull Table<?> table) {
 
-        used = clipValue(used);
-        peak = clipValue(peak);
-        insertStmt.set(str(dField(table, PROPERTY_SUBTYPE)), propertySubtype);
-        insertStmt.set(doubl(dField(table, AVG_VALUE)), used);
-        insertStmt.set(doubl(dField(table, MIN_VALUE)), used);
-        insertStmt.set(doubl(dField(table, MAX_VALUE)), Math.max(used, peak));
+        double clipped = clipValue(used);
+        double clippedPeak = clipValue(peak);
+        record.set(getStringField(table, PROPERTY_SUBTYPE), propertySubtype);
+        record.set(getDoubleField(table, AVG_VALUE), clipped);
+        record.set(getDoubleField(table, MIN_VALUE), clipped);
+        record.set(getDoubleField(table, MAX_VALUE), Math.max(clipped, clippedPeak));
     }
 
     /**
@@ -605,43 +608,21 @@ public class  HistorydbIO extends BasedbIO {
      */
     @Nonnull
     public List<Timestamp> getTimestampsInRange(@Nonnull final TimeFrame timeFrame,
-                                                final long startTime,
-                                                final long endTime,
-                                                @Nonnull final Optional<EntityType> specificEntityType,
-                                                @Nonnull final Optional<String> specificEntityOid) throws VmtDbException {
+            final long startTime,
+            final long endTime,
+            @Nonnull final Optional<EntityType> specificEntityType,
+            @Nonnull final Optional<String> specificEntityOid) throws VmtDbException {
 
-        // we are using the vm table, in case it's not specified in the method
-        final EntityType entityType = specificEntityType.orElse(EntityType.VIRTUAL_MACHINE);
-
-        final Table<?> table = statsTableByTimeFrame(entityType, timeFrame);
-        final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(table, SNAPSHOT_TIME);
-
-        // where condition
-        List<Condition> whereConditions = new ArrayList<>(2);
-        final Condition betweenTimeCondition =
-            HistoryStatsUtils.betweenStartEndTimestampCond(snapshotTimeField, timeFrame, startTime, endTime);
-        whereConditions.add(betweenTimeCondition);
-
-        // add the specific entity in the where condition, if present
-        // we can add the specific entity only if also the type has been specified
-        if (specificEntityOid.isPresent() && specificEntityType.isPresent()) {
-            // select only the single entity
-            final Field<String> uuidField = (Field<String>) dField(table, UUID);
-            final Condition specificUuidCondition = str(uuidField).eq(specificEntityOid.get());
-            whereConditions.add(specificUuidCondition);
+        final Query query;
+        if (specificEntityType.isPresent() && specificEntityOid.isPresent()) {
+            query = Queries.getAvailableEntityTimestampsQuery(
+                    timeFrame, specificEntityType.get(), specificEntityOid.get(), 1,
+                    new Timestamp(startTime), new Timestamp(endTime), false);
+        } else {
+            query = Queries.getAvailableSnapshotTimesQuery(
+                    timeFrame, HistoryVariety.ENTITY_STATS, 0, new Timestamp(startTime), new Timestamp(endTime));
         }
-
-        // create query
-        final Query query = getJooqBuilder()
-            // The distinct is important! We will return lots of rows otherwise.
-            .selectDistinct(timestamp(snapshotTimeField))
-            .from(table)
-            .where(whereConditions)
-            // Descending order - most recent first.
-            .orderBy(snapshotTimeField.desc());
-
-        return execute(Style.FORCED, query).getValues(snapshotTimeField);
-
+        return (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
     }
 
     /**
@@ -652,10 +633,7 @@ public class  HistorydbIO extends BasedbIO {
      * pagination param which will be used in the condition to query data. If it does not exist, commodity
      * in {@link StatsFilter} will be considered as the condition to query data.
      *
-     * @param statsFilter          stats filter which contains commodity requests. If requests
-     *                             contains both regular commodities and PI, fetch time stamp
-     *                             for regular commodities unless {@link isTimestampForPIOrNot}
-     *                             is true.
+     * @param statsFilter          stats filter which contains commodity requests.
      * @param entityTypeOpt        entity type to use for getting the time stamp.
      * @param specificEntityOidOpt entity to use for the lookup in the table.
      * @param timepPointOpt        time point to specify end time. If not present, the result is
@@ -665,37 +643,23 @@ public class  HistorydbIO extends BasedbIO {
      *                             closest time to a given time point.
      */
     public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-                                                         @Nonnull final Optional<EntityType> entityTypeOpt,
-                                                         @Nonnull final Optional<String> specificEntityOidOpt,
-                                                         @Nonnull final Optional<Long> timepPointOpt,
-                                                         @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
-                                                         throws IllegalArgumentException {
+            @Nonnull final Optional<EntityType> entityTypeOpt,
+            @Nonnull final Optional<String> specificEntityOidOpt,
+            @Nonnull final Optional<Long> timepPointOpt,
+            @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
+            throws IllegalArgumentException {
         try (Connection conn = connection()) {
-
-            // we are using the vm table, in case it's not specified in the method
-            final Table<?> latestEntityTable;
-            if (entityTypeOpt.isPresent()) {
-                latestEntityTable = entityTypeOpt.get().getLatestTable();
-            } else {
-                latestEntityTable = MARKET_STATS_LATEST;
-            }
-
-            // where condition
-            List<Condition> whereConditions = new ArrayList<>(3);
-            // always true condition, in case special cases are not specified
-            whereConditions.add(DSL.trueCondition());
-
-            final Field<Timestamp> snapshotTimeField = (Field<Timestamp>) dField(latestEntityTable, SNAPSHOT_TIME);
-            if (timepPointOpt.isPresent()) {
-                whereConditions.add(timestamp(snapshotTimeField).lessOrEqual(new java.sql.Timestamp(timepPointOpt.get())));
-            }
-
-            final Field<String> propertyTypeField = (Field<String>) dField(latestEntityTable, PROPERTY_TYPE);
+            Timestamp exclusiveUpperTimeBound =
+                    // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
+                    timepPointOpt.map(t -> new Timestamp(t + 1))
+                            .orElse(null);
+            final String[] propertyTypes;
+            boolean excludeProperties = false;
             if (paginationParams.isPresent()) {
-                if (StringUtils.isEmpty(paginationParams.get().getSortCommodity())) {
-                    throw new IllegalArgumentException("Sort commodity in pagination parameter does not exist.");
+                if (!StringUtils.isEmpty(paginationParams.get().getSortCommodity())) {
+                    propertyTypes = new String[]{paginationParams.get().getSortCommodity()};
                 } else {
-                    whereConditions.add(str(propertyTypeField).eq(paginationParams.get().getSortCommodity()));
+                    throw new IllegalArgumentException("Sort commodity in pagination parameter does not exist.");
                 }
             } else {
                 // check the commodity request list, if it only contains PI, fetch data for PI,
@@ -705,36 +669,16 @@ public class  HistorydbIO extends BasedbIO {
                 // we want only regular commodity timestamp, so we need to exclude PI in the query.
                 // Note: in cases where the request contains currentPI, since it should have the same
                 // timestamp as PI in DB, we can still use PI in the where condition
-                final boolean isCommRequestOnlyPI = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList());
-                if (isCommRequestOnlyPI) {
-                    whereConditions.add(str(propertyTypeField).eq(PRICE_INDEX));
-                } else {
-                    // if the commodity request list is empty in statsFilter, typically we want to
-                    // get all regular commodities such as CPU, Mem, etc. Therefore we also exclude
-                    // price index.
-                    whereConditions.add(str(propertyTypeField).ne(PRICE_INDEX));
-                }
-            }
-
-            // we can add the specific entity only if also the type has been specified
-            if (specificEntityOidOpt.isPresent() && entityTypeOpt.isPresent()) {
-                // select only the single entity
-                final Field<String> uuidField = (Field<String>) dField(latestEntityTable, UUID);
-                whereConditions.add(str(uuidField).eq(specificEntityOidOpt.get()));
+                propertyTypes = new String[]{PRICE_INDEX};
+                excludeProperties = !isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList());
             }
 
             // create select query
-            final Query query = getJooqBuilder()
-                .select(timestamp(snapshotTimeField))
-                .from(latestEntityTable)
-                //it's not a real where, unless we specified an entity
-                .where(whereConditions)
-                // Descending order (i.e. most recent first)
-                .orderBy(snapshotTimeField.desc())
-                // Take the first one - this will be the most recent.
-                .limit(1);
-
-            final List<Timestamp> snapshotTimeRecords = execute(Style.FORCED, query).getValues(snapshotTimeField);
+            final Query query = Queries.getAvailableEntityTimestampsQuery(
+                    TimeFrame.LATEST, entityTypeOpt.orElse(null), specificEntityOidOpt.orElse(null), 1,
+                    null, exclusiveUpperTimeBound, excludeProperties, propertyTypes);
+            final List<Timestamp> snapshotTimeRecords
+                    = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
 
             if (!snapshotTimeRecords.isEmpty()) {
                 return Optional.of(snapshotTimeRecords.get(0));
@@ -854,27 +798,26 @@ public class  HistorydbIO extends BasedbIO {
         final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
         // Now we have the entity type, we can use it together with the time frame to
         // figure out the table to paginate in.
-        final Table<?> table = statsTableByTimeFrame(entityType, tFrame);
+        final Table<?> table = entityType.getTimeFrameTable(tFrame);
 
         final List<Condition> conditions = new ArrayList<>();
-        conditions.add(timestamp(dField(table, SNAPSHOT_TIME)).eq(timestamp));
-        conditions.add(str(dField(table, PROPERTY_TYPE)).eq(paginationParams.getSortCommodity()));
+        conditions.add(getTimestampField(table, SNAPSHOT_TIME).eq(timestamp));
+        conditions.add(getStringField(table, PROPERTY_TYPE).eq(paginationParams.getSortCommodity()));
         if (!paginationParams.getSortCommodity().equals(PRICE_INDEX)) {
             // For "regular" commodities (e.g. CPU, Mem), we want to make sure to sort by the used
             // value and only use commodities that are being sold.
-            conditions.add(str(dField(table, PROPERTY_SUBTYPE)).eq(PROPERTY_SUBTYPE_USED));
-            conditions.add(relType(dField(table, RELATION)).eq(RelationType.COMMODITIES));
+            conditions.add(getStringField(table, PROPERTY_SUBTYPE).eq(PROPERTY_SUBTYPE_USED));
+            conditions.add(getRelationTypeField(table, RELATION).eq(RelationType.COMMODITIES));
         }
 
         final Field<BigDecimal> avgValue =
-            avg(doubl(dField(table, AVG_VALUE))).as(AVG_VALUE);
+            avg(getDoubleField(table, AVG_VALUE)).as(AVG_VALUE);
         final Field<BigDecimal> avgCapacity =
-            avg(doubl(dField(table, CAPACITY))).as(CAPACITY);
+            avg(getDoubleField(table, CAPACITY)).as(CAPACITY);
         final Field<String> uuid =
-            str(dField(table, UUID));
+            getStringField(table, UUID);
 
         final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
-
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuid.in(requestedIdSet));
         }
@@ -889,7 +832,7 @@ public class  HistorydbIO extends BasedbIO {
                 .from(table)
                 .where(conditions)
                 .groupBy(uuid).asTable();
-            final Field<String> aggregateUuidField =  str(dField(aggregatedStats, UUID));
+            final Field<String> aggregateUuidField = getStringField(aggregatedStats, UUID);
             final Field<BigDecimal> aggregateValueField =
                 seekPaginationCursor.getValueField(paginationParams,
                 aggregatedStats);
@@ -955,9 +898,9 @@ public class  HistorydbIO extends BasedbIO {
     @VisibleForTesting
     Field<Double> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
                                 @Nonnull final Table<?> table) {
-        final Field<Double> avgValueField = (Field<Double>) dField(table, AVG_VALUE);
+        final Field<Double> avgValueField = getDoubleField(table, AVG_VALUE);
         return paginationParams.getSortCommodity().equals(PRICE_INDEX)
-            ? avgValueField : avgValueField.divide((Field<Double>) dField(table, CAPACITY));
+            ? avgValueField : avgValueField.divide(getDoubleField(table, CAPACITY));
     }
 
     /**
@@ -1354,7 +1297,9 @@ public class  HistorydbIO extends BasedbIO {
             .set(RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
             .where(RETENTION_POLICIES.POLICY_NAME.eq(
                 retentionSettingNameToDbColumnName.get(settingName))));
-
+        // reload data cached in RetentionPolicy instance, and adjust expiration times in existing
+        // available_timestamps records
+        RetentionPolicy.onChange();
         return Optional.of(createSetting(settingName, retentionPeriod));
     }
 
@@ -1425,13 +1370,13 @@ public class  HistorydbIO extends BasedbIO {
         try (Connection conn = connection()) {
             Result<? extends Record> statsRecords =
                 using(conn)
-                    .select(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE), dField(tbl, COMMODITY_KEY),
-                        DSL.max(dField(tbl, MAX_VALUE)))
+                    .select(getField(tbl, UUID), getField(tbl, PROPERTY_TYPE), getField(tbl, COMMODITY_KEY),
+                        DSL.max(getField(tbl, MAX_VALUE)))
                     .from(tbl)
                     // only interested in used and sold commodities
-                    .where(str(dField(tbl, PROPERTY_SUBTYPE)).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
-                        (relType(dField(tbl, RELATION))).eq(RelationType.COMMODITIES)))
-                    .groupBy(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE))
+                    .where(getStringField(tbl, PROPERTY_SUBTYPE).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
+                        (getRelationTypeField(tbl, RELATION)).eq(RelationType.COMMODITIES)))
+                    .groupBy(getField(tbl, UUID), getField(tbl, PROPERTY_TYPE))
                     .fetch(); //TODO:karthikt - check if fetchLazy would help here.
             logger.debug("Number of records fetched for table {} = {}", tbl, statsRecords.size());
             return convertToEntityCommoditiesMaxValues(tbl, statsRecords);
@@ -1454,7 +1399,7 @@ public class  HistorydbIO extends BasedbIO {
             maxStatsRecords
                 .stream()
                 .collect(Collectors.groupingBy(
-                    rec -> rec.getValue(str(dField(tbl, UUID)))));
+                    rec -> rec.getValue(getStringField(tbl, UUID))));
         // Create the protobuf messages
         entityIdToRecordGrouping.forEach((key, records) -> {
             EntityCommoditiesMaxValues.Builder entityMaxValuesBuilder =
@@ -1466,17 +1411,16 @@ public class  HistorydbIO extends BasedbIO {
                     CommodityMaxValue.newBuilder()
                         .setMaxValue(record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class)))
                         .setCommodityType(
-                    CommodityType.newBuilder()
-                        .setType(UICommodityType.fromString(
-                            record.getValue(str(dField(tbl, PROPERTY_TYPE)))).typeNumber())
-                        // WARN : CommodityKey gets truncated in length when
-                        // being stored in the DB. It's a one-way function. This will lead to
-                        // correctness problems if keys share common prefix and they get truncated
-                        // at a common prefix boundary.
-                        .setKey(record.getValue(str(dField(tbl, COMMODITY_KEY))))
-                        .build())
-                    .build();
-
+                            CommodityType.newBuilder()
+                                .setType(UICommodityType.fromString(
+                                    record.getValue(getStringField(tbl, PROPERTY_TYPE))).typeNumber())
+                                // WARN : CommodityKey gets truncated in length when
+                                // being stored in the DB. It's a one-way function. This will lead to
+                                // correctness problems if keys share common prefix and they get truncated
+                                // at a common prefix boundary.
+                                .setKey(record.getValue(getStringField(tbl, COMMODITY_KEY)))
+                                .build())
+                        .build();
 
                 entityMaxValuesBuilder.addCommodityMaxValues(commodityMaxValue);
             });
@@ -1761,10 +1705,10 @@ public class  HistorydbIO extends BasedbIO {
         static Field<BigDecimal> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
                                     @Nonnull final Table<?> table) {
             final Field<BigDecimal> avgValueField =
-                getBigDecimalField(table, AVG_VALUE);
+                JooqUtils.getBigDecimalField(table, AVG_VALUE);
             return paginationParams.getSortCommodity().equals(PRICE_INDEX)
                 ? avgValueField :
-                avgValueField.divide(getBigDecimalField(table, CAPACITY));
+                avgValueField.divide(JooqUtils.getBigDecimalField(table, CAPACITY));
         }
 
         /**
@@ -1790,14 +1734,14 @@ public class  HistorydbIO extends BasedbIO {
                 // to be different than the one passed in the cursor
 
                 List<Condition> conditions = new ArrayList<>();
-                conditions.add(row((Field<String>) dField(table, UUID)).ne(lastId.get()));
+                conditions.add(row(getStringField(table, UUID)).ne(lastId.get()));
                 if (paginationParams.isAscending()) {
                     conditions.add(row(getValueField(paginationParams, table),
-                        (Field<String>) dField(table, UUID)).ge(lastValue.get(), lastId.get()));
+                        getStringField(table, UUID)).ge(lastValue.get(), lastId.get()));
                     return Optional.of(conditions);
                 } else {
                     conditions.add(row(getValueField(paginationParams, table),
-                        (Field<String>) dField(table, UUID)).le(lastValue.get(), lastId.get()));
+                        getStringField(table, UUID)).le(lastValue.get(), lastId.get()));
                     return Optional.of(conditions);
                 }
             } else {

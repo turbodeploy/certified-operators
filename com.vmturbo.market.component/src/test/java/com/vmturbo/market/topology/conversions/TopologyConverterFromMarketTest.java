@@ -25,11 +25,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.protobuf.util.JsonFormat;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -55,6 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -70,6 +72,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -77,7 +80,6 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -120,6 +122,9 @@ public class TopologyConverterFromMarketTest {
 
     CommodityType vMemType = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
+
+    CommodityType vStorageType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VSTORAGE_VALUE).build();
 
     TopologyEntityDTO region1 = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.REGION_VALUE).setOid(1).build();
@@ -1256,7 +1261,7 @@ public class TopologyConverterFromMarketTest {
     }
 
     private TraderTO createVMTOs(CommodityBoughtTO boughtTO,
-                                     CommoditySoldTO soldTO,
+                                     List<CommoditySoldTO> soldTOList,
                                      long oid, long supplierId,
                                  long shoppinglistOid ) {
         EconomyDTOs.TraderTO vmTO = EconomyDTOs.TraderTO.newBuilder().setOid(CLOUD_VM_OID)
@@ -1266,7 +1271,7 @@ public class TopologyConverterFromMarketTest {
                         .setSupplier(supplierId)
                         .addCommoditiesBought(boughtTO)
                         .build())
-                .addCommoditiesSold(soldTO).build();
+                .addAllCommoditiesSold(soldTOList).build();
         return vmTO;
     }
 
@@ -1284,7 +1289,6 @@ public class TopologyConverterFromMarketTest {
 
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
-
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
@@ -1292,18 +1296,18 @@ public class TopologyConverterFromMarketTest {
         converter.cloudTc = mockCloudTc;
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
-                EntityType.COMPUTE_TIER_VALUE, CommodityDTO.CommodityType.MEM_VALUE);
+                EntityType.COMPUTE_TIER_VALUE,
+                ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE,
+                                CommodityDTO.CommodityType.VSTORAGE_VALUE));
         TopologyDTO.TopologyEntityDTO newTierDTO = createEntityDTO(CLOUD_NEW_COMPUTE_TIER_OID,
-                EntityType.COMPUTE_TIER_VALUE, CommodityDTO.CommodityType.MEM_VALUE);
+                EntityType.COMPUTE_TIER_VALUE,
+                ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE,
+                        CommodityDTO.CommodityType.VSTORAGE_VALUE));
 
         CommoditySoldTO newTierSold = createSoldTO(CommodityDTO.CommodityType.MEM_VALUE,
-                OLD_TIER_CAPACITY * 2);
-        EconomyDTOs.TraderTO newTier =
-                EconomyDTOs.TraderTO.newBuilder().setOid(CLOUD_NEW_COMPUTE_TIER_OID)
-                        .setState(TraderStateTO.ACTIVE)
-                        .setOid(CLOUD_NEW_COMPUTE_TIER_OID)
-                        .setType(EntityType.COMPUTE_TIER_VALUE)
-                        .addCommoditiesSold(newTierSold).build();
+                OLD_TIER_CAPACITY * 2, true);
+        CommoditySoldTO newTierVstorageSold = createSoldTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
+                OLD_TIER_CAPACITY * 2, true);
 
         TopologyDTO.TopologyEntityDTO originalEntityDTO = createOriginalDTOAndMockIndex(mockINdex);
         CommodityBoughtTO boughtTO =
@@ -1315,15 +1319,23 @@ public class TopologyConverterFromMarketTest {
                 createBoughtTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE,
                         THRUGHPUT_USED / 2);
         CommoditySoldTO soldTO = createSoldTO(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE,
-                OLD_TIER_CAPACITY);
+                OLD_TIER_CAPACITY, true);
         Mockito.doReturn(Optional.of(vMemType))
                 .when(mockCommodityConverter)
                 .economyToTopologyCommodity(Mockito.eq(soldTO.getSpecification()));
+        CommoditySoldTO soldvStorage = createSoldTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
+                OLD_TIER_CAPACITY, true);
+        Mockito.doReturn(Optional.of(vStorageType))
+                .when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(soldvStorage.getSpecification()));
 
 
-        EconomyDTOs.TraderTO vmTO = createVMTOs(boughtTO, soldTO, CLOUD_VM_OID,
+        EconomyDTOs.TraderTO vmTO = createVMTOs(boughtTO,
+                ImmutableList.of(soldTO, soldvStorage),
+                CLOUD_VM_OID,
                 CLOUD_NEW_COMPUTE_TIER_OID, CLOUD_VM_OID + 1L);
-        EconomyDTOs.TraderTO oldVMTO = createVMTOs(oldBoughtTO, soldTO, CLOUD_VM_OID,
+        EconomyDTOs.TraderTO oldVMTO = createVMTOs(oldBoughtTO,
+                ImmutableList.of(soldTO, soldvStorage), CLOUD_VM_OID,
                 CLOUD_COMPUTE_TIER_OID, CLOUD_VM_OID + 3L);
 
         MarketTier marketTier = new OnDemandMarketTier(newTierDTO);
@@ -1350,17 +1362,112 @@ public class TopologyConverterFromMarketTest {
                                 CLOUD_NEW_COMPUTE_TIER_OID, newTierDTO),
                         PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
                         setUpWastedFileAnalysis());
-        verifyTOtoDTOConversions(projectedTOs);
+        verifyTOtoDTOConversions(projectedTOs,
+                ImmutableList.of(CommodityDTO.CommodityType.VMEM_VALUE,
+                        CommodityDTO.CommodityType.VMEM_VALUE), true);
+
+    }
+
+    /**
+     * Unit test the TO to projected DTO conversions with respect to
+     * the bought commodity usage and the sold commodity capacity.
+     */
+    @Test
+    public void testProjectedCommodityCapacityVStorage() {
+
+        CloudTopologyConverter mockCloudTc = Mockito.mock(CloudTopologyConverter.class);
+        CommodityIndex mockINdex = Mockito.mock(CommodityIndex.class);
+        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
+        when(indexFactory.newIndex()).thenReturn(mockINdex);
+
+        TopologyInfo topoInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.PLAN).build();
+        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
+                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
+                consistentScalingHelperFactory));
+        converter.cloudTc = mockCloudTc;
+
+        TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
+                EntityType.COMPUTE_TIER_VALUE,
+                ImmutableList.of(CommodityDTO.CommodityType.VSTORAGE_VALUE));
+        TopologyDTO.TopologyEntityDTO newTierDTO = createEntityDTO(CLOUD_NEW_COMPUTE_TIER_OID,
+                EntityType.COMPUTE_TIER_VALUE,
+                ImmutableList.of(CommodityDTO.CommodityType.VSTORAGE_VALUE));
+
+        CommoditySoldTO newTierVstorageSold = createSoldTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
+                OLD_TIER_CAPACITY * 2, true);
+
+        EconomyDTOs.TraderTO newTier =
+                EconomyDTOs.TraderTO.newBuilder().setOid(CLOUD_NEW_COMPUTE_TIER_OID)
+                        .setState(TraderStateTO.ACTIVE)
+                        .setOid(CLOUD_NEW_COMPUTE_TIER_OID)
+                        .setType(EntityType.COMPUTE_TIER_VALUE)
+                        .addCommoditiesSold(newTierVstorageSold).build();
+
+        TopologyDTO.TopologyEntityDTO originalEntityDTO = createOriginalDTOAndMockIndex(mockINdex);
+        CommodityBoughtTO boughtTO =
+                createBoughtTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, THRUGHPUT_USED);
+        Mockito.doReturn(Optional.of(ioType)).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(boughtTO.getSpecification()));
+
+        CommodityBoughtTO oldBoughtTO =
+                createBoughtTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE,
+                        THRUGHPUT_USED / 2);
+        CommoditySoldTO soldvStorage = createSoldTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
+                OLD_TIER_CAPACITY, false);
+        Mockito.doReturn(Optional.of(vStorageType))
+                .when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(soldvStorage.getSpecification()));
+
+
+        EconomyDTOs.TraderTO vmTO = createVMTOs(boughtTO,
+                ImmutableList.of(soldvStorage),
+                CLOUD_VM_OID,
+                CLOUD_NEW_COMPUTE_TIER_OID, CLOUD_VM_OID + 1L);
+        EconomyDTOs.TraderTO oldVMTO = createVMTOs(oldBoughtTO,
+                ImmutableList.of(soldvStorage), CLOUD_VM_OID,
+                CLOUD_COMPUTE_TIER_OID, CLOUD_VM_OID + 3L);
+
+        MarketTier marketTier = new OnDemandMarketTier(newTierDTO);
+        Mockito.doReturn(marketTier).when(mockCloudTc).getPrimaryMarketTier(Mockito.eq(vmTO));
+        Mockito.doReturn(marketTier).when(mockCloudTc).getMarketTier(Mockito.anyLong());
+        ImmutableList marketTierIDs = ImmutableList.of(CLOUD_COMPUTE_TIER_OID,
+                CLOUD_NEW_COMPUTE_TIER_OID);
+        Mockito.doReturn(true).when(mockCloudTc)
+                .isMarketTier(longThat(isIn(marketTierIDs)));
+
+        Mockito.doReturn(true).when(mockCloudTc)
+                .isMarketTier(Mockito.eq(CLOUD_NEW_COMPUTE_TIER_OID));
+        Mockito.doReturn(Collections.singleton(oldTierDTO)).when(mockCloudTc)
+                .getTopologyEntityDTOProvidersOfType(any(), Mockito.anyInt());
+        Mockito.doReturn(oldVMTO).when(converter)
+                .topologyDTOtoTraderTO(Mockito.eq(originalEntityDTO));
+        Mockito.doReturn(Optional.empty()).when(mockCloudTc).getComputeTier(any());
+        Mockito.doReturn(Optional.empty()).when(mockCloudTc)
+                .getRiDiscountedMarketTier(Mockito.anyLong());
+
+        Map<Long, ProjectedTopologyEntity> projectedTOs =
+                converter.convertFromMarket(Collections.singletonList(vmTO),
+                        ImmutableMap.of(originalEntityDTO.getOid(), originalEntityDTO,
+                                CLOUD_NEW_COMPUTE_TIER_OID, newTierDTO),
+                        PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                        setUpWastedFileAnalysis());
+        verifyTOtoDTOConversions(projectedTOs,
+                ImmutableList.of(CommodityDTO.CommodityType.VSTORAGE_VALUE), false);
 
     }
 
     private CommoditySoldTO createSoldTO(final int typeValue,
-                                         final double capacity) {
+                                         final double capacity,
+                                         final boolean resizable) {
         CommoditySoldTO soldTO = CommoditySoldTO.newBuilder()
                 .setSpecification(CommoditySpecificationTO.newBuilder()
                         .setBaseType(typeValue)
                         .setType(typeValue).build())
                 .setCapacity((float)capacity)
+                .setSettings(CommoditySoldSettingsTO.newBuilder()
+                        .setResizable(resizable).build())
                 .build();
         return soldTO;
 
@@ -1411,22 +1518,24 @@ public class TopologyConverterFromMarketTest {
 
     private TopologyEntityDTO createEntityDTO(final long entityOid,
                                               final int entityTypeValue,
-                                              final int soldCommodityTypeValue) {
+                                              final List<Integer> soldCommodityTypeValues) {
 
-        TopologyDTO.TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+        Builder entityDTO = TopologyEntityDTO.newBuilder()
                 .setOid(entityOid)
-                .setEntityType(entityTypeValue)
+                .setEntityType(entityTypeValue);
+        for (int type: soldCommodityTypeValues) {
+            entityDTO
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setCommodityType(
                                 CommodityType.newBuilder()
-                                        .setType(soldCommodityTypeValue).build())
-                        .build())
-                .build();
-        return entityDTO;
+                                        .setType(type).build()));
+        }
+        return entityDTO.build();
     }
 
 
-    private void verifyTOtoDTOConversions(Map<Long, ProjectedTopologyEntity> projectedTOs) {
+    private void verifyTOtoDTOConversions(Map<Long, ProjectedTopologyEntity> projectedTOs,
+                                          List<Integer> types, boolean resizable) {
         Assert.assertEquals(1, projectedTOs.size());
         ProjectedTopologyEntity projectedTopologyEntity =
                 projectedTOs.entrySet().iterator().next().getValue();
@@ -1434,13 +1543,22 @@ public class TopologyConverterFromMarketTest {
         final List<CommoditySoldDTO> projectedSoldList =
                 projectedTopologyEntity.getEntity().getCommoditySoldListList();
         Assert.assertNotNull(projectedSoldList);
-        Assert.assertEquals(1,
-                projectedTopologyEntity.getEntity().getCommoditySoldListCount());
-        final CommoditySoldDTO projectedSoldDTO =
-                projectedTopologyEntity.getEntity().getCommoditySoldList(0);
-        Assert.assertNotNull(projectedSoldDTO);
-        // Test if returned sold capacity is the new provider (tier capacity)
-        Assert.assertEquals(OLD_TIER_CAPACITY * 2, projectedSoldDTO.getCapacity(), DELTA);
+
+        for (int type: types) {
+            final Optional<CommoditySoldDTO> projectedSoldDTO =
+                    projectedTopologyEntity.getEntity().getCommoditySoldListList().stream()
+                            .filter(e -> e.getCommodityType().getType() == type)
+                            .findFirst();
+            projectedTopologyEntity.getEntity().getCommoditySoldList(0);
+            Assert.assertTrue(projectedSoldDTO.isPresent());
+            // Test if returned sold capacity is the new provider (tier capacity)
+            double newCapacity = OLD_TIER_CAPACITY;
+            if (resizable) {
+                newCapacity = OLD_TIER_CAPACITY * 2;
+            }
+            Assert.assertEquals(newCapacity, projectedSoldDTO.get().getCapacity(), DELTA);
+        }
+
         final List<CommoditiesBoughtFromProvider> boughtProvList =
                 projectedTopologyEntity.getEntity().getCommoditiesBoughtFromProvidersList();
         Assert.assertNotNull(boughtProvList);

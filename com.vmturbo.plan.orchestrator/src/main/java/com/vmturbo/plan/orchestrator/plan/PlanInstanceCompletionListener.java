@@ -14,6 +14,7 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
 
     private final PlanInstanceQueue planInstanceQueue;
 
+
     public PlanInstanceCompletionListener(PlanInstanceQueue planInstanceQueue) {
         this.planInstanceQueue = planInstanceQueue;
     }

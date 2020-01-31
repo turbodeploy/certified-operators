@@ -8,14 +8,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Multimap;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.time.DateUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,10 +30,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -40,25 +44,30 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * and make calculations regarding the system load of the system.
  */
 public class SystemLoadHelper {
+    // TODO unify: Any 7.21 changes needed?
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static SystemLoadWriter systemLoadWriter = null;
-    private static SystemLoadReader systemLoadReader = null;
+    private SystemLoadReader systemLoadReader = null;
 
-    private final Object curSystemLoadLock = new Object();
+    private final HistorydbIO historydbIO;
 
     private final SetOnce<Map<String, Pair<Double, Date>>> dbSystemLoadCache = new SetOnce<>();
 
-    public SystemLoadHelper(SystemLoadReader systemLoadReader, SystemLoadWriter systemLoadWriter) {
+    /**
+     * Create a new instance.
+     * @param systemLoadReader system load reader
+     * @param historydbIO      db methods
+     */
+    public SystemLoadHelper(SystemLoadReader systemLoadReader, HistorydbIO historydbIO) {
         systemLoadReader.setSystemLoadUtils(this);
         setSystemLoadReader(systemLoadReader);
-        setSystemLoadWriter(systemLoadWriter);
+        this.historydbIO = historydbIO;
     }
 
-    public void setSystemLoadReader(SystemLoadReader systemLoadReader) { this.systemLoadReader = systemLoadReader;}
-
-    public void setSystemLoadWriter(SystemLoadWriter systemLoadWriter) { this   .systemLoadWriter = systemLoadWriter; }
+    public void setSystemLoadReader(SystemLoadReader systemLoadReader) {
+        this.systemLoadReader = systemLoadReader;
+    }
 
     private Map<String, Grouping> slice2groups = null;
 
@@ -144,52 +153,53 @@ public class SystemLoadHelper {
     /**
      * The method updates the system load information for all slices in the DB when needed.
      *
+     * @param loader bulk loader for system_load table
      * @param perSliceUsed The sum of the used valued per slice and per system load commodity.
      * @param perSliceCapacities The sum of capacities per slice and per system load commodity.
      * @param updatedSoldCommMultimap The sold system load commodities per slice.
      * @param updatedBoughtCommMultimap The bought system load commodities per slice.
      */
-    public void updateSystemLoad(final Map<String, Double[]> perSliceUsed,
+    public void updateSystemLoad(BulkLoader<SystemLoadRecord> loader,
+                                 final Map<String, Double[]> perSliceUsed,
                                  final Map<String, Double[]> perSliceCapacities,
                                  final Multimap<String, Pair<CommoditySoldDTO, TopologyEntityDTO>> updatedSoldCommMultimap,
                                  final Multimap<String, Pair<CommodityBoughtDTO, TopologyEntityDTO>> updatedBoughtCommMultimap) {
-        new Thread() {
-            @Override
-            public void run() {
-                final long currTimeMillis = System.currentTimeMillis();
-                try {
-                    synchronized (curSystemLoadLock) {
-                        // Check if update is necessary per slice
-                        for (String slice : perSliceUsed.keySet()) {
-                            Double[] sliceUsed = perSliceUsed.get(slice);
-                            Double[] sliceCapacities = perSliceCapacities.get(slice);
+        final long currTimeMillis = System.currentTimeMillis();
+        try {
+            // Check if update is necessary per slice
+            for (String slice : perSliceUsed.keySet()) {
+                Double[] sliceUsed = perSliceUsed.get(slice);
+                Double[] sliceCapacities = perSliceCapacities.get(slice);
 
-                            updateSystemLoad(slice, sliceUsed, sliceCapacities, currTimeMillis,
-                                    updatedSoldCommMultimap.get(slice), updatedBoughtCommMultimap.get(slice));
-                        }
-                    }
-                }
-                catch (Exception e) {
-                    logger.error("Exception when updating system load", e);
-                }
+                updateSystemLoad(loader, slice, sliceUsed, sliceCapacities, currTimeMillis,
+                    updatedSoldCommMultimap.get(slice), updatedBoughtCommMultimap.get(slice));
             }
-        }.start();
+        } catch (Exception e) {
+            logger.error("Exception when updating system load", e);
+        }
     }
 
     /**
      * The method updates the system load information for one slice in the DB when needed.
      *
+     * @param loader bulk loader for system_load table
      * @param slice The slice we want to update.
      * @param sliceUsed The sum of the used valued in this slice per system load commodity.
      * @param sliceCapacities The sum of capacities in this slice per system load commodity.
      * @param snapshotTime The time of the update.
      * @param soldCollection The sold system load commodities in this slice.
      * @param boughtCollection The bought system load commodities in this slice.
+     * @throws InterruptedException if interrupted
      */
-    @GuardedBy("curSystemLoadLock")
-    private void updateSystemLoad(String slice, Double[] sliceUsed, Double[] sliceCapacities,
-                                  long snapshotTime, Collection<Pair<CommoditySoldDTO, TopologyEntityDTO>> soldCollection,
-                                  Collection<Pair<CommodityBoughtDTO, TopologyEntityDTO>> boughtCollection) {
+    private void updateSystemLoad(BulkLoader<SystemLoadRecord> loader,
+                                  String slice,
+                                  Double[] sliceUsed,
+                                  Double[] sliceCapacities,
+                                  long snapshotTime,
+                                  Collection<Pair<CommoditySoldDTO, TopologyEntityDTO>> soldCollection,
+                                  Collection<Pair<CommodityBoughtDTO, TopologyEntityDTO>> boughtCollection)
+        throws InterruptedException {
+
         boolean shouldWriteToDb = true;
         Double currentLoad = null;
         Double previousLoad = null;
@@ -197,10 +207,10 @@ public class SystemLoadHelper {
         Date previousDate = null;
         Map<String, Pair<Double, Date>> cachedSystemLoad = dbSystemLoadCache.ensureSet(() -> systemLoadReader.initSystemLoad());
         try {
-            currentLoad = calcSystemLoad(sliceUsed, sliceCapacities);
+            currentLoad = calcSystemLoad(sliceUsed, sliceCapacities, slice);
 
             if (currentLoad == null) {
-                logger.warn("SYSLOAD- The calculated system load for " + slice
+                logger.warn("The calculated system load for " + slice
                         + " is null since the providing sums are invalid.");
                 return;
             }
@@ -224,22 +234,22 @@ public class SystemLoadHelper {
             } else {
                 cachedSystemLoad.put(slice, new Pair<>(currentLoad, currentDate));
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             logger.error(
-                    "SYSLOAD- Error in updateSystemLoad() for slice {}, currentLoad = {}, previousLoad = {}, currentDate = {}, previousDate = {}",
+                    "Error in updateSystemLoad() for cluster {}, currentLoad = {}, "
+                    + "previousLoad = {}, currentDate = {}, previousDate = {} : {}",
                     slice, currentLoad, previousLoad, currentDate, previousDate, e);
         }
 
         // Writing the current system load to the DB
         if (shouldWriteToDb) {
-            logger.debug(String.format("SYSLOAD- Writing system load to DB for slice %s at %s : %f",
-                    slice, currentDate.toString(), currentLoad));
+            logger.debug("Writing system load to DB for cluster {} at {} : {}",
+                    slice, currentDate.toString(), currentLoad);
             try {
-                writeSystemLoadToDb(slice, sliceUsed, sliceCapacities, snapshotTime, soldCollection, boughtCollection);
-            }
-            catch (VmtDbException e) {
-                logger.error("SYSLOAD- Error when writing to DB", e);
+                writeSystemLoadToDb(loader, slice, sliceUsed, sliceCapacities, snapshotTime,
+                    soldCollection, boughtCollection);
+            } catch (VmtDbException e) {
+                logger.error("Error when writing to DB for cluster {} : {}", slice, e);
             }
         }
 
@@ -250,9 +260,10 @@ public class SystemLoadHelper {
      *
      * @param usedSums The sums of the used values per system load commodity.
      * @param capacitiesSums The sums of capacities per system load commodity.
+     * @param clusterId id of cluster to calculate system load for.
      * @return The system load value.
      */
-    public Double calcSystemLoad(Double[] usedSums, Double[] capacitiesSums) {
+    public Double calcSystemLoad(Double[] usedSums, Double[] capacitiesSums, String clusterId) {
         checkArgument(usedSums != null && usedSums.length > 0,
                 "Invalid used sum values when calculating system load");
         checkArgument(capacitiesSums != null && capacitiesSums.length > 0,
@@ -261,12 +272,27 @@ public class SystemLoadHelper {
         logger.debug("SYSLOAD- Capacities are: {}", Arrays.deepToString(capacitiesSums));
         logger.debug("SYSLOAD- Used are: {}", Arrays.deepToString(usedSums));
 
+        Set<Integer> commodityIndexWithErrors = new HashSet<Integer>();
         // If the input sums are invalid, set the value 0.0
         for (int i = 0; i < SystemLoadCommodities.SIZE; i++) {
-            if (usedSums[i] == null)
+            if (usedSums[i] == null) {
+                commodityIndexWithErrors.add(i);
                 usedSums[i] = 0.0;
-            if (capacitiesSums[i] == null)
+            }
+
+            if (capacitiesSums[i] == null) {
+                commodityIndexWithErrors.add(i);
                 capacitiesSums[i] = 0.0;
+            }
+        }
+
+        if (!CollectionUtils.isEmpty(commodityIndexWithErrors)) {
+            StringBuilder errorMessage = new StringBuilder("For cluster id : " + clusterId
+                    + " commodities with null used/capacity values are : ");
+            commodityIndexWithErrors.stream()
+                .forEach(index -> errorMessage.append(SystemLoadCommodities.get(index).toString())
+                        .append(" "));
+            logger.warn(errorMessage);
         }
 
         Double[] sysUtils = new Double[SystemLoadCommodities.SIZE];
@@ -289,13 +315,25 @@ public class SystemLoadHelper {
     /**
      * The method stores the system load information for a specific slice to the DB.
      *
+     * @param loader bulk loader for system_load table
      * @param slice The slice we want to update.
-     * @throws VmtDbException
+     * @param sliceUsed used values for slices
+     * @param sliceCapacities capacities for slices
+     * @param snapshotTime snapshot timestmp
+     * @param soldCollection sold commodities
+     * @param boughtCollection bought commodities
+     * @throws VmtDbException if a db operation fails
+     * @throws InterruptedException if interrupted
      */
-    public void writeSystemLoadToDb(String slice, Double[] sliceUsed, Double[] sliceCapacities,
-                                    long snapshotTime, Collection<Pair<CommoditySoldDTO, TopologyEntityDTO>> soldCollection,
-                                    Collection<Pair<CommodityBoughtDTO, TopologyEntityDTO>> boughtCollection)
-            throws VmtDbException {
+    public void writeSystemLoadToDb(
+        BulkLoader<SystemLoadRecord> loader,
+        String slice,
+        Double[] sliceUsed,
+        Double[] sliceCapacities,
+        long snapshotTime,
+        Collection<Pair<CommoditySoldDTO, TopologyEntityDTO>> soldCollection,
+        Collection<Pair<CommodityBoughtDTO, TopologyEntityDTO>> boughtCollection)
+        throws VmtDbException, InterruptedException {
 
         //Send the metrics out to be written to the DB:
         Date date = new Date(snapshotTime);
@@ -304,9 +342,12 @@ public class SystemLoadHelper {
             final String uuid = Long.toString(comm.second.getOid());
             final String propertyType = SystemLoadCommodities.toSystemLoadCommodity(comm.first.getCommodityType().getType()).toString();
 
-            systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), uuid, null, propertyType,
-                    "used", comm.first.getCapacity(), comm.first.getUsed(), comm.first.getUsed(), comm.first.getPeak(),
-                    RelationType.COMMODITIES, comm.first.getCommodityType().getKey());
+            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(
+                slice, new Timestamp(date.getTime()), uuid, null, propertyType,
+                "used", comm.first.getCapacity(), comm.first.getUsed(),
+                comm.first.getUsed(), comm.first.getPeak(),
+                RelationType.COMMODITIES, comm.first.getCommodityType().getKey());
+            loader.insert(record);
         }
 
         for (Pair<CommodityBoughtDTO, TopologyEntityDTO> comm : boughtCollection) {
@@ -314,48 +355,21 @@ public class SystemLoadHelper {
             final String producerUuid = Long.toString(comm.second.getCommoditiesBoughtFromProviders(0).getProviderId());
             final String propertyType = SystemLoadCommodities.toSystemLoadCommodity(comm.first.getCommodityType().getType()).toString();
 
-            systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), uuid, producerUuid, propertyType,
-                    "used", null, comm.first.getUsed(), comm.first.getUsed(), comm.first.getPeak(),
-                    RelationType.COMMODITIESBOUGHT, comm.first.getCommodityType().getKey());
+            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(
+                slice, new Timestamp(date.getTime()), uuid, producerUuid, propertyType,
+                "used", null, comm.first.getUsed(), comm.first.getUsed(), comm.first.getPeak(),
+                RelationType.COMMODITIESBOUGHT, comm.first.getCommodityType().getKey());
+            loader.insert(record);
         }
 
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "CPU",
-                "total_capacity", HostsSumCapacities.getCpu().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "MEM",
-                "total_capacity", HostsSumCapacities.getMem().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "IO_THROUGHPUT",
-                "total_capacity", HostsSumCapacities.getIoThroughput().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "NET_THROUGHPUT",
-                "total_capacity", HostsSumCapacities.getNetThroughput().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "CPU_PROVISIONED",
-                "total_capacity", HostsSumCapacities.getCpuProvisioned().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "MEM_PROVISIONED",
-                "total_capacity", HostsSumCapacities.getMemProvisioned().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "STORAGE_ACCESS",
-                "total_capacity", StoragesSumCapacities.getStorageAccess().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "STORAGE_PROVISIONED",
-                "total_capacity", StoragesSumCapacities.getStorageProvisioned().get(slice), null, null, null,
-                RelationType.COMMODITIESBOUGHT, null);
-
-        for (int i = 0; i < SystemLoadCommodities.SIZE; i ++) {
+        for (int i = 0; i < SystemLoadCommodities.SIZE; i++) {
             double used = sliceUsed[i] != null ? sliceUsed[i] : 0.0;
             double capacity = sliceCapacities[i] != null ? sliceCapacities[i] : 0.0;
-            systemLoadWriter.insertSystemLoadRecord(slice, new Timestamp(date.getTime()), null, null, "system_load",
-                    SystemLoadCommodities.get(i).toString(), capacity, used, used, used, RelationType.COMMODITIES, null);
+            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(
+                slice, new Timestamp(date.getTime()), null, null, "system_load",
+                SystemLoadCommodities.get(i).toString(), capacity, used, used, used,
+                RelationType.COMMODITIES, null);
+            loader.insert(record);
         }
     }
 
@@ -368,13 +382,11 @@ public class SystemLoadHelper {
      */
     public void deleteSystemLoadFromDb(String slice, long snapshot) {
         try {
-            systemLoadWriter.deleteSystemLoadRecords(slice, snapshot);
-        }
-        catch (VmtDbException e) {
-            logger.error("SYSLOAD- Error when deleting system load form DB : " + e);
-        }
-        catch (ParseException e) {
-            logger.error("SYSLOAD- Error when converting snapshot to current date : " + e);
+            SystemLoadDbUtil.deleteSystemLoadRecords(slice, snapshot, historydbIO);
+        } catch (VmtDbException e) {
+            logger.error("Error when deleting system load form DB for cluster {} : {}", slice, e);
+        } catch (ParseException e) {
+            logger.error("Error when converting snapshot to current date for cluster {} : {}", slice, e);
         }
     }
 

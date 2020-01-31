@@ -11,11 +11,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -68,8 +66,6 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.forecasting.ForecastingContext;
-import com.vmturbo.commons.forecasting.ForecastingStrategyNotProvidedException;
-import com.vmturbo.commons.forecasting.InvalidForecastingDateRangeException;
 import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
@@ -624,20 +620,23 @@ public class CostRpcService extends CostServiceImplBase {
                 if (request.getRequestProjected()) {
                     final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
                             + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
-                    final Collection<StatRecord> projectedStatRecords;
+                    Collection<StatRecord> projectedStatRecords = new ArrayList<>();
+                    boolean projectCostStoreReady = projectedEntityCostStore.isStoreReady();
                     final boolean isPlanRequest = request.hasTopologyContextId()
                         && request.getTopologyContextId() != realtimeTopologyContextId;
                     if (isPlanRequest) {
                         projectedStatRecords = planProjectedEntityCostStore.getPlanProjectedStatRecordsByGroup(
                                         request.getGroupByList(), entityCostFilter,
                                         request.getTopologyContextId());
-                    } else {
+                    } else if (projectCostStoreReady ) {
                         projectedStatRecords = request.getGroupByList().isEmpty() ?
                             projectedEntityCostStore.getProjectedStatRecords(entityCostFilter) :
                             projectedEntityCostStore.getProjectedStatRecordsByGroup(request.getGroupByList(),
                                     entityCostFilter);
                     }
-                    if (projectedStatRecords.isEmpty() && !isPlanRequest) {
+                    if (projectCostStoreReady || isPlanRequest) {
+                        snapshotToEntityCostMap.put(projectedStatTime, projectedStatRecords);
+                    } else {
                         // Change the request to only get the the latest timestamp info
                         // we will use that as projected cost
                         EntityCostFilter latestFilter = filterBuilder
@@ -664,8 +663,6 @@ public class CostRpcService extends CostServiceImplBase {
                                     latestFilter);
                             snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyList());
                         }
-                    } else {
-                        snapshotToEntityCostMap.put(projectedStatTime, projectedStatRecords);
                     }
                 }
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();

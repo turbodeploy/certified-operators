@@ -85,6 +85,9 @@ public class ComputeTierConverter implements IEntityConverter {
         if (vmProfileDTO.hasNumInstanceDisks()) {
             computeTierDataBuilder.setNumInstanceDisks(vmProfileDTO.getNumInstanceDisks());
         }
+        if (vmProfileDTO.hasBurstableCPU()) {
+            computeTierDataBuilder.setBurstableCPU(vmProfileDTO.getBurstableCPU());
+        }
         entity.setComputeTierData(computeTierDataBuilder.build());
 
         // connect CT to Region, based on license

@@ -13,6 +13,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import jersey.repackaged.com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.SelectConditionStep;
@@ -131,7 +132,7 @@ public class SystemLoadReader {
                 Double[] used = slice2used.get(slice);
                 Double[] capacities = slice2capacities.get(slice);
 
-                Double previousLoad = systemLoadHelper.calcSystemLoad(used, capacities);
+                Double previousLoad = systemLoadHelper.calcSystemLoad(used, capacities, slice);
 
                 systemLoad.put(slice, new Pair<>(previousLoad, snapshotDate));
             }

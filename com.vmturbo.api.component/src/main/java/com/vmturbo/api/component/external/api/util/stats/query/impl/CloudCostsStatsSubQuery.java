@@ -27,10 +27,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -40,9 +36,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -77,13 +78,13 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -109,14 +110,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     private static final Set<UIEntityType> ENTITY_TYPES_TO_GET_COST_BY_FILTER = ImmutableSet.of(
         UIEntityType.BUSINESS_ACCOUNT, UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE
     );
-
-    /**
-     * We need virtual volumes with workloads for the plan to get storage costs.
-     */
-    private static final List<String> PLAN_CLOUD_COST_ENTITIES_TYPES = Stream
-                    .concat(GroupProtoUtil.WORKLOAD_ENTITY_TYPES.stream(),
-                                    Stream.of(UIEntityType.VIRTUAL_VOLUME))
-                    .map(UIEntityType::apiStr).collect(Collectors.toList());
 
     /**
      * Cloud target constant to match UI request, also used in test case.
@@ -228,6 +221,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             .filter(dto -> dto.getGroupBy() != null)
             .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
             .collect(toSet());
+        final ApiId inputScope = context.getInputScope();
 
         final List<StatSnapshotApiDTO> statsResponse;
         if (isTopDownRequest(requestGroupBySet)) {
@@ -263,24 +257,28 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                             valueFunction,
                             entityDTOs))
                     .collect(toList());
-        } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() ||
-                context.getInputScope().isCloud()) {
+        } else if (inputScope.isRealtimeMarket() || inputScope.isPlan() ||
+                inputScope.isCloud()) {
             final Set<Long> cloudEntityOids;
-            if (context.getInputScope().isPlan()) {
-                cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getExpandedOids(),
-                                                PLAN_CLOUD_COST_ENTITIES_TYPES);
+            // not expand scope for resource groups, because can be a situation when
+            // connected entities exist in different resource groups (vm and attached volume)
+            // but scope for resource group should contain only members of this resource group
+            if (shouldQueryUsingFilter(inputScope) || isResourceGroup(inputScope)) {
+                cloudEntityOids = context.getQueryScope().getScopeOids();
             } else {
-                if (shouldQueryUsingFilter(context.getInputScope())) {
-                    cloudEntityOids = context.getQueryScope().getScopeOids();
-                } else {
-                    cloudEntityOids = context.getQueryScope().getExpandedOids();
-                }
+                cloudEntityOids = context.getQueryScope().getExpandedOids();
             }
             /*
              * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
              */
             Set<StatApiInputDTO> requestedCostPriceStats = requestedStats.stream()
                     .filter(requestedStat -> requestedStat.getName().equals(COST_PRICE_QUERY_KEY)).collect(toSet());
+
+            if (isResourceGroup(inputScope)) {
+                requestedCostPriceStats =
+                        filterRequestedCostStatsForResourceGroups(requestedCostPriceStats,
+                                inputScope);
+            }
 
             final boolean isGroupByAttachment = isGroupByAttachment(requestedStats);
             final boolean isGroupByStorageTier = isGroupByStorageTier(requestedStats);
@@ -346,12 +344,42 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         return statsResponse;
     }
 
-    private boolean shouldQueryUsingFilter(ApiId inputScope) {
+    private static boolean shouldQueryUsingFilter(ApiId inputScope) {
         return inputScope.isRealtimeMarket() ||
                 inputScope.getScopeTypes()
                         .map(scopeTypes -> scopeTypes.size() == 1 &&
                                 ENTITY_TYPES_TO_GET_COST_BY_FILTER.contains(Iterables.getOnlyElement(scopeTypes)))
                         .orElse(false);
+    }
+
+    private boolean isResourceGroup(ApiId inputScope) {
+        final Optional<CachedGroupInfo> groupInfo = inputScope.getCachedGroupInfo();
+        return groupInfo.isPresent() && groupInfo.get().getGroupType() == GroupType.RESOURCE;
+    }
+
+    /**
+     * Request CostStats only for entityTypes which exist in resource group.
+     *
+     * @param requestedCostPriceStats requested cost stats
+     * @param inputScope the input scope
+     * @return filtered cost stats requests
+     */
+    @Nonnull
+    private Set<StatApiInputDTO> filterRequestedCostStatsForResourceGroups(
+            @Nonnull Set<StatApiInputDTO> requestedCostPriceStats, @Nonnull ApiId inputScope) {
+        final Optional<Set<UIEntityType>> scopeTypesOpt = inputScope.getScopeTypes();
+
+        if (scopeTypesOpt.isPresent()) {
+            final Set<String> entityTypesInResourceGroup = scopeTypesOpt.get()
+                    .stream()
+                    .map(UIEntityType::apiStr)
+                    .collect(Collectors.toSet());
+            return requestedCostPriceStats.stream()
+                    .filter(el -> entityTypesInResourceGroup.contains(el.getRelatedEntityType()))
+                    .collect(Collectors.toSet());
+        } else {
+            return requestedCostPriceStats;
+        }
     }
 
     /**
@@ -611,6 +639,20 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             } else {
                 List<String> entityTypes = WORKLOAD_NAME_TO_ENTITY_TYPES.get(statApiInputDTO.getName());
                 if (entityTypes != null) {
+                    final Optional<Set<UIEntityType>> scopeTypesOpt =
+                            context.getInputScope().getScopeTypes();
+                    // filter out entityTypes which don't exist in scope
+                    if (scopeTypesOpt.isPresent()) {
+                        final Set<String> entityTypesFromScope = scopeTypesOpt.get()
+                                .stream()
+                                .map(UIEntityType::apiStr)
+                                .collect(Collectors.toSet());
+                        entityTypes = entityTypes.stream()
+                                .filter(entityTypesFromScope::contains)
+                                .collect(Collectors.toList());
+                    }
+                }
+                if (entityTypes != null && !entityTypes.isEmpty()) {
                     final float numWorkloads = supplyChainFetcherFactory.newNodeFetcher()
                             .addSeedOids(scopeIds)
                             .entityTypes(entityTypes)

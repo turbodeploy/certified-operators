@@ -6,7 +6,6 @@ import java.util.Map;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.stitching.EntityCommodityReference;
-import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.IHistoryLoadingTask;
@@ -15,7 +14,7 @@ import com.vmturbo.topology.processor.history.IHistoryLoadingTask;
  * Loader of time slot data from historydb.
  * TODO dmitry provide dbvalue class
  */
-public class TimeSlotLoadingTask implements IHistoryLoadingTask<CachingHistoricalEditorConfig, Void> {
+public class TimeSlotLoadingTask implements IHistoryLoadingTask<TimeslotHistoricalEditorConfig, Void> {
     private final StatsHistoryServiceBlockingStub statsHistoryClient;
 
     public TimeSlotLoadingTask(StatsHistoryServiceBlockingStub statsHistoryClient) {
@@ -24,7 +23,7 @@ public class TimeSlotLoadingTask implements IHistoryLoadingTask<CachingHistorica
 
     @Override
     public Map<EntityCommodityFieldReference, Void>
-        load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config)
+        load(Collection<EntityCommodityReference> commodities, TimeslotHistoricalEditorConfig config)
                     throws HistoryCalculationException {
         // TODO dmitry make a request to historydb for given commodities
         return Collections.emptyMap();

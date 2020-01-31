@@ -12,7 +12,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
-import javax.ws.rs.NotSupportedException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -22,10 +24,6 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -34,9 +32,9 @@ import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
-import com.vmturbo.api.dto.reservation.DeploymentParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -49,25 +47,19 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.ScopeAccessType;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.GetDeploymentProfileRequest;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileServiceGrpc.DeploymentProfileServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -75,18 +67,19 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ReservationMapper {
 
-    private static final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
-
-    private static final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
-
     private static final Map<Integer, ReservationConstraintInfo.Type> ENTITY_TYPE_TO_CONSTRAINT_TYPE =
         ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
             .put(UIEntityType.DATACENTER.typeNumber(), ReservationConstraintInfo.Type.DATA_CENTER)
             .put(UIEntityType.VIRTUAL_DATACENTER.typeNumber(), ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
             .put(UIEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
             .build();
-    @VisibleForTesting
-    static final String ONE_UNTRACKED_PLACEMENT_FAILED = "One untracked placement: Failed\n";
+
+    private static final Map<Integer, String> COMMODITY_TYPE_NAME_MAP =
+            ImmutableMap.<Integer, String>builder()
+                    .put(CommodityType.CPU_PROVISIONED_VALUE, "CPU")
+                    .put(CommodityType.MEM_PROVISIONED_VALUE, "MEM")
+                    .put(CommodityType.STORAGE_PROVISIONED_VALUE, "STORAGE")
+                    .build();
 
     private final Logger logger = LogManager.getLogger();
 
@@ -98,98 +91,14 @@ public class ReservationMapper {
 
     private final PolicyServiceBlockingStub policyService;
 
-    private final DeploymentProfileServiceBlockingStub deploymentProfileService;
-
     ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TemplateServiceBlockingStub templateService,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final PolicyServiceBlockingStub policyService,
-                      @Nonnull final DeploymentProfileServiceBlockingStub deploymentProfileService) {
+                      @Nonnull final PolicyServiceBlockingStub policyService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyService = Objects.requireNonNull(policyService);
-        this.deploymentProfileService = Objects.requireNonNull(deploymentProfileService);
-    }
-
-    /**
-     * Convert a list of {@link DemandReservationParametersDTO} to one {@link ScenarioChange}.
-     *
-     * @param placementParameters a list of {@link DemandReservationParametersDTO}.
-     * @return list of {@link ScenarioChange}.
-     * @throws UnknownObjectException If one of the objects specified in the constraints is unrecognized.
-     * @throws InvalidOperationException If arguments are not in the right format (e.g. numeric ids).
-     */
-    public List<ScenarioChange> placementToScenarioChange(
-            @Nonnull final List<DemandReservationParametersDTO> placementParameters)
-        throws UnknownObjectException, InvalidOperationException {
-        // TODO: right now, it only support one type of templates for initial placement and reservation.
-        if (placementParameters.size() != 1) {
-            throw new NotSupportedException("Placement parameter size should be one.");
-        }
-        final PlacementParametersDTO placementDTO = placementParameters.get(0).getPlacementParameters();
-        final TopologyAddition topologyAddition = TopologyAddition.newBuilder()
-                .setAdditionCount(placementDTO.getCount())
-                .setTemplateId(Long.valueOf(placementDTO.getTemplateID()))
-                .build();
-        final ScenarioChange scenarioTopologyAddition = ScenarioChange.newBuilder()
-                .setTopologyAddition(topologyAddition)
-                .build();
-        final List<ScenarioChange> scenarioChanges = new ArrayList<>();
-        scenarioChanges.add(scenarioTopologyAddition);
-
-        final List<ReservationConstraintInfo> reservationConstraints = new ArrayList<>();
-        if (placementDTO.getConstraintIDs() != null) {
-            for (String constraintId : placementDTO.getConstraintIDs()) {
-                try {
-                    generateRelateConstraint(Long.valueOf(constraintId))
-                        .ifPresent(reservationConstraints::add);
-                } catch (NumberFormatException e) {
-                    final String message = "Constraint ID must be numeric. Got: " + constraintId;
-                    logger.error(message);
-                    throw new InvalidOperationException(message);
-                }
-            }
-        }
-
-        final DeploymentParametersDTO deploymentParams =
-            placementParameters.get(0).getDeploymentParameters();
-        if (deploymentParams != null && !StringUtils.isEmpty(deploymentParams.getDeploymentProfileID())) {
-            final long deploymentProfileId;
-            try {
-                deploymentProfileId = Long.parseLong(deploymentParams.getDeploymentProfileID());
-            } catch (NumberFormatException e) {
-                final String message = "Deployment profile ID must be numeric. Got: " + deploymentParams.getDeploymentProfileID();
-                logger.error(message);
-                throw new InvalidOperationException(message);
-            }
-
-            final DeploymentProfile deploymentProfile =
-                deploymentProfileService.getDeploymentProfile(GetDeploymentProfileRequest.newBuilder()
-                    .setDeploymentProfileId(deploymentProfileId)
-                    .build());
-            for (DeploymentProfileInfo.Scope scope : deploymentProfile.getDeployInfo().getScopesList()) {
-                if (scope.getScopeAccessType() == ScopeAccessType.Or) {
-                    if (scope.getIdsCount() > 0) {
-                        // TODO (roman, Sept 5 2019) OM-50713: Add support for the OR context type.
-                        logger.error("Unhandled deployment profile scope: {}", scope);
-                    }
-                } else if (scope.getScopeAccessType() == ScopeAccessType.And) {
-                    for (Long scopeId : scope.getIdsList()) {
-                        generateRelateConstraint(scopeId).ifPresent(reservationConstraints::add);
-                    }
-                }
-            }
-        }
-
-        if (!reservationConstraints.isEmpty()) {
-            scenarioChanges.add(ScenarioChange.newBuilder()
-                .setPlanChanges(PlanChanges.newBuilder()
-                    .addAllInitialPlacementConstraints(reservationConstraints))
-                .build());
-        }
-
-        return scenarioChanges;
     }
 
     /**
@@ -234,61 +143,6 @@ public class ReservationMapper {
         return reservationBuilder.build();
     }
 
-    /**
-     * Convert a {@link ScenarioChange} and a list of {@link PlacementInfo} to a
-     * {@link DemandReservationApiDTO}.
-     *
-     * @param topologyAddition contains information about template id and addition count.
-     * @param placementInfos contains initial placement results.
-     * @return {@link DemandReservationApiDTO}.
-     * @throws UnknownObjectException if there are any unknown objects.
-     */
-    public DemandReservationApiDTO convertToDemandReservationApiDTO(
-            @Nonnull TopologyAddition topologyAddition,
-            @Nonnull final List<PlacementInfo> placementInfos) throws UnknownObjectException {
-        final Template template = templateService.getTemplate(GetTemplateRequest.newBuilder()
-                .setTemplateId(topologyAddition.getTemplateId())
-                .build()).getTemplate();
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
-        /// If there exists an unplaced VM, then the initial placement failed.
-        final String placementStatus = placementInfos.size() == topologyAddition.getAdditionCount() ?
-            PLACEMENT_SUCCEEDED : PLACEMENT_FAILED;
-        DemandReservationApiDTO reservationApiDTO =
-                generateDemandReservationApiDTO(topologyAddition, placementStatus);
-        final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
-        for (PlacementInfo placementInfo : placementInfos) {
-            try {
-                demandEntityInfoDTOS.add(
-                        generateDemandEntityInfoDTO(placementInfo, template, serviceEntityMap));
-            } catch (ProviderIdNotRecognizedException e) {
-                logger.error("Initial placement failed: " + e.getMessage());
-                throw  new UnknownObjectException("Initial placement failed.");
-            }
-        }
-        reservationApiDTO.setDemandEntities(demandEntityInfoDTOS);
-        if (placementStatus == PLACEMENT_FAILED) {
-            final int failedPlacements =
-                    topologyAddition.getAdditionCount() - placementInfos.size();
-            final StringBuilder builder = new StringBuilder(failedPlacements);
-            for (int i = 0; i < failedPlacements; i++) {
-                // TODO (GaryZeng Oct 18, 2019) append the failed placement details when they are available.
-                // Appending the messages because UI is expecting detail placement messages
-                // and use the messages to calculate failed count.
-                // const failed =
-                //      data.placementResultMessage !== undefined
-                //          ? data.placementResultMessage
-                //                .split('\n')
-                //                .reduce(
-                //                    (count, descr) => count + descr.includes(': Failed'),
-                //                    0
-                //                )
-                //          : data.count; // fallback for XL, which has no placement result msg
-                builder.append(ONE_UNTRACKED_PLACEMENT_FAILED);
-            }
-            reservationApiDTO.setPlacementResultMessage(builder.toString());
-        }
-        return reservationApiDTO;
-    }
 
     /**
      * Convert {@link Reservation} to {@link DemandReservationApiDTO}. Right now, it only pick the
@@ -312,14 +166,8 @@ public class ReservationMapper {
         // reservation, it is ok to only pick the first one.
         Optional<ReservationTemplate> reservationTemplate = reservationTemplates.stream().findFirst();
         if (reservationTemplate.isPresent()) {
-            try {
-                convertToDemandEntityDTO(reservationTemplate.get(),
+            convertToDemandEntityDTO(reservationTemplate.get(),
                         reservationApiDTO);
-            } catch (ProviderIdNotRecognizedException e) {
-                // If there are providerId not found, it means this reservation is unplaced.
-                logger.info("Reservation {} is unplaced: {}", reservation.getId(),
-                        e.getMessage());
-            }
         }
         return reservationApiDTO;
     }
@@ -330,11 +178,10 @@ public class ReservationMapper {
      * @param reservationTemplate {@link ReservationTemplate} contains placement information by template.
      * @param reservationApiDTO {@link DemandReservationApiDTO}
      * @throws UnknownObjectException if there are any unknown objects.
-     * @throws ProviderIdNotRecognizedException if there are provider id is not exist.
      */
     private void convertToDemandEntityDTO(@Nonnull final ReservationTemplate reservationTemplate,
                                           @Nonnull final DemandReservationApiDTO reservationApiDTO)
-            throws UnknownObjectException, ProviderIdNotRecognizedException {
+            throws UnknownObjectException {
         reservationApiDTO.setCount(Math.toIntExact(reservationTemplate.getCount()));
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
@@ -344,11 +191,11 @@ public class ReservationMapper {
                     .build()).getTemplate();
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
-                        final List<Long> providerIds = reservationInstance.getPlacementInfoList().stream()
-                                .map(ReservationInstance.PlacementInfo::getProviderId)
+                        final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
+                                .map(a -> new ProviderInfo(a.getProviderId(), a.getCommodityBoughtList()))
                                 .collect(Collectors.toList());
                         return new PlacementInfo(reservationInstance.getEntityId(),
-                                ImmutableList.copyOf(providerIds));
+                                ImmutableList.copyOf(providerInfos));
                     }).collect(Collectors.toList());
             final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
             final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
@@ -369,8 +216,8 @@ public class ReservationMapper {
 
     /**
      * Validate the input start day and expire date, if there is any wrong input date, it will throw
-     * InvalidOperationException. And also it always set Reservation status to FUTURE, during next
-     * broadcast time, Topology Processor component will update its status if it is start day comes.
+     * InvalidOperationException. And also it always set Reservation status to INITIAL, during create
+     * Reservation, we will update its status if it is start day comes.
      *
      * @param reserveDateStr start date of reservation, and date format is: yyyy-MM-ddT00:00:00Z.
      * @param expireDateStr expire date of reservation, and date format is: yyyy-MM-ddT00:00:00Z.
@@ -405,7 +252,7 @@ public class ReservationMapper {
         if (today > expireDate) {
             throw new InvalidOperationException("Reservation expire date should be after current date.");
         }
-        reservationBuilder.setStatus(ReservationStatus.FUTURE);
+        reservationBuilder.setStatus(ReservationStatus.INITIAL);
     }
 
     private ReservationTemplate convertToReservationTemplate(
@@ -501,7 +348,8 @@ public class ReservationMapper {
     private Map<Long, ServiceEntityApiDTO> getServiceEntityMap(
             @Nonnull final List<PlacementInfo> placementInfos) {
         final Set<Long> entitiesOid = placementInfos.stream()
-                .map(placementInfo -> Sets.newHashSet(placementInfo.getProviderIds()))
+                .map(placementInfo -> Sets.newHashSet(placementInfo.getProviderInfos())
+                        .stream().map(a -> a.getProviderId()).collect(Collectors.toSet()))
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
 
@@ -524,7 +372,7 @@ public class ReservationMapper {
             @Nonnull final PlacementInfo placementInfo,
             @Nonnull final Template template,
             @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
-            throws UnknownObjectException, ProviderIdNotRecognizedException {
+            throws UnknownObjectException {
         DemandEntityInfoDTO demandEntityInfoDTO = new DemandEntityInfoDTO();
         demandEntityInfoDTO.setTemplate(generateTemplateBaseApiDTO(template));
         PlacementInfoDTO placementInfoApiDTO =
@@ -545,11 +393,16 @@ public class ReservationMapper {
     private PlacementInfoDTO createPlacementInfoDTO(
             @Nonnull final PlacementInfo placementInfo,
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
-            throws UnknownObjectException, ProviderIdNotRecognizedException {
+            throws UnknownObjectException {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
-        for (long providerId : placementInfo.getProviderIds()) {
-            addResourcesApiDTO(providerId,
-                    serviceEntityApiDTOMap, placementInfoApiDTO);
+        for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
+            try {
+                addResourcesApiDTO(providerInfo,
+                        serviceEntityApiDTOMap, placementInfoApiDTO);
+            } catch (ProviderIdNotRecognizedException e) {
+                // If there are providerId not found, it means this reservation is unplaced.
+                logger.info(e.getMessage());
+            }
         }
         return placementInfoApiDTO;
     }
@@ -559,20 +412,20 @@ public class ReservationMapper {
      * compute resources, if it is Storage, it creates storage resources, if it is Network, it creates
      * network resources.
      *
-     * @param providerId oid of provider.
+     * @param providerInfo oid of provider.
      * @param serviceEntityApiDTOMap a Map which key is oid, value is {@link ServiceEntityApiDTO}.
      * @param placementInfoApiDTO {@link PlacementInfoDTO}.
      * @throws UnknownObjectException if there are entity types are not support.
      * @throws ProviderIdNotRecognizedException if there are provider id is not exist.
      */
-    private void addResourcesApiDTO(final long providerId,
+    private void addResourcesApiDTO(final ProviderInfo providerInfo,
                                     @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
                                     @Nonnull PlacementInfoDTO placementInfoApiDTO)
             throws UnknownObjectException, ProviderIdNotRecognizedException {
-        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityApiDTOMap.get(providerId));
+        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityApiDTOMap.get(providerInfo.getProviderId()));
         // if entity id is not present, it means this reservation is unplaced.
         if (!serviceEntityApiDTO.isPresent()) {
-            throw  new ProviderIdNotRecognizedException(providerId);
+            throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId());
         }
         final int entityType = UIEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
         switch (entityType) {
@@ -581,7 +434,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getComputeResources() != null ?
                                 placementInfoApiDTO.getComputeResources() :
                                 new ArrayList<>();
-                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get()));
+                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
                 placementInfoApiDTO.setComputeResources(computeResources);
                 break;
             case EntityType.STORAGE_VALUE:
@@ -589,7 +442,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getStorageResources() != null ?
                                 placementInfoApiDTO.getStorageResources() :
                                 new ArrayList<>();
-                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get()));
+                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
                 placementInfoApiDTO.setStorageResources(storageResources);
                 break;
             case EntityType.NETWORK_VALUE:
@@ -597,7 +450,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getNetworkResources() != null ?
                                 placementInfoApiDTO.getNetworkResources() :
                                 new ArrayList<>();
-                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get()));
+                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
                 placementInfoApiDTO.setNetworkResources(networkResources);
                 break;
             default:
@@ -605,13 +458,33 @@ public class ReservationMapper {
         }
     }
 
-    private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO) {
+    /**
+     * Populate the stats for each of the commodity bought by the VM associated with the reservation.
+     * We need the stats info to distinguish between different disk buying from different storages.
+     *
+     * @param serviceEntityApiDTO  The provider service entity
+     * @param commodityBoughtDTOList the commodities bought by the VM associated with the reservation.
+     * @return ResourceApiDTO populated with providerID and the stats.
+     */
+    private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO,
+                                                   List<CommodityBoughtDTO> commodityBoughtDTOList) {
         final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
         providerBaseApiDTO.setClassName(serviceEntityApiDTO.getClassName());
         providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.getDisplayName());
         providerBaseApiDTO.setUuid(serviceEntityApiDTO.getUuid());
         final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
         resourceApiDTO.setProvider(providerBaseApiDTO);
+        List<StatApiDTO> statApiDTOS = new ArrayList<>();
+        for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtDTOList) {
+            String commodityName = COMMODITY_TYPE_NAME_MAP.get(commodityBoughtDTO.getCommodityType().getType());
+            if (commodityName != null) {
+                final StatApiDTO statApiDTO = new StatApiDTO();
+                statApiDTO.setName(commodityName);
+                statApiDTO.setValue((float)commodityBoughtDTO.getUsed());
+                statApiDTOS.add(statApiDTO);
+            }
+        }
+        resourceApiDTO.setStats(statApiDTOS);
         return resourceApiDTO;
     }
 
@@ -623,25 +496,55 @@ public class ReservationMapper {
         // oid of added template entity
         private final long entityId;
         // a list of oids which are the providers of entityId.
-        private final List<Long> providerIds;
+        private final List<ProviderInfo> providerInfos;
 
         /**
          * Constructor.
          *
          * @param entityId The ID of the template entity.
-         * @param providerIdList The list of provider OIDs.
+         * @param providerInfoList The list of provider OIDs.
          */
-        public PlacementInfo(final long entityId, @Nonnull final List<Long> providerIdList) {
+        public PlacementInfo(final long entityId, @Nonnull final List<ProviderInfo> providerInfoList) {
             this.entityId = entityId;
-            this.providerIds = Collections.unmodifiableList(providerIdList);
+            this.providerInfos = Collections.unmodifiableList(providerInfoList);
         }
 
         public long getEntityId() {
             return this.entityId;
         }
 
-        public List<Long> getProviderIds() {
-            return this.providerIds;
+        public List<ProviderInfo> getProviderInfos() {
+            return this.providerInfos;
+        }
+    }
+
+    /**
+     * A wrapper class to store the oid of provider and the commodities bought by the template from
+     * the provider.
+     */
+    @Immutable
+    public static class ProviderInfo {
+
+        private final Long providerId;
+        private final List<CommodityBoughtDTO> commoditiesBought;
+
+        /**
+         * Constructor.
+         *
+         * @param providerId       the oid of the provider
+         * @param commoditiesBought the commodities bought by the template from the provider.
+         */
+        public ProviderInfo(final long providerId, @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+            this.providerId = providerId;
+            this.commoditiesBought = Collections.unmodifiableList(commoditiesBought);
+        }
+
+        public Long getProviderId() {
+            return providerId;
+        }
+
+        public List<CommodityBoughtDTO> getCommoditiesBought() {
+            return commoditiesBought;
         }
     }
 

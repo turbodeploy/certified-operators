@@ -22,11 +22,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
-import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ScalingGroup;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -36,7 +37,6 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
-import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
@@ -184,7 +184,11 @@ public class CommodityConverter {
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
-                                && !TopologyConversionUtils.isEntityConsumingCloud(dto))
+                                && !TopologyConversionUtils.isEntityConsumingCloud(dto)
+                                // We do not want to resize idle entities. If the resizable flag
+                                // is not set to false for idle entities, they can get resized
+                                // because of hitorical utilization.
+                                && dto.getEntityState() == EntityState.POWERED_ON)
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(utilizationUpperBound)
@@ -344,7 +348,9 @@ public class CommodityConverter {
     public CommodityDTOs.CommoditySpecificationTO bcSpec(@Nonnull String bcKey) {
         return CommodityDTOs.CommoditySpecificationTO.newBuilder()
                 .setBaseType(bcBaseType())
-                .setType(commodityTypeAllocator.allocate(bcKey))
+                .setType(commodityTypeAllocator.allocate(
+                    CommodityDTO.CommodityType.BICLIQUE_VALUE
+                    + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + bcKey))
                 .setDebugInfoNeverUseInCode(TopologyConversionConstants.BICLIQUE + " " + bcKey)
                 .build();
     }

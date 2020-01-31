@@ -38,7 +38,7 @@ public class MarketPricingResolver extends ResolverPricing {
 
     private final CostServiceBlockingStub costServiceClient;
 
-    private final DiscountApplicatorFactory discountApplicatorFactory;
+    private final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory;
 
     private final EntityInfoExtractor<TopologyEntityDTO> topologyEntityInfoExtractor;
 
@@ -52,7 +52,8 @@ public class MarketPricingResolver extends ResolverPricing {
      */
     public MarketPricingResolver(@Nonnull PricingServiceBlockingStub pricingServiceClient,
                                  @Nonnull CostServiceBlockingStub costServiceClient,
-                                 @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
+                                 @Nonnull DiscountApplicatorFactory<TopologyEntityDTO>
+                                         discountApplicatorFactory,
                                  @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
         this.pricingServiceClient = Objects.requireNonNull(pricingServiceClient);
         this.costServiceClient = Objects.requireNonNull(costServiceClient);
@@ -61,16 +62,18 @@ public class MarketPricingResolver extends ResolverPricing {
     }
 
     @Override
-    public Map<Long, AccountPricingData> getAccountPricingDataByBusinessAccount(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo) {
+    public Map<Long, AccountPricingData<TopologyEntityDTO>> getAccountPricingDataByBusinessAccount(
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo) {
         // Get the discounts.
         final Map<Long, Discount> discountsByAccount = new HashMap<>();
         costServiceClient.getDiscounts(GetDiscountRequest.getDefaultInstance())
                 .forEachRemaining(discount -> discountsByAccount.put(discount.getAssociatedAccountId(), discount));
 
-        Map<Long, AccountPricingData> accountPricingDatabyBusinessAccountOid = new HashMap<>();
+        Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDatabyBusinessAccountOid
+                = new HashMap<>();
         // Get the set of business accounts in the topology.
         Set<Long> baOids = cloudTopo.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE).stream()
-                .map(s -> s.getOid()).collect(Collectors.toSet());
+                .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
 
         // Get a mapping of business account oid -> price table key oid.
         final Map<Long, Long> priceTableKeyOidByBusinessAccountOid = pricingServiceClient.getAccountPriceTable(GetAccountPriceTableRequest.newBuilder()
@@ -91,12 +94,13 @@ public class MarketPricingResolver extends ResolverPricing {
                 accountPricingDatabyBusinessAccountOid.put(businessAccountOid, accountPricingDataMapByPricingDataIdentifier
                         .get(pricingDataIdentifier));
             } else {
-                final DiscountApplicator discountApplicator = discountApplicatorFactory.accountDiscountApplicator(businessAccountOid,
+                final DiscountApplicator<TopologyEntityDTO> discountApplicator =
+                        discountApplicatorFactory.accountDiscountApplicator(businessAccountOid,
                         cloudTopo, topologyEntityInfoExtractor, discount);
                 final AtomicLong accountPricingDataKey = new AtomicLong(IdentityGenerator.next());
                 PricingDataIdentifier newPricingDataIdentifier = new PricingDataIdentifier(discount, priceTable);
-                AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                        priceTable, accountPricingDataKey.longValue());
+                AccountPricingData<TopologyEntityDTO> accountPricingData = new AccountPricingData<>(
+                        discountApplicator, priceTable, accountPricingDataKey.longValue());
                 accountPricingDataMapByPricingDataIdentifier.put(newPricingDataIdentifier, accountPricingData);
                 accountPricingDatabyBusinessAccountOid.put(businessAccountOid, accountPricingData);
             }

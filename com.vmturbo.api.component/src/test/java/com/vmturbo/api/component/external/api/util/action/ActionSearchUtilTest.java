@@ -164,6 +164,31 @@ public class ActionSearchUtilTest {
         verifyZeroInteractions(actionSpecMapper);
     }
 
+    /**
+     * This tests an action search with the following combination of factors:
+     * <ul><li>scope on an empty group</li>
+     *     <li>input specifies a "related entity type"</li>
+     * </ul>
+     * The expected result is empty.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testGetActionsWithRelatedEntityTypeByEntityEmptyGroup() throws Exception {
+        ApiId scopeId = Mockito.mock(ApiId.class);
+        when(scopeId.oid()).thenReturn(RESOURCE_GROUP_ID);
+        when(groupExpander.expandOids(Collections.singleton(RESOURCE_GROUP_ID)))
+                .thenReturn(Collections.emptySet());
+
+        ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
+        when(inputDto.getRelatedEntityTypes())
+                .thenReturn(Collections.singletonList(EntityType.VIRTUAL_MACHINE.name()));
+
+        actionSearchUtil.getActionsByEntity(scopeId, inputDto, paginationRequest);
+
+        verifyZeroInteractions(actionSpecMapper);
+    }
+
     @Test
     public void testGetActionsByEntityWithRelatedEntity() throws OperationFailedException {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);

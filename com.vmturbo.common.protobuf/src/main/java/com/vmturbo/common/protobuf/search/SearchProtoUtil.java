@@ -125,6 +125,19 @@ public class SearchProtoUtil {
 
     /**
      * Create a property filter for exact string matching.
+     *
+     * @param propName property name to use for the search
+     * @param values the list of values to search for
+     * @param positiveMatch boolean flag which defined match entity property or not
+     * @return a property filter
+     */
+    public static PropertyFilter stringPropertyFilterExact(String propName,
+            Collection<String> values, boolean positiveMatch) {
+        return stringPropertyFilterExact(propName, values, positiveMatch, false);
+    }
+
+    /**
+     * Create a property filter for exact string matching.
      * If match is false, negates the result of the filter. That is, the search results
      * will include objects that do not match, rather than those that do.
      *
@@ -351,6 +364,19 @@ public class SearchProtoUtil {
         return stringPropertyFilterExact(SearchableProperties.OID, oids.stream()
             .map(oid -> Long.toString(oid))
             .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Creates a property filter that finds specific entities by oids and positiveMatch flag.
+     *
+     * @param oids the oid of the entity to search
+     * @param positiveMatch positiveMatch flag
+     * @return the filter
+     */
+    public static PropertyFilter idFilter(Collection<Long> oids, boolean positiveMatch) {
+        return stringPropertyFilterExact(SearchableProperties.OID, oids.stream()
+                .map(oid -> Long.toString(oid))
+                .collect(Collectors.toSet()), positiveMatch);
     }
 
     /**

@@ -2,8 +2,8 @@
   "Contexts": [
     {
       "context": {
-        "csp": AZURE,
         "os": LINUX,
+        "csp": "AWS",
         "region": sydney,
         "billingAccount": 1,
         "tenancy": DEFAULT
@@ -14,11 +14,15 @@
           "family": t3,
           "onDemandCost": {
             "compute": 1.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 1
         },
@@ -27,11 +31,15 @@
           "family": t3a,
           "onDemandCost": {
             "compute": 1.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "discountedCost": {
             "compute": 0.0,
-            "license": 0.0
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
           },
           "coupons": 1
         }
@@ -96,7 +104,8 @@
           "businessAccount": 11,
           "utilization": 0,
           "template": t3a.nano,
-          "count": 5
+          "count": 5,
+          "isf": true
         }
       ],
       "Matching": [

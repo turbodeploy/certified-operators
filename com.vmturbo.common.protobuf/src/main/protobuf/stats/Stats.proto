@@ -235,7 +235,7 @@ message StatSnapshot {
         // relation for the stat: (see RelationType in com.vmturbo.reports.db and
         // StatsMapper in com.vmturbo.api.component))
         // "Commodities", "CommoditiesBought", "CommoditiesFromAttributes"
-        //  (e.g., priceIndex, numVCPUs, etc.), and "plan"
+        //  (e.g., priceIndex, numVCPUs, etc.)
         optional string relation = 12;
 
         // the entity type for the commodity returned; e.g. to distinguish the "CPUAllocation"

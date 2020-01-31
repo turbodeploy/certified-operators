@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -184,7 +185,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final DeploymentType deploymentType;
 
         public DatabaseConfig(final DatabaseEdition edition, final DatabaseEngine engine,
-                LicenseModel licenseModel, DeploymentType deploymentType) {
+                @Nonnull  LicenseModel licenseModel, @Nullable DeploymentType deploymentType) {
             this.engine = engine;
             this.edition = edition;
             this.licenseModel = licenseModel;
@@ -202,20 +203,25 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         }
 
         @Nonnull
-        public LicenseModel getLicenseModel() {
-            return licenseModel;
+        public Optional<LicenseModel> getLicenseModel() {
+            return Optional.ofNullable(licenseModel);
         }
 
         @Nonnull
-        public DeploymentType getDeploymentType() {
-            return deploymentType;
+        public Optional<DeploymentType> getDeploymentType() {
+            return Optional.ofNullable(deploymentType);
         }
 
         public boolean matchesPriceTableConfig(@Nonnull final DatabaseTierConfigPrice databaseTierConfigPrice) {
+            DeploymentType otherDeploymentType = databaseTierConfigPrice.hasDbDeploymentType() ?
+                databaseTierConfigPrice.getDbDeploymentType() : null;
+            LicenseModel otherLicenseModel = databaseTierConfigPrice.hasDbLicenseModel() ?
+                databaseTierConfigPrice.getDbLicenseModel() : null;
+
             return databaseTierConfigPrice.getDbEdition() == edition &&
                     databaseTierConfigPrice.getDbEngine() == engine &&
-                    databaseTierConfigPrice.getDbLicenseModel() == licenseModel &&
-                    databaseTierConfigPrice.getDbDeploymentType() == deploymentType;
+                    otherLicenseModel == licenseModel &&
+                    otherDeploymentType == deploymentType;
         }
     }
 
@@ -260,9 +266,16 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          */
         private final int numCores;
 
-        public ComputeTierConfig(final int numCoupons, final int numCores) {
+        /**
+         * Determine if this compute tier support burstableCPUs.
+         * See: {@link ComputeTierInfo#getBurstableCPU()}
+         */
+        private final boolean burstableCPU;
+
+        public ComputeTierConfig(final int numCoupons, final int numCores, final boolean burstableCPU) {
             this.numCoupons = numCoupons;
             this.numCores = numCores;
+            this.burstableCPU = burstableCPU;
         }
 
         public int getNumCoupons() {
@@ -271,6 +284,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public int getNumCores() {
             return numCores;
+        }
+
+        public boolean isBurstableCPU() {
+            return burstableCPU;
         }
     }
 

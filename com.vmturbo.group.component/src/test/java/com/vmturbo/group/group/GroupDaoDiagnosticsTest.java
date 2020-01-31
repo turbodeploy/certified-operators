@@ -2,9 +2,7 @@ package com.vmturbo.group.group;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -22,6 +20,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -39,7 +39,7 @@ public class GroupDaoDiagnosticsTest {
 
     /**
      * Tests how the data is restored from diagnostics. All the groups dumped initially should
-     * be restored using {@link com.vmturbo.components.common.diagnostics.Diagnosable} interfaces
+     * be restored using {@link StringDiagnosable} interfaces
      * call.
      *
      * @throws Exception on exceptions occurred
@@ -60,11 +60,14 @@ public class GroupDaoDiagnosticsTest {
         Mockito.when(groupStore.getGroups(GroupFilter.newBuilder().build()))
                 .thenReturn(Arrays.asList(userParentGroup, userGroup, group1, group2, groupNew));
 
-        final List<String> dumpedData =
-                diagnostics.collectDiagsStream().collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        diagnostics.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+
         Mockito.verify(groupStore, Mockito.never()).deleteAllGroups();
 
-        diagnostics.restoreDiags(dumpedData);
+        diagnostics.restoreDiags(diags.getAllValues());
         ArgumentCaptor<Long> oidCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<GroupDefinition> defCaptor = ArgumentCaptor.forClass(GroupDefinition.class);
         Mockito.verify(groupStore)

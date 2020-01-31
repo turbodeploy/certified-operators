@@ -32,8 +32,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceByOsEntry.LicensePrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 
@@ -66,12 +66,16 @@ public class CloudCostDataProviderTest {
     private static final double WINDOWS_SQL_WEB_LICENSE_PRICE = 0.005;
     private static final double RHEL_LICENSE_PRICE = 0.006;
     private static final double WINDOWS_SERVER_LICENSE_PRICE = 0.51;
+    private static final double WINDOWS_BURSTABLE_LICENSE_PRICE = 1.02;
+
 
     private static final String LINUX = "Linux";
     private static final String RHEL = "RHEL";
     private static final String WINDOWS = "Windows";
     private static final String WINDOWS_BYOL = "Windows_Bring_your_own_license";
     private static final String WINDOWS_WITH_SQL_WEB = "Windows_SQL_Web";
+    private static final boolean BURSTABLE_CPU = true;
+    private static final boolean NOT_BURSTABLE_CPU = false;
 
     private static final PriceTable AWS_COMPUTE_PRICE_TABLE = PriceTable.newBuilder()
         .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
@@ -94,33 +98,54 @@ public class CloudCostDataProviderTest {
                         createComputeTierConfigPrice(OSType.WINDOWS, WINDOWS_PRICE_ADJUSTMENT),
                         createComputeTierConfigPrice(OSType.WINDOWS_BYOL, WINDOWS_BYOL_PRICE_ADJUSTMENT))))
             .build())
-        .addOnDemandLicensePrices(LicensePriceByOsEntry.newBuilder()
+        .addOnDemandLicensePrices(LicensePriceEntry.newBuilder()
             .setOsType(OSType.WINDOWS_WITH_SQL_WEB)
             .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_SQL_WEB_LICENSE_PRICE))
             .build())
-        .addOnDemandLicensePrices(LicensePriceByOsEntry.newBuilder()
-            .setOsType(OSType.RHEL)
-            .addLicensePrices(createLicensePrice(NUM_OF_CORES, RHEL_LICENSE_PRICE))
-            .build())
-         .addReservedLicensePrices(LicensePriceByOsEntry.newBuilder()
-            .setOsType(OSType.WINDOWS_SERVER)
-            .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_SERVER_LICENSE_PRICE))
-            .build())
+            .addOnDemandLicensePrices(LicensePriceEntry.newBuilder()
+                    .setOsType(OSType.RHEL)
+                    .addLicensePrices(createLicensePrice(NUM_OF_CORES, RHEL_LICENSE_PRICE))
+                    .build())
+            .addOnDemandLicensePrices(LicensePriceEntry.newBuilder()
+                    .setOsType(OSType.WINDOWS)
+                    .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_BURSTABLE_LICENSE_PRICE ))
+                    .setBurstableCPU(true)
+                    .build())
+            .addReservedLicensePrices(LicensePriceEntry.newBuilder()
+                    .setOsType(OSType.WINDOWS)
+                    .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_SERVER_LICENSE_PRICE))
+                    .build())
+            .addReservedLicensePrices(LicensePriceEntry.newBuilder()
+                    .setOsType(OSType.WINDOWS)
+                    .setBurstableCPU(true)
+                    .addLicensePrices(createLicensePrice(NUM_OF_CORES, WINDOWS_BURSTABLE_LICENSE_PRICE))
+                    .build())
         .build();
-    private final DiscountApplicator discountApplicator = mock(DiscountApplicator.class);
+    private final DiscountApplicator<TopologyEntityDTO> discountApplicator =
+            mock(DiscountApplicator.class);
 
-    private final AccountPricingData awsAccountPricingData = new AccountPricingData( discountApplicator, AWS_COMPUTE_PRICE_TABLE, AWS_BUSINESS_ACCOUNT_OID);
+    private final AccountPricingData<TopologyEntityDTO> awsAccountPricingData =
+            new AccountPricingData<>( discountApplicator, AWS_COMPUTE_PRICE_TABLE,
+                    AWS_BUSINESS_ACCOUNT_OID);
 
-    private final AccountPricingData azureAccountPricingData = new AccountPricingData( discountApplicator, AZURE_COMPUTE_PRICE_TABLE, AZURE_BUSINESS_ACCOUNT_OID);
+    private final AccountPricingData<TopologyEntityDTO> azureAccountPricingData =
+            new AccountPricingData<>( discountApplicator, AZURE_COMPUTE_PRICE_TABLE,
+                    AZURE_BUSINESS_ACCOUNT_OID);
 
-    private Map<Long, AccountPricingData> awsAccountPricingDatByBaMap = new HashMap<>();
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> awsAccountPricingDatByBaMap
+            = new HashMap<>();
 
-    private Map<Long, AccountPricingData> azureAccountPricingDatByBaMap = new HashMap<>();
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> azureAccountPricingDatByBaMap
+            = new HashMap<>();
 
-    private CloudCostData cloudCostDataAWS = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private CloudCostData<TopologyEntityDTO> cloudCostDataAWS =
+            new CloudCostData<>(Collections.emptyMap(),
+    Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), awsAccountPricingDatByBaMap);
 
-    private CloudCostData cloudCostDataAzure = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private CloudCostData<TopologyEntityDTO> cloudCostDataAzure =
+            new CloudCostData<>(Collections.emptyMap(),
+    Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), azureAccountPricingDatByBaMap);
 
     /**
@@ -203,9 +228,10 @@ public class CloudCostDataProviderTest {
      *
      * @return a list of all compute prices for this tier.
      */
-    private ComputeTierPriceList getComputePriceList(CloudCostData cloudCostData, long tierID, long baOid) {
+    private ComputeTierPriceList getComputePriceList(CloudCostData<TopologyEntityDTO> cloudCostData,
+                                                     long tierID, long baOid) {
         return cloudCostData.getAccountPricingData(baOid).get().getPriceTable().getOnDemandPriceByRegionIdMap().get(REGION_ID)
-            .getComputePricesByTierIdMap().get(tierID);
+                .getComputePricesByTierIdMap().get(tierID);
     }
 
     private static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
@@ -253,20 +279,20 @@ public class CloudCostDataProviderTest {
     }
 
     /**
-     * Test that for Linux and Windows_BYOL, there is no license price
+     * Test that for Linux and Windows_BYOL, there is no license price.
      */
     @Test
     public void testNoLicensePrice() {
-        LicensePriceTuple licensePriceTuple = cloudCostDataAWS.getAccountPricingData(AWS_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.LINUX,
-            NUM_OF_CORES, getComputePriceList(cloudCostDataAWS, AWS_COMPUTE_TIER_ID, AWS_BUSINESS_ACCOUNT_OID));
+        LicensePriceTuple licensePriceTuple = cloudCostDataAWS.getAccountPricingData(AWS_BUSINESS_ACCOUNT_OID).get().getLicensePrice(OSType.LINUX,
+            NUM_OF_CORES, getComputePriceList(cloudCostDataAWS, AWS_COMPUTE_TIER_ID, AWS_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
         assertThat(licensePriceTuple.getReservedInstanceLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
 
-        licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.WINDOWS_BYOL,
-            NUM_OF_CORES, getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
+        licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePrice(OSType.WINDOWS_BYOL,
+            NUM_OF_CORES, getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
@@ -275,26 +301,26 @@ public class CloudCostDataProviderTest {
     }
 
     /**
-     * Test cases in which we expect only an implicit price (calculated license price)
+     * Test cases in which we expect only an implicit price (calculated license price).
      */
     @Test
     public void testOnlyImplicitLicensePrice() {
-        LicensePriceTuple licensePriceTuple = cloudCostDataAWS.getAccountPricingData(AWS_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(
+        LicensePriceTuple licensePriceTuple = cloudCostDataAWS.getAccountPricingData(AWS_BUSINESS_ACCOUNT_OID).get().getLicensePrice(
             OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES,
-            getComputePriceList(cloudCostDataAWS, AWS_COMPUTE_TIER_ID, AWS_BUSINESS_ACCOUNT_OID));
+            getComputePriceList(cloudCostDataAWS, AWS_COMPUTE_TIER_ID, AWS_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
 
-        licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES,
-            getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
+        licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES,
+            getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
 
-        licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.WINDOWS_SERVER, NUM_OF_CORES,
-                        getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
+        licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES,
+                        getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
         assertThat(licensePriceTuple.getReservedInstanceLicensePrice(), equalTo(WINDOWS_SERVER_LICENSE_PRICE));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(), equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
@@ -305,11 +331,24 @@ public class CloudCostDataProviderTest {
      */
     @Test
     public void testOnlyExplicitLicensePrice() {
-        LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(OSType.RHEL,
-            NUM_OF_CORES, getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
+        LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePrice(OSType.RHEL,
+                NUM_OF_CORES, getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(),
             equalTo(LicensePriceTuple.NO_LICENSE_PRICE));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(), equalTo(RHEL_LICENSE_PRICE));
+    }
+
+
+    /**
+     * Test cases in which we expect only an explicit burstable price (catalog price).
+     */
+    @Test
+    public void testOnlyExplicitLicensePriceWithBurstable() {
+        LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get()
+                .getLicensePrice(OSType.WINDOWS, NUM_OF_CORES,
+                    getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID),
+                        BURSTABLE_CPU);
+        assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(), equalTo(WINDOWS_BURSTABLE_LICENSE_PRICE));
     }
 
     /**
@@ -317,9 +356,9 @@ public class CloudCostDataProviderTest {
      */
     @Test
     public void testImplicitAndExplicitLicensePrice() {
-        LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePriceForOS(
+        LicensePriceTuple licensePriceTuple = cloudCostDataAzure.getAccountPricingData(AZURE_BUSINESS_ACCOUNT_OID).get().getLicensePrice(
             OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES,
-            getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID));
+            getComputePriceList(cloudCostDataAzure, AZURE_COMPUTE_TIER_ID, AZURE_BUSINESS_ACCOUNT_OID), NOT_BURSTABLE_CPU );
         assertThat(licensePriceTuple.getImplicitOnDemandLicensePrice(), equalTo(WINDOWS_PRICE_ADJUSTMENT));
         assertThat(licensePriceTuple.getExplicitOnDemandLicensePrice(),
             equalTo(WINDOWS_SQL_WEB_LICENSE_PRICE));

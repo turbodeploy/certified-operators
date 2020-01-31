@@ -86,7 +86,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -471,6 +471,10 @@ public class GroupMapperTest {
                         .setExpressionType(expType).setExpressionValue(expValue).build();
     }
 
+    /**
+     * Test that the VM group criteria by clusters name is converted to SearchParameters correctly.
+     * @throws OperationFailedException any error happens
+     */
     @Test
     public void testVmsByClusterNameToSearchParameters() throws OperationFailedException {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
@@ -480,13 +484,24 @@ public class GroupMapperTest {
                                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters param = parameters.get(0);
-        // verify that the Cluster Membership Filter was created
-        assertTrue(param.getSearchFilter(0).hasGroupMembershipFilter());
-        final GroupMembershipFilter clusterMembershipFilter =
-                        param.getSearchFilter(0).getGroupMembershipFilter();
+
+        // verify that the starting filter is PM
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
+
+        // 2 search filters after starting filter
+        assertEquals(2, param.getSearchFilterCount());
+
+        // 1. first one is Cluster Membership Filter, verify that it was created
+        assertTrue(param.getSearchFilter(0).hasGroupFilter());
+        final GroupFilter groupFilter =
+                        param.getSearchFilter(0).getGroupFilter();
         // verify that we are looking for clusters with name FOO
-        assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
+        assertEquals("^" + FOO + "$", groupFilter.getGroupSpecifier()
                         .getStringFilter().getStringPropertyRegex());
+
+        // 2. second one is traversal filter (produces) used to traverse to vm
+        assertEquals(param.getSearchFilter(1), SearchProtoUtil.searchFilterTraversal(
+                SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, EntityType.VIRTUAL_MACHINE)));
 
         // test conversion from GroupApiDTO back to FilterApiDTO
         groupDto.setDisplayName("TestGroupDto");
@@ -502,6 +517,36 @@ public class GroupMapperTest {
         assertEquals("vmsByClusterName", vmsByClusterNameFilter.getFilterType());
         assertEquals("EQ", vmsByClusterNameFilter.getExpType());
         assertEquals(FOO, vmsByClusterNameFilter.getExpVal());
+    }
+
+    /**
+     * Test that the PM group criteria by clusters name is converted to SearchParameters correctly.
+     * @throws OperationFailedException any error happens
+     */
+    @Test
+    public void testPMsByClusterNameToSearchParameters() throws OperationFailedException {
+        GroupApiDTO groupDto = groupApiDTO(AND, UIEntityType.PHYSICAL_MACHINE.apiStr(),
+                filterDTO(EntityFilterMapper.EQUAL, FOO, "pmsByClusterName"));
+        List<SearchParameters> parameters =
+                entityFilterMapper.convertToSearchParameters(
+                        groupDto.getCriteriaList(), groupDto.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters param = parameters.get(0);
+
+        // verify that the starting filter is PM
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE),
+                param.getStartingFilter());
+
+        // 1 search filters after starting filter
+        assertEquals(1, param.getSearchFilterCount());
+
+        // verify that Cluster Membership Filter was created
+        assertTrue(param.getSearchFilter(0).hasGroupFilter());
+        final GroupFilter clusterMembershipFilter =
+                param.getSearchFilter(0).getGroupFilter();
+        // verify that we are looking for clusters with name FOO
+        assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
+                .getStringFilter().getStringPropertyRegex());
     }
 
     /**
@@ -1486,6 +1531,115 @@ public class GroupMapperTest {
         // test with both AWS and Azure, cloudType should be Hybrid
         envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
         assertEquals(envCloudType.getCloudType(), CloudType.HYBRID);
+    }
+
+    /**
+     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} when group
+     * has members discovered from different (on-prem and cloud) targets.
+     */
+    @Test
+    public void testGetEnvironmentAndCloudTypeForHybridGroup() {
+        final String displayName = "hybrid-group";
+        final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
+        final long oid = 123L;
+        final long uuid1 = 1L;
+        final long uuid2 = 2L;
+        final long uuid3 = 3L;
+        final long targetId1 = 2141L;
+        final long targetId2 = 9485L;
+        final long targetId3 = 9124L;
+        final long probeId1 = 111L;
+        final long probeId2 = 222L;
+        final long probeId3 = 333L;
+
+        final Grouping group = Grouping.newBuilder()
+                .setId(oid)
+                .addExpectedTypes(MemberType.newBuilder().setEntity(groupType))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(displayName)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .addAllMembers(Arrays.asList(uuid1, uuid2, uuid3))
+                                        .build())
+                                .build()))
+                .build();
+
+        final MinimalEntity entVM1 = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo1")
+                .addDiscoveringTargetIds(targetId1)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+
+        final MinimalEntity entVM2 = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo2")
+                .addDiscoveringTargetIds(targetId2)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+
+        final MinimalEntity entVM3 = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo3")
+                .addDiscoveringTargetIds(targetId2)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo1 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                        .type(SDKProbeType.AWS.getProbeType())
+                        .oid(probeId1).build())
+                .displayName("AWS")
+                .oid(targetId1)
+                .isHidden(false)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo2 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                        .type(SDKProbeType.AZURE.getProbeType())
+                        .oid(probeId2)
+                        .build())
+                .displayName("Azure")
+                .oid(targetId2)
+                .isHidden(false)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo3 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.HYPERVISOR.getCategoryInUpperCase())
+                        .type(SDKProbeType.VCENTER.getProbeType())
+                        .oid(probeId3)
+                        .build())
+                .displayName("Vcenter")
+                .oid(targetId3)
+                .isHidden(false)
+                .build();
+
+        final List<MinimalEntity> listVMs = Arrays.asList(entVM1, entVM2, entVM3);
+        final MultiEntityRequest minEntityReq = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(ImmutableSet.of(uuid1, uuid2, uuid3))
+                .entities(ImmutableSet.of(uuid1, uuid2, uuid3))
+                .build());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(minEntityReq);
+        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
+        when(targetCache.getTargetInfo(targetId2)).thenReturn(Optional.of(thinTargetInfo2));
+        when(targetCache.getTargetInfo(targetId3)).thenReturn(Optional.of(thinTargetInfo3));
+        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(Optional.of(CloudType.AWS));
+        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(Optional.of(CloudType.AZURE));
+
+        final EntityEnvironment envAndCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(
+                groupExpander.getMembersForGroup(group));
+        assertEquals(EnvironmentType.HYBRID, envAndCloudType.getEnvironmentType());
+        assertEquals(CloudType.HYBRID, envAndCloudType.getCloudType());
     }
 
     /**

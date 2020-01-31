@@ -20,10 +20,8 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -60,6 +58,7 @@ import com.vmturbo.cost.calculation.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
@@ -103,7 +102,7 @@ public class ActionInterpreter {
                       @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
                       @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage,
-                      @NonNull final TierExcluder tierExcluder) {
+                      @Nonnull final TierExcluder tierExcluder) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -134,9 +133,9 @@ public class ActionInterpreter {
     @Nonnull
     Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                     @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                     @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                     @NonNull TopologyCostCalculator topologyCostCalculator) {
+                                     @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                     @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                     @Nonnull TopologyCostCalculator topologyCostCalculator) {
         try {
             final CalculatedSavings savings;
             final Action.Builder action;
@@ -228,11 +227,11 @@ public class ActionInterpreter {
      * @return The calculated savings for the action. Returns {@link NoSavings} if no
      *         savings could be calculated.
      */
-    @NonNull
+    @Nonnull
     CalculatedSavings calculateActionSavings(@Nonnull final ActionTO actionTO,
-            @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-            @NonNull TopologyCostCalculator topologyCostCalculator) {
+            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+            @Nonnull TopologyCostCalculator topologyCostCalculator) {
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
                 final MoveTO move = actionTO.getMove();
@@ -264,10 +263,10 @@ public class ActionInterpreter {
         // Do not have a return statement here. Ensure all cases in the switch return a value.
     }
 
-    @NonNull
-    private CalculatedSavings calculateMoveSavings(@NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                                   @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                                   @NonNull TopologyCostCalculator topologyCostCalculator,
+    @Nonnull
+    private CalculatedSavings calculateMoveSavings(@Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                                   @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                                   @Nonnull TopologyCostCalculator topologyCostCalculator,
                                                    @Nonnull MarketTier destMarketTier,
                                                    @Nullable MarketTier sourceMarketTier,
                                                    @Nonnull TopologyEntityDTO cloudEntityMoving) {
@@ -331,7 +330,7 @@ public class ActionInterpreter {
      * @param journal the cost journal
      * @return the total cost of the market tier
      */
-    @NonNull
+    @Nonnull
     private TraxNumber getOnDemandCostForMarketTier(TopologyEntityDTO cloudEntityMoving,
                                                     MarketTier marketTier,
                                                     CostJournal<TopologyEntityDTO> journal) {
@@ -347,12 +346,16 @@ public class ActionInterpreter {
             TraxNumber licenseCost = journal.getHourlyCostFilterEntries(
                     CostCategory.ON_DEMAND_LICENSE,
                     CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+            TraxNumber reservedLicenseCost = journal.getHourlyCostFilterEntries(
+                    CostCategory.RESERVED_LICENSE,
+                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
             TraxNumber ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
-            totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, ipCost)
+            totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, ipCost)
                 .collect(TraxCollectors.sum(marketTier.getTier().getDisplayName() + " total cost"));
-            logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}, ipCost = {}",
+            logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}," +
+                    " reservedLicenseCost = {}, ipCost = {}",
                     cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(),
-                    onDemandComputeCost, licenseCost, ipCost);
+                    onDemandComputeCost, licenseCost, reservedLicenseCost, ipCost);
         } else {
             totalOnDemandCost = journal.getHourlyCostForCategory(CostCategory.STORAGE)
                 .named(marketTier.getTier().getDisplayName() + " total cost");
@@ -394,7 +397,7 @@ public class ActionInterpreter {
     private ActionDTO.Move interpretCompoundMoveAction(
             @Nonnull final CompoundMoveTO compoundMoveTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
+            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         List<MoveTO> moves = compoundMoveTO.getMovesList();
         if (moves.isEmpty()) {
             throw new IllegalStateException(
@@ -444,7 +447,7 @@ public class ActionInterpreter {
     }
 
     /**
-     * Convert the {@link MoveTO} recieved from M2 into a {@link ActionDTO.Move} action.
+     * Convert the {@link MoveTO} received from M2 into a {@link ActionDTO.Move} action.
      * We do 2 things in this method:
      * 1. Create an action entity and set it as the target for the move
      * 2. Create change providers. Change providers specify the from and to of the move action.
@@ -459,7 +462,7 @@ public class ActionInterpreter {
     @Nonnull
     Optional<ActionDTO.Move> interpretMoveAction(@Nonnull final MoveTO moveTO,
                                        @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                       @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
+                                       @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingList =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         if (shoppingList == null) {
@@ -643,7 +646,7 @@ public class ActionInterpreter {
      * @return A list of change providers representing the move
      */
     @Nonnull
-    List<ChangeProvider> createChangeProviders(
+    private List<ChangeProvider> createChangeProviders(
             @Nonnull final MoveTO move, @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             CloudTopology<TopologyEntityDTO> originalCloudTopology, Long targetOid) {
         List<ChangeProvider> changeProviders = new ArrayList<>();
@@ -962,8 +965,8 @@ public class ActionInterpreter {
     }
 
     private ChangeProviderExplanation.Builder changeExplanation(
-            @NonNull ActionTO actionTO,
-            @NonNull MoveTO moveTO,
+            @Nonnull ActionTO actionTO,
+            @Nonnull MoveTO moveTO,
             @Nonnull CalculatedSavings savings,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             boolean isPrimaryChangeExplanation) {

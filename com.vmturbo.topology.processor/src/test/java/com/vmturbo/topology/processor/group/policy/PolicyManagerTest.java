@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -169,11 +170,10 @@ public class PolicyManagerTest {
                 .build());
         Mockito.when(topologyGraph.entities())
                 .thenReturn(Stream.of(neverDiscoveredTopologyEntity(5L, EntityType.VIRTUAL_MACHINE).build()));
-        Mockito.when(reservationServiceMole.getReservationByStatus(
-                GetReservationByStatusRequest.newBuilder()
-                        .setStatus(ReservationStatus.RESERVED)
-                        .build()))
+        Mockito.when(reservationServiceMole.getAllReservations(
+                GetAllReservationsRequest.newBuilder().build()))
                 .thenReturn(Lists.newArrayList(Reservation.newBuilder()
+                        .setStatus(ReservationStatus.RESERVED)
                         .setId(44)
                         .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                                 .addReservationTemplate(ReservationTemplate.newBuilder()

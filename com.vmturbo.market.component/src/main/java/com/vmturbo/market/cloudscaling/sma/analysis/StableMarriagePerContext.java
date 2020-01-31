@@ -15,12 +15,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Stopwatch;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
 
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
@@ -32,6 +30,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachineGroup;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Given a context, run SMA, and update the context's matching field with the result.
@@ -109,7 +108,7 @@ public class StableMarriagePerContext {
      */
     public static SMAOutputContext executeOnce(SMAInputContext inputContext) {
 
-        logger.debug("stableMarriage start");
+        logger.debug("SMA start");
         final Stopwatch stopWatch = Stopwatch.createStarted();
         /*
          * Where to collect statistics
@@ -181,7 +180,7 @@ public class StableMarriagePerContext {
         Map<SMAReservedInstance, Integer> remainingCoupons = new HashMap<>();
         for (SMAReservedInstance reservedInstance : reservedInstances) {
             int coupons = Math.round(reservedInstance.getNormalizedTemplate().getCoupons() *
-                    reservedInstance.getTotalCount());
+                    reservedInstance.getNormalizedCount());
             if (coupons > 0) {
                 remainingCoupons.put(reservedInstance, coupons);
                 if (!freeRIs.contains(reservedInstance)) {
@@ -232,7 +231,7 @@ public class StableMarriagePerContext {
         runIterations(freeRIs, remainingCoupons, currentEngagements, virtualMachineGroupMap, statistics, true);
 
         long timeInMilliseconds = stopWatch_iteration.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("stableMarriage iterations took {} ms.", timeInMilliseconds);
+        logger.debug("SMA iterations took {} ms.", timeInMilliseconds);
         statistics.setIterationTime(timeInMilliseconds);
 
         final Stopwatch stopWatch_postprocessing = Stopwatch.createStarted();
@@ -255,10 +254,10 @@ public class StableMarriagePerContext {
 
         statistics.setTotalVmDesiredStateCoupons(computeDesiredStateCoupons(matches));
         timeInMilliseconds = stopWatch_postprocessing.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("stableMarriage post processing took {} ms.", timeInMilliseconds);
+        logger.debug("SMA post processing took {} ms.", timeInMilliseconds);
         statistics.setPostProcessTime(timeInMilliseconds);
         timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("stableMarriage took {} ms.", timeInMilliseconds);
+        logger.debug("SMA took {} ms.", timeInMilliseconds);
         statistics.setTime(timeInMilliseconds);
 
         /*
@@ -340,8 +339,7 @@ public class StableMarriagePerContext {
      */
     public static void normalizeReservedInstances(List<SMAReservedInstance> reservedInstances,
                                                   Map<String, List<SMATemplate>> familyNameToTemplates) {
-        Set<Long> businessAccounts = reservedInstances.stream().map(SMAReservedInstance::getBusinessAccount).collect(Collectors.toSet());
-        Table<Long, String, SMATemplate> businessAccountToFamilyToSmallestTemplate = HashBasedTable.create();
+        Map<String, SMATemplate> familyNameToSmallestTemplate = new HashMap<>();
         for (Map.Entry<String, List<SMATemplate>> entry : familyNameToTemplates.entrySet()) {
             String familyName = entry.getKey();
             List<SMATemplate> templatesInFamily = entry.getValue();
@@ -351,21 +349,20 @@ public class StableMarriagePerContext {
                     smallestTemplateInFamily = template;
                 }
             }
-            for (long account : businessAccounts) {
-                businessAccountToFamilyToSmallestTemplate.put(account, familyName, smallestTemplateInFamily);
-            }
+            familyNameToSmallestTemplate.put(familyName, smallestTemplateInFamily);
+
         }
         for (SMAReservedInstance reservedInstance : reservedInstances) {
-            reservedInstance.normalizeTemplate(businessAccountToFamilyToSmallestTemplate.row(reservedInstance.getBusinessAccount()));
+            reservedInstance.normalizeTemplate(familyNameToSmallestTemplate
+                    .get(reservedInstance.getTemplate().getFamily()));
         }
 
-        Map<SMAReservedInstanceKey, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
-
+        Map<Long, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
         for (SMAReservedInstance ri : reservedInstances) {
-            SMAReservedInstanceKey riContext = new SMAReservedInstanceKey(ri);
-            List<SMAReservedInstance> instances = distinctRIs.get(riContext);
+            Long riKeyOid = ri.getRiKeyOid();
+            List<SMAReservedInstance> instances = distinctRIs.get(riKeyOid);
             if (instances == null) {
-                distinctRIs.put(riContext, new ArrayList<>(Arrays.asList(ri)));
+                distinctRIs.put(riKeyOid, new ArrayList<>(Arrays.asList(ri)));
 
             } else {
                 instances.add(ri);
@@ -381,10 +378,10 @@ public class StableMarriagePerContext {
             SMAReservedInstance representative = members.get(0);
             float representativeTotalCount = 0;
             for (SMAReservedInstance ri : members) {
-                representativeTotalCount = representativeTotalCount + ri.getTotalCount();
-                ri.setTotalCount(0);
+                representativeTotalCount = representativeTotalCount + ri.getNormalizedCount();
+                ri.setNormalizedCount(0);
             }
-            representative.setTotalCount(representativeTotalCount);
+            representative.setNormalizedCount(representativeTotalCount);
             reservedInstances.add(representative);
         }
     }
@@ -509,7 +506,7 @@ public class StableMarriagePerContext {
         }
 
         long timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("stableMarriage sorting took {} ms.", timeInMilliseconds);
+        logger.debug("SMA sorting took {} ms.", timeInMilliseconds);
         statistics.setSortTime(timeInMilliseconds);
 
     }
@@ -653,8 +650,8 @@ public class StableMarriagePerContext {
 
             // pick the RI which has lower ondemand cost.
 
-            float newTemplateTotalCost = newTemplate.getOnDemandTotalCost(vm.getBusinessAccount());
-            float oldTemplateTotalCost = oldTemplate.getOnDemandTotalCost(vm.getBusinessAccount());
+            float newTemplateTotalCost = newTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
+            float oldTemplateTotalCost = oldTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
 
             if (SMAUtils.round(newTemplateTotalCost - oldTemplateTotalCost)
                     > SMAUtils.EPSILON) {
@@ -714,7 +711,8 @@ public class StableMarriagePerContext {
                                                      Map<String, SMAVirtualMachineGroup>
                                                              virtualMachineGroupMap) {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
-        float costImprovement = costImprovement(virtualMachine.getBusinessAccount(),
+        float costImprovement = costImprovement(virtualMachine.getBusinessAccountId(),
+                virtualMachine.getOsType(),
                 (float)newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 newEngagement.getTemplate(),
                 (oldEngagement == null) ?
@@ -725,7 +723,8 @@ public class StableMarriagePerContext {
         if (oldEngagement == null && costImprovement <
                 (SMAUtils.IMPROVEMENT_FACTOR * virtualMachine.getGroupSize() *
                     virtualMachine.getNaturalTemplate()
-                            .getOnDemandTotalCost(virtualMachine.getBusinessAccount()))) {
+                            .getOnDemandTotalCost(virtualMachine.getBusinessAccountId(),
+                                virtualMachine.getOsType()))) {
             return false;
         }
         if (costImprovement < -1.0 * SMAUtils.EPSILON) {
@@ -780,7 +779,7 @@ public class StableMarriagePerContext {
                 }
             }
             if (currentRICoupons > 0 && !currentRI.isCouponToBestVMEmpty()) {
-                logger.debug("stableMarriage new RI={} remainingCoupons={}", currentRI.getName(),
+                logger.debug("SMA new RI={} remainingCoupons={}", currentRI.getName(),
                         currentRICoupons);
                 SMAVirtualMachine currentVM = currentRI.findBestVMIndexFromCouponToBestVM(currentRICoupons, includePartialCoverage);
                 if (currentVM == null) {
@@ -797,7 +796,7 @@ public class StableMarriagePerContext {
                 if (currentRI.isIsf()) {
                     destinationTemplate = currentVM.getMinCostProviderPerFamily(currentRI.getNormalizedTemplate().getFamily());
                     if (destinationTemplate == null) {
-                        logger.error("stableMarriage destinationTemplate can't be null " +
+                        logger.error("SMA destinationTemplate can't be null " +
                                         "currentRI={} currentVM={} riTemplate={}", currentRI, currentVM,
                                 currentRI.getNormalizedTemplate());
                         continue;
@@ -806,7 +805,7 @@ public class StableMarriagePerContext {
                 // the number of coupons the VM will require if it has to be fully discounted.
                 Integer currentVMCouponRequest = destinationTemplate.getCoupons() * groupSize;
                 if (currentVMCouponRequest == 0) {
-                    logger.error("stableMarriage currentVMCouponRequest can't be zero " +
+                    logger.error("SMA currentVMCouponRequest can't be zero " +
                             "destinationTemplate={} groupSize={} ", destinationTemplate, groupSize);
                     continue;
                 }
@@ -829,7 +828,7 @@ public class StableMarriagePerContext {
                 if (isCurrentRIBetter) {
                     if (oldEngagement == null) {
                         statistics.incrementNewEngagements();
-                        logger.debug("stableMarriage new engagement: " +
+                        logger.debug("SMA new engagement: " +
                                         "VM={} pair(RI={}, coupons={})",
                                 currentVM.getName(), currentRI.getName(), discountedCoupons);
                         currentEngagements.put(currentVM, newEngagement);
@@ -843,7 +842,7 @@ public class StableMarriagePerContext {
                         statistics.incrementSwaps();
                         // break engagement;
                         Integer oldEngagementCoupons = oldEngagement.getDiscountedCoupons();
-                        logger.debug("stableMarriage swap: " +
+                        logger.debug("SMA swap: " +
                                         "VM={} pair(RI={}, coupons={}) oldRI={}",
                                 currentVM.getName(), currentRI.getName(), discountedCoupons,
                                 oldRI.getName());
@@ -869,6 +868,7 @@ public class StableMarriagePerContext {
      * compare the net cost based on available coupons, the template On-demand, discounted cost.
      *
      * @param businessAccountId  business account to get rates for.
+     * @param osType          OS
      * @param currentCoupons  current available coupons
      * @param currentTemplate the current template
      * @param oldCoupons      old available coupons
@@ -876,10 +876,11 @@ public class StableMarriagePerContext {
      * @return the effective savings of resize from oldTemplate to currentTemplate
      */
 
-    public static float costImprovement(long businessAccountId, float currentCoupons, SMATemplate currentTemplate,
+    public static float costImprovement(long businessAccountId, OSType osType,
+                                        float currentCoupons, SMATemplate currentTemplate,
                                         float oldCoupons, SMATemplate oldTemplate) {
-        return (oldTemplate.getNetCost(businessAccountId, oldCoupons) -
-            currentTemplate.getNetCost(businessAccountId, currentCoupons));
+        return (oldTemplate.getNetCost(businessAccountId, osType, oldCoupons) -
+            currentTemplate.getNetCost(businessAccountId, osType, currentCoupons));
     }
 
 
@@ -980,7 +981,7 @@ public class StableMarriagePerContext {
             if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
                 return 1;
             }
-            // pick VM with higher RI coverage.
+            // pick VM with higher initial RI coverage.
             float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
             float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
             // if vm is already covered by one of the RI prefer that RI
@@ -1057,7 +1058,7 @@ public class StableMarriagePerContext {
             SMATemplate riTemplate = reservedInstance.getNormalizedTemplate();
             float netSavingvm = 0;
             for (SMAVirtualMachine member : vmList) {
-                float onDemandCostvm = member.getNaturalTemplate().getNetCost(vm.getBusinessAccount(), 0);
+                float onDemandCostvm = member.getNaturalTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), 0);
                 /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
                  *  t2.large need 10 coupons. But we have only 6 coupons.
                  *  riTemplate.getFamily() returns t2.
@@ -1072,9 +1073,10 @@ public class StableMarriagePerContext {
                  *  Note that for AWS the discountedCost will be 0; So afterMoveCost will be 0;
                  */
                 float afterMoveCostvm = reservedInstance.isIsf() ?
-                        member.getMinCostProviderPerFamily(riTemplate.getFamily()).getNetCost(vm.getBusinessAccount(),
+                        member.getMinCostProviderPerFamily(riTemplate.getFamily()).getNetCost(vm.getBusinessAccountId(),
+                            vm.getOsType(),
                             (float)coupons / vm.getGroupSize()) :
-                        riTemplate.getNetCost(vm.getBusinessAccount(), (float)coupons / vm.getGroupSize());
+                        riTemplate.getNetCost(vm.getBusinessAccountId(), vm.getOsType(), (float)coupons / vm.getGroupSize());
 
                 netSavingvm += (onDemandCostvm - afterMoveCostvm);
             }
@@ -1121,11 +1123,11 @@ public class StableMarriagePerContext {
         if (vm.getGroupSize() > 1) {
             for (SMAVirtualMachine member : virtualMachineGroupMap
                     .get(vm.getGroupName()).getVirtualMachines()) {
-                moves += (member.getBusinessAccount() == businessAccount) ? 0 : 1;
+                moves += (member.getBusinessAccountId() == businessAccount) ? 0 : 1;
             }
             return moves;
         } else {
-            return (vm.getBusinessAccount() == businessAccount) ? 0 : 1;
+            return (vm.getBusinessAccountId() == businessAccount) ? 0 : 1;
         }
     }
 
@@ -1151,48 +1153,6 @@ public class StableMarriagePerContext {
             return moves;
         } else {
             return vm.getCurrentTemplate().getFamily().equals(family) ? 0 : 1;
-        }
-    }
-
-    /**
-     * Class to define the context for a RI, and used to combine similar RIs.
-     */
-    public static class SMAReservedInstanceKey {
-        // the least cost template in the family for ISF RI's
-        private final SMATemplate normalizedTemplate;
-        private final long zone;
-        private final long businessAccount;
-
-        /**
-         * Constructor given an RI, construct its context.
-         * @param ri the parent reserved instance.
-         */
-        public SMAReservedInstanceKey(final SMAReservedInstance ri) {
-            this.normalizedTemplate = ri.getNormalizedTemplate();
-            this.zone = ri.getZone();
-            this.businessAccount = ri.getBusinessAccount();
-        }
-
-        /*
-         * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
-         * If the RIs are regional, then zone == NO_ZONE.
-         */
-        @Override
-        public int hashCode() {
-            return Objects.hash(normalizedTemplate.getOid(), zone, businessAccount);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            final SMAReservedInstanceKey that = (SMAReservedInstanceKey)obj;
-            return normalizedTemplate.getOid() == that.normalizedTemplate.getOid() &&
-                    zone == that.zone && businessAccount == that.businessAccount;
         }
     }
 }

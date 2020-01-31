@@ -8,6 +8,9 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -20,9 +23,11 @@ import com.google.common.collect.Maps;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.util.JsonFormat;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -45,6 +50,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
@@ -596,6 +602,32 @@ public class SdkToTopologyEntityConverterTest {
             SdkToTopologyEntityConverter.newTopologyEntityDTO(vv);
 
         assertTrue(vvTopologyEntityBuilder.getAnalysisSettings().getDeletable());
+    }
+
+    /**
+     * Test converter for tags for tag with several values.
+     */
+    @Test
+    public void testTagConverter() {
+        final String tagName = "test_tag_name";
+        final String tagValue1 = "test_tag_value1";
+        final String tagValue2 = "test_tag_value2";
+        final Map<String, TagValues> tagsMap = new HashMap<>();
+        tagsMap.put(tagName,
+                TagValues.newBuilder().addAllValue(Arrays.asList(tagValue1, tagValue2)).build());
+        final Tags tags = SdkToTopologyEntityConverter.convertGroupTags(tagsMap);
+        Assert.assertEquals(1, tags.getTagsMap().size());
+        Assert.assertEquals(Arrays.asList(tagValue1, tagValue2),
+                tags.getTagsMap().get(tagName).getValuesList());
+    }
+
+    /**
+     * Test converter for tags when discovered group has no tags.
+     */
+    @Test
+    public void testTagConverterWithoutInputTags() {
+        final Tags tags = SdkToTopologyEntityConverter.convertGroupTags(Collections.emptyMap());
+        Assert.assertTrue(tags.getTagsMap().isEmpty());
     }
 
     /**

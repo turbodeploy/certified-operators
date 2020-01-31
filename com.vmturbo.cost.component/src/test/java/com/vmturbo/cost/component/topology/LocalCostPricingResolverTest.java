@@ -115,7 +115,8 @@ public class LocalCostPricingResolverTest {
 
         List<Discount> discountList = Arrays.asList(createDiscountByAccount(BA1.getOid()));
 
-        Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid = new HashMap<>();
+        Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataMapByBusinessAccountOid
+                = new HashMap<>();
 
         try {
             when(discountStore.getAllDiscount()).thenReturn(discountList);
@@ -157,7 +158,8 @@ public class LocalCostPricingResolverTest {
         populatePriceTableKeybyBusinessAccountOidMap(BA3.getOid(), priceTableKeyOid1);
         populatePriceTableByPriceTableKeyOid(priceTableKeyOid1, PRICE_TABLE);
 
-        Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid = new HashMap<>();
+        Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataMapByBusinessAccountOid
+                = new HashMap<>();
         List<Discount> discountList = Arrays.asList(createDiscountByAccount(BA3.getOid()));
 
         try {

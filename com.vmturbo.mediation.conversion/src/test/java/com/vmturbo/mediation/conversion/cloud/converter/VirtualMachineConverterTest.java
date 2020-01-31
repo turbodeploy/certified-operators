@@ -106,7 +106,8 @@ public class VirtualMachineConverterTest {
                 .setId(VOLUME_ID);
         when(cloudDiscoveryConverter.getAvailabilityZone(entityToConvert))
                 .thenReturn(Optional.of(ZONE_ID));
-        when(cloudDiscoveryConverter.createEphemeralVolumeId(anyInt(), anyString(), anyString()))
+        when(cloudDiscoveryConverter.createEphemeralVolumeId(anyString(),
+                anyInt(), anyString(), anyString()))
                 .thenReturn(VOLUME_ID);
         when(cloudDiscoveryConverter.getStorageTierId(anyString()))
                 .thenReturn(STORAGE_TIER_ID);

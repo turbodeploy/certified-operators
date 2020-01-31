@@ -30,18 +30,19 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
-import org.jooq.Record;
-
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
+
+import org.apache.commons.lang3.StringUtils;
+import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -90,6 +91,7 @@ public interface StatSnapshotCreator {
             // Process all the DB records grouped by, and ordered by, snapshot_time
             TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity =
                     organizeStatsRecordsByTime(statDBRecords, commodityRequests);
+
             // For each snapshot_time, create a {@link StatSnapshot} and handle as it is constructed
             return statRecordsByTimeByCommodity.entrySet().stream().map(entry -> {
                 final Timestamp timestamp = entry.getKey();

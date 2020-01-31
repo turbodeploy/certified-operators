@@ -19,6 +19,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.flywaydb.core.Flyway;
 import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
@@ -26,15 +28,13 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.Sets;
-
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -42,10 +42,13 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
@@ -223,12 +226,10 @@ public class ReservationDaoImplTest {
     @Test
     public void testGetReservationByStatus() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
-        Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
         reservationDao.createReservation(reservationWithTemplateFirst);
-        reservationDao.createReservation(reservationWithTemplateSecond);
-        Set<Reservation> retrievedReservation = reservationDao.getReservationsByStatus(ReservationStatus.RESERVED);
+        Set<Reservation> retrievedReservation = reservationDao.getReservationsByStatus(ReservationStatus.INITIAL);
         assertTrue(retrievedReservation.size() == 1);
-        assertEquals("Test-second-reservation", retrievedReservation.iterator().next().getName());
+        assertEquals("Test-first-reservation", retrievedReservation.iterator().next().getName());
     }
 
     @Test
@@ -294,14 +295,17 @@ public class ReservationDaoImplTest {
             reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
         Reservation createdSecondReservation =
             reservationDao.createReservation(createReservationWithTemplate(testSecondReservation));
-        final List<String> result = reservationDao.collectDiagsStream().collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        reservationDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
 
         final List<String> expected = Stream.of(createdFirstReservation, createdSecondReservation)
             .map(profile -> ReservationDaoImpl.GSON.toJson(profile, Reservation.class))
             .collect(Collectors.toList());
 
-        assertTrue(result.containsAll(expected));
-        assertTrue(expected.containsAll(result));
+        assertTrue(diags.getAllValues().containsAll(expected));
+        assertTrue(expected.containsAll(diags.getAllValues()));
     }
 
     @Test

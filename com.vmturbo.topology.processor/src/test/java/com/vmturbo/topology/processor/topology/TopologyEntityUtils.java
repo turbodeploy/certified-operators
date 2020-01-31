@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -34,6 +35,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * Utilities for generating {@link TopologyEntity} objects for tests.
  */
 public class TopologyEntityUtils {
+
     /**
      * Create a {@link TopologyEntity.Builder}.
      *
@@ -187,6 +189,41 @@ public class TopologyEntityUtils {
         return builder;
     }
 
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity.
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
+     *                  associated with commodities bought from the provider.
+     * @param soldComms is the list of {@link CommodityType} sold.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntity(long oid,
+                                                        long discoveringTargetId,
+                                                        long lastUpdatedTime,
+                                                        String displayName,
+                                                        EntityType entityType,
+                                                        Map<Long, List<CommodityType>> producers,
+                                                        List<CommodityType> soldComms) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(oid)
+                        .setEntityType(entityType.getNumber())
+                        .setDisplayName(displayName)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
+                                        .lastUpdatedAt(lastUpdatedTime))));
+        for (CommodityType ct : soldComms) {
+            builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
+        }
+
+        addCommodityBoughtFromProviderMap(builder.getEntityBuilder(), producers);
+        return builder;
+    }
 
     /**
      * Create a minimal topology entity builder.
@@ -235,7 +272,8 @@ public class TopologyEntityUtils {
                         .lastUpdatedAt(lastUpdatedTime))));
 
         for (long connectedTo : connectedToEntities) {
-            builder.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+            builder.getEntityBuilder()
+                    .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(connectedTo)
                 .setConnectionType(ConnectionType.NORMAL_CONNECTION)
                 .build());
@@ -339,7 +377,24 @@ public class TopologyEntityUtils {
     }
 
     /**
-     * Add each producer to builder commodity bought map
+     * Add each producer to builder commodity bought map.
+     * @param builder The builder of the topology entity
+     * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.
+     *                  associated with commodities bought from the provider.
+     */
+    private static void addCommodityBoughtFromProviderMap(TopologyEntityDTO.Builder builder,
+                                                          Map<Long, List<CommodityType>> producers) {
+        for (Map.Entry<Long, List<CommodityType>> producer : producers.entrySet()) {
+            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addAllCommodityBought(producer.getValue().stream().map(c ->
+                            CommodityBoughtDTO.newBuilder().setCommodityType(c).build()).collect(Collectors.toList()))
+                .setProviderId(producer.getKey())
+                .build());
+        }
+    }
+
+    /**
+     * Add each producer to builder commodity bought map.
      * @param builder The builder of the topology entity
      * @param producers The OIDs of the producers that the created entity should be consuming from.
      *                  Does not actually associate any commodities with the producers.
@@ -347,8 +402,8 @@ public class TopologyEntityUtils {
     private static void addCommodityBoughtMap(TopologyEntityDTO.Builder builder, long... producers) {
         for (long producer : producers) {
             builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(producer)
-                .build());
+                    .setProviderId(producer)
+                    .build());
         }
     }
 
@@ -407,6 +462,41 @@ public class TopologyEntityUtils {
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
             .addAllCommoditySoldList(commSoldList.build())
             .setEntityType(entityType));
+    }
+
+    static TopologyEntity.Builder buildTopologyEntityWithCommSoldCommBoughtWithHistoricalValues(
+            long oid, HistoricalValues historicalUsedSold1, HistoricalValues historicalPeakSold1,
+            HistoricalValues historicalUsedSold2, HistoricalValues historicalPeakSold2,
+            long providerOid1, HistoricalValues historicalUsedBought1, HistoricalValues historicalPeakBought1,
+            long providerOid2, HistoricalValues historicalUsedBought2, HistoricalValues historicalPeakBought2) {
+        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM.getNumber()).setKey("").build())
+            .setHistoricalUsed(historicalUsedSold1)
+            .setHistoricalPeak(historicalPeakSold1)
+            .build());
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU.getNumber()).setKey("").build())
+            .setHistoricalUsed(historicalUsedSold2)
+            .setHistoricalPeak(historicalPeakSold2)
+            .build());
+
+        final ImmutableList.Builder<CommoditiesBoughtFromProvider> commBoughtList = ImmutableList.builder();
+        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid1)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM.getNumber()).setKey("").build())
+                .setHistoricalUsed(historicalUsedBought1)
+                .setHistoricalPeak(historicalPeakBought1)).build());
+        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid2)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
+                .setHistoricalUsed(historicalUsedBought2)
+                .setHistoricalPeak(historicalPeakBought2)).build());
+
+        return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
+            .addAllCommoditySoldList(commSoldList.build())
+            .addAllCommoditiesBoughtFromProviders(commBoughtList.build())
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
     }
 
     static TopologyGraph<TopologyEntity> createGraph(CommodityDTO.CommodityType commType,

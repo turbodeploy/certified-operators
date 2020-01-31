@@ -23,6 +23,8 @@ public class PricingGroupMapper {
 
     private static final String AZURE_PRICING_GROUP_ID = "Azure";
 
+    private static final String GCP_PRICING_GROUP_ID = "GCP";
+
     private static final Map<SDKProbeType, String> PRICING_GROUP_BY_PROBE_TYPE = ImmutableMap
             .<SDKProbeType, String>builder()
             .put(SDKProbeType.AWS, AWS_PRICING_GROUP_ID)
@@ -34,6 +36,8 @@ public class PricingGroupMapper {
             .put(SDKProbeType.AZURE_SERVICE_PRINCIPAL, AZURE_PRICING_GROUP_ID)
             .put(SDKProbeType.AZURE_STORAGE_BROWSE, AZURE_PRICING_GROUP_ID)
             .put(SDKProbeType.AZURE_COST, AZURE_PRICING_GROUP_ID)
+            .put(SDKProbeType.GCP, GCP_PRICING_GROUP_ID)
+            .put(SDKProbeType.GCP_COST, GCP_PRICING_GROUP_ID)
             .build();
 
     /**

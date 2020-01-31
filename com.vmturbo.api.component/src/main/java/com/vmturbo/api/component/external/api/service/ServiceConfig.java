@@ -342,16 +342,12 @@ public class ServiceConfig {
                 communicationConfig.scenarioRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
-                mapperConfig.statsMapper(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.repositoryRpcService(),
-                userSessionContext(),
                 websocketConfig.websocketHandler(),
                 actionStatsQueryExecutor(),
                 communicationConfig.thinTargetCache(),
-                communicationConfig.entitySeverityService(),
-                communicationConfig.historyRpcService(),
                 statsService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.serviceEntityMapper(),
@@ -359,6 +355,7 @@ public class ServiceConfig {
                 communicationConfig.priceIndexPopulator(),
                 communicationConfig.actionsRpcService(),
                 planEntityStatsFetcher(),
+                communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -413,12 +410,7 @@ public class ServiceConfig {
     public ReservationsService reservationsService() {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
-                mapperConfig.reservationMapper(),
-                initialPlacementTimeoutSeconds,
-                communicationConfig.planRpcService(),
-                communicationConfig.planRpcServiceFuture(),
-                communicationConfig.actionsRpcService(),
-                communicationConfig.templateServiceBlockingStub());
+                mapperConfig.reservationMapper());
     }
 
     @Bean
@@ -698,7 +690,9 @@ public class ServiceConfig {
         final PlanRIStatsSubQuery planRIStatsQuery =
                 new PlanRIStatsSubQuery(
                         communicationConfig.repositoryApi(),
-                        communicationConfig.planReservedInstanceServiceBlockingStub());
+                        communicationConfig.planReservedInstanceServiceBlockingStub(),
+                        communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
+                        mapperConfig.buyRiScopeHandler());
         statsQueryExecutor().addSubquery(planRIStatsQuery);
         return planRIStatsQuery;
     }

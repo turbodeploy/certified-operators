@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.reservation;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,14 +20,14 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
@@ -78,9 +79,14 @@ public class ReservationManager {
      * topology.
      *
      * @param topology a Map contains live discovered topologyEntity.
+     * @param planType the current planProjectType. Used to differentiate normal plan and
+     *                 reservation plan
+     * @param topologyType the current type. Used to differentiate realtime and plan
      * @return The number of reservation entities
      */
-    public int applyReservation(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applyReservation(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
+                                TopologyType topologyType,
+                                PlanProjectType planType) {
         final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest.newBuilder()
                 .build();
         final Iterable<Reservation> allReservations = () ->
@@ -88,14 +94,21 @@ public class ReservationManager {
         // Retrieve all active reservations.
         final Set<Reservation> reservedReservations =
                 StreamSupport.stream(allReservations.spliterator(), false)
-                        .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED)
+                        .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED ||
+                                reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED)
                         .collect(Collectors.toSet());
         // Retrieve potential active reservations which start day is today or before and status is FUTURE.
-        final Set<Reservation> todayActiveReservations =
-                StreamSupport.stream(allReservations.spliterator(), false)
-                        .filter(reservation -> reservation.getStatus() == ReservationStatus.FUTURE)
-                        .filter(this::isReservationActiveNow)
-                        .collect(Collectors.toSet());
+        Set<Reservation> todayActiveReservations = new HashSet<>();
+        if (topologyType == TopologyType.REALTIME) {
+            final UpdateFutureReservationRequest request = UpdateFutureReservationRequest.newBuilder()
+                    .build();
+            reservationService.updateFutureReservation(request);
+        }
+        if (planType == PlanProjectType.RESERVATION_PLAN) {
+            todayActiveReservations.addAll(StreamSupport.stream(allReservations.spliterator(), false)
+                    .filter(reservation -> reservation.getStatus() == ReservationStatus.INPROGRESS)
+                    .collect(Collectors.toSet()));
+        }
         final List<TopologyEntity.Builder> reservationTopologyEntities = new ArrayList<>();
 
         final List<Reservation> updateReservations =
@@ -120,19 +133,6 @@ public class ReservationManager {
             }
         }
         return numAdded;
-    }
-
-    /**
-     * Check if reservation start time is now or before.
-     *
-     * @param reservation {@link Reservation}.
-     * @return a Boolean.
-     */
-    @VisibleForTesting
-    boolean isReservationActiveNow(@Nonnull final Reservation reservation) {
-        long today = Instant.now().toEpochMilli();
-        long reservationDate = reservation.getStartDate();
-        return reservationDate == today || reservationDate < today;
     }
 
     /**
@@ -425,11 +425,11 @@ public class ReservationManager {
                     .getReservationTemplateCollectionBuilder()
                     .getReservationTemplateBuilderList()) {
                 createNewReservationTemplate(reservationTopologyEntities, reservationTemplate,
-                    topology, reservationBuilder.getName(), instanceCount);
+                    topology, reservationBuilder.getName(), instanceCount, reservationBuilder.getId());
                 instanceCount += reservationTemplate.getCount();
             }
             updateReservationsWithEntityOid.add(reservationBuilder
-                    .setStatus(ReservationStatus.RESERVED)
+                    .setStatus(ReservationStatus.INPROGRESS)
                     .build());
         }
         return updateReservationsWithEntityOid;
@@ -445,6 +445,7 @@ public class ReservationManager {
      * @param topology The entities in the topology, arranged by ID.
      * @param reservationName name of reservation.
      * @param instanceCount cont index of reservation, used for create name for reservation instance.
+     * @param reservationID ID of the reservation.
      * @return new crated {@link ReservationTemplate}.
      */
     private void createNewReservationTemplate(
@@ -452,7 +453,8 @@ public class ReservationManager {
             @Nonnull final ReservationTemplate.Builder reservationTemplate,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull final String reservationName,
-            long instanceCount) {
+            long instanceCount,
+            final long reservationID) {
         final Map<Long, Long> templateCountMap =
                 ImmutableMap.of(reservationTemplate.getTemplateId(),
                         reservationTemplate.getCount());
@@ -470,7 +472,12 @@ public class ReservationManager {
                 // set suspendable to false in order to prevent Market from generating
                 // suspend action.
                 disableSuspendAnalysisSetting(newEntityBuilder);
-
+                // give each reserved entity a ReservationOrigin
+                Origin reservationOrigin = Origin.newBuilder()
+                        .setReservationOrigin(ReservationOrigin.newBuilder()
+                                .setReservationId(reservationID))
+                        .build();
+                newEntityBuilder.setOrigin(reservationOrigin);
                 instanceCount++;
                 updatedTopologyEntityDTO.add(newEntityBuilder);
             }

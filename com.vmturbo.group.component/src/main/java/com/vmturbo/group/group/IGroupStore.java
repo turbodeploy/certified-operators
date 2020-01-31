@@ -168,6 +168,17 @@ public interface IGroupStore {
     void deleteAllGroups();
 
     /**
+     * Method returns owners of groups (resource groups owned by businessAccounts).
+     *
+     * @param groupIds group ids to query
+     * @param groupType group type to query
+     * @return set of owners
+     */
+    @Nonnull
+    Set<Long> getOwnersOfGroups(@Nonnull Collection<Long> groupIds,
+            @Nullable GroupType groupType);
+
+    /**
      * Class to hold discovered group information.
      */
     @Immutable

@@ -14,13 +14,6 @@ import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.RELATION;
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.envType;
-import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
-import static com.vmturbo.history.db.jooq.JooqUtils.number;
-import static com.vmturbo.history.db.jooq.JooqUtils.relation;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
-import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
@@ -34,6 +27,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -42,13 +37,12 @@ import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -146,7 +140,7 @@ public interface StatsQueryFactory {
             // but the query factory is used with potentially any stats table.
             // Therefore we need an explicit check for the presence of the field.
             if (!entityType.isEmpty() && table.field(ENTITY_TYPE) != null) {
-                return Optional.of(str(dField(table, ENTITY_TYPE)).in(entityType));
+                return Optional.of(JooqUtils.getStringField(table, ENTITY_TYPE).in(entityType));
             } else {
                 return Optional.empty();
             }
@@ -157,7 +151,7 @@ public interface StatsQueryFactory {
             // We only record the environment type in the database for the aggregate
             // market stats tables.
             if (HistoryStatsUtils.isMarketStatsTable(table)) {
-                return Optional.of(envType(dField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName())).eq(environmentType));
+                return Optional.of(JooqUtils.getEnvField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName()).eq(environmentType));
             } else {
                 return Optional.empty();
             }
@@ -179,7 +173,7 @@ public interface StatsQueryFactory {
             List<Condition> whereConditions = new ArrayList<>();
 
             // add where clause for time range; null if the timeframe cannot be determined
-            final Condition timeRangeCondition = betweenStartEndTimestampCond(dField(table, SNAPSHOT_TIME),
+            final Condition timeRangeCondition = HistoryStatsUtils.betweenStartEndTimestampCond(JooqUtils.getField(table, SNAPSHOT_TIME),
                     timeRange.getTimeFrame(), timeRange.getStartTime(), timeRange.getEndTime());
             if (timeRangeCondition != null) {
                 logger.debug("table {}, timeRangeCondition: {}", table.getName(), timeRangeCondition);
@@ -188,7 +182,7 @@ public interface StatsQueryFactory {
 
             // include an "in()" clause for uuids, if any
             if (entities.size() > 0) {
-                whereConditions.add(str(dField(table, UUID)).in(entities));
+                whereConditions.add(JooqUtils.getStringField(table, UUID).in(entities));
             }
 
             // note: the legacy DB code defines expression conditions that are not used by new UI
@@ -202,49 +196,49 @@ public interface StatsQueryFactory {
 
             // the fields to return
             List<Field<?>> selectFields = Lists.newArrayList(
-                    floorDateTime(dField(table, SNAPSHOT_TIME), timeRange.getTimeFrame()).as(SNAPSHOT_TIME),
-                    dField(table, PROPERTY_TYPE),
-                    dField(table, PROPERTY_SUBTYPE),
-                    dField(table, PRODUCER_UUID),
-                    dField(table, CAPACITY),
-                    dField(table, EFFECTIVE_CAPACITY),
-                    dField(table, RELATION),
-                    dField(table, COMMODITY_KEY));
+                    JooqUtils.floorDateTime(table, SNAPSHOT_TIME, timeRange.getTimeFrame()).as(SNAPSHOT_TIME),
+                    JooqUtils.getField(table, PROPERTY_TYPE),
+                    JooqUtils.getField(table, PROPERTY_SUBTYPE),
+                    JooqUtils.getField(table, PRODUCER_UUID),
+                    JooqUtils.getField(table, CAPACITY),
+                    JooqUtils.getField(table, EFFECTIVE_CAPACITY),
+                    JooqUtils.getField(table, RELATION),
+                    JooqUtils.getField(table, COMMODITY_KEY));
 
             // the fields to order by and group by
             Field<?>[] orderGroupFields = new Field<?>[]{
-                    dField(table, SNAPSHOT_TIME),
-                    dField(table, UUID),
-                    dField(table, PROPERTY_TYPE),
-                    dField(table, PROPERTY_SUBTYPE),
-                    dField(table, RELATION)
+                    JooqUtils.getField(table, SNAPSHOT_TIME),
+                    JooqUtils.getField(table, UUID),
+                    JooqUtils.getField(table, PROPERTY_TYPE),
+                    JooqUtils.getField(table, PROPERTY_SUBTYPE),
+                    JooqUtils.getField(table, RELATION)
             };
 
             Select<?> statsQueryString;
             switch (aggregate) {
                 case NO_AGG:
-                    selectFields.add(0, dField(table, UUID));
-                    selectFields.add(0, dField(table, AVG_VALUE));
-                    selectFields.add(0, dField(table, MIN_VALUE));
-                    selectFields.add(0, dField(table, MAX_VALUE));
+                    selectFields.add(0, JooqUtils.getField(table, UUID));
+                    selectFields.add(0, JooqUtils.getField(table, AVG_VALUE));
+                    selectFields.add(0, JooqUtils.getField(table, MIN_VALUE));
+                    selectFields.add(0, JooqUtils.getField(table, MAX_VALUE));
 
                     statsQueryString = historydbIO.getStatsSelect(table, selectFields, whereConditions,
                             orderGroupFields);
                     break;
 
                 case AVG_ALL:
-                    selectFields.add(0, avg(number(dField(table, AVG_VALUE))).as(AVG_VALUE));
-                    selectFields.add(0, avg(number(dField(table, MIN_VALUE))).as(MIN_VALUE));
-                    selectFields.add(0, avg(number(dField(table, MAX_VALUE))).as(MAX_VALUE));
+                    selectFields.add(0, avg(JooqUtils.getNumberField(table, AVG_VALUE)).as(AVG_VALUE));
+                    selectFields.add(0, avg(JooqUtils.getNumberField(table, MIN_VALUE)).as(MIN_VALUE));
+                    selectFields.add(0, avg(JooqUtils.getNumberField(table, MAX_VALUE)).as(MAX_VALUE));
 
                     statsQueryString = historydbIO.getStatsSelectWithGrouping(table, selectFields,
                             whereConditions, orderGroupFields);
                     break;
 
                 case AVG_MIN_MAX:
-                    selectFields.add(0, avg(number(dField(table, AVG_VALUE))).as(AVG_VALUE));
-                    selectFields.add(0, min(number(dField(table, MIN_VALUE))).as(MIN_VALUE));
-                    selectFields.add(0, max(number(dField(table, MAX_VALUE))).as(MAX_VALUE));
+                    selectFields.add(0, avg(JooqUtils.getNumberField(table, AVG_VALUE)).as(AVG_VALUE));
+                    selectFields.add(0, min(JooqUtils.getNumberField(table, MIN_VALUE)).as(MIN_VALUE));
+                    selectFields.add(0, max(JooqUtils.getNumberField(table, MAX_VALUE)).as(MAX_VALUE));
 
                     statsQueryString = historydbIO.getStatsSelectWithGrouping(table, selectFields,
                             whereConditions, orderGroupFields);
@@ -270,11 +264,12 @@ public interface StatsQueryFactory {
                 if (commodityRequest.hasCommodityName()) {
                     commodityTest =
                         commodityTest.and(
-                            str(dField(table, PROPERTY_TYPE)).eq(commodityRequest.getCommodityName()));
+                            JooqUtils.getStringField(table, PROPERTY_TYPE).eq(commodityRequest.getCommodityName()));
                 }
-                if (commodityRequest.hasRelatedEntityType()) {
+                if (commodityRequest.hasRelatedEntityType()
+                        && commodityRequest.getRelatedEntityType() != null) {
                     Optional<Condition> entityTypeCond =
-                        entityTypeCond(Collections.singleton(commodityRequest.getRelatedEntityType()), table);
+                    entityTypeCond(Collections.singleton(commodityRequest.getRelatedEntityType()), table);
                     if (entityTypeCond.isPresent()) {
                         commodityTest = commodityTest.and(entityTypeCond.get());
                     }
@@ -287,7 +282,7 @@ public interface StatsQueryFactory {
                             // 'bought/sold' are represented in the DB by integers, so we need to map here
                             RelationType desiredRelation = RelationType.getApiRelationType(
                                     propertyValueFilter.getValue());
-                            commodityTest = commodityTest.and(relation(dField(table, RELATION))
+                            commodityTest = commodityTest.and(JooqUtils.getRelationTypeField(table, RELATION)
                                     .eq(desiredRelation));
                             break;
                         case ENVIRONMENT_TYPE:
@@ -310,8 +305,9 @@ public interface StatsQueryFactory {
                             // default is to use 'property' as column name and perform a string match
                             final Field<?> propField = table.field(propertyValueFilter.getProperty());
                             if (propField != null) {
+                                JooqUtils.checkFieldType(propField.getType(), String.class);
                                 commodityTest = commodityTest.and(
-                                    str(propField).eq(propertyValueFilter.getValue()));
+                                    ((Field<String>)propField).eq(propertyValueFilter.getValue()));
                             } else {
                                 logger.warn("Unhandled stat property filter: {}",
                                     propertyValueFilter.getProperty());

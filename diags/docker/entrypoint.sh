@@ -63,7 +63,9 @@ if [[ -z ${JAVA_OPTS} ]]; then
      # for the components using the SecureRandom class (see
      # http://stackoverflow.com/questions/25660899/spring-boot-actuator-application-wont-start-on-ubuntu-vps)
      JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+UseContainerSupport -Xms16m -XX:CompileThreshold=1500
-              -XX:+ExitOnOutOfMemoryError -Xjit:count=1500 -XX:+ExitOnOutOfMemoryError -Xdump:java:file=/STDOUT/
+              -Xjit:count=1500 -XX:-HeapDumpOnOutOfMemoryError -XX:+ExitOnOutOfMemoryError
+              -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
+              -Xdump:java:events=throw,filter=java/lang/OutOfMemoryError,file=/STDOUT/
               -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
               -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
               -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl

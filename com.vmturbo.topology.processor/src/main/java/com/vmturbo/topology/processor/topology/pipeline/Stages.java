@@ -16,18 +16,17 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+import com.google.protobuf.AbstractMessage;
+
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-import com.google.protobuf.AbstractMessage;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
@@ -39,11 +38,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -64,11 +64,11 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -86,20 +86,19 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
-import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger.KeyChangeOutcome;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
-import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
-import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
+import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
-import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
-import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -112,6 +111,7 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
  * Since the stages are pretty small, it makes some sense to keep them in one place for now.
  */
 public class Stages {
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * This stage uploads cloud cost data to the cost component. We are doing this before the other
@@ -356,7 +356,7 @@ public class Stages {
 
         @Override
         public Status passthrough(final TopologyGraph<TopologyEntity> topologyGraph) {
-            final Map<KeyChangeOutcome, Integer> keysChangeCounts
+            final Map<ApplicationCommodityKeyChanger.KeyChangeOutcome, Integer> keysChangeCounts
                 = applicationCommodityKeyChanger.execute(topologyGraph);
             final String summary = keysChangeCounts.entrySet().stream()
                 .map((e) -> String.format("%s: %s", e.getKey(), e.getValue()))
@@ -569,7 +569,9 @@ public class Stages {
 
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            final int numAdded = reservationManager.applyReservation(input);
+            final int numAdded = reservationManager.applyReservation(input,
+                    this.getContext().getTopologyInfo().getTopologyType(),
+                    this.getContext().getTopologyInfo().getPlanInfo().getPlanProjectType());
             return Status.success("Added " + numAdded + " reserved entities to the topology.");
         }
     }
@@ -593,7 +595,6 @@ public class Stages {
                     " entities as non-suspendable.");
         }
     }
-
 
     /**
      * The ScopeResolutionStage will translate a list of scope entries (specified in the PlanScope)
@@ -633,8 +634,8 @@ public class Stages {
             // initialize the set with any existing seed oids
             final Set<Long> seedEntities = new HashSet<>(getContext().getTopologyInfo().getScopeSeedOidsList());
             final Set<Long> groupsToResolve = new HashSet<>();
-            List<PlanScopeEntry> planScopeEntries = planScope.getScopeEntriesList();
-            for (PlanScopeEntry scopeEntry : planScopeEntries) {
+            List<ScenarioOuterClass.PlanScopeEntry> planScopeEntries = planScope.getScopeEntriesList();
+            for (ScenarioOuterClass.PlanScopeEntry scopeEntry : planScopeEntries) {
                 // if it's an entity, add it right to the seed entity list. Otherwise queue it for
                 // group resolution.
                 if (StringConstants.GROUP_TYPES.contains(scopeEntry.getClassName())) {
@@ -648,24 +649,24 @@ public class Stages {
             // Now resolve the groups by adding all the group members to the seedEntities
             if (groupsToResolve.size() > 0) {
                 // fetch the group definitions from the group service
-                GetGroupsRequest request = GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupFilter.newBuilder()
-                        .addAllId(groupsToResolve))
-                    .setReplaceGroupPropertyWithGroupMembershipFilter(true)
-                    .build();
+                GroupDTO.GetGroupsRequest request = GroupDTO.GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
+                                .addAllId(groupsToResolve))
+                        .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+                        .build();
                 groupServiceClient.getGroups(request)
-                    .forEachRemaining(
-                        group -> {
-                            try {
-                                // add each group's members to the set of additional seed entities
-                                Set<Long> groupMemberOids = getContext().getGroupResolver().resolve(group, input);
-                                seedEntities.addAll(groupMemberOids);
-                            } catch (GroupResolutionException gre) {
-                                // log a warning
-                                logger.warn("Couldn't resolve members for group {} while defining scope", group);
-                            }
-                        }
-                    );
+                        .forEachRemaining(
+                                group -> {
+                                    try {
+                                        // add each group's members to the set of additional seed entities
+                                        Set<Long> groupMemberOids = getContext().getGroupResolver().resolve(group, input);
+                                        seedEntities.addAll(groupMemberOids);
+                                    } catch (GroupResolutionException gre) {
+                                        // log a warning
+                                        logger.warn("Couldn't resolve members for group {} while defining scope", group);
+                                    }
+                                }
+                        );
             }
 
             // Set scope type.
@@ -679,13 +680,13 @@ public class Stages {
             // TODO:  Check with API if its possible to pass the scope type instead.
             String scopeClassName = planScopeEntries.get(0).getClassName();
             int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
-                            ? EntityType.UNKNOWN_VALUE
-                            : UIEntityType.fromString(scopeClassName).typeNumber();
+                    ? CommonDTO.EntityDTO.EntityType.UNKNOWN_VALUE
+                    : UIEntityType.fromString(scopeClassName).typeNumber();
             // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
                 topologyInfoBuilder
-                                .addAllScopeSeedOids(seedEntities);
+                        .addAllScopeSeedOids(seedEntities);
                 topologyInfoBuilder.setScopeEntityType(scopeEntityType);
             });
 
@@ -1388,9 +1389,13 @@ public class Stages {
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
             if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
                             && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN)) {
-                // on prem plans
-                result = planTopologyScopeEditor.scopeOnPremTopology(topologyInfo, graph, planScope,
-                        groupResolver, changes);
+                // populate InvertedIndex
+                logger.info("Indexing on-prem entities for scoping .....");
+                InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                        index = planTopologyScopeEditor.createInvertedIndex();
+                graph.entities().forEach(entity -> index.add(entity));
+                // scope using inverted index
+                result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope);
                 return StageResult.withResult(result).andStatus(Status.success("PlanScopingStage:"
                                 + " Constructed a scoped topology of size " + result.size() +
                                 " from topology of size " + graph.size()));

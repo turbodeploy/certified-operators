@@ -4,10 +4,10 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import com.google.gson.Gson;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +25,7 @@ import org.springframework.web.servlet.config.annotation.AsyncSupportConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -123,8 +124,8 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public DiagnosticsController diagnosticsController() {
-        return new DiagnosticsController(diagnosticsConfig.diagsHandler());
+    public DiagnosticsControllerImportable diagnosticsController() {
+        return new DiagnosticsControllerImportable(diagnosticsConfig.diagsHandler());
     }
 
     @Bean

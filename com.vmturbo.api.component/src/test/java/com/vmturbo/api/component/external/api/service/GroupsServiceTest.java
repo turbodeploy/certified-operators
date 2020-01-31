@@ -50,6 +50,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestRe
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -1399,7 +1400,7 @@ public class GroupsServiceTest {
 
         groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
                 new SearchPaginationRequest(null, null, true, null), null, null,
-                Lists.newArrayList(GroupsService.USER_GROUPS));
+                Lists.newArrayList(GroupsService.USER_GROUPS), false);
 
         // verify that group filter is populated to origin USER
         verify(groupExpander).getGroupsWithMembers(expectedRequest);
@@ -1422,6 +1423,21 @@ public class GroupsServiceTest {
                         .setOriginFilter(OriginFilter.newBuilder()
                                 .addOrigin(Type.USER)))
                 .build();
+        // when getPaginatedGroupApiDTOs is called with includeAllGroupClasses=true, we will send
+        // the default group filter
+        final FilterApiDTO nameFilter = new FilterApiDTO();
+
+        final GroupFilter groupFilterWithNameFilter = GroupFilter.newBuilder()
+            .addPropertyFilters(SearchProtoUtil.nameFilterRegex(
+                "foobar",
+                EntityFilterMapper.isPositiveMatchingOperator(EntityFilterMapper.REGEX_MATCH),
+                false))
+            .build();
+        GetGroupsRequest allGroupsRequestWithNameFilter = GetGroupsRequest.newBuilder()
+            .setGroupFilter(groupFilterWithNameFilter)
+            .build();
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+            eq(Collections.singletonList(nameFilter)))).thenReturn(groupFilterWithNameFilter);
 
         final Grouping groupOfClusters = Grouping.newBuilder()
                 .setId(11L)
@@ -1441,6 +1457,15 @@ public class GroupsServiceTest {
                                         .setType(MemberType.newBuilder()
                                                 .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))))
                 .build();
+        final Grouping clusterOfVMs = Grouping.newBuilder()
+            .setId(13L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType.newBuilder()
+                        .setType(MemberType.newBuilder()
+                            .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))))
+            .build();
 
         final GroupAndMembers group1 = ImmutableGroupAndMembers.builder()
                 .group(groupOfClusters)
@@ -1452,23 +1477,34 @@ public class GroupsServiceTest {
                 .members(Collections.emptyList())
                 .entities(Collections.emptyList())
                 .build();
+        final GroupAndMembers group3 = ImmutableGroupAndMembers.builder()
+            .group(clusterOfVMs)
+            .members(Collections.emptyList())
+            .entities(Collections.emptyList())
+            .build();
         when(groupExpander.getGroupsWithMembers(expectedRequest)).thenAnswer(c ->
                 Stream.of(group1, group2));
+        when(groupExpander.getGroupsWithMembers(allGroupsRequestWithNameFilter)).thenAnswer(c ->
+            Stream.of(group1, group2, group3));
 
         GroupApiDTO groupApiDTO1 = new GroupApiDTO();
         groupApiDTO1.setUuid(String.valueOf(groupOfClusters.getId()));
         GroupApiDTO groupApiDTO2 = new GroupApiDTO();
         groupApiDTO2.setUuid(String.valueOf(groupOfVMs.getId()));
+        GroupApiDTO groupApiDTO3 = new GroupApiDTO();
+        groupApiDTO3.setUuid(String.valueOf(clusterOfVMs.getId()));
 
         when(groupMapper.toGroupApiDtoWithoutActiveEntities(group1, EnvironmentType.UNKNOWN,
                 CloudType.UNKNOWN)).thenReturn(groupApiDTO1);
         when(groupMapper.toGroupApiDtoWithoutActiveEntities(group2, EnvironmentType.UNKNOWN,
                 CloudType.UNKNOWN)).thenReturn(groupApiDTO2);
+        when(groupMapper.toGroupApiDtoWithoutActiveEntities(group3, EnvironmentType.UNKNOWN,
+            CloudType.UNKNOWN)).thenReturn(groupApiDTO3);
 
         // search for group of clusters
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                "Cluster", null, Lists.newArrayList(GroupsService.USER_GROUPS));
+                "Cluster", null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
 
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1478,10 +1514,20 @@ public class GroupsServiceTest {
         // search for group of VMs
         response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
                 new SearchPaginationRequest(null, null, true, null), "VirtualMachine", null,
-                Lists.newArrayList(GroupsService.USER_GROUPS));
+                Lists.newArrayList(GroupsService.USER_GROUPS), false);
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
                 .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId()));
+
+        // search for groups of all group types
+        response = groupsService.getPaginatedGroupApiDTOs(Collections.singletonList(nameFilter),
+            new SearchPaginationRequest(null, null, true, null),
+            null, null, null, true);
+        assertThat(response.getRestResponse().getBody().stream()
+            .map(BaseApiDTO::getUuid)
+            .map(Long::valueOf)
+            .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(),
+                groupOfClusters.getId(), clusterOfVMs.getId()));
     }
 }

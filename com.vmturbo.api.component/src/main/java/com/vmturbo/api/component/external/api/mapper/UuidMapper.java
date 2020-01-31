@@ -19,6 +19,8 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -46,6 +48,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -56,7 +59,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
  * all the weird constants, corner-cases, and magic strings involved in dealing
  * with the UI requests.
  */
-public class UuidMapper {
+public class UuidMapper implements RepositoryListener {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * In the UI, the "Market" identifies the real-time topology.
@@ -86,7 +91,8 @@ public class UuidMapper {
      * information about each ID and avoid extra RPCs to determine whether type the ID refers to.
      *
      * <p>We don't expect this map to be huge, because most entities (probably) aren't going to be
-     * addressed by ID.
+     * addressed by ID.</p>
+     * <p>This cache cleared when new topology is available in repository.</p>
      */
     private final Map<Long, ApiId> cachedIds = Collections.synchronizedMap(new HashMap<>());
 
@@ -148,6 +154,16 @@ public class UuidMapper {
 
     public static boolean isRealtimeMarket(String uuid) {
         return uuid.equals(UI_REAL_TIME_MARKET_STR);
+    }
+
+    @Override
+    public void onSourceTopologyAvailable(long topologyId, long topologyContextId) {
+        // clean cache if received realtime topology
+        if (topologyContextId == realtimeContextId) {
+            logger.info("Clear all cached {@link ApiId}'s associated with specific OID when new " +
+                    "topology (topologyId - {}) received ", topologyId);
+            cachedIds.clear();
+        }
     }
 
     /**
@@ -374,19 +390,20 @@ public class UuidMapper {
          */
         @Nonnull
         public Optional<Set<UIEntityType>> getScopeTypes() {
+            Optional<Set<UIEntityType>> scopeTypes = Optional.empty();
             if (isRealtimeMarket()) {
                 return Optional.empty();
+            } else if (isGroup()) {
+                scopeTypes = getCachedGroupInfo()
+                        .map(CachedGroupInfo::getEntityTypes);
+            } else if (isEntity()) {
+                scopeTypes = getCachedEntityInfo()
+                        .map(CachedEntityInfo::getEntityType)
+                        .map(Collections::singleton);
+            } else if (isPlan()) {
+                scopeTypes = getPlanInstance().map(MarketMapper::getPlanScopeTypes);
             }
-
-            final Optional<Set<UIEntityType>> groupTypes = getCachedGroupInfo()
-                            .map(CachedGroupInfo::getEntityTypes);
-
-            if (groupTypes.isPresent()) {
-                return groupTypes;
-            }
-
-            return getCachedEntityInfo().map(CachedEntityInfo::getEntityType)
-                .map(Collections::singleton);
+            return scopeTypes;
         }
 
         /**

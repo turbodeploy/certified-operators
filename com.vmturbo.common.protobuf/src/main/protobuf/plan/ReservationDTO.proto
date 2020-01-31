@@ -47,6 +47,14 @@ enum ReservationStatus {
     RESERVED = 2;
     // INVALID means that the reservation's template was deleted.
     INVALID = 3;
+    // initial status of reservations created with start date same as current date
+    UNFULFILLED = 4;
+    //  reservation part of the current reservation plan
+    INPROGRESS = 5;
+    // reservation was part of  reservation plan and there is not enough space currently
+    PLACEMENT_FAILED = 6;
+    // initial state of reservation
+    INITIAL = 7;
 }
 
 message ReservationTemplateCollection {
@@ -150,10 +158,13 @@ message UpdateReservationsRequest {
     repeated Reservation reservation = 1;
 }
 
+// Request for update future reservations.
+message UpdateFutureReservationRequest {
+    // A list of reservations need to update.
+}
+
 // A service responsible for Reservation related request.
 service ReservationService {
-    // Attemp to run a initial placement
-    rpc InitialPlacement(InitialPlacementRequest) returns (InitialPlacementResponse);
 
     // Get all reservations.
     rpc GetAllReservations(GetAllReservationsRequest) returns (stream Reservation);
@@ -166,6 +177,9 @@ service ReservationService {
 
     // Create a new reservation.
     rpc CreateReservation(CreateReservationRequest) returns (Reservation);
+
+    // Update future reservation.
+    rpc UpdateFutureReservation(UpdateFutureReservationRequest) returns (stream Reservation);
 
     // Delete a existing reservation.
     rpc DeleteReservationById(DeleteReservationByIdRequest) returns (Reservation);

@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,6 +73,7 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     private final List<TopologyEntity> ownedEntities;
     private final List<TopologyEntity> aggregators;
     private final List<TopologyEntity> aggregatedEntities;
+    private long clonedFromEntityOid;
 
     private TopologyEntity(@Nonnull final TopologyEntityDTO.Builder entity,
                            @Nonnull final List<TopologyEntity> consumers,
@@ -292,6 +292,14 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
         return Collections.unmodifiableList(aggregatedEntities);
     }
 
+    public long getClonedFromEntityOid() {
+        return clonedFromEntityOid;
+    }
+
+    private void setClonedFromEntityOid(final long clonedFromEntityOid) {
+        this.clonedFromEntityOid = clonedFromEntityOid;
+    }
+
     /**
      * Check if this {@link TopologyEntity} was discovered by a probe.
      *
@@ -468,6 +476,11 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
             ownedEntities.clear();
             aggregators.clear();
             aggregatedEntities.clear();
+        }
+
+        public Builder setClonedFromEntityOid(final long clonedFromEntityOid) {
+            associatedTopologyEntity.setClonedFromEntityOid(clonedFromEntityOid);
+            return this;
         }
 
         @Nonnull

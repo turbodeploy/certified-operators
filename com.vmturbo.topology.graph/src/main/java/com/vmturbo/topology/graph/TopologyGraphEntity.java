@@ -13,7 +13,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -22,7 +21,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -202,7 +200,8 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     List<E> getOwnedEntities();
 
     /**
-     * Get the aggregators of the entity.
+     * Auxiliary method. Get the aggregators of the entity,
+     * without including its owner.
      *
      * @return the entities that aggregate this entity
      */
@@ -210,7 +209,8 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     List<E> getAggregators();
 
     /**
-     * Get the {@link TopologyGraphEntity}s this entity aggregates.
+     * Auxiliary method. Get the {@link TopologyGraphEntity}s
+     * this entity aggregates, except those that it owns.
      *
      * @return the entities this entity aggregates
      */
@@ -243,12 +243,12 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
-     * Get the owner and all aggregators of this entity.
+     * Get all aggregators of this entity, including the owner.
      *
-     * @return the owner and all aggregators of this entity
+     * @return all aggregators of this entity
      */
     @Nonnull
-    default List<E> getOwnersOrAggregators() {
+    default List<E> getAggregatorsAndOwner() {
         return Stream.of(getAggregators(), ownerAsList())
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
@@ -265,12 +265,13 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
-     * Get the owned and aggregated entities.
+     * Get the entities that this entity aggregates, including those
+     * that it owns
      *
-     * @return the owned and aggregated entities.
+     * @return the aggregated entities.
      */
     @Nonnull
-    default List<E> getOwnedOrAggregatedEntities() {
+    default List<E> getAggregatedAndOwnedEntities() {
         return Stream.of(getAggregatedEntities(), getOwnedEntities())
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
@@ -283,7 +284,7 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
      */
     @Nonnull
     default List<E> getAllConnectedEntities() {
-        return Stream.of(getOwnedOrAggregatedEntities(), getOwnersOrAggregators(),
+        return Stream.of(getAggregatedAndOwnedEntities(), getAggregatorsAndOwner(),
                          getInboundAssociatedEntities(), getOutboundAssociatedEntities())
                 .flatMap(List::stream)
                 .collect(Collectors.toList());

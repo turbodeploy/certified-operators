@@ -13,6 +13,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -29,6 +31,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Schedul
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -116,12 +119,15 @@ public class PlanProjectDaoImplTest {
         planProjectDao.createPlanProject(planProjectInfo1);
         planProjectDao.createPlanProject(planProjectInfo2);
 
-        final List<String> result = planProjectDao.collectDiagsStream().collect(Collectors.toList());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        planProjectDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+
         final List<String> expected = planProjectDao.getAllPlanProjects().stream()
             .map(project -> PlanProjectDaoImpl.GSON.toJson(project, PlanProject.class))
             .collect(Collectors.toList());
-        assertEquals(2, result.size());
-        assertEquals(expected, result);
+        assertEquals(expected, diags.getAllValues());
     }
 
     @Test

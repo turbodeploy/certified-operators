@@ -284,7 +284,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          */
         List<ReservedInstanceBought> list = new ArrayList<>();
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_1);
-        ReservedInstanceBoughtStore store = Mockito.spy(ReservedInstanceBoughtStore.class);
+        ReservedInstanceBoughtStore store = Mockito.mock(ReservedInstanceBoughtStore.class);
         Mockito.doReturn(list).when(store)
             .getReservedInstanceBoughtByFilter(Mockito.any(ReservedInstanceBoughtFilter.class));
 
@@ -329,7 +329,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          */
         List<ReservedInstanceBought> list = new ArrayList<>();
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_REGIONAL_1);
-        ReservedInstanceBoughtStore store = Mockito.spy(ReservedInstanceBoughtStore.class);
+        ReservedInstanceBoughtStore store = Mockito.mock(ReservedInstanceBoughtStore.class);
         Mockito.doReturn(list).when(store)
             .getReservedInstanceBoughtByFilter(Mockito.any(ReservedInstanceBoughtFilter.class));
 
@@ -360,7 +360,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_2);
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_3);
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_4);
-        ReservedInstanceBoughtStore store = Mockito.spy(ReservedInstanceBoughtStore.class);
+        ReservedInstanceBoughtStore store = Mockito.mock(ReservedInstanceBoughtStore.class);
         Mockito.doReturn(list).when(store)
             .getReservedInstanceBoughtByFilter(Mockito.any(ReservedInstanceBoughtFilter.class));
 
@@ -426,7 +426,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_REGIONAL_2);
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_REGIONAL_3);
         list.add(ReservedInstanceAnalyzerConstantsTest.RESERVED_INSTANCE_BOUGHT_REGIONAL_4);
-        ReservedInstanceBoughtStore store = Mockito.spy(ReservedInstanceBoughtStore.class);
+        ReservedInstanceBoughtStore store = Mockito.mock(ReservedInstanceBoughtStore.class);
         Mockito.doReturn(list).when(store)
             .getReservedInstanceBoughtByFilter(Mockito.any(ReservedInstanceBoughtFilter.class));
 

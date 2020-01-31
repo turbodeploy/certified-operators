@@ -2,9 +2,12 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -14,6 +17,7 @@ import org.junit.Assert;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
@@ -28,6 +32,139 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * This class has supporting methods for SMATest classes.
  */
 public class SMAUtilsTest {
+
+    /**
+     * update the reserved instances by combining similar RI's.
+     * Market component does this externally. This is just for test purposes.
+     *
+     * @param smaInput the sma Input
+     */
+    static void normalizeReservedInstance(SMAInput smaInput) {
+        for (SMAInputContext smaInputContext : smaInput.getContexts()) {
+            normalizeReservedInstance(smaInputContext);
+        }
+    }
+
+    /**
+     * update the reserved instances by combining similar RI's.
+     * Market component does this externally. This is just for test purposes.
+     *
+     * @param smaInputContext the input context
+     */
+    static void normalizeReservedInstance(SMAInputContext smaInputContext) {
+        Map<String, List<SMATemplate>> familyNameToTemplates =
+                StableMarriagePerContext.computeFamilyToTemplateMap(smaInputContext.getTemplates());
+        StableMarriagePerContext.normalizeReservedInstances(smaInputContext.getReservedInstances(), familyNameToTemplates);
+        Map<SMAReservedInstanceKey, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
+        for (SMAReservedInstance ri : smaInputContext.getReservedInstances()) {
+            SMAReservedInstanceKey riContext = new SMAReservedInstanceKey(ri);
+            List<SMAReservedInstance> instances = distinctRIs.get(riContext);
+            if (instances == null) {
+                distinctRIs.put(riContext, new ArrayList<>(Arrays.asList(ri)));
+
+            } else {
+                instances.add(ri);
+            }
+        }
+        smaInputContext.getReservedInstances().clear();
+        for (List<SMAReservedInstance> members : distinctRIs.values()) {
+            if (members == null || members.size() < 1) {
+                // this is an error. Can be handled as an error if required.
+                continue;
+            }
+            Collections.sort(members, new SortByRIOID());
+            SMAReservedInstance representative = members.get(0);
+            for (SMAReservedInstance smaReservedInstance : members) {
+                SMAReservedInstance newReservedInstance = new SMAReservedInstance(
+                        smaReservedInstance.getOid(),
+                        representative.getRiKeyOid(),
+                        smaReservedInstance.getName(),
+                        smaReservedInstance.getBusinessAccount(),
+                        smaReservedInstance.getTemplate(),
+                        smaReservedInstance.getZone(),
+                        smaReservedInstance.getCount(),
+                        smaReservedInstance.isIsf());
+                smaInputContext.getReservedInstances().add(newReservedInstance);
+            }
+        }
+    }
+
+    /**
+     * figure out if an RI is ISF based on zone, tenancy and os.
+     *
+     * @param zone    zone id of ri. SMAUtils.NO_ZONE for regional
+     * @param tenancy the tenancy of the ri
+     * @param os      the os type of the ri
+     * @return true if the RI is ISF.
+     */
+    public static boolean computeInstanceSizeFlexibleForAWSRIs(long zone, Tenancy tenancy, OSType os) {
+        if (tenancy == Tenancy.DEFAULT &&
+                SMAUtils.LINUX_OS.contains(os) &&
+                zone == SMAUtils.NO_ZONE) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Class to define the context for a RI, and used to combine similar RIs.
+     */
+    public static class SMAReservedInstanceKey {
+        // the least cost template in the family for ISF RI's
+        private final SMATemplate normalizedTemplate;
+        private final long zone;
+        private final long businessAccount;
+
+        /**
+         * Constructor given an RI, construct its context.
+         * @param ri the parent reserved instance.
+         */
+        public SMAReservedInstanceKey(final SMAReservedInstance ri) {
+            this.normalizedTemplate = ri.getNormalizedTemplate();
+            this.zone = ri.getZone();
+            this.businessAccount = ri.getBusinessAccount();
+        }
+
+        /*
+         * Determine if two RIs are equivalent.  They are equivalent if same template, zone and business account.
+         * If the RIs are regional, then zone == NO_ZONE.
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(normalizedTemplate.getOid(), zone, businessAccount);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            final SMAReservedInstanceKey that = (SMAReservedInstanceKey)obj;
+            return normalizedTemplate.getOid() == that.normalizedTemplate.getOid() &&
+                    zone == that.zone && businessAccount == that.businessAccount;
+        }
+    }
+
+    /**
+     *  Given two RIs, compare by OID.
+     */
+    public static class SortByRIOID implements Comparator<SMAReservedInstance> {
+        /**
+         * compare the OID's of the two RIs.
+         * @param ri1 first RI
+         * @param ri2 second RI
+         * @return 1 if the first OID is bigger else -1.
+         */
+        @Override
+        public int compare(SMAReservedInstance ri1, SMAReservedInstance ri2) {
+            return (ri1.getOid() - ri2.getOid() > 0) ? 1 : -1;
+        }
+    }
+
+
     /**
      * creates random input and runs SMA with it.
      *
@@ -114,29 +251,34 @@ public class SMAUtilsTest {
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                         oldVM.getName(),
                         oldVM.getGroupName(),
-                        oldVM.getBusinessAccount(),
+                        oldVM.getBusinessAccountId(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone());
+                        oldVM.getZoneId(),
+                        outputContext.getMatches().get(i).getReservedInstance() == null ?
+                                SMAUtils.NO_CURRENT_RI :
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                        oldVM.getOsType());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
-            SMAContext context = inputContext.getContext();
             List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
             List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                        oldRI.getRiKeyOid(),
                         oldRI.getName(),
                         oldRI.getBusinessAccount(),
                         oldRI.getTemplate(),
                         oldRI.getZone(),
                         oldRI.getCount(),
-                        context);
+                        oldRI.isIsf());
                 newReservedInstances.add(newRI);
             }
+            SMAContext context = inputContext.getContext();
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
             SMAOutputContext newOutputContext = StableMarriagePerContext.execute(newInputContext);
             mismatch = 0;
@@ -153,8 +295,8 @@ public class SMAUtilsTest {
                     //      vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(vm.getBusinessAccount(), match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), vm.getCurrentRICoverage()) -
+                            match.getTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), match.getDiscountedCoupons()));
                 }
                 if (currentTemplate != matchTemplate) {
                     templatemismatch++;
@@ -194,13 +336,15 @@ public class SMAUtilsTest {
      * family to templates.
      * sorted by coupons.
      *
+     * @param os  the osType, which is needed to access cost.
      * @param familyToNumberOfTemplates map from family to number of templates
      *                                  return map from family to template
      * @param rand Random object with a seed based on current time.
      * @param nBusinessAccounts number of business accounts.  Needed to associate cost with each business account.
      * @return a map of family to templates sorted by coupons.
      */
-    private static Map<String, List<SMATemplate>> computeFamilyToTemplateMap(Map<Integer, Integer> familyToNumberOfTemplates,
+    private static Map<String, List<SMATemplate>> computeFamilyToTemplateMap(OSType os,
+                                                                             Map<Integer, Integer> familyToNumberOfTemplates,
                                                                              Random rand, int nBusinessAccounts) {
 
         // map from family to its templates
@@ -225,8 +369,8 @@ public class SMAUtilsTest {
                         (nFamily * 1000L) + i, name, family,
                         numberOfCoupons, SMAUtils.BOGUS_CONTEXT, null);
                 for (int j = 0; j < nBusinessAccounts; j++) {
-                    smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, onDemandCost);
-                    smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, discountedCost);
+                    smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, os, onDemandCost);
+                    smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, os, discountedCost);
                 }
                 list.add(smaTemplate);
             }
@@ -272,17 +416,13 @@ public class SMAUtilsTest {
      * @param nReservedInstances number of reserved instances
      */
     public static void testWorstCase(int nVirtualMachines, int nReservedInstances) {
-        SMAContext context = new SMAContext(SMACSP.AWS,
-            OSType.LINUX,
-                SMATestConstants.REGION_BASE,
-                SMATestConstants.BILLING_FAMILY_BASE + 1,
-                Tenancy.DEFAULT);
+        OSType os = OSType.UNKNOWN_OS;
         SMATemplate smaTemplate = new SMATemplate(SMATestConstants.TEMPLATE_BASE + 1,
                 SMATestConstants.TEMPLATE_NAME_ONE,
                 "family1", 1, SMAUtils.BOGUS_CONTEXT, null);
         for (int i = 0; i <  10; i++) {
-            smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, new SMACost(1, 0));
-            smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, new SMACost(0, 0));
+            smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, os, new SMACost(1, 0));
+            smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, os, new SMACost(0, 0));
         }
         List<SMATemplate> templates = Arrays.asList(smaTemplate);
         List<SMAVirtualMachine> virtualMachines = new ArrayList<>();
@@ -294,23 +434,32 @@ public class SMAUtilsTest {
                     smaTemplate,
                     Arrays.asList(smaTemplate),
                     0,
-                    SMATestConstants.ZONE_BASE);
+                    SMATestConstants.ZONE_BASE,
+                    SMAUtils.NO_CURRENT_RI,
+                    os);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             virtualMachines.add(smaVirtualMachine);
         }
         List<SMAReservedInstance> reservedInstances = new ArrayList<>();
         for (int i = 0; i < nReservedInstances; i++) {
+            long riKeyId = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + i;
             long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + i;
             SMAReservedInstance reservedInstance = new SMAReservedInstance(riOid,
+                    riKeyId,
                     "ri" + riOid,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE +
                             (i % (nReservedInstances / SMATestConstants.BUSINESS_ACCOUNT_BASE)),
                     smaTemplate,
                     SMATestConstants.ZONE_BASE,
                     1,
-                    context);
+                    true);
             reservedInstances.add(reservedInstance);
         }
+        SMAContext context = new SMAContext(SMACSP.AWS,
+                OSType.LINUX,
+                SMATestConstants.REGION_BASE,
+                SMATestConstants.BILLING_FAMILY_BASE + 1,
+                Tenancy.DEFAULT);
         SMAInputContext inputContext = new SMAInputContext(context, virtualMachines,
                 reservedInstances, templates);
         SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
@@ -339,6 +488,8 @@ public class SMAUtilsTest {
         SMAInputContext inputContext = generateInput(nTemplates, nVirtualMachines, nReservedInstances,
                 nfamily, nzones, nbusinessAccount,
                 zonalRIs, os, familyRange);
+        nReservedInstances = inputContext.getReservedInstances().size();
+        nVirtualMachines = inputContext.getVirtualMachines().size();
         SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
         int mismatch = 0;
         int loop = 0;
@@ -351,12 +502,16 @@ public class SMAUtilsTest {
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
                         oldVM.getName(),
                         oldVM.getGroupName(),
-                        oldVM.getBusinessAccount(),
+                        oldVM.getBusinessAccountId(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone());
+                        oldVM.getZoneId(),
+                        outputContext.getMatches().get(i).getReservedInstance() == null ?
+                                SMAUtils.NO_CURRENT_RI :
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                        oldVM.getOsType());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -366,12 +521,13 @@ public class SMAUtilsTest {
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                        oldRI.getRiKeyOid(),
                         oldRI.getName(),
                         oldRI.getBusinessAccount(),
                         oldRI.getTemplate(),
                         oldRI.getZone(),
                         oldRI.getCount(),
-                        context);
+                        oldRI.isIsf());
                 newReservedInstances.add(newRI);
             }
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
@@ -390,14 +546,14 @@ public class SMAUtilsTest {
                                     "currentTemplate=%s % != matchTemplate=%s " +
                                     "%scoverage=%s discount=%s",
                             vm.getName(), currentTemplate.getName(),
-                            currentTemplate.getOnDemandTotalCost(vm.getBusinessAccount()),
+                            currentTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), os),
                             matchTemplate.getName(),
-                            matchTemplate.getOnDemandTotalCost(vm.getBusinessAccount()),
+                            matchTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), os),
                             vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccount(), vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(vm.getBusinessAccount(), match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), os, vm.getCurrentRICoverage()) -
+                            match.getTemplate().getNetCost(vm.getBusinessAccountId(), os, match.getDiscountedCoupons()));
                 }
                 if (currentTemplate != matchTemplate) {
                     templatemismatch++;
@@ -475,7 +631,7 @@ public class SMAUtilsTest {
 
         // map from family to sorted list of templates.
         Map<String, List<SMATemplate>> familyToTemplateMap =
-            computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
+            computeFamilyToTemplateMap(os, familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
 
         for (int i = 0; i < nVirtualMachines; i++) {
@@ -495,23 +651,28 @@ public class SMAUtilsTest {
                     providers.get(rand.nextInt(providers.size())),
                     providers,
                     currentRICoverage,
-                    SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
+                    SMATestConstants.ZONE_BASE + rand.nextInt(nzones),
+                    SMAUtils.NO_CURRENT_RI,
+                    os);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(smaVirtualMachine);
         }
 
         for (int i = 0; i < nReservedInstances; i++) {
             long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + i;
+            long riKeyOid = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + i;
             long zone = (typeOfRIs == TypeOfRIs.REGIONAL ? SMAUtils.NO_ZONE : SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
-            SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid, "ri" + riOid,
+            SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid,
+                    riKeyOid, "ri" + riOid,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount),
                     smaTemplates.get(rand.nextInt(nTemplates)),
                     zone,
                     1,  // count
-                    context);
+                    computeInstanceSizeFlexibleForAWSRIs(zone, context.getTenancy(), context.getOs()));
             smaReservedInstances.add(smaReservedInstance);
         }
         SMAInputContext inputContext = new SMAInputContext(context, smaVirtualMachines, smaReservedInstances, smaTemplates);
+        normalizeReservedInstance(inputContext);
         return inputContext;
     }
 
@@ -604,6 +765,7 @@ public class SMAUtilsTest {
 
         SMAInputContext inputContext = generateInput(nTemplates, nVirtualMachines, nReservedInstances,
                 nfamily, nzones, nbusinessAccount, zonalRIs, os, familyRange);
+        nReservedInstances = inputContext.getReservedInstances().size();
         SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
         int loop = 0;
         while (loop < 2) {
@@ -621,11 +783,15 @@ public class SMAUtilsTest {
                 }
                 SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(), oldVM.getName(),
                         oldVM.getGroupName(),
-                        oldVM.getBusinessAccount(),
+                        oldVM.getBusinessAccountId(),
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         outputContext.getMatches().get(i).getDiscountedCoupons(),
-                        oldVM.getZone());
+                        oldVM.getZoneId(),
+                        outputContext.getMatches().get(i).getReservedInstance() == null ?
+                                SMAUtils.NO_CURRENT_RI :
+                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                        os);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
@@ -635,12 +801,13 @@ public class SMAUtilsTest {
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
+                        oldRI.getRiKeyOid(),
                         oldRI.getName(),
                         oldRI.getBusinessAccount(),
                         oldRI.getTemplate(),
                         oldRI.getZone(),
                         oldRI.getCount(),
-                        context);
+                        oldRI.isIsf());
                 newReservedInstances.add(newRI);
             }
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
@@ -702,7 +869,7 @@ public class SMAUtilsTest {
         }
 
         // map from family to sorted list of templates.
-        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(familyToNumberOfTemplates, rand, nbusinessAccount);
+        Map<String, List<SMATemplate>> familyToTemplateMap = computeFamilyToTemplateMap(os, familyToNumberOfTemplates, rand, nbusinessAccount);
         smaTemplates = familyToTemplateMap.values().stream().flatMap(e -> e.stream()).collect(Collectors.toList());
         for (int i = 0; i < asgCount; i++) {
             int size = rand.nextInt(asgSize) + 1;
@@ -729,18 +896,21 @@ public class SMAUtilsTest {
                         providers.get(rand.nextInt(providerSize)),
                         memberProviders,
                         currentRICoverage,
-                        vmZone);
+                        vmZone, SMAUtils.NO_CURRENT_RI,
+                        os);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(smaVirtualMachine);
             }
             for (int j = 0; j < rsize; j++) {
                 Long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + (i * (asgSize + 1)) + j;
-                SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid, "ri_" + riOid + "_" + j,
+                Long riKeyOid = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + (i * (asgSize + 1)) + j;
+                SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid,
+                        riKeyOid, "ri_" + riOid + "_" + j,
                         businessAccount,
                         riTemplate,
                         zone,
                         1,  // count
-                        context);
+                        computeInstanceSizeFlexibleForAWSRIs(zone, context.getTenancy(), context.getOs()));
                 smaReservedInstances.add(smaReservedInstance);
             }
         }

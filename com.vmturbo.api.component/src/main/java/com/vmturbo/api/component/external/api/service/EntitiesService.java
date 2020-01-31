@@ -219,7 +219,7 @@ public class EntitiesService implements IEntitiesService {
         final ServiceEntityApiDTO result = new ServiceEntityApiDTO();
         result.add(
             generateLinkTo(
-                ControllerLinkBuilder.methodOn(MarketsController.class).getEntitiesByMarketUuid(REPLACEME),
+                ControllerLinkBuilder.methodOn(MarketsController.class).getEntitiesByMarketUuid(REPLACEME, null, null, null, true),
                 "Market Entities"));
         result.add(
             generateLinkTo(

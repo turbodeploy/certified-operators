@@ -130,7 +130,7 @@ public class SMAStatistics {
     private float computeCurrentCost(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccount());
+            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
         }
         return savings;
     }
@@ -143,7 +143,8 @@ public class SMAStatistics {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
             float currentRICoverageFraction = vm.getCurrentRICoverage() / (float)vm.getCurrentTemplate().getCoupons();
-            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccount()) * (1.0 - currentRICoverageFraction);
+            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType()) *
+                (1.0 - currentRICoverageFraction);
         }
         return savings;
     }
@@ -154,7 +155,7 @@ public class SMAStatistics {
     private float computeNaturalCost(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            savings += vm.getNaturalTemplate().getOnDemandTotalCost(vm.getBusinessAccount());
+            savings += vm.getNaturalTemplate().getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
         }
         return savings;
     }
@@ -167,8 +168,8 @@ public class SMAStatistics {
         for (SMAMatch match : matches) {
             SMATemplate template = match.getTemplate();
             SMAVirtualMachine vm = match.getVirtualMachine();
-            float onDemandTotalCost = template.getOnDemandTotalCost(vm.getBusinessAccount());
-            float discountedTotalCost = template.getDiscountedTotalCost(vm.getBusinessAccount());
+            float onDemandTotalCost = template.getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
+            float discountedTotalCost = template.getDiscountedTotalCost(vm.getBusinessAccountId(), vm.getOsType());
             float discountPercent = match.getDiscountedCoupons() / (float)template.getCoupons();
             /*
              * This computation assumes that

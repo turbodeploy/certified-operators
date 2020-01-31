@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.PricingDataIdentifier;
 
@@ -16,7 +17,8 @@ public abstract class ResolverPricing implements PricingResolver {
     /**
      * A map of the PricingDataIdentifier to the Account Pricing data.
      */
-    protected ConcurrentHashMap<PricingDataIdentifier, AccountPricingData> accountPricingDataMapByPricingDataIdentifier = new ConcurrentHashMap<>();
+    protected ConcurrentHashMap<PricingDataIdentifier, AccountPricingData<TopologyEntityDTO>>
+            accountPricingDataMapByPricingDataIdentifier = new ConcurrentHashMap<>();
 
     /**
      * Given a map of price table key oid by business account oid and priceTable by priceTableKey oid,

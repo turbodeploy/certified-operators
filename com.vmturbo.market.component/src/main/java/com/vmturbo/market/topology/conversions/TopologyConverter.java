@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -99,7 +100,6 @@ import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePa
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
-import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -1783,8 +1783,7 @@ public class TopologyConverter {
             if (bottomOfSupplyChain && active) {
                 suspendable = false;
             }
-            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE) ||
-                (isOptimizeCloudPlan() && entityType == EntityType.LOAD_BALANCER_VALUE)) {
+            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE)) {
                 suspendable = false;
             }
             // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
@@ -1926,12 +1925,9 @@ public class TopologyConverter {
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {
-        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         List<CommoditySoldTO> commSoldTOList = new ArrayList<>();
         commSoldTOList.addAll(commodityConverter.commoditiesSoldList(topologyDTO));
-        if (!shopTogether) {
-            commSoldTOList.addAll(commodityConverter.bcCommoditiesSold(topologyDTO.getOid()));
-        }
+        commSoldTOList.addAll(commodityConverter.bcCommoditiesSold(topologyDTO.getOid()));
         return commSoldTOList;
     }
 
@@ -2660,6 +2656,12 @@ public class TopologyConverter {
 
         // If it is a tier based cloud sold TO, return the new provider capacity
         if (marketTier != null && marketTier.getTier() != null) {
+            /* We don't need to calculate the projected capacity of non-resizable commodities.
+            For instance, the vStorage commodity of an AWS RDB has the capacity as the allocated
+            storage for that DBS and Turbo does not scale storage in RDS */
+            if (!commSoldTO.getSettings().getResizable()) {
+                return  capacity;
+            }
             /*
              The capacity of the sold commodity in the projected TO needs to be
              updated to the new provider (cloud tier) capacity.
@@ -2881,5 +2883,13 @@ public class TopologyConverter {
      */
     public CommodityDTOs.CommoditySpecificationTO getCommSpecForCommodity(CommodityType commType) {
         return commodityConverter.commoditySpecification(commType);
+    }
+
+    /**
+     * Return the consistent scaling helper associated with this TC.
+     * @return consistent scaling helper
+     */
+    public ConsistentScalingHelper getConsistentScalingHelper() {
+        return consistentScalingHelper;
     }
 }

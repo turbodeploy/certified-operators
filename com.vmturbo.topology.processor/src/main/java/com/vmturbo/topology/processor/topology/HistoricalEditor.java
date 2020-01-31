@@ -4,8 +4,14 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -13,7 +19,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
+import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
@@ -23,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -67,6 +77,8 @@ public class HistoricalEditor {
 
     public static final float E = 0.00001f; // to compare floats for equality
 
+    private static final String EMPTY_JSON = "{}";
+
     /**
      * A metric that tracks the time taken to load the historical used and peak values.
      */
@@ -107,6 +119,13 @@ public class HistoricalEditor {
             // Commodities that do not exhibit volatility
             .add(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.VMEM_REQUEST_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.COUPON_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.INSTANCE_DISK_SIZE_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.INSTANCE_DISK_TYPE_VALUE)
             .build();
 
     public HistoricalEditor(HistoricalUtilizationDatabase historicalUtilizationDatabase, ExecutorService executorService) {
@@ -233,6 +252,8 @@ public class HistoricalEditor {
         this.commodityTypesAlreadyLoggedAsMissingHistory = null;
 
         executorService.submit(() -> historicalUtilizationDatabase.saveInfo(historicalInfo));
+
+        copyHistoricalValuesToClonedEntities(graph, changes);
     }
 
     private boolean useHistoricalValues(int commodityType) {
@@ -572,4 +593,208 @@ public class HistoricalEditor {
         }
     }
 
+    /**
+     * Copy historical values from original entities to cloned entities.
+     *
+     * @param graph a topology graph which contains all entities
+     * @param changes a list of changes in plan
+     */
+    @VisibleForTesting
+    static void copyHistoricalValuesToClonedEntities(
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final List<ScenarioChange> changes) {
+        // Skip if it's not add workload plan.
+        if (changes.stream().filter(Objects::nonNull).noneMatch(ScenarioChange::hasTopologyAddition)) {
+           return;
+        }
+
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        for (TopologyEntity entity : (Iterable<TopologyEntity>)graph.entities()::iterator) {
+            // Skip if it's not a cloned entity.
+            if (entity.getClonedFromEntityOid() <= 0 &&
+                !graph.getEntity(entity.getClonedFromEntityOid()).isPresent()) {
+                continue;
+            }
+
+            final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+            final TopologyEntityDTO.Builder originalEntityBuilder =
+                graph.getEntity(entity.getClonedFromEntityOid()).get().getTopologyEntityDtoBuilder();
+
+            copyCommSoldHistoricalValuesToClonedEntities(entityBuilder, originalEntityBuilder);
+            copyCommBoughtHistoricalValuesToClonedEntities(entityBuilder, originalEntityBuilder);
+        }
+
+        stopwatch.stop();
+        logger.info("Copy historical values from original entities to cloned entities took {} ms.",
+            stopwatch.elapsed(TimeUnit.MILLISECONDS));
+    }
+
+    /**
+     * Copy commSold historical values from original entities to cloned entities.
+     *
+     * @param clonedEntityBuilder the cloned entity builder
+     * @param originalEntityBuilder the original entity builder
+     */
+    private static void copyCommSoldHistoricalValuesToClonedEntities(
+            @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
+            @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder) {
+        // Construct the commType to commSold map of the cloned entity.
+        final Map<CommodityType, CommoditySoldDTO.Builder> clonedCommTypeToCommSold =
+            getCommTypeToCommSold(clonedEntityBuilder);
+
+        // Construct the commType to commSold map of the original entity.
+        final Map<CommodityType, CommoditySoldDTO.Builder> originalCommTypeToCommSold =
+            getCommTypeToCommSold(originalEntityBuilder);
+
+        copyCommodityHistoricalValuesToClonedEntities(
+            clonedEntityBuilder, originalEntityBuilder,
+            clonedCommTypeToCommSold, originalCommTypeToCommSold,
+            CommoditySoldDTO.Builder::getHistoricalUsedBuilder,
+            CommoditySoldDTO.Builder::getHistoricalPeakBuilder);
+    }
+
+    /**
+     * Construct the commType to commSold map of the given entity.
+     *
+     * @param entityBuilder an entity builder
+     * @return the commType to commSold map
+     */
+    private static Map<CommodityType, CommoditySoldDTO.Builder> getCommTypeToCommSold(
+            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        return entityBuilder.getCommoditySoldListBuilderList().stream()
+            .collect(Collectors.toMap(CommoditySoldDTO.Builder::getCommodityType, Function.identity(),
+                (commSold1, commSold2) -> {
+                    logger.warn("Two commSold {} and {} with same commType {} of entity {} ({}) appear. " +
+                        "Keep the first one.", commSold1.getDisplayName(), commSold2.getDisplayName(),
+                        entityBuilder.getDisplayName(), entityBuilder.getOid(),
+                        commSold1.getCommodityType());
+                    return commSold1;
+                }));
+    }
+
+    /**
+     * Copy commBought historical values from original entities to cloned entities.
+     *
+     * @param clonedEntityBuilder the cloned entity builder
+     * @param originalEntityBuilder the original entity builder
+     */
+    private static void copyCommBoughtHistoricalValuesToClonedEntities(
+            @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
+            @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder) {
+        // Construct the provider oid to commType to commBought map of the cloned entity.
+        final Map<Long, Map<CommodityType, CommodityBoughtDTO.Builder>> clonedProviderToCommTypeToCommBought =
+            getProviderToCommTypeToCommBought(clonedEntityBuilder);
+
+        // Construct the provider oid to commType to commBought map of the original entity.
+        final Map<Long, Map<CommodityType, CommodityBoughtDTO.Builder>> originalProviderToCommTypeToCommBought =
+            getProviderToCommTypeToCommBought(originalEntityBuilder);
+
+        // Get the providerOidOfClonedEntity to providerOidOfOriginalEntity map.
+        @SuppressWarnings("unchecked")
+        final Map<String, Double> oldProviders = new Gson().fromJson(clonedEntityBuilder
+            .getEntityPropertyMapMap().getOrDefault("oldProviders", EMPTY_JSON), Map.class);
+        final Map<Long, Long> oldProvidersMap;
+        try {
+            oldProvidersMap = oldProviders.entrySet().stream()
+                .collect(Collectors.toMap(e -> Long.decode(e.getKey()),
+                    e -> e.getValue().longValue()));
+        } catch (NumberFormatException e) {
+            logger.error("Failed to get oldProvidersMap.", e);
+            return;
+        }
+
+        for (Entry<Long, Long> entry : oldProvidersMap.entrySet()) {
+            final long providerOidOfClonedEntity = entry.getKey();
+            final long providerOidOfOriginalEntity = entry.getValue();
+
+            if (!clonedProviderToCommTypeToCommBought.containsKey(providerOidOfClonedEntity)) {
+                logger.warn("Entity {} ({}) is not buying from entity {}.",
+                    clonedEntityBuilder.getDisplayName(), clonedEntityBuilder.getOid(), providerOidOfClonedEntity);
+                continue;
+            }
+
+            if (!originalProviderToCommTypeToCommBought.containsKey(providerOidOfOriginalEntity)) {
+                logger.warn("Entity {} ({}) is not buying from entity {}.",
+                    originalEntityBuilder.getDisplayName(), originalEntityBuilder.getOid(), providerOidOfOriginalEntity);
+                continue;
+            }
+
+            copyCommodityHistoricalValuesToClonedEntities(
+                clonedEntityBuilder, originalEntityBuilder,
+                clonedProviderToCommTypeToCommBought.get(providerOidOfClonedEntity),
+                originalProviderToCommTypeToCommBought.get(providerOidOfOriginalEntity),
+                CommodityBoughtDTO.Builder::getHistoricalUsedBuilder,
+                CommodityBoughtDTO.Builder::getHistoricalPeakBuilder);
+        }
+    }
+
+    /**
+     * Construct the provider oid to commType to commBought map of the given entity.
+     *
+     * @param entityBuilder an entity builder
+     * @return the provider oid to commType to commBought map
+     */
+    private static Map<Long, Map<CommodityType, CommodityBoughtDTO.Builder>> getProviderToCommTypeToCommBought(
+            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        return entityBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+            .collect(Collectors.toMap(CommoditiesBoughtFromProvider.Builder::getProviderId,
+                commBought -> commBought.getCommodityBoughtBuilderList().stream()
+                    .collect(Collectors.toMap(CommodityBoughtDTO.Builder::getCommodityType,
+                        Function.identity(), (commBought1, commBought2) -> {
+                            logger.warn("Two commBought {} and {} with same commType {} of entity {} ({}) appear. " +
+                                    "Keep the first one.", commBought1.getDisplayName(), commBought2.getDisplayName(),
+                                entityBuilder.getDisplayName(), entityBuilder.getOid(),
+                                commBought1.getCommodityType());
+                            return commBought1;
+                        }))));
+    }
+
+    /**
+     * Copy commBought historical values from original entities to cloned entities.
+     *
+     * @param clonedEntityBuilder the cloned entity builder
+     * @param originalEntityBuilder the original entity builder
+     * @param clonedCommTypeToCommodity commType to CommBought map of cloned entity
+     * @param originalCommTypeToCommodity commType to CommBought map of original entity
+     * @param historicalUsedExtractor extract historical used values from T
+     * @param historicalPeakExtractor extract historical peak values from T
+     * @param <T> the type parameter of commodity.
+     *            It can be CommoditySoldDTO.Builder or CommodityBoughtDTO.Builder.
+     */
+    private static <T> void copyCommodityHistoricalValuesToClonedEntities(
+            @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
+            @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder,
+            @Nonnull final Map<CommodityType, T> clonedCommTypeToCommodity,
+            @Nonnull final Map<CommodityType, T> originalCommTypeToCommodity,
+            @Nonnull final Function<T, HistoricalValues.Builder> historicalUsedExtractor,
+            @Nonnull final Function<T, HistoricalValues.Builder> historicalPeakExtractor) {
+        // Iterate over the map to copy historical values from original entities to cloned entities.
+        for (Entry<CommodityType, T> entry : clonedCommTypeToCommodity.entrySet()) {
+            if (!originalCommTypeToCommodity.containsKey(entry.getKey())) {
+                logger.warn("Original commodity of commType {} of entity {} ({}) not found.",
+                    entry.getKey(), clonedEntityBuilder.getDisplayName(), clonedEntityBuilder.getOid());
+                continue;
+            }
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("Coping historical value of commodity {} from entity {} ({}) to entity {} ({}).",
+                    entry.getKey(), originalEntityBuilder.getDisplayName(), originalEntityBuilder.getOid(),
+                    clonedEntityBuilder.getDisplayName(), clonedEntityBuilder.getOid());
+            }
+
+            // Copy historical used values.
+            final HistoricalValues.Builder clonedHistoricalUsedBuilder =
+                historicalUsedExtractor.apply(entry.getValue());
+            clonedHistoricalUsedBuilder.clear();
+            clonedHistoricalUsedBuilder.mergeFrom(
+                historicalUsedExtractor.apply(originalCommTypeToCommodity.get(entry.getKey())).build());
+
+            // Copy historical peak values.
+            final HistoricalValues.Builder clonedHistoricalPeakBuilder =
+                historicalPeakExtractor.apply(entry.getValue());
+            clonedHistoricalPeakBuilder.clear();
+            clonedHistoricalPeakBuilder.mergeFrom(
+                historicalPeakExtractor.apply(originalCommTypeToCommodity.get(entry.getKey())).build());
+        }
+    }
 }

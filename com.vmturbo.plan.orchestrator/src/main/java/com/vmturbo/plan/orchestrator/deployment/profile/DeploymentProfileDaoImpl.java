@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -29,8 +28,10 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.plan.orchestrator.db.Tables;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.DeploymentProfile;
 import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
@@ -42,7 +43,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
  * {@link com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl} class
  * is used for uploading discovered templates and deployment profiles.
  */
-public class DeploymentProfileDaoImpl implements Diagnosable {
+public class DeploymentProfileDaoImpl implements DiagsRestorable {
 
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -209,16 +210,17 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
      *
      * This method retrieves all deployment profiles and serializes them as JSON strings.
      *
-     * @return
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException on exceptions occurred
      */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender)
+            throws DiagnosticsException {
         final Set<DeploymentProfileDTO.DeploymentProfile> profiles = getAllDeploymentProfiles();
         logger.info("Collecting diagnostics for {} deployment profiles", profiles.size());
-        return profiles.stream()
-            .map(profile -> GSON.toJson(profile, DeploymentProfileDTO.DeploymentProfile.class));
+        for (DeploymentProfileDTO.DeploymentProfile profile : profiles) {
+            appender.appendString(
+                    GSON.toJson(profile, DeploymentProfileDTO.DeploymentProfile.class));
+        }
     }
 
     /**
@@ -228,7 +230,7 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
      * serialized deployment profiles from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains deployment profiles, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              deployment profile.
@@ -279,6 +281,12 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "DeploymentProfiles";
     }
 
     /**

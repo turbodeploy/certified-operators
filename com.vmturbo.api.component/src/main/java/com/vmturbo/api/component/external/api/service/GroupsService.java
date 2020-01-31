@@ -1088,6 +1088,9 @@ public class GroupsService implements IGroupsService {
      * @param groupType Contains the type of the group members
      * @param environmentType type of the environment to include in response, if null, all are included
      * @param scopes all result groups should be within this list of scopes, which can be entity or group
+     * @param includeAllGroupClasses true if the search should return all types of groups, not just
+     *                               REGULAR.  False if only REGULAR groups should be returned.
+     *                               filterList is assumed empty if includeAllGroupClasses is true.
      *
      * @return The list of {@link GroupApiDTO} objects.
      * @throws InvalidOperationException When the cursor is invalid.
@@ -1098,10 +1101,11 @@ public class GroupsService implements IGroupsService {
                                                              final SearchPaginationRequest paginationRequest,
                                                              final String groupType,
                                                              @Nullable EnvironmentType environmentType,
-                                                             @Nullable List<String> scopes)
+                                                             @Nullable List<String> scopes,
+                                                             final boolean includeAllGroupClasses)
             throws InvalidOperationException, OperationFailedException {
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
-                filterList, scopes).build();
+                filterList, scopes, includeAllGroupClasses).build();
         final List<GroupAndMembers> groupsWithMembers;
         if (groupType != null) {
             final MemberType groupMembersType;
@@ -1163,7 +1167,7 @@ public class GroupsService implements IGroupsService {
     @VisibleForTesting
     GetGroupsRequest.Builder getGroupsRequestForFilters(@Nonnull GroupType groupType,
                     @Nonnull List<FilterApiDTO> filterList) throws OperationFailedException {
-        return getGroupsRequestForFilters(groupType, filterList, Collections.emptyList());
+        return getGroupsRequestForFilters(groupType, filterList, Collections.emptyList(), false);
     }
 
     /**
@@ -1174,15 +1178,31 @@ public class GroupsService implements IGroupsService {
      * @param filterList a list of FilterApiDTO to be applied to this group; only "groupsByName" is
      *                   currently supported
      * @param scopes list of scopes which are used to filter the resulting groups
+     * @param includeAllGroupClasses flag indicating whether or not to include all types of Groups
+     *                               like Clusters.  This should only be set to true
+     *                               if the groupType is REGULAR and filterList is empty.
      * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
      * @throws OperationFailedException when input filters do not apply to group type.
      */
     private GetGroupsRequest.Builder getGroupsRequestForFilters(
             @Nonnull GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList,
-            @Nullable List<String> scopes) throws OperationFailedException {
-        GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder()
-                .setGroupFilter(groupFilterMapper.apiFilterToGroupFilter(groupType, filterList));
+            @Nullable List<String> scopes,
+            boolean includeAllGroupClasses) throws OperationFailedException {
+        GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
+        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, filterList);
+        if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
+            String errorMessage =
+                String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",
+                    groupType.name());
+            throw new OperationFailedException(errorMessage);
+        }
+        // if we are including all subclasses, clear the group type from the filter
+        if (includeAllGroupClasses) {
+            groupFilter = groupFilter.toBuilder().clearGroupType().build();
+        }
+        request.setGroupFilter(groupFilter);
+
         if (scopes != null) {
             if (scopes.size() == 1 && scopes.get(0).equals(USER_GROUPS)) {
                 // if we are looking for groups created by user, we should also add a origin filter
@@ -1528,7 +1548,7 @@ public class GroupsService implements IGroupsService {
                 // general case of finding groups in entities (like: find clusters in datacenters)
                 // use user scope framework to handle it
                 final GetGroupsRequest request = getGroupsRequestForFilters(groupType, filterList,
-                        scopes).build();
+                        scopes, false).build();
                 return getGroupApiDTOS(request, true, environmentType);
             }
         } else {

@@ -60,6 +60,7 @@ import org.jooq.Record5;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
+import org.jooq.SelectJoinStep;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -85,6 +86,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersEntities;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersGroups;
@@ -1442,7 +1444,25 @@ public class GroupDAO implements IGroupStore {
 
     @Override
     public void deleteAllGroups() {
+        dslContext.deleteFrom(Tables.POLICY_GROUP).execute();
         dslContext.deleteFrom(GROUPING).execute();
+    }
+
+    @Nonnull
+    @Override
+    public Set<Long> getOwnersOfGroups(@Nonnull Collection<Long> groupIds,
+            @Nullable GroupType groupType) {
+        if (groupIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        final SelectJoinStep<Record1<Long>> query =
+                dslContext.select(GROUPING.OWNER_ID).from(GROUPING);
+        if (groupType == null) {
+            query.where(GROUPING.ID.in(groupIds));
+        } else {
+            query.where(GROUPING.GROUP_TYPE.eq(groupType).and(GROUPING.ID.in(groupIds)));
+        }
+        return new HashSet<>(query.fetchInto(Long.class));
     }
 
     /**

@@ -6,9 +6,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
-
-
 /**
  * Configuration for mediation components diagnostics.
  * Here we create the handler  and inject it with the location of the diagnostics file in order
@@ -27,11 +24,7 @@ public class MediationDiagnosticsConfig {
      */
     @Bean
     public MediationDiagnosticsHandler diagsHandler() {
-        return new MediationDiagnosticsHandler(diagnosticsWriter(), getEnvTmpDiagsDir());
-    }
-
-    private DiagnosticsWriter diagnosticsWriter() {
-        return new DiagnosticsWriter();
+        return new MediationDiagnosticsHandler(getEnvTmpDiagsDir());
     }
 
     @Nonnull

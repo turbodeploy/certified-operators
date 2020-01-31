@@ -14,6 +14,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -22,9 +23,11 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -46,6 +49,8 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -67,6 +72,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -134,12 +140,18 @@ public class ScenarioMapperTest {
 
     private GroupServiceBlockingStub groupRpcService;
 
+    private ScenarioChangeMappingContext contextMock;
+
+    private UuidMapper uuidMapper;
+
     @Before
     public void setup() throws IOException {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
         groupRpcService = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        contextMock = mock(ScenarioChangeMappingContext.class);
+        uuidMapper = mock(UuidMapper.class);
 
         // Return empty by default to keep NPE's at bay.
         MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
@@ -147,11 +159,11 @@ public class ScenarioMapperTest {
 
         scenarioMapper = new ScenarioMapper(repositoryApi,
                 templatesUtils, settingsManagerMapping, settingsMapper,
-                policiesService, groupRpcService, groupMapper);
+                policiesService, groupRpcService, groupMapper, uuidMapper);
     }
 
     @Test
-    public void testAdditionChange() {
+    public void testAdditionChange() throws OperationFailedException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
@@ -306,7 +318,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testTemplateAdditionChange() {
+    public void testTemplateAdditionChange() throws OperationFailedException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
@@ -337,7 +349,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testRemovalChange() {
+    public void testRemovalChange() throws OperationFailedException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
         dto.setProjectionDay(2);
@@ -355,8 +367,12 @@ public class ScenarioMapperTest {
         assertEquals(1, removal.getEntityId());
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testInvalidChange() {
+    public void testInvalidChange() throws OperationFailedException {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
 
@@ -364,8 +380,12 @@ public class ScenarioMapperTest {
         assertEquals(0, info.getChangesList().stream().filter(c -> !c.hasSettingOverride()).count());
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testReplaceChange() {
+    public void testReplaceChange() throws OperationFailedException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
         dto.setProjectionDay(5);
@@ -385,8 +405,12 @@ public class ScenarioMapperTest {
         assertEquals(2, replace.getAddTemplateId());
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testMultiplesChanges() {
+    public void testMultiplesChanges() throws OperationFailedException {
         AddObjectApiDTO addDto = new AddObjectApiDTO();
         addDto.setProjectionDays(Collections.singletonList(5));
         addDto.setTarget(entity(1));
@@ -413,11 +437,15 @@ public class ScenarioMapperTest {
         assertEquals(2, removal.getEntityId());
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testSettingOverride() {
+    public void testSettingOverride() throws OperationFailedException {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
-        SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
         List<SettingApiDTO> settingList = Collections.singletonList(setting);
         when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting))).thenReturn(settingList);
         when(settingsMapper.toProtoSettings(settingList))
@@ -437,11 +465,15 @@ public class ScenarioMapperTest {
         assertThat(overridenSetting.getStringSettingValue().getValue(), is("value"));
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testSettingOverridePlanSettingMapping() {
+    public void testSettingOverridePlanSettingMapping() throws OperationFailedException {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
-        SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
         when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting)))
             .thenReturn(Collections.singletonList(setting));
         when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
@@ -461,8 +493,12 @@ public class ScenarioMapperTest {
         assertThat(overridenSetting.getNumericSettingValue().getValue(), is(1.2f));
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testSettingOverrideUnknownSetting() {
+    public void testSettingOverrideUnknownSetting() throws OperationFailedException {
         final SettingApiDTO<String> setting = createStringSetting("unknown", "value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(0));
@@ -489,9 +525,12 @@ public class ScenarioMapperTest {
 
     /**
      * Tests converting of ScenarioApiDto without config changes to ScenarioInfo.
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
     @Test
-    public void testToScenarioInfoWithoutConfigChanges() {
+    public void testToScenarioInfoWithoutConfigChanges() throws OperationFailedException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
@@ -500,18 +539,24 @@ public class ScenarioMapperTest {
 
     /**
      * Tests converting of ScenarioApiDto with empty config changes to ScenarioInfo.
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
     @Test
-    public void testToScenarioInfoWithEmptyConfigChanges() {
+    public void testToScenarioInfoWithEmptyConfigChanges() throws OperationFailedException {
         final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO<String>>)null, null);
         Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
 
     /**
      * Tests converting of ScenarioApiDto with empty automation settings list to ScenarioInfo.
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
     @Test
-    public void testToScenarioInfoWithEmptyAutomationSettingsList() {
+    public void testToScenarioInfoWithEmptyAutomationSettingsList() throws OperationFailedException {
         final ScenarioApiDTO decommissionHostPlanDto = new ScenarioApiDTO();
         decommissionHostPlanDto.setConfigChanges(null);
         decommissionHostPlanDto.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
@@ -526,8 +571,12 @@ public class ScenarioMapperTest {
         Assert.assertTrue(pmp.get(0).getSetting().getEnumSettingValue().getValue().equals(DISABLED));
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testToScenarioInfoUtilizationLevel() {
+    public void testToScenarioInfoUtilizationLevel() throws OperationFailedException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         loadChanges.setUtilizationList(ImmutableList.of(createUtilizationApiDto(20)));
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
@@ -635,7 +684,6 @@ public class ScenarioMapperTest {
     public void testToRemoveConstraintApiDTO() {
         //GIVEN
         long groupId = 1234;
-        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
         BaseApiDTO baseApiDto = new BaseApiDTO();
         when(contextMock.dtoForId(groupId)).thenReturn(baseApiDto);
 
@@ -653,8 +701,12 @@ public class ScenarioMapperTest {
         assertThat(removeConstraintApiDTO.getTarget(), is(baseApiDto));
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testToScenarioInfoBaselineChanges() {
+    public void testToScenarioInfoBaselineChanges() throws OperationFailedException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         long testbaselineDate = 123456789;
         loadChanges.setBaselineDate(String.valueOf(testbaselineDate));
@@ -664,8 +716,12 @@ public class ScenarioMapperTest {
         Assert.assertEquals(testbaselineDate, baselineDate);
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() {
+    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() throws OperationFailedException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
         Assert.assertEquals(0, scenarioInfo.getChangesList().size());
@@ -717,8 +773,9 @@ public class ScenarioMapperTest {
         return utilizationDto;
     }
 
+
     private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO<String>> automationSettings,
-            @Nonnull LoadChangesApiDTO loadChangesApiDTO) {
+            @Nonnull LoadChangesApiDTO loadChangesApiDTO) throws OperationFailedException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         configChanges.setAutomationSettingList(automationSettings);
@@ -727,7 +784,7 @@ public class ScenarioMapperTest {
         return getScenarioInfo("name", dto);
     }
 
-    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto) {
+    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto) throws OperationFailedException {
         ScenarioInfo scenarioInfo = null;
         try {
             scenarioInfo = scenarioMapper.toScenarioInfo(scenarioName, dto);
@@ -959,6 +1016,13 @@ public class ScenarioMapperTest {
                         .build()).build()).build();
     }
 
+    @Nonnull
+    private SettingOverride.Builder buildSettingOverrideStringValue(String name, String value) {
+        return SettingOverride.newBuilder().setSetting(Setting.newBuilder()
+            .setSettingSpecName(name)
+            .setStringSettingValue(StringSettingValue.newBuilder().setValue(value)));
+    }
+
     /**
      * Tests converting of empty scenario to scenarioApiDto.
      */
@@ -972,9 +1036,12 @@ public class ScenarioMapperTest {
     /**
      * Tests converting of ScenarioApiDto to ScenarioInfo when Ignore Constraint setting is provided
      * by scenarioApiDto
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
     @Test
-    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() {
+    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() throws OperationFailedException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         List<RemoveConstraintApiDTO> removeConstraints = ImmutableList.of(
@@ -998,8 +1065,12 @@ public class ScenarioMapperTest {
         Assert.assertEquals(2l, ignoreDataCenterCommodity.getIgnoreGroup().getGroupUuid());
     }
 
+    /**
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
     @Test
-    public void testAdditionFromGroup() {
+    public void testAdditionFromGroup() throws OperationFailedException {
         final Grouping group = Grouping.newBuilder().setId(1)
                 .setDefinition(GroupDefinition.getDefaultInstance())
                 .build();
@@ -1078,9 +1149,12 @@ public class ScenarioMapperTest {
 
     /**
      * Tests converting of ScenarioApiDto to ScenarioInfo for alleviate pressure plan.
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
     @Test
-    public void testToScenarioInfoForAlleviatePressurePlan() {
+    public void testToScenarioInfoForAlleviatePressurePlan() throws OperationFailedException {
         final ScenarioApiDTO dto = scenarioApiForAlleviatePressurePlan(1000, 2000);
 
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
@@ -1154,7 +1228,6 @@ public class ScenarioMapperTest {
                         .setMaxUtilizationLevel(maxUtilLevel))
                 .build());
 
-        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
         BaseApiDTO baseApiDto = new BaseApiDTO();
         when(contextMock.dtoForId(maxUtilLevel.getGroupOid())).thenReturn(baseApiDto);
 
@@ -1186,7 +1259,6 @@ public class ScenarioMapperTest {
                         .setMaxUtilizationLevel(maxUtilLevel))
                 .build());
 
-        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
         BaseApiDTO baseApiDto = new BaseApiDTO();
         when(contextMock.dtoForId(maxUtilLevel.getGroupOid())).thenReturn(baseApiDto);
 
@@ -1218,7 +1290,6 @@ public class ScenarioMapperTest {
                         .setMaxUtilizationLevel(maxUtilLevel))
                 .build());
 
-        ScenarioChangeMappingContext contextMock = mock(ScenarioChangeMappingContext.class);
         BaseApiDTO baseApiDto = new BaseApiDTO();
         when(contextMock.dtoForId(maxUtilLevel.getGroupOid())).thenReturn(baseApiDto);
 
@@ -1377,5 +1448,157 @@ public class ScenarioMapperTest {
         template.setDisplayName("Template " + templateId);
         template.setUuid(Long.toString(templateId));
         return template;
+    }
+
+    /**
+     * Map {@link SettingApiDTO} group setting to {@link SettingOverride}.
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
+    @Test
+    public void testBuildSettingChangesWithGroupSetting() throws OperationFailedException {
+        //GIVEN
+        Long groupUUID = 123L;
+        SettingApiDTO<String> setting = createStringSetting("foo", "value");
+        setting.setSourceGroupUuid(groupUUID.toString());
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
+
+        when(settingsManagerMapping.convertFromPlanSetting(anyList())).thenReturn(Arrays.asList(setting));
+        when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
+                .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
+                        .setSettingSpecName("foo")
+                        .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
+                        .build()));
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.oid()).thenReturn(groupUUID);
+        when(this.uuidMapper.fromUuid(any())).thenReturn(apiIdMock);
+
+        //WHEN
+        final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
+
+        //THEN
+        assertTrue(scenarioChanges.size() == 1);
+        assertTrue(scenarioChanges.get(0).hasSettingOverride());
+        assertTrue(scenarioChanges.get(0).getSettingOverride().getGroupOid() == 123L);
+    }
+
+    /**
+     * Map {@link SettingApiDTO} global setting to {@link SettingOverride}.
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
+    @Test
+    public void testBuildSettingChangesWithGlobalSetting() throws OperationFailedException {
+        //GIVEN
+        final SettingApiDTO<String> setting = createStringSetting("foo", "value");
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
+        when(settingsManagerMapping.convertFromPlanSetting(anyList())).thenReturn(Arrays.asList(setting));
+        when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
+                .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
+                        .setSettingSpecName("foo")
+                        .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
+                        .build()));
+
+        //WHEN
+        final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
+
+        //THEN
+        assertTrue(scenarioChanges.size() == 1);
+        assertTrue(scenarioChanges.get(0).hasSettingOverride());
+        assertFalse(scenarioChanges.get(0).getSettingOverride().hasGroupOid());
+    }
+
+    /**
+     * Map {@link SettingApiDTO} to {@link SettingOverride}.
+     *<p>ConvertFromPlanSettings can return multiple settingApiDTO.
+     * Make sure same amount of scenarioChanges are generated.
+     * Example.  Virtual Machine resize SettingApiDto gets mapped to
+     * 8 different types of settings.</p>
+     *
+     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     */
+    @Test
+    public void testBuildSettingChangesWithConvertedPlanSettingsReturningMultiDtos() throws OperationFailedException {
+        //GIVEN
+        final SettingApiDTO<String> setting = createStringSetting("foo", "value");
+
+        final List<SettingApiDTO> convertedSettings = Arrays.asList(setting, setting, setting, setting);
+
+        SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
+        when(settingsManagerMapping.convertFromPlanSetting(anyList())).thenReturn(convertedSettings);
+
+        when(settingsMapper.toProtoSettings(convertedSettings))
+                .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
+                        .setSettingSpecName("foo")
+                        .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
+                        .build()));
+
+        //WHEN
+        final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
+
+        //THEN
+        assertTrue(scenarioChanges.size() == 4);
+    }
+
+    /**
+     * Map {@link SettingOverride} global setting to {@link SettingApiDTO}.
+     */
+    @Test
+    public void testCreateApiSettingFromOverrideGlobalSetting() {
+        //GIVEN
+        SettingOverride.Builder settingOverride = buildSettingOverrideStringValue("foo", "value")
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber());
+
+        final SettingApiDTO<String> settingApiDTO = new SettingApiDTO<>();
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getSettingForEntityType(any())).thenReturn(Optional.of(settingApiDTO));
+
+        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
+
+        //WHEN
+        Collection<SettingApiDTO<String>> apiDtolist =
+                scenarioMapper.createApiSettingFromOverride(settingOverride.build(), contextMock);
+
+        //THEN
+        assertTrue(apiDtolist.size() == 1);
+        apiDtolist.stream().forEach(dto ->
+                assertTrue(dto.getSourceGroupUuid() == null)
+        );
+    }
+
+    /**
+     * Map {@link SettingOverride} group setting to {@link SettingApiDTO}.
+     */
+    @Test
+    public void testCreateApiSettingFromOverridePerGroupSetting() {
+        String sourceGroupUUID = "123";
+        String sourceGroupName = "123Name";
+        SettingApiDTO<String> settingApiDTO = new SettingApiDTO<String>();
+        settingApiDTO.setSourceGroupUuid(sourceGroupUUID);
+        settingApiDTO.setSourceGroupName(sourceGroupName);
+
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getSettingForEntityType(any())).thenReturn(Optional.of(settingApiDTO));
+
+        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
+
+        SettingOverride.Builder settingOverride = buildSettingOverrideStringValue("foo", "value")
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber());
+        //WHEN
+        Collection<SettingApiDTO<String>> apiDtolist =
+                scenarioMapper.createApiSettingFromOverride(settingOverride.build(), contextMock);
+
+        //THEN
+        assertTrue(apiDtolist.size() == 1);
+        boolean perGroupSettingMapped = apiDtolist.stream()
+                .filter(dto ->
+                    dto.getSourceGroupUuid().equals(sourceGroupUUID) &&
+                            dto.getSourceGroupName().equals(sourceGroupName))
+                .findAny()
+                .isPresent();
+        assertTrue(perGroupSettingMapped);
     }
 }

@@ -3,20 +3,20 @@ package com.vmturbo.topology.processor.diagnostics;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -39,9 +39,12 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileIn
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
 import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.IDiagnosticsHandlerImportable;
+import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -57,12 +60,14 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
+import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -73,19 +78,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * targets, one file for their schedules, and then one file per target with the entities
  * associated with that target.
  */
-public class TopologyProcessorDiagnosticsHandler {
+public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerImportable {
 
     private static final String TARGETS_DIAGS_FILE_NAME = "Targets.diags";
     private static final String SCHEDULES_DIAGS_FILE_NAME = "Schedules.diags";
-    private static final String ID_DIAGS_FILE_NAME = "Identity.diags";
     private static final String PROBES_DIAGS_FILE_NAME = "Probes.diags";
-    private static final String TARGET_IDENTIFIERS_DIAGS_FILE_NAME = "Target.identifiers.diags";
-
-    private static final String DISCOVERED_CLOUD_COST_NAME = "DiscoveredCloudCost.diags";
-    private static final String PRICE_TABLE_NAME = "PriceTables.diags";
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
-    private static final String SKIPPING_FOLLOWING_TASKS = "remaining diagnostic dump tasks skipped.";
 
     private final TargetStore targetStore;
     private final PersistentIdentityStore targetPersistentIdentityStore;
@@ -97,7 +96,6 @@ public class TopologyProcessorDiagnosticsHandler {
     private final IdentityProvider identityProvider;
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
     private final PriceTableUploader priceTableUploader;
-    private final DiagnosticsWriter diagnosticsWriter;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -111,8 +109,7 @@ public class TopologyProcessorDiagnosticsHandler {
             @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
-            @Nonnull final PriceTableUploader priceTableUploader,
-            @Nonnull final DiagnosticsWriter diagnosticsWriter) {
+            @Nonnull final PriceTableUploader priceTableUploader) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -123,7 +120,6 @@ public class TopologyProcessorDiagnosticsHandler {
         this.identityProvider = identityProvider;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.priceTableUploader = priceTableUploader;
-        this.diagnosticsWriter = diagnosticsWriter;
     }
 
     /**
@@ -131,88 +127,40 @@ public class TopologyProcessorDiagnosticsHandler {
      *
      * @param diagnosticZip the ZipOutputStream to dump diags to
      */
-    public void dumpDiags(ZipOutputStream diagnosticZip) {
-        dumpDiags(diagnosticZip, IdentifiedEntityDTO::toJson, Target::getNoSecretDto);
-    }
-
-    /**
-     * Dump TopologyProcessor diagnostics, converting entities to JSON and Targets to TargetInfos
-     * using the specified functions.
-     *
-     * @param diagnosticZip the ZipOutputStream to dump diags to
-     * @param identifiedEntityMapper a function that converts IdentifiedEntityDTO to a json string
-     * @param targetMapper a function that converts Target to TargetInfo
-     */
-    private void dumpDiags(ZipOutputStream diagnosticZip,
-                           Function<IdentifiedEntityDTO, String> identifiedEntityMapper,
-                           Function<Target, TargetInfo> targetMapper) {
-
+    @Override
+    public void dump(@Nonnull ZipOutputStream diagnosticZip) {
+        final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
         // Probes
-        try {
-            diagnosticsWriter.writeZipEntry(PROBES_DIAGS_FILE_NAME,
-                probeStore.getProbes().entrySet().stream()
-                    .map(entry -> new ProbeInfoWithId(entry.getKey(), entry.getValue())),
-                ProbeInfoWithId.class,
-                diagnosticZip
-            );
-        } catch (DiagnosticsException e) {
-            logger.error("Failed writing PROBES_DIAGS_FILE; " + SKIPPING_FOLLOWING_TASKS, e);
-            return;
-        }
+        diagsWriter.writeZipEntry(PROBES_DIAGS_FILE_NAME, probeStore.getProbes()
+                .entrySet()
+                .stream()
+                .map(entry -> new ProbeInfoWithId(entry.getKey(), entry.getValue()))
+                .map(probe -> GSON.toJson(probe, ProbeInfoWithId.class))
+                .iterator());
 
         // Target identifiers in db, skip following tasks if failed to keep consistency.
-        try {
-            diagnosticsWriter.writeZipEntry(TARGET_IDENTIFIERS_DIAGS_FILE_NAME,
-                targetPersistentIdentityStore.collectDiagsStream(), diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Dump target spec oid table failed; " + SKIPPING_FOLLOWING_TASKS, e);
-            return;
-        }
+        diagsWriter.dumpDiagnosable(targetPersistentIdentityStore);
 
         // Targets
-        List<Target> targets = targetStore.getAll();
-        try {
-            diagnosticsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME,
-                targets.stream()
-                    .map(targetMapper),
-                TargetInfo.class,
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Error writing targets diags file; " + SKIPPING_FOLLOWING_TASKS, e);
-            return;
-        }
+        final List<Target> targets = targetStore.getAll();
+        diagsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME, targets.stream()
+                .map(Target::getNoSecretDto)
+                .map(target -> GSON.toJson(target, TargetInfo.class))
+                .iterator());
 
         // Schedules
-        try {
-            diagnosticsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME,
-                targets.stream()
-                    .map(Target::getId)
-                    .map(scheduler::getDiscoverySchedule)
-                    .filter(Optional::isPresent).map(Optional::get),
-                TargetDiscoverySchedule.class,
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump schedules diags;" + SKIPPING_FOLLOWING_TASKS, e);
-            return;
-        }
+        diagsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME, targets.stream()
+                .map(Target::getId)
+                .map(scheduler::getDiscoverySchedule)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(schedule -> GSON.toJson(schedule, TargetDiscoverySchedule.class))
+                .iterator());
 
         // Discovered costs
-        try {
-            diagnosticsWriter.writeZipEntry(DISCOVERED_CLOUD_COST_NAME,
-                discoveredCloudCostUploader.collectDiagsStream(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
-        }
-
+        diagsWriter.dumpDiagnosable(discoveredCloudCostUploader);
         // Discovered price tables.
-        try {
-            diagnosticsWriter.writeZipEntry(PRICE_TABLE_NAME,
-                priceTableUploader.collectDiagsStream(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered price tables. Will continue with others.", e);
-        }
+        diagsWriter.dumpDiagnosable(priceTableUploader);
 
         final Map<Long, TargetDiscoveredData> discoveredGroupData = discoveredGroupUploader.getDataByTarget();
         final Map<Long, List<DiscoveredGroupInfo>> discoveredGroups = new HashMap<>(discoveredGroupData.size());
@@ -237,75 +185,45 @@ public class TopologyProcessorDiagnosticsHandler {
             final String targetSuffix = "." + id + "-" + lastUpdated + ".diags";
 
             // Entities
-            try {
-                final Stream<IdentifiedEntityDTO> objectsToWrite =
-                    entityStore.discoveredByTarget(id)
-                        .entrySet()
-                        .stream()
-                        .map(entry -> new IdentifiedEntityDTO(entry.getKey(), entry.getValue()));
-                diagnosticsWriter.writeZipEntry("Entities" + targetSuffix,
-                    objectsToWrite, IdentifiedEntityDTO.class, diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Error writing entities; " + SKIPPING_FOLLOWING_TASKS + " target " + target.getId(), e);
-                return;
-            }
+            final Iterator<String> objectsToWrite = entityStore.discoveredByTarget(id)
+                    .entrySet()
+                    .stream()
+                    .map(entry -> new IdentifiedEntityDTO(entry.getKey(), entry.getValue()))
+                    .map(ientity -> GSON.toJson(ientity, IdentifiedEntityDTO.class))
+                    .iterator();
+            diagsWriter.writeZipEntry("Entities" + targetSuffix, objectsToWrite);
 
             //Discovered Groups
-            try {
-                diagnosticsWriter.writeZipEntry("DiscoveredGroupsAndPolicies" + targetSuffix,
-                    discoveredGroups.getOrDefault(id, Collections.emptyList()).stream(),
-                    DiscoveredGroupInfo.class,
-                    diagnosticZip
-                );
-            } catch (DiagnosticsException e) {
-                logger.error("Error dumping Discovered Groups And Policies;" +
-                    SKIPPING_FOLLOWING_TASKS, e);
-                return;
-            }
+            diagsWriter.writeZipEntry("DiscoveredGroupsAndPolicies" + targetSuffix, discoveredGroups
+                    .getOrDefault(id, Collections.emptyList())
+                    .stream()
+                    .map(group -> GSON.toJson(group, DiscoveredGroupInfo.class))
+                    .iterator());
 
             //Discovered Settings Policies
-            try {
-                final List<DiscoveredSettingPolicyInfo> targetSettingPolicies = settingPolicies.get(id);
-                if (targetSettingPolicies != null) {
-                    diagnosticsWriter.writeZipEntry("DiscoveredSettingPolicies" + targetSuffix,
-                            targetSettingPolicies.stream(), DiscoveredSettingPolicyInfo.class,
-                            diagnosticZip);
-                }
-            } catch (DiagnosticsException e) {
-                logger.error("Error dumping Discovered Setting Policies;" +
-                    SKIPPING_FOLLOWING_TASKS, e);
-                return;
+            final List<DiscoveredSettingPolicyInfo> targetSettingPolicies = settingPolicies.get(id);
+            if (targetSettingPolicies != null) {
+                diagsWriter.writeZipEntry("DiscoveredSettingPolicies" + targetSuffix,
+                        targetSettingPolicies.stream()
+                                .map(snp -> GSON.toJson(snp, DiscoveredSettingPolicyInfo.class))
+                                .iterator());
             }
 
             // Discovered Deployment Profiles including associations with Templates
-            try {
-                diagnosticsWriter.writeZipEntry("DiscoveredDeploymentProfilesAndTemplates" + targetSuffix,
-                    deploymentProfiles.getOrDefault(id, Collections.emptyMap()).entrySet().stream()
-                        .map(entry -> new DeploymentProfileWithTemplate(entry.getKey(), entry.getValue())),
-                    DeploymentProfileWithTemplate.class,
-                    diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Error dumping Discovered Deployment Profiles and Templates; " +
-                    SKIPPING_FOLLOWING_TASKS, e);
-                return;
-            }
+            diagsWriter.writeZipEntry("DiscoveredDeploymentProfilesAndTemplates" + targetSuffix,
+                    deploymentProfiles.getOrDefault(id, Collections.emptyMap())
+                            .entrySet()
+                            .stream()
+                            .map(entry -> new DeploymentProfileWithTemplate(entry.getKey(),
+                                    entry.getValue()))
+                            .map(template -> GSON.toJson(template,
+                                    DeploymentProfileWithTemplate.class))
+                            .iterator());
         }
 
-        try {
-            diagnosticsWriter.writeZipEntry(ID_DIAGS_FILE_NAME,
-                identityProvider.collectDiagsStream(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error(e.getErrors());
-            return;
-        }
-
-        try {
-            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Error dumping prometheus metrics;" + SKIPPING_FOLLOWING_TASKS, e);
-            return;
-        }
+        diagsWriter.dumpDiagnosable(identityProvider);
+        diagsWriter.dumpDiagnosable(
+                new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
 
         // discovery dumps
         File dumpDirInZip = new File("discoveryDumps");
@@ -315,9 +233,9 @@ public class TopologyProcessorDiagnosticsHandler {
                 if (dumpFile.exists() && dumpFile.isFile()) {
                     File entryFileName = new File(dumpDirInZip, dumpFileName);
                     try {
-                        diagnosticsWriter.writeZipEntry(entryFileName.toString(),
-                            FileUtils.readFileToByteArray(dumpFile), diagnosticZip);
-                    } catch (DiagnosticsException | IOException e) {
+                        diagsWriter.writeZipEntry(entryFileName.toString(),
+                                FileUtils.readFileToByteArray(dumpFile));
+                    } catch (IOException e) {
                         logger.warn("Failed to write discovery dump file {} to diags zip file", dumpFile);
                         logger.catching(Level.DEBUG, e);
                     }
@@ -327,6 +245,10 @@ public class TopologyProcessorDiagnosticsHandler {
 
             }
         }
+        if (!diagsWriter.getErrors().isEmpty()) {
+            diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
+                    diagsWriter.getErrors().iterator());
+        }
     }
 
     /**
@@ -335,80 +257,43 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param diagnosticZip the ZipOutputStream to dump diags to
      */
     public void dumpAnonymizedDiags(ZipOutputStream diagnosticZip) {
+        final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
         // Target identifiers in db.
-        try {
-            diagnosticsWriter.writeZipEntry(TARGET_IDENTIFIERS_DIAGS_FILE_NAME,
-                targetPersistentIdentityStore.collectDiagsStream(), diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Dump target spec oid table failed.", e);
-            return;
-        }
+        diagsWriter.dumpDiagnosable(targetPersistentIdentityStore);
         // Targets
         List<Target> targets = targetStore.getAll();
-        try {
-            diagnosticsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME,
-                                             targets.stream()
-                                                    .map(Target::getNoSecretAnonymousDto)
-                                                    .map(GSON::toJson),
-                                             diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Error dumping " + TARGET_IDENTIFIERS_DIAGS_FILE_NAME, e);
-            return;
-        }
+        diagsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME,
+                targets.stream().map(Target::getNoSecretAnonymousDto).map(GSON::toJson).iterator());
 
         // Schedules
-        try {
-            diagnosticsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME,
-                                             targets.stream()
-                                                    .map(Target::getId)
-                                                    .map(scheduler::getDiscoverySchedule)
-                                                    .filter(Optional::isPresent).map(Optional::get)
-                                                    .map(schedule -> GSON.toJson(schedule,
-                                                        TargetDiscoverySchedule.class)),
-                                             diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Error dumping " + SCHEDULES_DIAGS_FILE_NAME, e);
-        }
+        diagsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME, targets.stream()
+                .map(Target::getId)
+                .map(scheduler::getDiscoverySchedule)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(schedule -> GSON.toJson(schedule, TargetDiscoverySchedule.class))
+                .iterator());
 
         // Entities (one file per target)
         for (Target target : targets) {
             // TODO(Shai): add tartgetId to the content of the file (not just part of the name)
-            try {
-                diagnosticsWriter.writeZipEntry(
-                    "Entities." + target.getId() + ".diags",
-                    entityStore.discoveredByTarget(target.getId()).entrySet().stream()
-                        .map(entry -> new IdentifiedEntityDTO(entry.getKey(), entry.getValue()))
-                        .map(IdentifiedEntityDTO::toJsonAnonymized),
-                    diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Error writing entities diags.", e);
-            }
+            diagsWriter.writeZipEntry("Entities." + target.getId() + ".diags",
+                    entityStore.discoveredByTarget(target.getId())
+                            .entrySet()
+                            .stream()
+                            .map(entry -> new IdentifiedEntityDTO(entry.getKey(), entry.getValue()))
+                            .map(IdentifiedEntityDTO::toJsonAnonymized)
+                            .iterator());
         }
 
         // Discovered costs
-        try {
-            diagnosticsWriter.writeZipEntry(DISCOVERED_CLOUD_COST_NAME,
-                discoveredCloudCostUploader.collectDiagsStream(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered cloud costs. Will continue with others.", e);
-        }
-
+        diagsWriter.dumpDiagnosable(discoveredCloudCostUploader);
         // Discovered price tables.
-        try {
-            diagnosticsWriter.writeZipEntry(PRICE_TABLE_NAME,
-                priceTableUploader.collectDiagsStream(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error("Failed to dump discovered price tables. Will continue with others.", e);
-        }
-
-        try {
-            diagnosticsWriter.writeZipEntry(ID_DIAGS_FILE_NAME,
-                identityProvider.collectDiagsStream(),
-                diagnosticZip);
-        } catch (DiagnosticsException e) {
-            logger.error(e.getErrors());
+        diagsWriter.dumpDiagnosable(priceTableUploader);
+        diagsWriter.dumpDiagnosable(identityProvider);
+        if (!diagsWriter.getErrors().isEmpty()) {
+            diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
+                    diagsWriter.getErrors().iterator());
         }
     }
 
@@ -432,15 +317,22 @@ public class TopologyProcessorDiagnosticsHandler {
      * @return the load priority to determine the order to load the given Diags object
      */
     private static Integer diagsRestorePriority(Diags diags) {
+        // TODO remote this method. We should export diags in an order suitable for restoring
         final String diagsName = diags.getName();
         switch (diagsName) {
-            case ID_DIAGS_FILE_NAME: return 1;
-            case PROBES_DIAGS_FILE_NAME: return 2;
-            case TARGET_IDENTIFIERS_DIAGS_FILE_NAME: return 3;
-            case TARGETS_DIAGS_FILE_NAME: return 4;
-            case SCHEDULES_DIAGS_FILE_NAME: return 5;
+            case IdentityProviderImpl.ID_DIAGS_FILE_NAME:
+                return 1;
+            case PROBES_DIAGS_FILE_NAME:
+                return 2;
+            case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
+                return 3;
+            case TARGETS_DIAGS_FILE_NAME:
+                return 4;
+            case SCHEDULES_DIAGS_FILE_NAME:
+                return 5;
             // All other diagnostics files receive equal priority and may be loaded in any order
-            default: return 6;
+            default:
+                return 6;
         }
     }
 
@@ -450,7 +342,9 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param zis the input stream with compressed diagnostics
      * @return list of restored targets
      */
-    public List<Target> restore(InputStream zis) {
+    @Override
+    @Nonnull
+    public String restore(@Nonnull InputStream zis) throws DiagnosticsException {
         // Ordering is important. The identityProvider diags must be restored before the probes diags.
         // Otherwise, a race condition occurs where if a probe (re)registers after the restore of
         // the probe diags and before the restore of the identityProvider diags, then a probeInfo
@@ -459,6 +353,7 @@ public class TopologyProcessorDiagnosticsHandler {
         List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis))
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
+        final List<String> errors = new ArrayList<>();
 
         for (Diags diags : sortedDiagnostics) {
             final String diagsName = diags.getName();
@@ -468,10 +363,11 @@ public class TopologyProcessorDiagnosticsHandler {
             }
             try {
                 switch (diagsName) {
-                    case ID_DIAGS_FILE_NAME:
+                    // TODO change this switch with mapping from Diagnosable.getFileName()
+                    case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
                         identityProvider.restoreDiags(diagsLines);
                         break;
-                    case TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
+                    case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
                         restoreTargetIdentifiers(diagsLines);
                         break;
                     case TARGETS_DIAGS_FILE_NAME:
@@ -483,10 +379,10 @@ public class TopologyProcessorDiagnosticsHandler {
                     case PROBES_DIAGS_FILE_NAME:
                         restoreProbes(diagsLines);
                         break;
-                    case DISCOVERED_CLOUD_COST_NAME:
+                    case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME:
                         discoveredCloudCostUploader.restoreDiags(diagsLines);
                         break;
-                    case PRICE_TABLE_NAME:
+                    case PriceTableUploader.PRICE_TABLE_NAME:
                         priceTableUploader.restoreDiags(diagsLines);
                         break;
                     default:
@@ -512,11 +408,19 @@ public class TopologyProcessorDiagnosticsHandler {
                             logger.warn("Did not recognize diags file {}", diagsName);
                         }
                 }
-            } catch (Exception e) {
+            } catch (RuntimeException | TargetNotFoundException e) {
                 logger.error("Failed to restore diags file " + diagsName, e);
+                errors.add(e.getLocalizedMessage());
+            } catch (DiagnosticsException e) {
+                logger.error("Failed to restore diags file " + diagsName, e);
+                errors.addAll(e.getErrors());
             }
         }
-        return targetStore.getAll();
+        if (errors.isEmpty()) {
+            return "Successfully restored " + targetStore.getAll().size() + " targets";
+        } else {
+            throw new DiagnosticsException(errors);
+        }
     }
 
     /**
@@ -603,7 +507,7 @@ public class TopologyProcessorDiagnosticsHandler {
 
     /**
      * Restore target discovery schedules from a list of serialized schedules, usually produced
-     * via a {@link #dumpDiags(ZipOutputStream) operation.
+     * via a {@link #dump(ZipOutputStream) operation.
      *
      * @param serializedSchedules a list of json-serialized schedules
      */
@@ -627,7 +531,7 @@ public class TopologyProcessorDiagnosticsHandler {
 
     /**
      * Restore entity DTOs for a given target from a list of serialized entities, usually produced
-     * via a {@link #dumpDiags(ZipOutputStream)} operation.
+     * via a {@link #dump(ZipOutputStream)} operation.
      *
      * @param targetId the target ID that the restored entities will be associated with in
      *        the {@link EntityStore}

@@ -152,7 +152,7 @@ public class PlanRpcServiceUtil {
                 .filter(so -> so.hasSetting())
                 .map(so -> so.getSetting())
                 .anyMatch(setting -> setting.getSettingSpecName()
-                        .equals(EntitySettingSpecs.Resize.getSettingName())
+                        .contains(EntitySettingSpecs.Resize.getSettingName().toLowerCase())
                         && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED));
     }
 
@@ -169,7 +169,7 @@ public class PlanRpcServiceUtil {
                 .map(sc -> sc.getSettingOverride())
                 .map(so -> so.getSetting())
                 .anyMatch(setting -> setting.getSettingSpecName()
-                        .equals(EntitySettingSpecs.Resize.getSettingName())
+                        .contains(EntitySettingSpecs.Resize.getSettingName().toLowerCase())
                         && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED));
         final boolean isRIBuyEnabled = !scenarioInfo.getChangesList()
                 .stream()

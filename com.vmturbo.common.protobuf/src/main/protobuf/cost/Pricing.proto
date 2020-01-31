@@ -38,10 +38,10 @@ message PriceTable {
     map<int64, SpotInstancePriceTable> spot_price_by_region_id = 10;
 
     // A list of on-demand license prices grouped by OS type.
-    repeated common_dto.LicensePriceByOsEntry on_demand_license_prices = 20;
+    repeated common_dto.LicensePriceEntry on_demand_license_prices = 20;
 
     // A list of reserved license prices grouped by OS type.
-    repeated common_dto.LicensePriceByOsEntry reserved_license_prices = 30;
+    repeated common_dto.LicensePriceEntry reserved_license_prices = 30;
 }
 
 // PriceTableKey contains information which describes the source of price table.
@@ -106,13 +106,18 @@ message OnDemandPriceTable {
     map<int64, common_dto.ComputeTierPriceList> compute_prices_by_tier_id = 1;
 
     // The prices for database instances in this region, arranged by instance ID.
-    map<int64, common_dto.DatabaseTierPriceList> db_prices_by_instance_id = 2;
+    map<int64, DbTierOnDemandPriceTable> db_prices_by_instance_id = 2;
 
     // The prices for IPs in this region
     optional common_dto.IpPriceList ip_prices = 3;
 
     // The prices for cloud storage in this region, arranged by tier ID.
     map<int64, common_dto.StorageTierPriceList> cloud_storage_prices_by_tier_id = 4;
+}
+
+message DbTierOnDemandPriceTable {
+    optional common_dto.DatabaseTierPriceList on_demand_prices_no_deployment_type = 1;
+    map<int32, common_dto.DatabaseTierPriceList> db_prices_by_deployment_type = 2;
 }
 
 // The pricing table for spot instances.

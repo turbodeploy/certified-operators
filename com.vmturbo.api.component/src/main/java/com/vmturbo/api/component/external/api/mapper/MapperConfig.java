@@ -167,7 +167,8 @@ public class MapperConfig {
                 settingsMapper(),
                 serviceConfig.policiesService(),
                 communicationConfig.groupRpcService(),
-                groupMapper());
+                groupMapper(),
+                uuidMapper());
     }
 
     @Bean
@@ -187,13 +188,14 @@ public class MapperConfig {
 
     @Bean
     public UuidMapper uuidMapper() {
-        return new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
-            magicScopeGateway(),
-            communicationConfig.repositoryApi(),
-            communicationConfig.topologyProcessor(),
-            communicationConfig.planRpcService(),
-            communicationConfig.groupRpcService(),
-            communicationConfig.groupExpander());
+        final UuidMapper uuidMapper =
+                new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
+                        magicScopeGateway(), communicationConfig.repositoryApi(),
+                        communicationConfig.topologyProcessor(),
+                        communicationConfig.planRpcService(), communicationConfig.groupRpcService(),
+                        communicationConfig.groupExpander());
+        repositoryClientConfig.repository().addListener(uuidMapper);
+        return uuidMapper;
     }
 
     @Bean
@@ -249,8 +251,7 @@ public class MapperConfig {
         return new ReservationMapper(communicationConfig.repositoryApi(),
             communicationConfig.templateServiceBlockingStub(),
             communicationConfig.groupRpcService(),
-            communicationConfig.policyRpcService(),
-            communicationConfig.deploymentProfileServiceBlockingStub());
+            communicationConfig.policyRpcService());
     }
 
     @Bean

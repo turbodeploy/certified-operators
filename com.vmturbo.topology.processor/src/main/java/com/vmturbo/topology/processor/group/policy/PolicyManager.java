@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
@@ -178,14 +179,19 @@ public class PolicyManager {
                                               @Nonnull final List<ScenarioChange> scenarioChanges,
                                               @Nonnull List<PlacementPolicy> policies) {
         final Map<Long, Set<Long>> policyConstraintMap = new HashMap<>();
-        // for all current active reservation, their status are RESERVED, and also
-        // for reservations which just started, their status also have been
-        // updated to RESERVED during Reservation stage.
-        GetReservationByStatusRequest request = GetReservationByStatusRequest.newBuilder()
-                .setStatus(ReservationStatus.RESERVED)
-                .build();
-        final Iterable<Reservation> activeReservations = () -> reservationService.getReservationByStatus(request);
-        final List<Long> initialPlacementPolicyConstraint = scenarioChanges.stream()
+
+        final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest
+                .newBuilder().build();
+        final Iterable<Reservation> allReservations = () ->
+                reservationService.getAllReservations(allReservationsRequest);
+        final Iterable<Reservation> activeReservations =
+                StreamSupport.stream(allReservations.spliterator(), false)
+                        .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED ||
+                                reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED ||
+                                reservation.getStatus() == ReservationStatus.INPROGRESS)
+                        .collect(Collectors.toSet());
+
+       final List<Long> initialPlacementPolicyConstraint = scenarioChanges.stream()
                 .filter(ScenarioChange::hasPlanChanges)
                 .flatMap(change -> change.getPlanChanges().getInitialPlacementConstraintsList().stream())
                 .filter(ReservationConstraintInfo::hasType)

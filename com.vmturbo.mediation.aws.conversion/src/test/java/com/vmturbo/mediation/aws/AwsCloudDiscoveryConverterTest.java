@@ -206,12 +206,15 @@ public class AwsCloudDiscoveryConverterTest {
             // check if volumes are attached to VM with ephemeralStorage count > 0
             if (vm.hasVirtualMachineData() &&
                     vm.getVirtualMachineData().getNumEphemeralStorages() > 0) {
-                long ephemeralVolumeCount = layeredOver.get(EntityType.VIRTUAL_VOLUME).stream()
-                        .filter(e -> e.hasVirtualVolumeData()
-                                && e.getVirtualVolumeData().getIsEphemeral())
-                        .count();
-                assertEquals(vm.getVirtualMachineData().getNumEphemeralStorages(), ephemeralVolumeCount);
-
+                final List<String> ephemeralVolumeIds =
+                    layeredOver.get(EntityType.VIRTUAL_VOLUME).stream()
+                        .filter(e -> e.hasVirtualVolumeData() &&
+                            e.getVirtualVolumeData().getIsEphemeral())
+                        .map(EntityDTO.Builder::getId)
+                        .collect(Collectors.toList());
+                assertTrue(ba.getConsistsOfList().containsAll(ephemeralVolumeIds));
+                assertEquals(vm.getVirtualMachineData().getNumEphemeralStorages(),
+                    ephemeralVolumeIds.size());
             }
         });
     }

@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
-import javax.validation.constraints.Max;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -18,7 +17,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
@@ -77,6 +75,13 @@ public class SettingOverrides {
     private List<MaxUtilizationLevel> maxUtilizationLevels;
 
     /**
+     * groupOid -> settingName -> setting
+     *
+     *<p>These overrides apply to a specific group.
+     */
+     private final Map<Long, Map<String, Setting>> overridesForGroup = new HashMap<>();
+
+    /**
      * entityOid -> settingName -> setting
      *
      *<p> These overrides apply to a specific entity.
@@ -93,9 +98,17 @@ public class SettingOverrides {
             .forEach(settingOverride -> {
                 final Map<String, Setting> settingByNameMap;
                 if (settingOverride.hasEntityType()) {
-                    settingByNameMap = overridesForEntityType.computeIfAbsent(
-                        settingOverride.getEntityType(), k -> new HashMap<>());
+                    if (settingOverride.hasGroupOid()) {
+                        // Group based override
+                        settingByNameMap = overridesForGroup.computeIfAbsent(
+                                settingOverride.getGroupOid(), k -> new HashMap<>());
+                    } else {
+                        // Entity based override
+                        settingByNameMap = overridesForEntityType.computeIfAbsent(
+                                settingOverride.getEntityType(), k -> new HashMap<>());
+                    }
                 } else {
+                    // Global Override
                     settingByNameMap = globalOverrides;
                 }
                 final Setting overridenSetting = settingOverride.getSetting();
@@ -118,14 +131,11 @@ public class SettingOverrides {
      * @return a list of group id's present in the settings changes.
      */
     public Set<Long> getInvolvedGroups() {
-        if (maxUtilizationLevels.stream().anyMatch(MaxUtilizationLevel::hasGroupOid)) {
-            return maxUtilizationLevels.stream()
-                .map(MaxUtilizationLevel::getGroupOid)
-                .collect(Collectors.toSet());
-        } else {
-            return Collections.emptySet();
-        }
-
+        return Stream.concat(overridesForGroup.keySet().stream(),
+                maxUtilizationLevels.stream()
+                    .filter(MaxUtilizationLevel::hasGroupOid)
+                    .map(MaxUtilizationLevel::getGroupOid))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -168,7 +178,22 @@ public class SettingOverrides {
                         .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), groupMemberOids));
             }
         }
-        resolveEntitySettings(entitiesToApplySetting);
+        resolveEntitySettings(entitiesToApplySetting, MAX_UTILIZATION_SETTING_SPECS);
+
+        final Map<Setting, Set<Long>> groupOverrideSettings = new HashMap<>();
+        final Map<String, SettingSpec> grpOverrideSpecs = new HashMap<>();
+        overridesForGroup.forEach((groupOid, settingsMap) -> {
+            Grouping group = groupsById.get(groupOid);
+            Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
+            settingsMap.forEach((settingName, setting) ->
+                EntitySettingSpecs.getSettingByName(settingName).ifPresent(entitySpec -> {
+                    grpOverrideSpecs.putIfAbsent(settingName, entitySpec.getSettingSpec());
+                    groupOverrideSettings.put(setting, groupMemberOids);
+                })
+            );
+        });
+
+        resolveEntitySettings(groupOverrideSettings, grpOverrideSpecs);
     }
 
     /**
@@ -192,8 +217,10 @@ public class SettingOverrides {
      * Resolve settings for each entity based on the entitiesToApplySetting map.
      *
      * @param entitiesToApplySetting a map of a setting and the entities to apply that setting
+     * @param settingSpecsToConsider mapping of settingName->settingSpec for settings contained in @entitiesToApplySetting
      */
-    private void resolveEntitySettings(Map<Setting, Set<Long>> entitiesToApplySetting) {
+    private void resolveEntitySettings(Map<Setting, Set<Long>> entitiesToApplySetting,
+            Map<String, SettingSpec> settingSpecsToConsider) {
         for (Map.Entry<Setting, Set<Long>> entry : entitiesToApplySetting.entrySet()) {
             Setting setting = entry.getKey();
             for (long oid : entry.getValue()) {
@@ -205,7 +232,7 @@ public class SettingOverrides {
                 entitySettingOverrides.merge(setting.getSettingSpecName(), setting, (setting1, setting2) -> {
                     // use the tiebreaker if there is a conflict
                     Setting winner = EntitySettingsResolver.SettingResolver.applyTiebreaker(setting1, setting2,
-                            MAX_UTILIZATION_SETTING_SPECS);
+                            settingSpecsToConsider);
                     logger.trace("Plan override of max utilization settings for entity {}"
                             + " selected {}% from ({}%,{}%) for setting {}", oid,
                         winner, setting1, setting2, setting.getSettingSpecName());

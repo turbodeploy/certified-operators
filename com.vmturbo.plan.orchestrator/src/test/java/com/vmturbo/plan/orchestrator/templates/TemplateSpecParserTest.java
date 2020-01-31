@@ -8,14 +8,16 @@ import static org.junit.Assert.fail;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.stream.Collectors;
-
-import org.junit.Before;
-import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -46,11 +48,14 @@ public class TemplateSpecParserTest {
 
     @Test
     public void testCollectDiags() throws Exception {
-        assertEquals(
-            Collections.singletonList(TemplateSpecParser.GSON
-                .toJson(templateSpecParser.getTemplateSpecMap(), TemplateSpecParser.TYPE)),
-            templateSpecParser.collectDiagsStream().collect(Collectors.toList())
-        );
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        templateSpecParser.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+
+        assertEquals(Collections.singletonList(
+                TemplateSpecParser.GSON.toJson(templateSpecParser.getTemplateSpecMap(),
+                        TemplateSpecParser.TYPE)), diags.getAllValues());
     }
 
     @Test

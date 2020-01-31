@@ -32,6 +32,8 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.mediation.hybrid.cloud.common.PropertyName;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData;
@@ -428,7 +430,8 @@ public class RICostDataUploader {
                                                     logger.debug("Building VM local id -> oid map");
                                                     stitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)
                                                             .forEach(vm -> {
-                                                                vmLocalIdToOid.put(vm.getLocalId(), vm.getOid());
+                                                                vmLocalIdToOid.put(getBillingId(vm),
+                                                                    vm.getOid());
                                                             });
                                                 }
                                                 if (vmLocalIdToOid.containsKey(vmEntity.getId())) {
@@ -481,6 +484,15 @@ public class RICostDataUploader {
         });
 
         riCostComponentData.riCoverages = riCoverages;
+    }
+
+    private static String getBillingId(TopologyStitchingEntity vm) {
+        return vm.getEntityBuilder()
+            .getEntityPropertiesList().stream()
+            .filter(property -> property.getName().equals(PropertyName.BILLING_ID))
+            .map(CommonDTO.EntityDTO.EntityProperty::getValue)
+            .findAny()
+            .orElse(vm.getLocalId());
     }
 
     /**

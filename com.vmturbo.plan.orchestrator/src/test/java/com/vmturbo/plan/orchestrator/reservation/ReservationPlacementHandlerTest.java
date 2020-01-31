@@ -35,6 +35,8 @@ public class ReservationPlacementHandlerTest {
 
     private RepositoryServiceMole repositoryServiceMole = Mockito.spy(new RepositoryServiceMole());
 
+    private final ReservationManager reservationManager = Mockito.mock(ReservationManager.class);
+
     private final ReservationDao reservationDao = Mockito.mock(ReservationDao.class);
 
     private ReservationPlacementHandler reservationPlacementHandler;
@@ -64,6 +66,7 @@ public class ReservationPlacementHandlerTest {
     private final Reservation reservation = Reservation.newBuilder()
             .setName("Test-reservation")
             .setId(123)
+            .setStatus(ReservationStatus.RESERVED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                                     .setTemplateId(456)
@@ -77,6 +80,7 @@ public class ReservationPlacementHandlerTest {
 
     private final Reservation newReservation = Reservation.newBuilder()
             .setName("Test-reservation")
+            .setStatus(ReservationStatus.RESERVED)
             .setId(123)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
@@ -115,14 +119,15 @@ public class ReservationPlacementHandlerTest {
 
     @Before
     public void setup() {
-        reservationPlacementHandler = new ReservationPlacementHandler(reservationDao,
+        reservationPlacementHandler = new ReservationPlacementHandler(reservationManager,
                 RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     @Test
     public void testUpdateReservations() throws Exception {
-
-        Mockito.when(reservationDao.getReservationsByStatus(ReservationStatus.RESERVED))
+        Mockito.when(reservationManager.getReservationDao())
+                .thenReturn(reservationDao);
+        Mockito.when(reservationManager.getReservationDao().getAllReservations())
                 .thenReturn(ImmutableSet.of(reservation));
         final RetrieveTopologyEntitiesRequest entityRequest = RetrieveTopologyEntitiesRequest.newBuilder()
             .setTopologyContextId(contextId)
@@ -146,18 +151,19 @@ public class ReservationPlacementHandlerTest {
                 .thenReturn(ImmutableList.of(PartialEntityBatch.newBuilder()
                         .addEntities(PartialEntity.newBuilder().setFullEntity(providerEntity))
                         .build()));
-        reservationPlacementHandler.updateReservations(contextId, topologyId);
-        Mockito.verify(reservationDao, Mockito.times(1))
-                .updateReservationBatch(ImmutableSet.of(newReservation));
+        reservationPlacementHandler.updateReservations(contextId, topologyId, true);
+        Mockito.verify(reservationManager, Mockito.times(1))
+                .updateReservationResult(ImmutableSet.of(newReservation));
     }
 
     @Test
     public void testUpdateNoReservations() {
         // if there are no reservations, there should be no requests for entities to the repository
-        Mockito.when(reservationDao.getReservationsByStatus(ReservationStatus.RESERVED))
+        Mockito.when(reservationManager.getReservationDao())
+                .thenReturn(reservationDao);
+        Mockito.when(reservationManager.getReservationDao().getReservationsByStatus(ReservationStatus.RESERVED))
                 .thenReturn(Collections.emptySet());
-
-        reservationPlacementHandler.updateReservations(contextId, topologyId);
+        reservationPlacementHandler.updateReservations(contextId, topologyId, false);
         Mockito.verifyZeroInteractions(repositoryServiceMole);
     }
 }

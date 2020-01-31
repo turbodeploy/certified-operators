@@ -8,12 +8,14 @@
 {
   "managersByUuid": {
     // temporary hack since UI requires at least one 'actionscriptmanager to process any
-    // controlmanager entries, i.e. workflows - fix is OM-38669
+    // controlmanager entries, i.e. workflows.
+    // TODO: fix is OM-38669
     "actionscriptmanager": {
       "displayName": "Action Script Settings",
       "defaultCategory": "Automation",
       "settings": [
-        "provisionActionScript"
+        "provisionActionScript",
+        "moveActionScript"
       ]
     },
     "automationmanager": {
@@ -74,6 +76,7 @@
       "settings": [
         "activateActionWorkflow",
         "moveActionWorkflow",
+        "moveActionWorkflowWithNativeAsDefault",
         "provisionActionWorkflow",
         "resizeActionWorkflow",
         "suspendActionWorkflow",
@@ -95,6 +98,9 @@
     "marketsettingsmanager": {
       "displayName": "Operational Constraints",
       "defaultCategory": "Analysis",
+      // The following market setting is removed from the settings list below,
+      // as it is an internal setting that should not be exposed by API:
+      // "vcpuRequestUtilization" OM-51575
       "settings": [
         "cpuUtilization",
         "memoryUtilization",
@@ -128,6 +134,7 @@
         "minObservationPeriodVirtualMachine",
         "maxObservationPeriodBusinessUser",
         "maxObservationPeriodVirtualMachine",
+        "maxObservationPeriodDesktopPool",
         "resizeTargetUtilizationNetThroughput",
         "resizeTargetUtilizationIoThroughput",
         "resizeTargetUtilizationImageCPU",
@@ -145,7 +152,8 @@
         "poolCpuUtilizationThreshold",
         "poolMemoryUtilizationThreshold",
         "poolStorageUtilizationThreshold",
-        "viewPodActiveSessionCapacity"
+        "viewPodActiveSessionCapacity",
+        "dailyObservationWindowDesktopPool"
       ]
     },
     "storagesettingsmanager": {

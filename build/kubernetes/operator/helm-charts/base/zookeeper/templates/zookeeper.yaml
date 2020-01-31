@@ -58,7 +58,7 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
-{{ toYaml .Values.env | indent 8 -}}
+{{ toYaml .Values.env | indent 8 }}
         ports:
           - containerPort: 2181
         livenessProbe:
@@ -67,14 +67,14 @@ spec:
               - sh
               - -c
               - "/zookeeper-ready"
-          periodSeconds: 60
-          failureThreshold: 60
+{{- include "common.getLivenessThresholds" . | indent 10 }}
         readinessProbe:
           exec:
             command:
               - sh
               - -c
               - "/zookeeper-ready"
+{{- include "common.getReadinessThresholds" . | indent 10 }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:

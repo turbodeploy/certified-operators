@@ -70,8 +70,9 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
         this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
         this.entityRiMappingStore = Objects.requireNonNull(entityRiMappingStore);
-        this.localCostPricingResolver = Objects.requireNonNull(new LocalCostPricingResolver(priceTableStore,
-                businessAccountPriceTableKeyStore, identityProvider, discountStore, discountApplicatorFactory, topologyEntityInfoExtractor));
+        this.localCostPricingResolver = new LocalCostPricingResolver(priceTableStore,
+                businessAccountPriceTableKeyStore, identityProvider, discountStore,
+                discountApplicatorFactory, topologyEntityInfoExtractor);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -81,8 +82,8 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
     @Override
     public CloudCostData getCloudCostData(TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo,
                 TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException {
-        final Map<Long, AccountPricingData> accountPricingIdByBusinessAccountOid = localCostPricingResolver
-                .getAccountPricingDataByBusinessAccount(cloudTopo);
+        final Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingIdByBusinessAccountOid
+                = localCostPricingResolver.getAccountPricingDataByBusinessAccount(cloudTopo);
         final Map<Long, ReservedInstanceBought> riBoughtById =
             riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
@@ -93,10 +94,8 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
         final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
-        return new CloudCostData(entityRiMappingStore.getEntityRiCoverage(),
-                riBoughtById,
-                riSpecById,
-                Collections.emptyMap(), accountPricingIdByBusinessAccountOid);
+        return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), riBoughtById,
+                riSpecById, Collections.emptyMap(), accountPricingIdByBusinessAccountOid);
     }
 }
 

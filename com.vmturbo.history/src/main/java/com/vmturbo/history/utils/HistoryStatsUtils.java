@@ -37,6 +37,10 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,6 +61,7 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class HistoryStatsUtils {
 
@@ -78,11 +83,12 @@ public class HistoryStatsUtils {
      * If any of these metrics are requested, we need to post-process the response and tally
      * up counts.
      */
-    public static final Set<String> countPerSEsMetrics = Sets
-            .newHashSet(NUM_VMS_PER_HOST,
-                    NUM_VMS_PER_STORAGE,
-                    NUM_CNT_PER_HOST,
-                    NUM_CNT_PER_STORAGE);
+    public static final Set<String> countPerSEsMetrics = ImmutableSet.<String>builder()
+            .add(NUM_VMS_PER_HOST)
+            .add(NUM_VMS_PER_STORAGE)
+            .add(NUM_CNT_PER_HOST)
+            .add(NUM_CNT_PER_STORAGE)
+            .build();
 
     /**
      * The names of the count metrics involved in "ratio" stats.
@@ -502,6 +508,18 @@ public class HistoryStatsUtils {
 
     public static boolean isMarketStatsTable(@Nonnull final Table<?> table) {
         return MARKET_TABLES.contains(table);
+    }
+
+    /**
+     * List of entities relevant for headroom calculation.
+     */
+    private static final Set<Integer> HEADROOM_ENTITY_TYPES =
+                    ImmutableSet.of(EntityDTO.EntityType.STORAGE_VALUE,
+                                    EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE,
+                                    EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE);
+
+    public static Set<Integer> getHeadroomEntityTypes() {
+        return HEADROOM_ENTITY_TYPES;
     }
 
     /**

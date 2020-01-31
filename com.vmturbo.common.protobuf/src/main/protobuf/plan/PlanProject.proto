@@ -28,8 +28,11 @@ enum PlanProjectType {
     // There is always exactly one headroom plan project in the system.
     CLUSTER_HEADROOM = 1;
 
-    // A initial placement plan
-    INITAL_PLACEMENT = 2;
+    // Used for initial placement. No longer needed.
+    reserved 2;
+
+    // A reservation plan
+    RESERVATION_PLAN = 3;
 }
 
 // Information describing the plan project.

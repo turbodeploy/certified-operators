@@ -230,8 +230,15 @@ message ScenarioChange {
         // If present, the entity type to override the setting for.
         // This is one of the ways to narrow down setting overrides.
         optional int32 entity_type = 2;
-        // TODO: extends this to support other ways to specify the override scope, such as for
-        // a group.
+
+        // The group to apply current setting
+        // UI only supports selection of VMs, Host, Storage, Container groups
+        // If unset, apply to global scope
+        // entity_type indicates the entities to target when expanding groups
+        // Currently group_oid only applies if entity_type is set.
+        // TODO : Change this behavior in SettingOverride implementation such that group_oid and
+        // entity_type be independent variables.
+        optional int64 group_oid = 3;
     }
 }
 

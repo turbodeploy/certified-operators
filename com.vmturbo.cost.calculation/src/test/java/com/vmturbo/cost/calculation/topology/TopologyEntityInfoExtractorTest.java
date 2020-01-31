@@ -193,8 +193,8 @@ public class TopologyEntityInfoExtractorTest {
         assertNotNull(dbConfig);
         assertThat(dbConfig.getEngine(), is(DatabaseEngine.SQLSERVER));
         assertThat(dbConfig.getEdition(), is(DatabaseEdition.STANDARD));
-        assertThat(dbConfig.getLicenseModel(), is(LicenseModel.LICENSE_INCLUDED));
-        assertThat(dbConfig.getDeploymentType(), is(DeploymentType.SINGLE_AZ));
+        assertThat(dbConfig.getLicenseModel().get(), is(LicenseModel.LICENSE_INCLUDED));
+        assertThat(dbConfig.getDeploymentType().get(), is(DeploymentType.SINGLE_AZ));
     }
 
     @Test

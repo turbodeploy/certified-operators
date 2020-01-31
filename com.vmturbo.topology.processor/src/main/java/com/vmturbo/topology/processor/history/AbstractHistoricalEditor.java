@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.history;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
@@ -43,6 +46,7 @@ public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorCo
     @Override
     public void initContext(@Nonnull GraphWithSettings graph,
                             @Nonnull ICommodityFieldAccessor accessor,
+                            @Nonnull List<EntityCommodityReference> eligibleComms,
                             boolean isPlan)
                     throws HistoryCalculationException, InterruptedException {
         config.initSettings(graph, isPlan);

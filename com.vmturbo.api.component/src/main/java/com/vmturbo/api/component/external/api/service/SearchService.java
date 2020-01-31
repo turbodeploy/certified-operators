@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -34,7 +33,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -97,7 +95,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -117,13 +114,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
@@ -230,7 +225,8 @@ public class SearchService implements ISearchService {
                         (a, b, c) -> getConnectionStorageTierOptions())
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
-                .put(EntityFilterMapper.RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
                 .build();
 
@@ -342,16 +338,16 @@ public class SearchService implements ISearchService {
             // if 'groupType' is specified, this MUST be a search over GROUPs
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, groupType, environmentType, scopes);
+                paginationRequest, groupType, environmentType, scopes, false);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (typesHashSet.contains(GROUP)) {
-                // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
-                // all Groups(supertype).
+                // IN Classic, this returns all Groups + Clusters. So we pass in true for
+                // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                    paginationRequest, null, environmentType, scopes);
+                    paginationRequest, null, environmentType, scopes, true);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 // TODO(OM-49616): return the proper search filters and handle the query string properly
@@ -451,7 +447,7 @@ public class SearchService implements ISearchService {
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
                 paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType(),
-                inputDTO.getScope());
+                inputDTO.getScope(), false);
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
@@ -1059,9 +1055,10 @@ public class SearchService implements ISearchService {
      * @param queryPattern the query string whose special characters will be escaped
      * @return a String whose special characters have been escaped.
      */
-    private String escapeSpecialCharactersInSearchQueryPattern(String queryPattern) {
-        if (queryPattern == null) {
-            return null;
+    @Nullable
+    private String escapeSpecialCharactersInSearchQueryPattern(@Nullable String queryPattern) {
+        if (StringUtils.isEmpty(queryPattern)) {
+            return queryPattern;
         }
         // mark the pattern as a literal
         return Pattern.quote(queryPattern);

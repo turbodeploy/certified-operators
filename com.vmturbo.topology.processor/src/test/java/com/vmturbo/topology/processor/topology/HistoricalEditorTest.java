@@ -1,11 +1,16 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommSoldCommBoughtWithHistoricalValues;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.createGraph;
 import static org.mockito.Mockito.mock;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -13,14 +18,23 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
@@ -152,6 +166,116 @@ public class HistoricalEditorTest {
             PlanTopologyInfo.newBuilder().setPlanType(PlanProjectType.USER.name())).build();
 
         testApplyCommodityEditsNoUpdate(changes, topologyInfo);
+    }
+
+    /**
+     * Test {@link HistoricalEditor#copyHistoricalValuesToClonedEntities(TopologyGraph, List)}.
+     */
+    @Test
+    public void testCopyHistoricalValuesToClonedEntities() {
+        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM.getNumber()).setKey("").build())
+            .setHistoricalUsed(HistoricalValues.newBuilder().setMaxQuantity(1).setHistUtilization(2)
+                .addTimeSlot(3).setPercentile(4))
+            .setHistoricalPeak(HistoricalValues.newBuilder().setMaxQuantity(5).setHistUtilization(6)
+                .addTimeSlot(7).setPercentile(8))
+            .build());
+        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU.getNumber()).setKey("").build())
+            .setHistoricalUsed(HistoricalValues.newBuilder().setMaxQuantity(10).setHistUtilization(20)
+                .addTimeSlot(30).setPercentile(40))
+            .setHistoricalPeak(HistoricalValues.newBuilder().setMaxQuantity(50).setHistUtilization(60)
+                .addTimeSlot(70).setPercentile(80))
+            .build());
+
+        final ImmutableList.Builder<CommoditiesBoughtFromProvider> commBoughtList = ImmutableList.builder();
+        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(1000L)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM.getNumber()).setKey("").build())
+                .setHistoricalUsed(HistoricalValues.newBuilder().setMaxQuantity(-1).setHistUtilization(-2)
+                    .addTimeSlot(-3).setPercentile(-4))
+                .setHistoricalPeak(HistoricalValues.newBuilder().setMaxQuantity(-5).setHistUtilization(-6)
+                    .addTimeSlot(-7).setPercentile(-8)))
+            .build());
+        commBoughtList.add(CommoditiesBoughtFromProvider.newBuilder().setProviderId(1001L)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
+                .setHistoricalUsed(HistoricalValues.newBuilder().setMaxQuantity(-10).setHistUtilization(-20)
+                    .addTimeSlot(-30).setPercentile(-40))
+                .setHistoricalPeak(HistoricalValues.newBuilder().setMaxQuantity(-50).setHistUtilization(-60)
+                    .addTimeSlot(-70).setPercentile(-80)))
+            .build());
+
+        final TopologyEntity.Builder origin = buildTopologyEntityWithCommSoldCommBoughtWithHistoricalValues(100L,
+            HistoricalValues.newBuilder().setMaxQuantity(1).setHistUtilization(2).addTimeSlot(3).setPercentile(4).build(),
+            HistoricalValues.newBuilder().setMaxQuantity(5).setHistUtilization(6).addTimeSlot(7).setPercentile(8).build(),
+            HistoricalValues.newBuilder().setMaxQuantity(10).setHistUtilization(20).addTimeSlot(30).setPercentile(40).build(),
+            HistoricalValues.newBuilder().setMaxQuantity(50).setHistUtilization(60).addTimeSlot(70).setPercentile(80).build(),
+            101L, HistoricalValues.newBuilder().setMaxQuantity(-1).setHistUtilization(-2).addTimeSlot(-3).setPercentile(-4).build(),
+            HistoricalValues.newBuilder().setMaxQuantity(-5).setHistUtilization(-6).addTimeSlot(-7).setPercentile(-8).build(),
+            102L, HistoricalValues.newBuilder().setMaxQuantity(-10).setHistUtilization(-20).addTimeSlot(-30).setPercentile(-40).build(),
+            HistoricalValues.newBuilder().setMaxQuantity(-50).setHistUtilization(-60).addTimeSlot(-70).setPercentile(-80).build());
+
+        final TopologyEntity.Builder clone = buildTopologyEntityWithCommSoldCommBoughtWithHistoricalValues(200L,
+            HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance(),
+            HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance(),
+            -1L, HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance(),
+            -2L, HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance())
+            .setClonedFromEntityOid(100L);
+        final Map<Long, Long> oldProvidersMap = ImmutableMap.of(-1L, 101L, -2L, 102L);
+        clone.getEntityBuilder().putEntityPropertyMap("oldProviders", new Gson().toJson(oldProvidersMap));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(
+            ImmutableMap.of(origin.getOid(), origin, clone.getOid(), clone));
+
+        historicalEditor.copyHistoricalValuesToClonedEntities(graph,
+            ImmutableList.of(ScenarioChange.newBuilder()
+                .setTopologyAddition(TopologyAddition.getDefaultInstance())
+                .build()));
+
+        for (int i = 0; i <= 1; i++) {
+            final CommoditySoldDTO.Builder originalCommoditySold =
+                origin.getEntityBuilder().getCommoditySoldListBuilder(i);
+            final CommoditySoldDTO.Builder clonedCommoditySold =
+                origin.getEntityBuilder().getCommoditySoldListBuilder(i);
+            checkHistoricalValues(originalCommoditySold.getHistoricalUsedBuilder(),
+                clonedCommoditySold.getHistoricalUsedBuilder());
+            checkHistoricalValues(originalCommoditySold.getHistoricalPeakBuilder(),
+                clonedCommoditySold.getHistoricalPeakBuilder());
+        }
+
+        final Map<Long, CommoditiesBoughtFromProvider.Builder> originalProviderOidToCommBought =
+            origin.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .collect(Collectors.toMap(CommoditiesBoughtFromProvider.Builder::getProviderId, Function.identity()));
+        final Map<Long, CommoditiesBoughtFromProvider.Builder> clonedProviderOidToCommBought =
+            clone.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .collect(Collectors.toMap(CommoditiesBoughtFromProvider.Builder::getProviderId, Function.identity()));
+
+        for (Entry<Long, Long> entry : oldProvidersMap.entrySet()) {
+            final CommodityBoughtDTO.Builder originalCommodityBought =
+                originalProviderOidToCommBought.get(entry.getValue()).getCommodityBoughtBuilder(0);
+            final CommodityBoughtDTO.Builder clonedCommodityBought =
+                clonedProviderOidToCommBought.get(entry.getKey()).getCommodityBoughtBuilder(0);
+            checkHistoricalValues(originalCommodityBought.getHistoricalUsedBuilder(),
+                clonedCommodityBought.getHistoricalUsedBuilder());
+            checkHistoricalValues(originalCommodityBought.getHistoricalPeakBuilder(),
+                clonedCommodityBought.getHistoricalPeakBuilder());
+        }
+    }
+
+    /**
+     * Check historical values.
+     *
+     * @param origin original historical values
+     * @param clone cloned historical values
+     */
+    private void checkHistoricalValues(final HistoricalValues.Builder origin,
+                                       final HistoricalValues.Builder clone) {
+        Assert.assertEquals(origin.getMaxQuantity(), clone.getMaxQuantity(), FLOATING_POINT_DELTA);
+        Assert.assertEquals(origin.getHistUtilization(), clone.getHistUtilization(), FLOATING_POINT_DELTA);
+        Assert.assertEquals(origin.getTimeSlotList(), clone.getTimeSlotList());
+        Assert.assertEquals(origin.getPercentile(), clone.getPercentile(), FLOATING_POINT_DELTA);
     }
 
     /**

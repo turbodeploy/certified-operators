@@ -4,14 +4,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.zip.ZipOutputStream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import io.prometheus.client.CollectorRegistry;
 
@@ -25,10 +24,11 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
-import com.vmturbo.api.internal.controller.ApiDiagnosticsHandler.VersionAndRevision;
+import com.vmturbo.api.internal.controller.VersionDiagnosable.VersionAndRevision;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
+import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricUtilities;
 
 /**
@@ -41,13 +41,12 @@ public class ApiDiagnosticsHandlerTest {
         Mockito.mock(SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder.class);
     private final AdminService adminService = Mockito.mock(AdminService.class);
     private final ClusterMgrRestClient clusterService = Mockito.mock(ClusterMgrRestClient.class);
-    private final DiagnosticsWriter diagnosticsWriter = Mockito.mock(DiagnosticsWriter.class);
     private final ZipOutputStream diagnosticZip = Mockito.mock(ZipOutputStream.class);
     private final long liveTopologyContextId = 123456L;
 
-    private final ApiDiagnosticsHandler diagnosticsHandler = Mockito.spy(
-        new ApiDiagnosticsHandler(supplyChainFetcherFactory, adminService,
-            clusterService, diagnosticsWriter, liveTopologyContextId));
+    private DiagnosticsHandler diagnosticsHandler;
+    private VersionDiagnosable versionDiagsProvider;
+    private PrometheusDiagnosticsProvider prometheusDiagnosticsProvider;
 
     private static final String VERSION_STRING =
         "Turbonomic Operations Manager 7.4.0 (Build \"20180722153849000\") \"2018-07-24 12:26:58\"\n\n" +
@@ -79,6 +78,13 @@ public class ApiDiagnosticsHandlerTest {
 
     @Before
     public void setup() throws Exception {
+        versionDiagsProvider =
+                new VersionDiagnosable(supplyChainFetcherFactory, adminService, clusterService,
+                        liveTopologyContextId);
+        prometheusDiagnosticsProvider =
+                Mockito.spy(new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
+        diagnosticsHandler = new DiagnosticsHandler(
+                Lists.newArrayList(versionDiagsProvider, prometheusDiagnosticsProvider));
         CollectorRegistry.defaultRegistry.clear();
 
         when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(builder);
@@ -86,6 +92,8 @@ public class ApiDiagnosticsHandlerTest {
         when(builder.addSeedUuids(eq(Collections.emptyList()))).thenReturn(builder);
         when(builder.entityDetailType(eq(null))).thenReturn(builder);
         when(builder.includeHealthSummary(eq(false))).thenReturn(builder);
+        Mockito.when(adminService.getVersionInfo(Mockito.anyBoolean()))
+                .thenReturn(new ProductVersionDTO());
 
         final SupplychainApiDTO supplyChain = new SupplychainApiDTO();
         supplyChain.setSeMap(ImmutableMap.of(
@@ -111,8 +119,7 @@ public class ApiDiagnosticsHandlerTest {
         when(adminService.getVersionInfo(eq(true))).thenReturn(versionDTO);
 
         diagnosticsHandler.dump(diagnosticZip);
-        verify(diagnosticsWriter).writePrometheusMetrics(
-            eq(CollectorRegistry.defaultRegistry), eq(diagnosticZip));
+        Mockito.verify(prometheusDiagnosticsProvider).collectDiags(Mockito.any());
     }
 
     @Test
@@ -120,8 +127,7 @@ public class ApiDiagnosticsHandlerTest {
         when(clusterService.isTelemetryEnabled()).thenReturn(false);
 
         diagnosticsHandler.dump(diagnosticZip);
-        verify(diagnosticsWriter, never()).writePrometheusMetrics(
-            eq(CollectorRegistry.defaultRegistry), eq(diagnosticZip));
+        Mockito.verify(prometheusDiagnosticsProvider).collectDiags(Mockito.any());
     }
 
     @Test
@@ -146,7 +152,7 @@ public class ApiDiagnosticsHandlerTest {
     public void testCollectEntityCounts() throws Exception {
         final VersionAndRevision versionAndRevision =
             new VersionAndRevision(VERSION_STRING);
-        diagnosticsHandler.collectEntityCounts(versionAndRevision);
+        versionDiagsProvider.collectEntityCounts(versionAndRevision);
 
         final String metrics = TelemetryMetricUtilities.format004(CollectorRegistry.defaultRegistry);
         assertTrue(metrics.contains("service_entity_count{service_entity_name=\"VirtualMachine\",target_type=\"\",version=\"Turbonomic Operations Manager 7.4.0:20180722153849000\",} 21.0"));

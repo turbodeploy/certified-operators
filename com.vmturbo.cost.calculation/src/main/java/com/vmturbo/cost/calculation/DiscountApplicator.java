@@ -44,7 +44,7 @@ public class DiscountApplicator<ENTITY_CLASS> {
      * Static instance to represent an applicator for no discount.
      */
     private static final DiscountApplicator EMPTY_APPLICATOR =
-            new DiscountApplicator(null, null, null, null);
+            new DiscountApplicator<>(null, null, null, null);
 
     /**
      * A constant {@link TraxNumber} representing no discount.
@@ -96,7 +96,7 @@ public class DiscountApplicator<ENTITY_CLASS> {
      * Return an applicator for "no discount".
      */
     public static <ENTITY_CLASS> DiscountApplicator<ENTITY_CLASS> noDiscount() {
-        return (DiscountApplicator<ENTITY_CLASS>)EMPTY_APPLICATOR;
+        return EMPTY_APPLICATOR;
     }
 
     /**
@@ -230,7 +230,8 @@ public class DiscountApplicator<ENTITY_CLASS> {
                      @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
                      @Nonnull final Optional<Discount> discount) {
             if (discount.isPresent()) {
-                return new DiscountApplicator(entity, discount.get(), cloudTopology, infoExtractor);
+                return new DiscountApplicator<>(entity, discount.get(), cloudTopology,
+                        infoExtractor);
             } else {
                 return DiscountApplicator.noDiscount();
             }

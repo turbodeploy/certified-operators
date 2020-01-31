@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+import com.google.common.collect.Table;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -86,8 +87,8 @@ public class JsonToSMAInputTranslator {
                 SMAInputContext smaInputContext = smaInput.getContexts().get(contextIndex);
                 br.write("\t\t\t\"context\": {\n");
                 SMAContext smaContext = smaInputContext.getContext();
-                br.write("\t\t\t\t\"csp\": \"" + smaContext.getCsp().name() + "\",\n");
                 br.write("\t\t\t\t\"os\": \"" + smaContext.getOs().name() + "\",\n");
+                br.write("\t\t\t\t\"csp\": \"" + smaContext.getCsp().name() + "\",\n");
                 br.write("\t\t\t\t\"region\": " + smaContext.getRegionId() + ",\n");
                 br.write("\t\t\t\t\"billingAccount\": " + smaContext.getBillingAccountId() + ",\n");
                 br.write("\t\t\t\t\"tenancy\": \"" + smaContext.getTenancy().name() + "\"\n");
@@ -102,11 +103,12 @@ public class JsonToSMAInputTranslator {
 
                     br.write("\t\t\t\t\t\"onDemandCost\": [\n");
                     int currentIndex = 0;
-                    for (Entry<Long, SMACost> entry : smaTemplate.getOnDemandCosts().entrySet()) {
+                    for (Table.Cell<Long, OSType, SMACost> entry : smaTemplate.getOnDemandCosts().cellSet()) {
                         br.write("\t\t\t\t\t\t{\n");
                         br.write("\t\t\t\t\t\t\t\"compute\": " + entry.getValue().getCompute() + ",\n");
                         br.write("\t\t\t\t\t\t\t\"license\": " + entry.getValue().getLicense() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getRowKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"osType\": " + entry.getColumnKey() + "\n");
 
                         if (currentIndex != smaTemplate.getOnDemandCosts().values().size() - 1) {
                             br.write("\t\t\t\t\t\t},\n");
@@ -118,11 +120,12 @@ public class JsonToSMAInputTranslator {
 
                     br.write("\t\t\t\t\t\"discountedCost\": [\n");
                     currentIndex = 0;
-                    for (Entry<Long, SMACost> entry : smaTemplate.getDiscountedCosts().entrySet()) {
+                    for (Table.Cell<Long, OSType, SMACost> entry : smaTemplate.getDiscountedCosts().cellSet()) {
                         br.write("\t\t\t\t\t\t{\n");
                         br.write("\t\t\t\t\t\t\t\"compute\": " + entry.getValue().getCompute() + ",\n");
                         br.write("\t\t\t\t\t\t\t\"license\": " + entry.getValue().getLicense() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getRowKey() + "\n");
+                        br.write("\t\t\t\t\t\t\t\"osType\": " + entry.getColumnKey() + "\n");
 
                         if (currentIndex != smaTemplate.getDiscountedCosts().values().size() - 1) {
                             br.write("\t\t\t\t\t\t},\n");
@@ -145,7 +148,7 @@ public class JsonToSMAInputTranslator {
                     br.write("\t\t\t\t{\n");
                     br.write("\t\t\t\t\t\"oid\": " + smaVirtualMachine.getOid() + ",\n");
                     br.write("\t\t\t\t\t\"name\": \"" + smaVirtualMachine.getName() + "\",\n");
-                    br.write("\t\t\t\t\t\"businessAccount\": " + smaVirtualMachine.getBusinessAccount() + ",\n");
+                    br.write("\t\t\t\t\t\"businessAccount\": " + smaVirtualMachine.getBusinessAccountId() + ",\n");
                     br.write("\t\t\t\t\t\"providers\": [\n");
                     for (SMATemplate provider : smaVirtualMachine.getProviders()) {
                         br.write("\t\t\t\t\t\t" + provider.getOid());
@@ -155,8 +158,12 @@ public class JsonToSMAInputTranslator {
                     }
                     br.write("\n");
                     br.write("\t\t\t\t\t],\n");
-                    br.write("\t\t\t\t\t\"zone\": " + smaVirtualMachine.getZone() + ",\n");
+                    br.write("\t\t\t\t\t\"zone\": " + smaVirtualMachine.getZoneId() + ",\n");
+                    if (!smaVirtualMachine.getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
+                        br.write("\t\t\t\t\t\"groupName\": " + smaVirtualMachine.getGroupName() + ",\n");
+                    }
                     br.write("\t\t\t\t\t\"currentRICoverage\": " + Math.round(smaVirtualMachine.getCurrentRICoverage()) + ",\n");
+                    br.write("\t\t\t\t\t\"currentRIKeyID\": " + Math.round(smaVirtualMachine.getCurrentRIKey()) + ",\n");
                     br.write("\t\t\t\t\t\"currentTemplate\": " + smaVirtualMachine.getCurrentTemplate().getOid() + "\n");
 
                     if (smaVirtualMachine != smaInputContext.getVirtualMachines().get(smaInputContext.getVirtualMachines().size() - 1)) {
@@ -170,12 +177,14 @@ public class JsonToSMAInputTranslator {
                 for (SMAReservedInstance smaReservedInstance : smaInputContext.getReservedInstances()) {
                     br.write("\t\t\t\t{\n");
                     br.write("\t\t\t\t\t\"oid\": " + smaReservedInstance.getOid() + ",\n");
+                    br.write("\t\t\t\t\t\"keyOid\": " + smaReservedInstance.getRiKeyOid() + ",\n");
                     br.write("\t\t\t\t\t\"name\": \"" + smaReservedInstance.getName() + "\",\n");
                     br.write("\t\t\t\t\t\"businessAccount\": " + smaReservedInstance.getBusinessAccount() + ",\n");
                     br.write("\t\t\t\t\t\"utilization\": " + "0,\n");
                     br.write("\t\t\t\t\t\"zone\": " + smaReservedInstance.getZone() + ",\n");
                     br.write("\t\t\t\t\t\"template\": " + smaReservedInstance.getTemplate().getOid() + ",\n");
-                    br.write("\t\t\t\t\t\"count\": " + smaReservedInstance.getCount() + "\n");
+                    br.write("\t\t\t\t\t\"count\": " + smaReservedInstance.getCount() + ",\n");
+                    br.write("\t\t\t\t\t\"isf\": " + smaReservedInstance.isIsf() + "\n");
                     if (smaReservedInstance != smaInputContext.getReservedInstances().get(smaInputContext.getReservedInstances().size() - 1)) {
                         br.write("\t\t\t\t},\n");
                     }
@@ -267,16 +276,19 @@ public class JsonToSMAInputTranslator {
     private SMAReservedInstance parseReservedInstance(JsonObject reservedInstanceObj,
                                                       Map<Long, SMATemplate> oidToTemplate, SMAContext context) {
         long oid = reservedInstanceObj.get("oid").getAsLong();
+        long keyOid = reservedInstanceObj.get("keyOid").getAsLong();
         String name = reservedInstanceObj.get("name").getAsString();
         long businessAccount = reservedInstanceObj.get("businessAccount").getAsLong();
         long templateOid = reservedInstanceObj.get("template").getAsLong();
+        boolean isf = reservedInstanceObj.get("isf").getAsBoolean();
         long zone = SMAUtils.NO_ZONE;
         JsonElement zoneObj = reservedInstanceObj.get("zone");
         if (zoneObj != null) {
             zone = reservedInstanceObj.get("zone").getAsLong();
         }
         int count = reservedInstanceObj.get("count").getAsInt();
-        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, name, businessAccount, oidToTemplate.get(templateOid), zone, count, context);
+        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, keyOid, name, businessAccount,
+                oidToTemplate.get(templateOid), zone, count, isf);
         return reservedInstance;
     }
 
@@ -294,6 +306,7 @@ public class JsonToSMAInputTranslator {
                     onDemandCostObj.getAsJsonObject().get("license").getAsFloat());
             template.setOnDemandCost(
                     onDemandCostObj.getAsJsonObject().get("businessAccount").getAsLong(),
+                    OSType.valueOf(onDemandCostObj.getAsJsonObject().get("os").getAsString()),
                     onDemandCost);
         }
         JsonArray discountedCostObjs = (JsonArray)templateObj.get("discountedCost");
@@ -303,6 +316,7 @@ public class JsonToSMAInputTranslator {
                     discountedCostObj.getAsJsonObject().get("license").getAsFloat());
             template.setDiscountedCost(
                     discountedCostObj.getAsJsonObject().get("businessAccount").getAsLong(),
+                OSType.valueOf(discountedCostObj.getAsJsonObject().get("os").getAsString()),
                     discountedCost);
         }
         return template;
@@ -312,7 +326,13 @@ public class JsonToSMAInputTranslator {
         Long oid = virtualMachineObj.get("oid").getAsLong();
         String name = virtualMachineObj.get("name").getAsString();
         Long businessAccountOid = virtualMachineObj.get("businessAccount").getAsLong();
+        OSType osType = OSType.valueOf(virtualMachineObj.get("os").getAsString());
         float currentRICoverage = virtualMachineObj.get("currentRICoverage").getAsFloat();
+        JsonElement currentRIObj = virtualMachineObj.get("currentRIKeyID");
+        long currentRI = SMAUtils.NO_CURRENT_RI;
+        if (currentRIObj != null) {
+            currentRI = currentRIObj.getAsLong();
+        }
         Long currentTemplateOid = virtualMachineObj.get("currentTemplate").getAsLong();
         List<SMATemplate> providers = new ArrayList<>();
         JsonArray providersObjs = (JsonArray)virtualMachineObj.get("providers");
@@ -333,13 +353,13 @@ public class JsonToSMAInputTranslator {
                 String vm_name = name + i.toString();
                 long newOid = oid + i;
                 SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupName, businessAccountOid,
-                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
+                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI, osType);
                 virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
             SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupName, businessAccountOid,
-                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid);
+                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI, osType);
             virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
         }
@@ -347,7 +367,8 @@ public class JsonToSMAInputTranslator {
     }
 
     private SMAContext parseContext(JsonObject contextObj) {
-        SMACSP csp = SMACSP.valueOf(contextObj.get("csp").getAsString());
+        JsonElement cspObj = contextObj.get("csp");
+        SMACSP csp = SMACSP.valueOf(cspObj.getAsString());
         OSType os = OSType.valueOf(contextObj.get("os").getAsString());
         long region = contextObj.get("region").getAsLong();
         long billingAccount = contextObj.get("billingAccount").getAsLong();

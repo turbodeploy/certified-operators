@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 import com.vmturbo.proactivesupport.bridge.TCPAggregatorBridge;
 import com.vmturbo.topology.processor.KVConfig;
@@ -110,13 +109,7 @@ public class TopologyProcessorDiagnosticsConfig {
             planConfig.discoveredTemplatesUploader(),
             identityProviderConfig.identityProvider(),
             cloudCostConfig.discoveredCloudCostUploader(),
-            cloudCostConfig.priceTableUploader(),
-            diagnosticsWriter());
-    }
-
-    @Bean
-    public DiagnosticsWriter diagnosticsWriter() {
-        return new DiagnosticsWriter();
+            cloudCostConfig.priceTableUploader());
     }
 
     @Bean

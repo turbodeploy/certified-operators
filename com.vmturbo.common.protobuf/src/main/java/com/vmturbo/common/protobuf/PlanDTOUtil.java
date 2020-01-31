@@ -82,8 +82,8 @@ public class PlanDTOUtil {
 
     /**
      * Return the OIDs of groups involved in a {@link ScenarioChange}. This will include groups
-     * referred to in topology addition / removal / replace changes, as well as target group id's
-     * for any max utilization changes in the plan config.
+     * referred to in topology addition / removal / replace / settings, max utilization and
+     * utilization changes.
      *
      * @param scenarioChange The target {@link ScenarioChange}.
      * @return The set of involved group IDs.
@@ -91,25 +91,15 @@ public class PlanDTOUtil {
     @Nonnull
     public static Set<Long> getInvolvedGroups(@Nonnull final ScenarioChange scenarioChange) {
         final ImmutableSet.Builder<Long> groupBuilder = ImmutableSet.builder();
-        if (scenarioChange.hasTopologyAddition()) {
-            if (scenarioChange.getTopologyAddition().hasGroupId()) {
-                groupBuilder.add(scenarioChange.getTopologyAddition().getGroupId());
-            }
-        }
-
-        if (scenarioChange.hasTopologyRemoval()) {
-            if (scenarioChange.getTopologyRemoval().hasGroupId()) {
-                groupBuilder.add(scenarioChange.getTopologyRemoval().getGroupId());
-            }
-        }
-
-        if (scenarioChange.hasTopologyReplace()) {
-            if (scenarioChange.getTopologyReplace().hasRemoveGroupId()) {
-                groupBuilder.add(scenarioChange.getTopologyReplace().getRemoveGroupId());
-            }
-        }
-
-        if (scenarioChange.hasPlanChanges()) {
+        if (scenarioChange.hasTopologyAddition() && scenarioChange.getTopologyAddition().hasGroupId()) {
+            groupBuilder.add(scenarioChange.getTopologyAddition().getGroupId());
+        } else if (scenarioChange.hasTopologyRemoval() && scenarioChange.getTopologyRemoval().hasGroupId()) {
+            groupBuilder.add(scenarioChange.getTopologyRemoval().getGroupId());
+        } else if (scenarioChange.hasTopologyReplace() && scenarioChange.getTopologyReplace().hasRemoveGroupId()) {
+            groupBuilder.add(scenarioChange.getTopologyReplace().getRemoveGroupId());
+        } else if (scenarioChange.hasSettingOverride() && scenarioChange.getSettingOverride().hasGroupOid()) {
+            groupBuilder.add(scenarioChange.getSettingOverride().getGroupOid());
+        } else if (scenarioChange.hasPlanChanges()) {
             // several of the plan change types do include group info, but we are only fetching
             // group details for max utilization at the moment.
             PlanChanges planChanges = scenarioChange.getPlanChanges();

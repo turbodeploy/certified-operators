@@ -14,6 +14,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,9 +27,7 @@ import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.TheMatrix;
@@ -77,8 +78,6 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.Stitchi
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
-import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.DummySettingsResolutionStage;
@@ -88,7 +87,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
@@ -100,7 +98,8 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
+import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 public class StagesTest {
@@ -205,18 +204,21 @@ public class StagesTest {
         final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
         final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
+        final InvertedIndex index = mock(InvertedIndex.class);
         final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
                 .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
-        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver, changes, groupServiceClient));
+        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope, searchResolver, changes, groupServiceClient));
         TopologyGraph<TopologyEntity> result = mock(TopologyGraph.class);
         when(onpremScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
-        when(scopeEditor.scopeOnPremTopology(eq(onpremTopologyInfo), eq(graph), eq(scope), any(), eq(changes))).thenReturn(result);
+        when(scopeEditor.indexBasedScoping(eq(index), eq(graph), any(), eq(scope))).thenReturn(result);
+        when(scopeEditor.createInvertedIndex()).thenReturn(index);
+        when(graph.entities()).thenReturn(Stream.empty());
         when(result.size()).thenReturn(0);
         when(graph.size()).thenReturn(0);
         onpremScopingStage.execute(graph);
-        verify(scopeEditor).scopeOnPremTopology(eq(onpremTopologyInfo), eq(graph), eq(scope), any(), eq(changes));
+        verify(scopeEditor).indexBasedScoping(eq(index), eq(graph), any(), eq(scope));
     }
 
     @Test
@@ -584,15 +586,15 @@ public class StagesTest {
      */
     @Test
     public void testScopeResolutionStageWithEmptyScope() throws IOException, PipelineStageException {
-        final GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
+        final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(GroupDTOMoles.GroupServiceMole.class);
         testServer = GrpcTestServer.newServer(groupServiceMole);
         testServer.start();
         final GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanScope emptyScope = PlanScope.newBuilder().build();
-        final ScopeResolutionStage stage = new ScopeResolutionStage(groupService, emptyScope);
-        final Status status = stage.passthrough(createTopologyGraph());
+        final Stages.ScopeResolutionStage stage = new Stages.ScopeResolutionStage(groupService, emptyScope);
+        final TopologyPipeline.Status status = stage.passthrough(createTopologyGraph());
         testServer.close();
-        Assert.assertEquals(Status.Type.SUCCEEDED, status.getType());
+        Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
         Assert.assertEquals("No scope to apply.", status.getMessage());
     }
 
@@ -604,36 +606,36 @@ public class StagesTest {
      */
     @Test
     public void testScopeResolutionStage() throws IOException, PipelineStageException {
-        final GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
+        final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(GroupDTOMoles.GroupServiceMole.class);
         testServer = GrpcTestServer.newServer(groupServiceMole);
         testServer.start();
         final GroupServiceBlockingStub groupService = GroupServiceGrpc
-                        .newBlockingStub(testServer.getChannel());
+                .newBlockingStub(testServer.getChannel());
         final PlanScope scope = PlanScope.newBuilder()
-                        .addScopeEntries(
-                                         PlanScopeEntry.newBuilder()
-                                                         .setClassName(StringConstants.REGION)
-                                                         .setScopeObjectOid(11111))
-                        .addScopeEntries(
-                                         PlanScopeEntry.newBuilder()
-                                                         .setClassName(StringConstants.BUSINESS_ACCOUNT)
-                                                         .setScopeObjectOid(22222))
-                        .build();
-        final ScopeResolutionStage stage = new ScopeResolutionStage(groupService, scope);
+                .addScopeEntries(
+                        PlanScopeEntry.newBuilder()
+                                .setClassName(StringConstants.REGION)
+                                .setScopeObjectOid(11111))
+                .addScopeEntries(
+                        PlanScopeEntry.newBuilder()
+                                .setClassName(StringConstants.BUSINESS_ACCOUNT)
+                                .setScopeObjectOid(22222))
+                .build();
+        final Stages.ScopeResolutionStage stage = new Stages.ScopeResolutionStage(groupService, scope);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-                        .setTopologyContextId(1)
-                        .setTopologyId(1)
-                        .setCreationTime(System.currentTimeMillis())
-                        .setTopologyType(TopologyType.PLAN)
-                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
-                        .build();
+                .setTopologyContextId(1)
+                .setTopologyId(1)
+                .setCreationTime(System.currentTimeMillis())
+                .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
+                .build();
         final GroupResolver groupResolver = mock(GroupResolver.class);
         final TopologyPipelineContext context = new TopologyPipelineContext(groupResolver,
-            topologyInfo, null);
+                topologyInfo, null);
         stage.setContext(context);
-        final Status status = stage.passthrough(createTopologyGraph());
+        final TopologyPipeline.Status status = stage.passthrough(createTopologyGraph());
         testServer.close();
-        Assert.assertEquals(Status.Type.SUCCEEDED, status.getType());
+        Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
         final TopologyInfo topoResult = context.getTopologyInfo();
         Assert.assertEquals(2, topoResult.getScopeSeedOidsCount());
         Assert.assertEquals(11111, topoResult.getScopeSeedOids(0));
