@@ -33,10 +33,6 @@ public class ConsulRegistrationConfig {
     private String consulHost;
     @Value("${consul_port}")
     private Integer consulPort;
-
-    @Value("${consulMaxRetrySecs:60}")
-    private int consulMaxRetrySecs;
-
     @Value("${" + BaseVmtComponent.PROP_serverHttpPort + '}')
     private Integer serverPort;
 
@@ -67,7 +63,7 @@ public class ConsulRegistrationConfig {
         final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
         final ConsulClient consulClient = new ConsulClient(rawClient);
         return new ConsulHealthcheckRegistration(consulClient, enableConsulRegistration,
-            componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs);
+            componentType, instanceId, instanceIp, instanceRoute, serverPort);
     }
 
     /**

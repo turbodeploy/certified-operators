@@ -1,31 +1,20 @@
 package com.vmturbo.components.common.health;
 
-import java.net.ConnectException;
 import java.net.InetAddress;
-import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
-import com.ecwid.consul.ConsulException;
 import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.agent.model.NewCheck;
 import com.ecwid.consul.v1.agent.model.NewService;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.api.RetriableOperation;
-import com.vmturbo.components.api.RetriableOperation.Operation;
-import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.ComponentController;
 
@@ -35,7 +24,6 @@ import com.vmturbo.components.common.ComponentController;
  * Also handle de-registration.
  */
 public class ConsulHealthcheckRegistration {
-    private static final Logger logger = LogManager.getLogger(ConsulHealthcheckRegistration.class);
 
     /**
      * How often should a Consul health check be performed.
@@ -63,9 +51,6 @@ public class ConsulHealthcheckRegistration {
     private final String instanceRoute;
     private final Integer serverPort;
 
-    private int maxRetrySecs;
-
-
     /**
      * Create a handler for registration and deregistration for components to use
      * to contact Consul.
@@ -79,7 +64,6 @@ public class ConsulHealthcheckRegistration {
      * @param instanceRoute the route prefix for this component instance.
      * @param serverPort the PORT for health checks for the component instances, used to construct
      *                   a health-check for this service
-     * @param maxRetrySecs the maximum time window in which to keep retrying retry-able consul operations.
      */
     public ConsulHealthcheckRegistration(final ConsulClient consulClient,
                                          final Boolean enableConsulRegistration,
@@ -87,9 +71,7 @@ public class ConsulHealthcheckRegistration {
                                          final String instanceId,
                                          final String instanceIp,
                                          final String instanceRoute,
-                                         final Integer serverPort,
-                                         final int maxRetrySecs
-                                         ) {
+                                         final Integer serverPort) {
         this.consulClient = consulClient;
         this.enableConsulRegistration = enableConsulRegistration;
         this.componentType = componentType;
@@ -106,7 +88,6 @@ public class ConsulHealthcheckRegistration {
             }
         }
         this.serverPort = serverPort;
-        this.maxRetrySecs = maxRetrySecs;
     }
 
     /**
@@ -117,8 +98,6 @@ public class ConsulHealthcheckRegistration {
         if (Boolean.FALSE.equals(enableConsulRegistration)) {
             return;
         }
-
-        // register this service instance
         final NewService svc = new NewService();
         svc.setName(componentType);
         svc.setId(instanceId);
@@ -130,9 +109,7 @@ public class ConsulHealthcheckRegistration {
             tags.add(encodeInstanceRoute(instanceRoute));
         }
         svc.setTags(tags);
-        doConsulOperation(() -> consulClient.agentServiceRegister(svc));
-
-        // register the health check for this service
+        consulClient.agentServiceRegister(svc);
         final NewCheck healthCheck = new NewCheck();
         healthCheck.setId("service:" + svc.getId());
         healthCheck.setName("Service '" + svc.getName() + "' check");
@@ -148,35 +125,7 @@ public class ConsulHealthcheckRegistration {
         healthCheck.setServiceId(svc.getId());
         healthCheck.setInterval(HEALTH_CHECK_PERIOD);
         healthCheck.setDeregisterCriticalServiceAfter(HEALTH_CHECK_CRITICAL_TIME);
-        doConsulOperation(() -> consulClient.agentCheckRegister(healthCheck));
-    }
-
-    /**
-     * Execute a consul operation, with retry logic.
-     *
-     * @param operation the operation to execute
-     */
-    private void doConsulOperation(Operation operation) {
-        try {
-            RetriableOperation.newOperation(operation)
-                    .retryOnException(e -> {
-                        if (e instanceof ConsulException) {
-                            Throwable cause = ((ConsulException)e).getCause();
-                            if (cause instanceof SocketTimeoutException
-                                    || cause instanceof ConnectException
-                                    || cause instanceof ConnectTimeoutException) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    })
-                    .run(maxRetrySecs, TimeUnit.SECONDS);
-        } catch (RetriableOperationFailedException| TimeoutException e) {
-            // rethrow
-            throw new RuntimeException(e);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-        }
+        consulClient.agentCheckRegister(healthCheck);
     }
 
     /**
