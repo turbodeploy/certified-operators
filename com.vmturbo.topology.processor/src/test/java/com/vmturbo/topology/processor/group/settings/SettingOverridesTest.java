@@ -61,9 +61,14 @@ public class SettingOverridesTest {
             .newBuilder()
             .setOid(333L)
             .setEntityType(EntityType.STORAGE.getValue());
+    private static final TopologyEntityDTO.Builder entity4 = TopologyEntityDTO
+            .newBuilder()
+            .setOid(334L)
+            .setEntityType(EntityType.STORAGE.getValue());
     private static final TopologyEntity topologyEntity1 = TopologyEntityUtils.topologyEntity(entity1);
     private static final TopologyEntity topologyEntity2 = TopologyEntityUtils.topologyEntity(entity2);
     private static final TopologyEntity topologyEntity3 = TopologyEntityUtils.topologyEntity(entity3);
+    private static final TopologyEntity topologyEntity4 = TopologyEntityUtils.topologyEntity(entity4);
     private static final Set<Long> entities = ImmutableSet.of(333L);
     private static final Set<Long> pms = ImmutableSet.of(111L, 222L);
     private static final Set<Long> pm1Set = ImmutableSet.of(111L);
@@ -101,21 +106,61 @@ public class SettingOverridesTest {
         Map<Long, GroupDTO.Grouping> groupsById = new HashMap<Long, GroupDTO.Grouping>();
         groupsById.put(stGroupId, storageGroup);
         List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
-            .setPlanChanges(PlanChanges.newBuilder()
-                .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
-                    .setGroupOid(stGroupId)
-                    .setSelectedEntityType(EntityType.STORAGE.getValue())
-                    .setPercentage(10)))
-            .build());
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
+                                .setGroupOid(stGroupId)
+                                .setSelectedEntityType(EntityType.STORAGE.getValue())
+                                .setPercentage(10)))
+                .build());
         SettingOverrides settingOverrides = new SettingOverrides(changes);
         when(topologyGraph.entitiesOfType(EntityType.STORAGE.getValue()))
-            .thenReturn(Stream.of(topologyEntity3));
+                .thenReturn(Stream.of(topologyEntity3));
         when(groupResolver.resolve(storageGroup, topologyGraph)).thenReturn(entities);
         settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
         Assert.assertTrue(settingOverrides.overridesForEntity.size() == 1);
         Assert.assertTrue(settingOverrides.overridesForEntity.get(333L)
-            .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
-            .getNumericSettingValue().getValue() == 10);
+                .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
+                .getNumericSettingValue().getValue() == 10);
+    }
+
+    /**
+     * Create scenario with two storages with max utilization setting one with group Id and one without.
+     * Check setting of value w.r.t override at each storage.
+     */
+    @Test
+    public void testResolveGroupOverridesWithStorageGroupMaxUtilWithAndWithoutGroupOid() {
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<Long, GroupDTO.Grouping>();
+        groupsById.put(stGroupId, storageGroup);
+        List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
+                                .setGroupOid(stGroupId)
+                                .setSelectedEntityType(EntityType.STORAGE.getValue())
+                                .setPercentage(10)))
+                .build(),
+                ScenarioChange.newBuilder()
+                    .setPlanChanges(PlanChanges.newBuilder()
+                            .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
+                                    .setSelectedEntityType(EntityType.STORAGE.getValue())
+                                    .setPercentage(40)))
+                    .build());
+        SettingOverrides settingOverrides = new SettingOverrides(changes);
+        when(topologyGraph.entitiesOfType(EntityType.STORAGE.getValue()))
+                .thenReturn(Stream.of(topologyEntity3, topologyEntity4));
+        when(groupResolver.resolve(storageGroup, topologyGraph)).thenReturn(entities);
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
+        Assert.assertTrue(settingOverrides.overridesForEntity.size() == 2);
+
+        // Storage Group Member has restrictive setting out of 10 and 40 : 10
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(333L)
+                .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
+                .getNumericSettingValue().getValue() == 10);
+
+        // Storage that is not a group member has value 40 provided via setting override without
+        // group Id.
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(334L)
+                .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
+                .getNumericSettingValue().getValue() == 40);
     }
 
     @Test
