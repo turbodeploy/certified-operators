@@ -42,10 +42,10 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
 
     @Nonnull
     @Override
-    public TopologicalChangelog<TopologyEntity>
-    performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                     @Nonnull final EntitySettingsCollection settingsCollection,
-                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+    public TopologicalChangelog<TopologyEntity> performOperation(
+            @Nonnull final Stream<TopologyEntity> entities,
+            @Nonnull final EntitySettingsCollection settingsCollection,
+            @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
         entities.forEach(entity -> {
             final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
@@ -63,7 +63,7 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
                             final double numCores = Double.valueOf(props.get(NUM_CPU_CORES));
                             final double cpuMhz = Double.valueOf(props.get(CPU_CORE_MHZ));
                             commodity.setCapacity(numCores * cpuMhz);
-                            logger.info("Entity {} CPU commodity capacity set to {} ({} cores @ {} MHz)",
+                            logger.trace("Entity {} CPU commodity capacity set to {} ({} cores @ {} MHz)",
                                 entity.getOid(), commodity.getCapacity(), numCores, cpuMhz);
                         });
                 });

@@ -14,6 +14,8 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+
 /**
  * Utility class that listens to the repository for notifications, and gives users to
  * convenient way to wait for a particular topology to be available in the
@@ -41,7 +43,7 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
      * one entry per topology context (i.e. one for realtime, and then one per plan).
      */
     @GuardedBy("availabilityLock")
-    private final Map<Long, TopologyAvailabilityStatus> latestTopologyByContext = new HashMap<>();
+    private final Map<Long, TopologyContextAvailabilityStatus> latestTopologyByContext = new HashMap<>();
 
     /**
      * Queued requests for topology availability information.
@@ -79,7 +81,7 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
     @Nonnull
     public QueuedTopologyRequest queueTopologyRequest(final long topologyContextId,
                                                       final long topologyId) {
-        return internalTopologyRequest(topologyContextId, Optional.of(topologyId));
+        return internalTopologyRequest(topologyContextId, Optional.empty(), Optional.of(topologyId));
     }
 
     /**
@@ -88,26 +90,30 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
      *
      * @param topologyContextId The context ID of the topology to wait for.
      *        Note: The returned object will look for any success OR failure in the provided context.
+     * @param topologyType The type of topology to wait for.
      * @return A {@link QueuedTopologyRequest} representing this request. Users can call
      * {@link QueuedTopologyRequest#waitForTopology(long, TimeUnit)} to wait for a topology
      * in the context to become available.
      */
     @Nonnull
-    public QueuedTopologyRequest queueAnyTopologyRequest(final long topologyContextId) {
-        return internalTopologyRequest(topologyContextId, Optional.empty());
+    public QueuedTopologyRequest queueAnyTopologyRequest(final long topologyContextId, @Nonnull final TopologyType topologyType) {
+        return internalTopologyRequest(topologyContextId, Optional.of(topologyType), Optional.empty());
     }
 
     private QueuedTopologyRequest internalTopologyRequest(final long topologyContextId,
+                                                          @Nonnull final Optional<TopologyType> topologyType,
                                                           @Nonnull final Optional<Long> topologyId) {
         QueuedTopologyRequest topologyRequest = null;
         synchronized (availabilityLock) {
-            final TopologyAvailabilityStatus existingResult = latestTopologyByContext.get(topologyContextId);
-            if (existingResult == null || !existingResult.matches(isPlan(topologyContextId), topologyId)) {
+            final Optional<TopologyAvailabilityStatus> existingAvailabilityStatus =
+                Optional.ofNullable(latestTopologyByContext.get(topologyContextId))
+                    .flatMap(contextAvaiability -> contextAvaiability.matchingTopology(isPlan(topologyContextId), topologyId, topologyType));
+            if (!existingAvailabilityStatus.isPresent()) {
                 // Don't have it yet. Need to wait.
-                topologyRequest = new QueuedTopologyRequest(topologyContextId, topologyId);
+                topologyRequest = new QueuedTopologyRequest(topologyContextId, topologyId, topologyType);
                 queuedRequests.add(topologyRequest);
             } else {
-                topologyRequest = new CompleteTopologyRequest(topologyContextId, existingResult);
+                topologyRequest = new CompleteTopologyRequest(topologyContextId, topologyType, existingAvailabilityStatus.get());
             }
         }
 
@@ -171,21 +177,21 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
                                      final boolean projected,
                                      final Optional<String> failureDescription) {
         synchronized (availabilityLock) {
-            final TopologyAvailabilityStatus availabilityStatus =
-                latestTopologyByContext.compute(topologyContextId, (k, existingId) -> {
-                    if (existingId != null && existingId.topologyId > topologyId) {
-                        return existingId;
-                    } else {
-                        return new TopologyAvailabilityStatus(topologyId, projected, failureDescription);
-                    }
-                });
+            final TopologyContextAvailabilityStatus availabilityStatus =
+                latestTopologyByContext.computeIfAbsent(topologyContextId, (k) -> new TopologyContextAvailabilityStatus());
+            if (projected) {
+                availabilityStatus.setProjectedAvailable(topologyId, failureDescription);
+            } else {
+                availabilityStatus.setSourceAvailable(topologyId, failureDescription);
+            }
 
             final Iterator<QueuedTopologyRequest> reqIt = queuedRequests.iterator();
             while (reqIt.hasNext()) {
                 final QueuedTopologyRequest nextReq = reqIt.next();
                 // Check for matches on the same context.
                 if (topologyContextId == nextReq.topologyContextId) {
-                    if (availabilityStatus.matches(isPlan(topologyContextId), nextReq.topologyId)) {
+                    if (availabilityStatus.matchingTopology(isPlan(topologyContextId),
+                            nextReq.topologyId, nextReq.topologyType).isPresent()) {
                         if (failureDescription.isPresent()) {
                             nextReq.completableFuture.completeExceptionally(
                                 TopologyUnavailableException.failed(topologyContextId,
@@ -206,36 +212,79 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
     }
 
     /**
-     * Wrapper object to hold information about a topology's status.
+     * Wrapper object to hold information about topology availability for a particular topology status.
+     */
+    private static class TopologyContextAvailabilityStatus {
+
+        private volatile TopologyAvailabilityStatus sourceTopologyAvailability = null;
+
+        private volatile TopologyAvailabilityStatus projectedTopologyAvailability = null;
+
+        private TopologyContextAvailabilityStatus() {
+        }
+
+        private void setProjectedAvailable(final long topologyId, Optional<String> failureDescription) {
+            if (projectedTopologyAvailability == null || projectedTopologyAvailability.topologyId < topologyId) {
+                this.projectedTopologyAvailability = new TopologyAvailabilityStatus(topologyId, failureDescription);
+            }
+        }
+
+        private void setSourceAvailable(final long topologyId, Optional<String> failureDescription) {
+            if (sourceTopologyAvailability == null || sourceTopologyAvailability.topologyId < topologyId) {
+                this.sourceTopologyAvailability = new TopologyAvailabilityStatus(topologyId, failureDescription);
+            }
+        }
+
+        @Nonnull
+        private Optional<TopologyAvailabilityStatus> matchingTopology(final boolean isPlan,
+                          @Nonnull final Optional<Long> inputTopologyIdOpt,
+                          @Nonnull final Optional<TopologyType> inputTopologyTypeOpt) {
+            return inputTopologyTypeOpt.map(targetType -> {
+                final TopologyAvailabilityStatus targetStatus = targetType == TopologyType.SOURCE ?
+                    sourceTopologyAvailability : projectedTopologyAvailability;
+                return Optional.ofNullable(targetStatus)
+                    // Only return the target status if it matches the input parameters.
+                    .filter(status -> status.matchesId(isPlan, inputTopologyIdOpt));
+            }).orElseGet(() -> {
+                // If we're not looking for a particular topology type, check the input ID
+                // against both the source and projected.
+                if (sourceTopologyAvailability != null && sourceTopologyAvailability.matchesId(isPlan, inputTopologyIdOpt)) {
+                    return Optional.of(sourceTopologyAvailability);
+                } else if (projectedTopologyAvailability != null && projectedTopologyAvailability.matchesId(isPlan, inputTopologyIdOpt)) {
+                    return Optional.of(projectedTopologyAvailability);
+                } else {
+                    return Optional.empty();
+                }
+            });
+        }
+    }
+
+    /**
+     * Wrapper object to hold information about topology availability for a particular topology type
+     * within a particular context.
      */
     private static class TopologyAvailabilityStatus {
-
         private final long topologyId;
-
-        private final boolean projectedTopology;
 
         private final Optional<String> failureDescription;
 
         private TopologyAvailabilityStatus(final long topologyId,
-                                           final boolean projectedTopology,
                                            final Optional<String> failureDescription) {
             this.topologyId = topologyId;
-            this.projectedTopology = projectedTopology;
             this.failureDescription = failureDescription;
         }
 
-        private boolean matches(final boolean isPlan, final Optional<Long> inputTopologyIdOpt) {
-            return inputTopologyIdOpt
-                .map(inputTopologyId -> {
-                    if (isPlan) {
-                        return this.topologyId == inputTopologyId || projectedTopology;
-                    } else {
-                        return this.topologyId >= inputTopologyId;
-                    }
-                })
-                // If there was no explicit input topology, then any topology within the
-                // requested context matches.
-                .orElse(true);
+        private boolean matchesId(final boolean isPlan,
+                                  final Optional<Long> inputIdOpt) {
+            return inputIdOpt.map(inputId -> {
+                // In a plan we look for an exact match.
+                // In realtime, a later topology may have come in.
+                if (isPlan) {
+                    return topologyId == inputId;
+                } else {
+                    return topologyId >= inputId;
+                }
+            }).orElse(true);
         }
     }
 
@@ -247,12 +296,16 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
 
         protected final Optional<Long> topologyId;
 
+        protected final Optional<TopologyType> topologyType;
+
         private final CompletableFuture<QueuedTopologyRequest> completableFuture = new CompletableFuture<>();
 
         private QueuedTopologyRequest(final long topologyContextId,
-                                      final Optional<Long> topologyId) {
+                                      final Optional<Long> topologyId,
+                                      final Optional<TopologyType> topologyType) {
             this.topologyContextId = topologyContextId;
             this.topologyId = topologyId;
+            this.topologyType = topologyType;
         }
 
         /**
@@ -291,8 +344,11 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
         private final TopologyAvailabilityStatus availabilityStatus;
 
         private CompleteTopologyRequest(final long topologyContextId,
+                                        @Nonnull Optional<TopologyType> topologyType,
                                         final TopologyAvailabilityStatus availabilityStatus) {
-            super(topologyContextId, Optional.of(availabilityStatus.topologyId));
+            super(topologyContextId,
+                Optional.of(availabilityStatus.topologyId),
+                topologyType);
             this.availabilityStatus = availabilityStatus;
         }
 

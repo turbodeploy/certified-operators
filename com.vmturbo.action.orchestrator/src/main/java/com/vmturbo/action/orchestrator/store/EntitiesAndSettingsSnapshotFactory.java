@@ -185,7 +185,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      *                   cache update. The topology id can be null as well in case we are trying to
      *                   get a new snapshot for RI Buy Actions. Because RI Buy Algorithm is not
      *                   triggered on topology broadcast.
-     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings an entities.
+     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
@@ -195,19 +195,17 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     }
 
     /**
-     * Create a new snapshot using the most recent available realtime settings and entities.
-     * This call involves making remote calls to other components, and can take a while. If there
-     * is no realtime topology available in the repository, this will block until one is available.
+     * A version of {@link EntitiesAndSettingsSnapshotFactory#newSnapshot(Set, long, long)}
+     * that waits for the latest topology in a particular context.
      *
-     * @param entities The set of entity IDs to get settings and entities for. This set should
-     *                 contain the IDs of all entities involved in all actions we expose to the
-     *                 user.
-     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings
-     *         and entities.
+     * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)} .
+     * @param topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)}.
+     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
      */
     @Nonnull
-    public EntitiesAndSettingsSnapshot lastestRealtimeSnapshot(@Nonnull final Set<Long> entities) {
-        return internalNewSnapshot(entities, realtimeTopologyContextId, null);
+    public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
+                                                   final long topologyContextId) {
+        return internalNewSnapshot(entities, topologyContextId, null);
     }
 
     @Nonnull
@@ -303,30 +301,33 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         }
 
         try {
-            // If we want a specific topology, wait for that topology to become available.
-            // If not, wait for SOME topology to be available in the context.
+            // For plans we want to look in the projected topology, because in plans we will be
+            // getting actions involving provisioned entities. In realtime we get provision actions,
+            // but no actions on top of the provisioned entities, so looking in the source topology
+            // is safe (and more efficient).
+            final TopologyType targetTopologyType = topologyContextId == realtimeTopologyContextId ?
+                TopologyType.SOURCE : TopologyType.PROJECTED;
+
             if (topologyId != null) {
+                // If we want a specific topology, wait for that topology to become available.
                 topologyAvailabilityTracker.queueTopologyRequest(topologyContextId, topologyId)
                     .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
             } else {
-                topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId)
+                // If not, wait for SOME topology of the target type to be available in the context.
+                topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, targetTopologyType)
                     .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
             }
 
-            final RetrieveTopologyEntitiesRequest.Builder getEntitiesRequestBuilder =
+            final RetrieveTopologyEntitiesRequest getEntitiesRequestBuilder =
                 RetrieveTopologyEntitiesRequest.newBuilder()
                     .setTopologyContextId(topologyContextId)
                     .addAllEntityOids(entities)
-                    .setReturnType(PartialEntity.Type.ACTION);
-            if (topologyContextId == realtimeTopologyContextId) {
-                getEntitiesRequestBuilder.setTopologyType(TopologyType.SOURCE);
-            } else {
-                // This is a plan so we need the TopologyType to be PROJECTED
-                getEntitiesRequestBuilder.setTopologyType(TopologyType.PROJECTED);
-            }
+                    .setReturnType(PartialEntity.Type.ACTION)
+                    .setTopologyType(targetTopologyType)
+                    .build();
 
             final Map<Long, ActionPartialEntity> entitiesMap = RepositoryDTOUtil.topologyEntityStream(
-                repositoryService.retrieveTopologyEntities(getEntitiesRequestBuilder.build()))
+                repositoryService.retrieveTopologyEntities(getEntitiesRequestBuilder))
                 .map(PartialEntity::getAction)
                 .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
             return entitiesMap;

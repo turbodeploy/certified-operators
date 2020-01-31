@@ -901,9 +901,6 @@ public class ActionSpecMapper {
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(action)) {
             actions.add(singleMove(actionType, wrapperDto, target.getId(), change, context));
         }
-        if (actions.size() == 1) {
-            wrapperDto.setDetails(actions.get(0).getDetails());
-        }
         wrapperDto.addCompoundActions(actions);
 
         wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(changeProviderExplanationList));
@@ -977,6 +974,9 @@ public class ActionSpecMapper {
         return actionApiDTO;
     }
 
+    // This method should only be used for actions inside a compound move.
+    // Other actions get their descriptions directly from the action orchestrator!
+    // TODO (roman, Jan 30 2019) OM-54978: Remove this logic, and have AO be the source of truth.
     private String actionDetails(boolean hasSource, ActionApiDTO actionApiDTO, long targetId,
                                  ChangeProvider change, ActionSpecMappingContext context) {
         // If there is no source,
