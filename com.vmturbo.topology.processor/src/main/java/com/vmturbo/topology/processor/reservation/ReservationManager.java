@@ -425,7 +425,7 @@ public class ReservationManager {
                     .getReservationTemplateCollectionBuilder()
                     .getReservationTemplateBuilderList()) {
                 createNewReservationTemplate(reservationTopologyEntities, reservationTemplate,
-                    topology, reservationBuilder.getName(), instanceCount);
+                    topology, reservationBuilder.getName(), instanceCount, reservationBuilder.getId());
                 instanceCount += reservationTemplate.getCount();
             }
             updateReservationsWithEntityOid.add(reservationBuilder
@@ -445,6 +445,7 @@ public class ReservationManager {
      * @param topology The entities in the topology, arranged by ID.
      * @param reservationName name of reservation.
      * @param instanceCount cont index of reservation, used for create name for reservation instance.
+     * @param reservationID ID of the reservation.
      * @return new crated {@link ReservationTemplate}.
      */
     private void createNewReservationTemplate(
@@ -452,7 +453,8 @@ public class ReservationManager {
             @Nonnull final ReservationTemplate.Builder reservationTemplate,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull final String reservationName,
-            long instanceCount) {
+            long instanceCount,
+            final long reservationID) {
         final Map<Long, Long> templateCountMap =
                 ImmutableMap.of(reservationTemplate.getTemplateId(),
                         reservationTemplate.getCount());
@@ -470,7 +472,12 @@ public class ReservationManager {
                 // set suspendable to false in order to prevent Market from generating
                 // suspend action.
                 disableSuspendAnalysisSetting(newEntityBuilder);
-
+                // give each reserved entity a ReservationOrigin
+                Origin reservationOrigin = Origin.newBuilder()
+                        .setReservationOrigin(ReservationOrigin.newBuilder()
+                                .setReservationId(reservationID))
+                        .build();
+                newEntityBuilder.setOrigin(reservationOrigin);
                 instanceCount++;
                 updatedTopologyEntityDTO.add(newEntityBuilder);
             }
