@@ -148,7 +148,7 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
         addComputeCommoditiesCpuMemSold(topologyEntityBuilder, fieldNameValueMap);
         addComputeCommoditiesIONetSold(topologyEntityBuilder, fieldNameValueMap);
-        addComputeCommoditiesExtentBallooningSwapping(topologyEntityBuilder);
+        addMiscComputeCommodities(topologyEntityBuilder);
     }
 
     /**
@@ -227,11 +227,11 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
     }
 
     /**
-     * Generate Extent, Ballooning, and Swapping commodities sold and add to the DTO.
+     * Generate Extent, Ballooning, Swapping, HostLunAccess commodities sold and add to the DTO.
      *
      * @param topologyEntityBuilder The entity to receive the commodities.
      */
-    private static void addComputeCommoditiesExtentBallooningSwapping(
+    private static void addMiscComputeCommodities(
         @Nonnull final Builder topologyEntityBuilder) {
 
         final CommoditySoldDTO extent =
@@ -241,13 +241,16 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, BALLOONING_DEFAULT_CAPACITY);
         final CommoditySoldDTO swapping =
             createCommoditySoldDTO(CommodityType.SWAPPING_VALUE, SWAPPING_DEFAULT_CAPACITY);
+        final CommoditySoldDTO hostLunAccess =
+            createCommoditySoldDTO(CommodityType.HOST_LUN_ACCESS_VALUE, MAX_LUN_LIMIT);
 
         // TODO: Flows?????
 
         topologyEntityBuilder
             .addCommoditySoldList(extent)
             .addCommoditySoldList(ballooning)
-            .addCommoditySoldList(swapping);
+            .addCommoditySoldList(swapping)
+            .addCommoditySoldList(hostLunAccess);
     }
 
 
