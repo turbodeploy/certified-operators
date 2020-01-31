@@ -1915,13 +1915,17 @@ public class TopologyConverter {
     private BalanceAccountDTO createBalanceAccountFromBusinessAccount(
             TopologyEntityDTO businessAccount) {
         // We create default balance account
-        double defaultBudgetValue = 100000000d;
-        float spent = 0f;
-        Optional<AccountPricingData> accountPricingData = cloudTc.getAccountPricingIdFromBusinessAccount(businessAccount.getOid());
-        // Set the account pricing data oid on the balance account. If it is not found, have the VM shop
-        // for its own business account id.
+        final double defaultBudgetValue = 100000000d;
+        final float spent = 0f;
+        final Optional<AccountPricingData<TopologyEntityDTO>> accountPricingData =
+                cloudTc.getAccountPricingIdFromBusinessAccount(businessAccount.getOid());
+        // Set the account pricing data oid on the balance account. If it is not found,
+        // have the VM shop for its own business account id.
+        final long priceId = accountPricingData.map(AccountPricingData::getAccountPricingDataOid)
+                .orElse(businessAccount.getOid());
         return BalanceAccountDTO.newBuilder().setBudget(defaultBudgetValue).setSpent(spent)
-                .setId(accountPricingData.isPresent() ? accountPricingData.get().getAccountPricingDataOid() : businessAccount.getOid()).build();
+                .setPriceId(priceId)
+                .setId(businessAccount.getOid()).build();
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {

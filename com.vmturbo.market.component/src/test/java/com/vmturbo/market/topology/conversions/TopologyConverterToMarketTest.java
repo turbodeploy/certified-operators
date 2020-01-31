@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -72,6 +73,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -111,8 +113,8 @@ public class TopologyConverterToMarketTest {
     private CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
-    private CloudCostData ccd = new CloudCostData(new HashMap<>(), new HashMap<>(), new HashMap<>(),
-        new HashMap<>(), new HashMap<>());
+    private CloudCostData ccd = spy(new CloudCostData<>(new HashMap<>(), new HashMap<>(),
+            new HashMap<>(), new HashMap<>(), new HashMap<>()));
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
     SettingPolicyServiceBlockingStub settingsPolicyService;
@@ -1242,6 +1244,46 @@ public class TopologyConverterToMarketTest {
         final Context startContext = vmTrader.getSettings().getCurrentContext();
         Assert.assertEquals(regionId, startContext.getRegionId());
         Assert.assertEquals(zoneId, startContext.getZoneId());
+    }
+
+    /**
+     * Test that Balance Account in the startContext of VMs have priceId set.
+     */
+    @Test
+    public void testBalanceAccountPriceIdSet() {
+        final long priceId = 11111L;
+        final long regionId = 5L;
+        final long baId = 2L;
+        final long vmId = 3L;
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(priceId);
+        when(ccd.getAccountPricingData(baId)).thenReturn(Optional.of(accountPricingData));
+        final EntityState on = EntityState.POWERED_ON;
+        final TopologyEntityDTO region = entity(EntityType.REGION_VALUE, regionId, on,
+                null, Collections.singletonList(createSoldCommodity(CommodityDTO
+                        .CommodityType.DATACENTER_VALUE)));
+        final TopologyEntityDTO vm = entity(EntityType.VIRTUAL_MACHINE_VALUE, vmId, on,
+                Collections.singletonList(createConnectedEntity(regionId,
+                        ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.REGION_VALUE)),
+                null);
+        final TopologyEntityDTO ba = entity(EntityType.BUSINESS_ACCOUNT_VALUE, baId, on,
+                Collections.singletonList(createConnectedEntity(vmId,
+                        ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
+                null);
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
+
+        final Set<TraderTO> traders =
+                converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+
+        Assert.assertEquals(1, traders.size());
+        final TraderTO vmTrader = traders.iterator().next();
+        final Context startContext = vmTrader.getSettings().getCurrentContext();
+        final BalanceAccountDTO balanceAccount = startContext.getBalanceAccount();
+        Assert.assertEquals(priceId, balanceAccount.getPriceId());
+        Assert.assertEquals(baId, balanceAccount.getId());
     }
 
     private static CommoditySoldDTO createSoldCommodity(int type) {

@@ -17,9 +17,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,11 +25,12 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
@@ -74,7 +72,7 @@ public class CloudTopologyConverter {
     private final Map<Long, TopologyEntityDTO> topology;
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
-    private final CloudCostData cloudCostData;
+    private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
 
     /**
@@ -479,7 +477,8 @@ public class CloudTopologyConverter {
      *
      * @return An optional of AccountPricingData
      */
-    public Optional<AccountPricingData> getAccountPricingIdFromBusinessAccount(Long businessAccountOid) {
+    public Optional<AccountPricingData<TopologyEntityDTO>> getAccountPricingIdFromBusinessAccount(
+            Long businessAccountOid) {
         return cloudCostData.getAccountPricingData(businessAccountOid);
     }
 
