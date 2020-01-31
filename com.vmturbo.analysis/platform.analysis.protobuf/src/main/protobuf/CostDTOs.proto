@@ -13,12 +13,15 @@ message CostDTO {
        CbtpCostDTO cbtp_resource_bundle = 4;
     }
 
-    // The DTOs specifically define discounted cost by AWS reserved instances
+    // The DTOs specifically define discounted cost by reserved instances
     message CbtpCostDTO {
         required int32 couponBaseType = 1;
         required double discountPercentage = 2;
         // Pricing to be used in case the Percentage RI Pricing flag is enabled
-        optional CostTuple cost_tuple = 4;
+        optional CostTuple cost_tuple = 4 [deprecated = true];
+        // Pricing per price id or account id to be used for Percentage RI Pricing or on-demand RI
+        // License rate
+        repeated CostTuple cost_tuple_list = 5;
     }
 
     // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
