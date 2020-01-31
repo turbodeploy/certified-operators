@@ -162,7 +162,6 @@ public class KafkaMessageProducer implements AutoCloseable {
                     logger.debug("Message send of {} bytes took {} ms", payload.length, sentTimeMs);
                     // update failure count if there was an exception
                     if (exception != null) {
-                        logger.warn("Error while sending kafka message", exception);
                         lastSendFailed.set(true);
                         MESSAGE_SEND_ERRORS_COUNT.labels(topic).inc();
                     } else {
