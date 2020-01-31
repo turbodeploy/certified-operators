@@ -4,10 +4,10 @@ import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_VCPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
-import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,9 +25,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Table.Cell;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,9 +52,7 @@ import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
-import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -68,8 +64,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 public class MarketStatsAccumulator {
 
     private static final Logger logger = LogManager.getLogger();
-    private static final long DEFAULT_VALUE_PROVIDER_ID = 0L;
-    private static final String DEFAULT_VALUE_COMMODITY_KEY = "";
 
     private final TopologyInfo topologyInfo;
 
@@ -100,8 +94,6 @@ public class MarketStatsAccumulator {
      * A records loader for our table.
      */
     private final BulkLoader<Record> loader;
-
-    private final BulkLoader<HistUtilizationRecord> historicalUtilizationLoader;
 
     private int queuedRows = 0;
 
@@ -210,7 +202,6 @@ public class MarketStatsAccumulator {
             throw new RuntimeException("Cannot accumulate stats for entity type: " + entityType);
         }
         loader = loaders.getLoader(dbTable);
-        historicalUtilizationLoader = loaders.getLoader(HistUtilization.HIST_UTILIZATION);
     }
 
     /**
@@ -299,7 +290,7 @@ public class MarketStatsAccumulator {
      * @throws VmtDbException       If there is an error interacting with the database.
      * @throws InterruptedException if interrupted
      */
-    public void writeFinalStats() throws InterruptedException {
+    public void writeFinalStats() throws VmtDbException, InterruptedException {
         persistMarketStats();
     }
 
@@ -314,14 +305,15 @@ public class MarketStatsAccumulator {
      * @throws InterruptedException if interrupted
      */
     @VisibleForTesting
-    void persistMarketStats() throws InterruptedException {
+    void persistMarketStats()
+        throws VmtDbException, InterruptedException {
 
         // first add counts for the given entity, if applicable
         String countMetric = countSEsMetrics.get(entityType);
         if (countMetric != null) {
             addEntityCountStat(countMetric, numEntitiesCount);
         }
-        
+
         // insert a record for each of our stats values
         final BulkLoader<MarketStatsLatestRecord> mktStatsWriter
             = loaders.getLoader(MarketStatsLatest.MARKET_STATS_LATEST);
@@ -391,42 +383,24 @@ public class MarketStatsAccumulator {
                     RelationType.COMMODITIES);
 
             if (commoditySoldDTO.hasHistoricalUsed()) {
-                createPercentileAndTimeslotsQueries(intCommodityType, entityId, null,
-                        key, capacity, commoditySoldDTO.getHistoricalUsed());
+                insertCommodityPercentileUtilization(mixedCaseCommodityName, snapshotTime, entityId,
+                        RelationType.COMMODITIES, null, key, commoditySoldDTO.getHistoricalUsed());
             }
         }
     }
 
-    private void createPercentileAndTimeslotsQueries(int commodityTypeId, long entityId,
-            Long providerId, String commodityKey, Double capacity,
+    private void insertCommodityPercentileUtilization(String commodityName, long snapshotTime,
+            long entityId, RelationType relationType, Long providerId, String commodityKey,
             HistoricalValues historicalUsed) throws InterruptedException {
-        final ImmutableTable.Builder<HistoryUtilizationType, Integer, BigDecimal> tableBuilder =
-                ImmutableTable.builder();
-        for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
-            tableBuilder.put(HistoryUtilizationType.Timeslot, i,
-                    BigDecimal.valueOf(historicalUsed.getTimeSlot(i)));
-        }
         if (historicalUsed.hasPercentile()) {
-            tableBuilder.put(HistoryUtilizationType.Percentile, 0,
-                    BigDecimal.valueOf(historicalUsed.getPercentile()));
-        }
-        formInsertOrUpdateQueries(entityId, providerId, commodityKey, capacity, commodityTypeId,
-                tableBuilder.build().cellSet());
-    }
-
-    private void formInsertOrUpdateQueries(@Nonnull long entityId, @Nullable Long providerId,
-            @Nullable String commodityKey, @Nonnull Double capacity, @Nonnull int commodityTypeId,
-            @Nonnull Collection<Cell<HistoryUtilizationType, Integer, BigDecimal>> cells)
-            throws InterruptedException {
-        final Long providerIdValue = providerId == null ? DEFAULT_VALUE_PROVIDER_ID : providerId;
-        final String commodityKeyValue =
-                commodityKey == null ? DEFAULT_VALUE_COMMODITY_KEY : commodityKey;
-        for (Cell<HistoryUtilizationType, Integer, BigDecimal> cell : cells) {
-            historicalUtilizationLoader.insert(
-                    new HistUtilizationRecord(entityId, providerIdValue, commodityTypeId,
-                            PropertySubType.Utilization.ordinal(), commodityKeyValue,
-                            cell.getRowKey().ordinal(), cell.getColumnKey(), cell.getValue(),
-                            capacity));
+            Record record = dbTable.newRecord();
+            historydbIO.initializeCommodityRecord(commodityName, snapshotTime,
+                    entityId, relationType, providerId, 1D, 1D, commodityKey, record,
+                    dbTable);
+            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION,
+                    historicalUsed.getPercentile(), historicalUsed.getPercentile(), record,
+                    dbTable);
+            loader.insert(record);
         }
     }
 
@@ -692,8 +666,9 @@ public class MarketStatsAccumulator {
                     RelationType.COMMODITIESBOUGHT);
 
             if (commodityBoughtDTO.hasHistoricalUsed()) {
-                createPercentileAndTimeslotsQueries(commType, entityDTO.getOid(),
-                        providerId, key, capacity, commodityBoughtDTO.getHistoricalUsed());
+                insertCommodityPercentileUtilization(mixedCaseCommodityName, snapshotTime,
+                        entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, key,
+                        commodityBoughtDTO.getHistoricalUsed());
             }
         }
     }

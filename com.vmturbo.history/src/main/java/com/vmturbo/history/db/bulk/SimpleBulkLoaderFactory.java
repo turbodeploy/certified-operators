@@ -20,7 +20,6 @@ import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
-import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 
 /**
  * This class uses {@link BulkInserterFactory} to create bulk loaders that are automatically
@@ -112,7 +111,7 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
         final EntityType entityType = EntityType.fromTable(table);
         if (entityType != null && EntityType.ROLLED_UP_ENTITIES.contains(entityType)) {
             return getEntityStatsInserter(table);
-        } else if (Entities.ENTITIES == table || table == HistUtilization.HIST_UTILIZATION) {
+        } else if (Entities.ENTITIES == table) {
             return factory.getInserter(
                 table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
         } else {

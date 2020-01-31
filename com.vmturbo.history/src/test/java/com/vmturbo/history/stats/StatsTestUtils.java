@@ -29,7 +29,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -68,7 +67,6 @@ public class StatsTestUtils {
             .setKey("Flow-1")
             .build();
     private static final double CPU_CAPACITY = 111.111;
-    private static final double CPU_PERCENTILE = 0.111;
     private static final double DSPMA_CAPACITY = 100000;
     private static final double FLOW_0_CAPACITY = (double)Float.MAX_VALUE;
     private static final double FLOW_1_CAPACITY = 100_000_000.0;
@@ -142,17 +140,11 @@ public class StatsTestUtils {
                 .build();
     }
 
-    /**
-     * Create Cpu sold commodity.
-     *
-     * @param used a value for the amount of the commodity used.
-     * @return cpu sold commodity type {@link com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO}
-     */
     public static TopologyDTO.CommoditySoldDTO cpu(double used) {
         return TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setCommodityType(CPU_COMMODITY_TYPE)
-                .setUsed(used)
-                .setCapacity(CPU_CAPACITY).build();
+                        .setCommodityType(CPU_COMMODITY_TYPE)
+                        .setUsed(used)
+                        .setCapacity(CPU_CAPACITY).build();
     }
 
     public static TopologyDTO.CommoditySoldDTO dspma(double used) {
@@ -172,10 +164,7 @@ public class StatsTestUtils {
         return TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(Q1_VCPU_COMMODITY_TYPE)
                 .setUsed(used)
-                .setCapacity(CPU_CAPACITY)
-                .setHistoricalUsed(HistoricalValues.newBuilder().addTimeSlot(5).addTimeSlot(10)
-                .setPercentile(CPU_PERCENTILE))
-                .build();
+                .setCapacity(CPU_CAPACITY).build();
     }
 
     /**
