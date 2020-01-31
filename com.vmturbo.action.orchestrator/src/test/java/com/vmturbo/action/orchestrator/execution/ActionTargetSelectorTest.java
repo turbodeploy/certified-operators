@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -103,7 +104,7 @@ public class ActionTargetSelectorTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
         when(entitySettingsCache.emptySnapshot()).thenReturn(new EntitiesAndSettingsSnapshot(
-            Collections.emptyMap(), Maps.newHashMap(), null, Maps.newHashMap(), 0));
+            Collections.emptyMap(), Maps.newHashMap(), null, Maps.newHashMap(), 0, TopologyType.SOURCE));
         targetEntitySelectorMock = mock(ActionExecutionEntitySelector.class);
         MockitoAnnotations.initMocks(this);
         // The class under test
