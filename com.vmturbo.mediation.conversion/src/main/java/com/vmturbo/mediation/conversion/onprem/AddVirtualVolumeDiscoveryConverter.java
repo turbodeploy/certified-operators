@@ -166,11 +166,6 @@ public class AddVirtualVolumeDiscoveryConverter {
                                 .add(fileDescriptor));
                     // convert all provider id in commodity bought to be prefixed with dsb
                     convertCommodityBoughtProviderId(entityBuilder);
-
-                    // Remove the files from the VM. Lots of files blows up the size of the entity.
-                    // Now that we created the vm file table we don't need to know the files from
-                    // the VM directly. We will create volumes for each file.
-                    entityBuilder.getVirtualMachineDataBuilder().clearFile();
                 } else {
                     // for hypervisor probes (vc, hyperV, vmm), go though commodities bought list
                     // since vm data doesn't contain files
@@ -192,12 +187,6 @@ public class AddVirtualVolumeDiscoveryConverter {
                 if (this.isStorageBrowsing && entityBuilder.hasStorageData()
                         && entityBuilder.getStorageData().getFileCount() > 0) {
                     storageIdToFiles.put(entityId, entityBuilder.getStorageData().getFileList());
-
-                    // Remove the files from the storage, because some storages can have huge numbers
-                    // of files which blows up the size of the entity. We don't need to know the
-                    // storage's files from the storage, because we will create volumes for each
-                    // file.
-                    entityBuilder.getStorageDataBuilder().clearFile();
                 }
             } else if (entityBuilder.getEntityType() == EntityType.NETWORK) {
                 networkIds.put(entityBuilder.getId(), entityBuilder.getDisplayName());

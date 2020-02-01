@@ -88,8 +88,6 @@ public class ActionTranslatorTest {
         MockitoAnnotations.initMocks(this);
         translator = new ActionTranslator(server.getChannel(), server.getChannel());
         actionModeCalculator = new ActionModeCalculator();
-
-        when(mockSnapshot.getTopologyType()).thenReturn(TopologyType.SOURCE);
     }
 
     @Test
@@ -317,7 +315,7 @@ public class ActionTranslatorTest {
                 .addAllEntityOids(Arrays.asList(HOST_ID))
                 .setTopologyContextId(actionPlanId)
                 .setReturnType(Type.TYPE_SPECIFIC)
-                .setTopologyType(TopologyType.SOURCE).build()
+                .setTopologyType(TopologyType.PROJECTED).build()
         )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().addEntities(
             PartialEntity.newBuilder()
                 .setTypeSpecific(TypeSpecificPartialEntity.newBuilder()

@@ -206,7 +206,12 @@ public class SdkToTopologyEntityConverterTest {
         assertEquals(CommodityType.MEM_ALLOCATION_VALUE,
                 vdcTopologyDTO.getCommoditySoldList(0).getCommodityType().getType());
         // property map contains related field entries
+        VirtualDatacenterData vdcData = vdcProbeDTO.getVirtualDatacenterData();
         Map<String, String> vdcPropertiesMap = vdcTopologyDTO.getEntityPropertyMap();
+        for (Entry<FieldDescriptor, Object> entry : vdcData.getAllFields().entrySet()) {
+            assertEquals(entry.getValue().toString(),
+                vdcPropertiesMap.get(entry.getKey().toString()));
+        }
         // Probe DTO properties map copied to topology DTO properties map
         for (EntityProperty property : vdcProbeDTO.getEntityPropertiesList()) {
             assertEquals(vdcPropertiesMap.get(property.getName()), property.getValue());

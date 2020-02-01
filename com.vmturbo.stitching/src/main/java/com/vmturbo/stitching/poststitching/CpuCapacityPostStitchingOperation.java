@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -32,8 +31,8 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String NUM_CPU_CORES = "numCpus";
-    private static final String CPU_CORE_MHZ = "cpuCoreMhz";
+    private final static String NUM_CPU_CORES = "common_dto.EntityDTO.PhysicalMachineData.numCpuCores";
+    private final static String CPU_CORE_MHZ = "common_dto.EntityDTO.PhysicalMachineData.cpuCoreMhz";
 
     @Nonnull
     @Override
@@ -50,17 +49,19 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
 
         entities.forEach(entity -> {
             final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-            final PhysicalMachineInfo pmInfo = entityBuilder.getTypeSpecificInfo().getPhysicalMachine();
+            final Map<String, String> props = entityBuilder.getEntityPropertyMapMap();
+            final boolean hasNumCoresProperty = props.containsKey(NUM_CPU_CORES);
+            final boolean hasCpuMhzProperty = props.containsKey(CPU_CORE_MHZ);
             final boolean needsUpdate = entityBuilder.getCommoditySoldListBuilderList().stream()
                 .anyMatch(this::hasSettableCpuCapacity);
 
-            if (pmInfo.hasNumCpus() && pmInfo.hasCpuCoreMhz() && needsUpdate) {
+            if (hasNumCoresProperty && hasCpuMhzProperty && needsUpdate) {
                 resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate -> {
                     entityForUpdate.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
                         .filter(this::hasSettableCpuCapacity)
                         .forEach(commodity -> {
-                            final double numCores = pmInfo.getNumCpus();
-                            final double cpuMhz = pmInfo.getCpuCoreMhz();
+                            final double numCores = Double.valueOf(props.get(NUM_CPU_CORES));
+                            final double cpuMhz = Double.valueOf(props.get(CPU_CORE_MHZ));
                             commodity.setCapacity(numCores * cpuMhz);
                             logger.trace("Entity {} CPU commodity capacity set to {} ({} cores @ {} MHz)",
                                 entity.getOid(), commodity.getCapacity(), numCores, cpuMhz);
@@ -68,9 +69,9 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
                 });
             } else if (needsUpdate) {
                 final String missing;
-                if (pmInfo.hasCpuCoreMhz()) {
+                if (hasCpuMhzProperty) {
                     missing = NUM_CPU_CORES;
-                } else if (pmInfo.hasNumCpus()) {
+                } else if (hasNumCoresProperty) {
                     missing = CPU_CORE_MHZ;
                 } else {
                     missing = NUM_CPU_CORES + " and property " + CPU_CORE_MHZ;
