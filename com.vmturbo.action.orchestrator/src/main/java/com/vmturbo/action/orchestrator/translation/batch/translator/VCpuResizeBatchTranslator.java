@@ -22,7 +22,6 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -99,13 +98,15 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
         // properly. Generating a lazy stream of gRPC results that is not evaluated until
         // after the method return causes any potential gRPC exception not to be thrown
         // until it is too late to be handled.
-        Map<Long, TypeSpecificPartialEntity> hostInfoMap = RepositoryDTOUtil.topologyEntityStream(
+        final Map<Long, TypeSpecificPartialEntity> hostInfoMap = RepositoryDTOUtil.topologyEntityStream(
             repoService.retrieveTopologyEntities(
                 RetrieveTopologyEntitiesRequest.newBuilder()
                     .setTopologyContextId(snapshot.getToologyContextId())
                     .addAllEntityOids(entitiesToRetrieve)
                     .setReturnType(Type.TYPE_SPECIFIC)
-                    .setTopologyType(TopologyType.PROJECTED)
+                    // Look in the same topology type (source vs projected) as the one we looked
+                    // in to get the rest of the entity information.
+                    .setTopologyType(snapshot.getTopologyType())
                     .build()))
             .map(PartialEntity::getTypeSpecific)
             .collect(Collectors.toMap(TypeSpecificPartialEntity::getOid, Function.identity()));

@@ -48,6 +48,7 @@ import com.vmturbo.repository.api.TopologyAvailabilityTracker.QueuedTopologyRequ
 public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final long TOPOLOGY_ID = 7L;
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
+    private static final long REALTIME_TOPOLOGY_CONTEXT_ID = 77L;
     private static final long ENTITY_ID = 1L;
     private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
     private static final Long ASSOCIATED_RESOURCE_GROUP_ID = 123L;
@@ -70,7 +71,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     public void setup() {
         entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
             grpcTestServer.getChannel(),
-            777777,
+            REALTIME_TOPOLOGY_CONTEXT_ID,
             topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES);
 
         when(topologyAvailabilityTracker.queueTopologyRequest(anyLong(), anyLong()))
@@ -96,7 +97,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
 
         when(spServiceSpy.getEntitySettings(GetEntitySettingsRequest.newBuilder()
                 .setTopologySelection(TopologySelection.newBuilder()
-                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(TOPOLOGY_ID))
                 .setSettingFilter(EntitySettingFilter.newBuilder()
                         .addEntities(ENTITY_ID))
@@ -115,14 +116,14 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 .build());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-            Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+            Collections.singleton(ENTITY_ID), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         final Map<String, Setting> newSettings = snapshot.getSettingsForEntity(ENTITY_ID);
         assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
         assertThat(newSettings.get(setting.getSettingSpecName()), is(setting));
         assertEquals(snapshot.getResourceGroupForEntity(ENTITY_ID).get(), ASSOCIATED_RESOURCE_GROUP_ID);
 
-        verify(topologyAvailabilityTracker).queueTopologyRequest(TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+        verify(topologyAvailabilityTracker).queueTopologyRequest(REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
         verify(topologyRequest).waitForTopology(MIN_TO_WAIT, TimeUnit.MINUTES);
     }
 
