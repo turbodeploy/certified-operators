@@ -87,8 +87,16 @@
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
     },
 
+    "ApplicationComponent" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"}]
+    },
+
     "BusinessApplication" : {
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"}]
+    },
+
+    "BusinessTransaction" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"}]
     },
 
     "Service" : {

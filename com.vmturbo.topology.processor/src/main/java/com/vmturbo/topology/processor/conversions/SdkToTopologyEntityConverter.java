@@ -88,6 +88,7 @@ public class SdkToTopologyEntityConverter {
     private static final Map<EntityType, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
             ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
                     .put(EntityType.APPLICATION, new ApplicationInfoMapper())
+                    .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
                     // Databases get their type-specific info sent via application data
                     .put(EntityType.DATABASE_SERVER, new ApplicationInfoMapper())
                     .put(EntityType.DATABASE, new ApplicationInfoMapper())
@@ -848,6 +849,7 @@ public class SdkToTopologyEntityConverter {
                 entity.getEntityType() == EntityType.VIRTUAL_APPLICATION ||
                 entity.getEntityType() == EntityType.APPLICATION_SERVER ||
                 entity.getEntityType() == EntityType.APPLICATION ||
+                entity.getEntityType() == EntityType.APPLICATION_COMPONENT ||
                 entity.getEntityType() == EntityType.DATABASE_SERVER ||
                 entity.getEntityType() == EntityType.DATABASE ||
                 entity.getEntityType() == EntityType.SERVICE
