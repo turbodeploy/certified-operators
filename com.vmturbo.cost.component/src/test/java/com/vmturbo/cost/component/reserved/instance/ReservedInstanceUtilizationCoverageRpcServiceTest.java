@@ -41,6 +41,10 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
  */
 public class ReservedInstanceUtilizationCoverageRpcServiceTest {
 
+    private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
+
+    private static final long PLAN_ID = 123456L;
+
     private ReservedInstanceUtilizationStore reservedInstanceUtilizationStore
         = mock(ReservedInstanceUtilizationStore.class);
 
@@ -53,6 +57,8 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore
         = mock(EntityReservedInstanceMappingStore.class);
 
+    private PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore = mock(PlanProjectedRICoverageAndUtilStore.class);
+
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
     private ReservedInstanceUtilizationCoverageRpcService service =
@@ -61,7 +67,9 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
                reservedInstanceCoverageStore,
                projectedRICoverageStore,
                entityReservedInstanceMappingStore,
-               timeFrameCalculator);
+               planProjectedRICoverageAndUtilStore,
+               timeFrameCalculator,
+               REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
     /**
      * Set up a test GRPC server.
@@ -242,5 +250,69 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
                 .findAny().orElse(null);
         Assert.assertNotNull(latestRecord);
         Assert.assertEquals(riUtilizationLatestCapacity, latestRecord.getCapacity().getMax(), 0);
+    }
+
+    /**
+     * Test that projected stats are added for Plan RI Utilization.
+     */
+    @Test
+    public void testPlanRIUtilizationStats() {
+        final long projectedSnapshotTime = now + 50;
+        final ReservedInstanceStatsRecord planProjectedRICoverageStats =
+                        createRIStatsRecord(200, 100, projectedSnapshotTime);
+
+        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID))
+                        .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
+        GetReservedInstanceUtilizationStatsRequest request =
+                        GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                                        .setTopologyContextId(PLAN_ID)
+                                        .build();
+        final GetReservedInstanceUtilizationStatsResponse response =
+                        client.getReservedInstanceUtilizationStats(request);
+        Assert.assertFalse(response.getReservedInstanceStatsRecordsList().isEmpty());
+        final List<ReservedInstanceStatsRecord> riUtilizationStats =
+                        response.getReservedInstanceStatsRecordsList();
+        // response should contain 2 entries: historical and projected
+        Assert.assertEquals(2, riUtilizationStats.size());
+
+        // latest values
+        ReservedInstanceStatsRecord projectedRecord = riUtilizationStats.stream()
+                        .filter(stat -> stat.getSnapshotDate() == projectedSnapshotTime)
+                        .findAny().orElse(null);
+        Assert.assertNotNull(projectedRecord);
+        Assert.assertEquals(200, projectedRecord.getCapacity().getMax(), 0);
+        Assert.assertEquals(100, projectedRecord.getValues().getMax(), 0);
+    }
+
+    /**
+     * Test that projected stats are added for Plan RI Coverage.
+     */
+    @Test
+    public void testPlanRICoverageStats() {
+        final long projectedSnapshotTime = now + 50;
+        final ReservedInstanceStatsRecord planProjectedRICoverageStats =
+                        createRIStatsRecord(10, 6.5f, projectedSnapshotTime);
+
+        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID))
+                        .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
+        GetReservedInstanceCoverageStatsRequest request =
+                        GetReservedInstanceCoverageStatsRequest.newBuilder()
+                                        .setTopologyContextId(PLAN_ID)
+                                        .build();
+        final GetReservedInstanceCoverageStatsResponse response =
+                        client.getReservedInstanceCoverageStats(request);
+        Assert.assertFalse(response.getReservedInstanceStatsRecordsList().isEmpty());
+        final List<ReservedInstanceStatsRecord> riCoverageStats =
+                        response.getReservedInstanceStatsRecordsList();
+        // response should contain 2 entries: historical and projected
+        Assert.assertEquals(2, riCoverageStats.size());
+
+        // latest values
+        ReservedInstanceStatsRecord projectedRecord = riCoverageStats.stream()
+                        .filter(stat -> stat.getSnapshotDate() == projectedSnapshotTime)
+                        .findAny().orElse(null);
+        Assert.assertNotNull(projectedRecord);
+        Assert.assertEquals(10, projectedRecord.getCapacity().getMax(), 0);
+        Assert.assertEquals(6.5, projectedRecord.getValues().getMax(), 0);
     }
 }

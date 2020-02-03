@@ -6,6 +6,8 @@ import static org.jooq.impl.DSL.min;
 import static org.jooq.impl.DSL.sum;
 
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -24,6 +26,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatVal
  * contains some help functions which used by reserved instance logic.
  */
 public class ReservedInstanceUtil {
+    private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
+
     public static final String SNAPSHOT_TIME = "snapshot_time";
 
     public static final String TOTAL_COUPONS = "total_coupons";
@@ -58,14 +62,13 @@ public class ReservedInstanceUtil {
     public static final String BUSINESS_ACCOUNT_ID = "business_account_id";
 
     /**
-     * Get a list of table fields for reserved instance utilization and coverage stats query.
+     * Get a list of table fields for plan reserved instance utilization and coverage stats query.
      *
      * @param table the table need to query.
      * @return a list of table fields.
      */
-    public static List<Field<?>> createSelectFieldsForRIUtilizationCoverage(@Nonnull final Table<?> table) {
+    public static List<Field<?>> createSelectFieldsForPlanRIUtilizationCoverage(@Nonnull final Table<?> table) {
         return Lists.newArrayList(
-                table.field(SNAPSHOT_TIME),
                 sum(((Field<? extends Number>)table.field(TOTAL_COUPONS))).as(TOTAL_COUPONS_SUM_VALUE),
                 avg(((Field<? extends Number>)table.field(TOTAL_COUPONS))).as(TOTAL_COUPONS_AVG_VALUE),
                 max(((Field<? extends Number>)table.field(TOTAL_COUPONS))).as(TOTAL_COUPONS_MAX_VALUE),
@@ -78,13 +81,32 @@ public class ReservedInstanceUtil {
     }
 
     /**
+     * Get a list of table fields for reserved instance utilization and coverage stats query.
+     *
+     * @param table the table need to query.
+     * @return a list of table fields.
+     */
+    public static List<Field<?>> createSelectFieldsForRIUtilizationCoverage(@Nonnull final Table<?> table) {
+        final List<Field<?>> fields = createSelectFieldsForPlanRIUtilizationCoverage(table);
+        fields.add(table.field(SNAPSHOT_TIME));
+        return fields;
+    }
+
+    /**
      * Convert {@link Record} to a {@link ReservedInstanceStatsRecord}.
      *
-     * @param record {@link Record} which contains the aggregated reserved instance stats data.
+     * @param record {@link Record} which contains the aggregated plan reserved instance stats data.
      * @return a {@link ReservedInstanceStatsRecord}.
      */
-    public static ReservedInstanceStatsRecord convertRIUtilizationCoverageRecordToRIStatsRecord(
+    public static ReservedInstanceStatsRecord convertPlanRIUtilizationCoverageRecordToRIStatsRecord(
             @Nonnull final Record record) {
+        final ReservedInstanceStatsRecord.Builder statsRecord = convertCouponValues(record);
+        statsRecord.setSnapshotDate(Clock.systemUTC().instant().plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS)
+                        .toEpochMilli());
+        return statsRecord.build();
+    }
+
+    private static ReservedInstanceStatsRecord.Builder convertCouponValues(final Record record) {
         final ReservedInstanceStatsRecord.Builder statsRecord = ReservedInstanceStatsRecord.newBuilder();
         statsRecord.setCapacity(StatValue.newBuilder()
                 .setTotal(record.getValue(TOTAL_COUPONS_SUM_VALUE, Float.class))
@@ -96,6 +118,18 @@ public class ReservedInstanceUtil {
                 .setAvg(record.getValue(USED_COUPONS_AVG_VALUE, Float.class))
                 .setMax(record.getValue(USED_COUPONS_MAX_VALUE, Float.class))
                 .setMin(record.getValue(USED_COUPONS_MIN_VALUE, Float.class)));
+        return statsRecord;
+    }
+
+    /**
+     * Convert {@link Record} to a {@link ReservedInstanceStatsRecord}.
+     *
+     * @param record {@link Record} which contains the aggregated plan reserved instance stats data.
+     * @return a {@link ReservedInstanceStatsRecord}.
+     */
+    public static ReservedInstanceStatsRecord convertRIUtilizationCoverageRecordToRIStatsRecord(
+            @Nonnull final Record record) {
+        final ReservedInstanceStatsRecord.Builder statsRecord = convertCouponValues(record);
         statsRecord.setSnapshotDate(record.getValue(SNAPSHOT_TIME, Timestamp.class).getTime());
         return statsRecord.build();
     }

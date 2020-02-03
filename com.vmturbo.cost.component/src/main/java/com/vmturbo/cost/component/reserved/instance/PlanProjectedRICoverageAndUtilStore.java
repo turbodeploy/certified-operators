@@ -13,18 +13,22 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
+import org.jooq.Record;
+import org.jooq.Result;
+import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -48,6 +52,8 @@ import com.vmturbo.repository.api.RepositoryListener;
 public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final String PLAN_ID = "plan_id";
 
     private final DSLContext context;
 
@@ -120,7 +126,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * @param topoInfo   contains the plan id
      * @param entityRICoverage the RI coverage
      */
-    public void updateProjectedRICoverageTableForPlan(@Nonnull final long projectedTopologyId,
+    public void updateProjectedRICoverageTableForPlan(final long projectedTopologyId,
                                                       @Nonnull final TopologyInfo topoInfo,
                                                       @Nonnull final List<EntityReservedInstanceCoverage>
                                                       entityRICoverage) {
@@ -318,8 +324,6 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 }
             });
         });
-        riUsedCouponMap.entrySet().forEach( e-> {
-        });
         final List<ReservedInstanceBought> projectedReservedInstancesBought =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
@@ -357,7 +361,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * Create records based on projected RI coverage and insert into
      * entity_to_projected_reserved_instance_mapping table.
      *
-     * @param projectedTopologyId the plan topology context id
+     * @param topoInfo the plan topology info
      * @param entityRICoverage the projected RI coverage generated in plan analysis
      */
     public void updateProjectedEntityToRIMappingTableForPlan(@Nonnull final TopologyInfo topoInfo,
@@ -374,6 +378,39 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             });
         });
         Lists.partition(records, chunkSize).forEach(entityChunk -> context.batchInsert(records).execute());
+    }
+
+    /**
+     * Get the list of {@link ReservedInstanceStatsRecord} which aggregates data from plan projected reserved instance
+     * utilization table.
+     *
+     * @param planId plan ID.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     */
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION);
+    }
+
+    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table) {
+        final Result<Record> records =
+                        context.select(ReservedInstanceUtil.createSelectFieldsForPlanRIUtilizationCoverage(table))
+                                        .from(table)
+                                        .where(table.field(PLAN_ID, Long.class).eq(planId))
+                                        .fetch();
+        return records.stream()
+                        .map(ReservedInstanceUtil::convertPlanRIUtilizationCoverageRecordToRIStatsRecord)
+                        .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the list of {@link ReservedInstanceStatsRecord} which aggregates data from plan projected reserved instance
+     * coverage table.
+     *
+     * @param planId plan ID.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     */
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE);
     }
 
     @Override
