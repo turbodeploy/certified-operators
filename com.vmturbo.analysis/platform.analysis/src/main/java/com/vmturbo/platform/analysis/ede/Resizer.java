@@ -118,15 +118,22 @@ public class Resizer {
                             double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                 resizedCommodity, desiredCapacity, commoditySold,
                                     rawMaterial, rateOfResize);
-                            if (consistentResizing || Double.compare(newEffectiveCapacity,
-                                        commoditySold.getEffectiveCapacity()) != 0) {
+                            boolean capacityChange = Double.compare(newEffectiveCapacity,
+                                commoditySold.getEffectiveCapacity()) != 0;
+                            if (consistentResizing || capacityChange) {
                                 double newCapacity = newEffectiveCapacity /
                                            commoditySold.getSettings().getUtilizationUpperBound();
                                 Resize resizeAction = new Resize(economy, seller,
                                     resizedCommodity, commoditySold, soldIndex, newCapacity);
                                 resizeAction.setImportance(currentRevenue - newRevenue);
                                 if (consistentResizing) {
-                                    consistentResizer.addResize(resizeAction, engage, p);
+                                    // If the action is the only one in a scaling group, we treat
+                                    // it as a normal resize, so we need to pass in both engage
+                                    // and capacity change to the delayed action generation logic.
+                                    // See ConsistentResizer.ResizingGroup.generateResizes for
+                                    // details.
+                                    consistentResizer.addResize(resizeAction,
+                                        engage && capacityChange, p);
                                 } else {
                                     takeAndAddResizeAction(actions, resizeAction);
                                 }

@@ -33,12 +33,12 @@ public class ResizerTest {
     Trader vm, vm1, vm2;
     Trader pm;
     Ledger ledger;
-    public final static Set<CommoditySpecification> EXPECTED_COMM_SPECS_TO_BE_RESIZED =
+    public static final Set<CommoditySpecification> EXPECTED_COMM_SPECS_TO_BE_RESIZED =
                     Collections.unmodifiableSet(
                                     new HashSet<CommoditySpecification>(
                                                     Arrays.asList(TestUtils.VCPU, TestUtils.VMEM)));
-    private static final double RIHT_SIZE_LOWER = 0.3;
-    private static final double RIHT_SIZE_UPPER = 0.7;
+    private static final double RIGHT_SIZE_LOWER = 0.3;
+    private static final double RIGHT_SIZE_UPPER = 0.7;
 
     @Before
     public void setUp() throws Exception {
@@ -56,8 +56,7 @@ public class ResizerTest {
         Trader vm = testEconomy.getVm();
         Trader[] pms = testEconomy.getPms();
         Trader pm1 = pms[0];
-        Trader pm2 = pms[1];
-        Trader [] stgs = testEconomy.getStgs();
+        Trader[] stgs = testEconomy.getStgs();
         Trader st1 = stgs[0];
         Trader st2 = stgs[1];
         Trader app1 = testEconomy.getApps();
@@ -94,8 +93,8 @@ public class ResizerTest {
         shoppingLists[1].move(st1);
         shoppingLists[2].move(st2);
 
-        economy.getCommodityBought(shoppingLists[0],TestCommon.CPU).setQuantity(42);
-        economy.getCommodityBought(shoppingLists[0],TestCommon.MEM).setQuantity(150);
+        economy.getCommodityBought(shoppingLists[0], TestCommon.CPU).setQuantity(42);
+        economy.getCommodityBought(shoppingLists[0], TestCommon.MEM).setQuantity(150);
 
         ShoppingList[] appShoppingList = economy.getMarketsAsBuyer(app1)
                         .keySet().toArray(new ShoppingList[1]);
@@ -111,8 +110,8 @@ public class ResizerTest {
         vm.getCommoditySold(TestCommon.VMEM).setPeakQuantity(80);
         vm.getCommoditySold(TestCommon.VCPU).setPeakQuantity(42);
 
-        economy.getCommodityBought(appShoppingList[0],TestCommon.VMEM).setQuantity(150);
-        economy.getCommodityBought(appShoppingList[0],TestCommon.VCPU).setQuantity(42);
+        economy.getCommodityBought(appShoppingList[0], TestCommon.VMEM).setQuantity(150);
+        economy.getCommodityBought(appShoppingList[0], TestCommon.VCPU).setQuantity(42);
 
         appShoppingList[0].move(vm);
 
@@ -133,8 +132,7 @@ public class ResizerTest {
         Trader vm = testEconomy.getVm();
         Trader[] pms = testEconomy.getPms();
         Trader pm1 = pms[0];
-        Trader pm2 = pms[1];
-        Trader [] stgs = testEconomy.getStgs();
+        Trader[] stgs = testEconomy.getStgs();
         Trader st1 = stgs[0];
         Trader st2 = stgs[1];
         Trader app1 = testEconomy.getApps();
@@ -171,8 +169,8 @@ public class ResizerTest {
         shoppingLists[1].move(st1);
         shoppingLists[2].move(st2);
 
-        economy.getCommodityBought(shoppingLists[0],TestCommon.CPU).setQuantity(42);
-        economy.getCommodityBought(shoppingLists[0],TestCommon.MEM).setQuantity(150);
+        economy.getCommodityBought(shoppingLists[0], TestCommon.CPU).setQuantity(42);
+        economy.getCommodityBought(shoppingLists[0], TestCommon.MEM).setQuantity(150);
 
         ShoppingList[] appShoppingList = economy.getMarketsAsBuyer(app1)
                         .keySet().toArray(new ShoppingList[1]);
@@ -189,8 +187,8 @@ public class ResizerTest {
         vm.getCommoditySold(TestCommon.VMEM).setPeakQuantity(90);
         vm.getCommoditySold(TestCommon.VCPU).setPeakQuantity(40);
 
-        economy.getCommodityBought(appShoppingList[0],TestCommon.VMEM).setQuantity(90);
-        economy.getCommodityBought(appShoppingList[0],TestCommon.VCPU).setQuantity(40);
+        economy.getCommodityBought(appShoppingList[0], TestCommon.VMEM).setQuantity(90);
+        economy.getCommodityBought(appShoppingList[0], TestCommon.VCPU).setQuantity(40);
 
         appShoppingList[0].move(vm);
 
@@ -214,7 +212,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeDownWithDependency() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 70, 70, 20, 20, 0.65, 0.8,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
@@ -262,7 +260,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeUpWithDependency() {
         Economy economy = setupTopologyForResizeTest(200, 200,
                         100, 100, 40, 40, 80, 80, 0.65, 0.75,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
@@ -307,8 +305,8 @@ public class ResizerTest {
     @Test
     public void testResizeDecisions_resizeUpGreaterThanUnderlyingProviderAllows() {
         Economy economy = setupTopologyForResizeTestAlternative(100, 100,
-                        50, 50, 50, 50, 40, 40, 40, 40, 49, 49, 49,49, 0.65, 0.75,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, false);
+                        50, 50, 50, 50, 40, 40, 40, 40, 49, 49, 49, 49, 0.65, 0.75,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, false);
         vm1.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(40));
         vm2.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(40));
 
@@ -360,7 +358,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeDownLowerThanMaxQuantity() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 70, 70, 20, 20, 0.65, 0.8,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
@@ -386,10 +384,10 @@ public class ResizerTest {
     public void testResizeDecisions_resizeLowRateOfResize() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 70, 70, 20, 20, 0.65, 0.8,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setRateOfResize((float)Math.pow(10,10));
+        economy.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -405,7 +403,7 @@ public class ResizerTest {
     public void testResizeDecisions_noActionsWhenNoResizableCommodities() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 40, 40, 80, 80, 0.65, 0.75,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, false);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, false);
         vm.getCommoditiesSold().stream()
             .forEach(c -> c.getSettings().setResizable(false));
 
@@ -424,7 +422,7 @@ public class ResizerTest {
     public void testResizeDecisions_noActionsWhenCommodityUtilizationBetweenRightSizeLowerAndUpper() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 40, 40, 40, 40, 0.65, 0.75,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, false);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, false);
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
@@ -441,7 +439,7 @@ public class ResizerTest {
     public void testResizeDecisions_noActionsWhenTraderNotEligibleForResize() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 70, 70, 20, 20, 0.65, 0.75,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, false);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, false);
         //VM is not eligible for resize down
         vm.getSettings().setIsEligibleForResizeDown(false);
 
@@ -460,7 +458,7 @@ public class ResizerTest {
     public void testResizeDecisions_noActionsWhenTraderInactive() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 70, 70, 20, 20, 0.65, 0.75,
-                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, false);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, false);
         //VM is not eligible for resize down
         vm.changeState(TraderState.INACTIVE);
 
@@ -470,9 +468,9 @@ public class ResizerTest {
     }
 
     /**
-     * Regression test for OM-40189: downward resize can exceed seller's capacity
+     * Regression test for OM-40189: downward resize can exceed seller's capacity.
      *
-     * Setup economy with one PM, one VM and one application.
+     * <p>Setup economy with one PM, one VM and one application.
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
      * VM's VMEM and VCPU have low ROI.
@@ -487,7 +485,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeDownExceedsSellerCapacity() {
         Economy economy = setupTopologyForResizeTest(100, 100,
             150, 150, 70, 70, 20, 20, 0.65, 0.8,
-            RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
 
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(120));
 
@@ -512,7 +510,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeDownDoesNotExceedSellerCapacity() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                 150, 150, 70, 70, 20, 20, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
 
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
@@ -532,7 +530,7 @@ public class ResizerTest {
     /**
      * Resize down when the currentCapacity is above rawMaterial capacity.
      *
-     * Setup economy with one PM, one VM and one application.
+     * <p>Setup economy with one PM, one VM and one application.
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
      * VM's VMEM and VCPU have low ROI.
@@ -547,7 +545,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeDownExceedsSellerCapacityWithCapacityIncrement() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                 150, 150, 70, 70, 20, 20, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to low
         economy.getSettings().setRateOfResize(1000000);
@@ -559,7 +557,7 @@ public class ResizerTest {
     /**
      * Resize down when the currentCapacity is above rawMaterial capacity.
      *
-     * Setup economy with one PM, one VM and one application.
+     * <p>Setup economy with one PM, one VM and one application.
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
      * VM's VMEM and VCPU have low ROI.
@@ -574,7 +572,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeDownDoesNotExceedSellerCapacityWithCapacityIncrement() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                 150, 150, 70, 70, 20, 20, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to high
         economy.getSettings().setRateOfResize(1);
@@ -595,7 +593,7 @@ public class ResizerTest {
      * Resize down when the currentCapacity is above rawMaterial capacity. This test has a really
      * big increment greater than the capacity of the raw material. Its an extreme case.
      *
-     * Setup economy with one PM, one VM and one application.
+     * <p>Setup economy with one PM, one VM and one application.
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
      * VM's VMEM and VCPU have low ROI.
@@ -612,7 +610,7 @@ public class ResizerTest {
     public void testResizeDecisions_noActionsWhenResizeDownExceedsSellerCapacityWithBigCapacityIncrement() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                 1500, 1500, 70, 70, 20, 20, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(500));
         // set the rate of resize to low
         economy.getSettings().setRateOfResize(1000000);
@@ -629,7 +627,7 @@ public class ResizerTest {
     public void testResizeDecisions_resizeUpWhenCurrentCapacityGreaterThanRawMaterialCapacity() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                 101, 101, 80, 80, 95, 95, 0.65, 0.75,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
@@ -688,7 +686,7 @@ public class ResizerTest {
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
-        if(shouldSetupCommodityResizeDependencyMap){
+        if (shouldSetupCommodityResizeDependencyMap) {
 
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
@@ -880,7 +878,7 @@ public class ResizerTest {
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
-        if(shouldSetupCommodityResizeDependencyMap){
+        if (shouldSetupCommodityResizeDependencyMap) {
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
@@ -891,7 +889,7 @@ public class ResizerTest {
     @Test
     public void testResizeDecisions_application() {
         List<String> actual;
-        /**
+        /*
          * Setup economy with one PM, one VM and two applications.
          * Both the apps are highly utlized and they resize up.
          * Since the VM shops later it also resizes up.
@@ -903,7 +901,7 @@ public class ResizerTest {
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, true, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true, true, true);
         assertEquals(3, actual.size());
         actual.removeAll(Arrays.asList("APP1", "APP2", "VM1"));
         assertEquals(0, actual.size());
@@ -913,12 +911,12 @@ public class ResizerTest {
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, true, false);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true, true, false);
         assertEquals(3, actual.size());
         actual.removeAll(Arrays.asList("APP1", "APP2", "VM1"));
         assertEquals(0, actual.size());
 
-        /**
+        /*
          * Setup economy with one PM, one VM and two applications.
          * Both the apps are highly utlized and they resize up.
          * Since the VM shops before it never gets a chance to resize up.
@@ -929,7 +927,7 @@ public class ResizerTest {
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.2, 0.3,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, false, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true, false, true);
         assertEquals(2, actual.size());
         actual.removeAll(Arrays.asList("APP1", "APP2"));
         assertEquals(0, actual.size());
@@ -939,7 +937,7 @@ public class ResizerTest {
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.2, 0.3,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, false, false);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true, false, false);
         assertEquals(2, actual.size());
         actual.removeAll(Arrays.asList("APP1", "APP2"));
         assertEquals(0, actual.size());
@@ -989,24 +987,23 @@ public class ResizerTest {
                 Arrays.asList(TestUtils.CPU, TestUtils.MEM),
                 new double[]{pmCpuCapacity, pmMemCapacity}, true, false);
         pm.setDebugInfoNeverUseInCode("PM1");
-        if(!appfirst) {
+        if (!appfirst) {
             vm = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
                     Arrays.asList(0L), Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
                     new double[]{vmVcpuCapacity, vmVmemCapacity}, false, false);
         }
         // Create VM and place on PM
         CommoditySpecification commoditySpecification;
-        if(isdbMem){
+        if (isdbMem) {
             commoditySpecification = TestUtils.DBMEM;
-        }
-        else{
+        } else {
             commoditySpecification = TestUtils.HEAP;
         }
         app1 = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
                 Arrays.asList(0L), Arrays.asList(commoditySpecification), new double[]{AppMemCapacity}, false, false);
         app2 = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
                 Arrays.asList(0L), Arrays.asList(commoditySpecification), new double[]{AppMemCapacity}, false, false);
-        if(appfirst) {
+        if (appfirst) {
             vm = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
                     Arrays.asList(0L), Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
                     new double[]{vmVcpuCapacity, vmVmemCapacity}, false, false);
@@ -1035,7 +1032,7 @@ public class ResizerTest {
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
-        if(shouldSetupCommodityResizeDependencyMap){
+        if (shouldSetupCommodityResizeDependencyMap) {
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
@@ -1052,9 +1049,9 @@ public class ResizerTest {
 
     @Test
     public void testResizeDecisionsUsingHistoricalQuantityResizeUp() {
-        double historicalQuanity = 9;
+        double historicalQuantity = 9;
         double currentQuantity = 6.5;
-        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuantity);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -1071,9 +1068,9 @@ public class ResizerTest {
 
     @Test
     public void testResizeDecisionsUsingHistoricalQuantityResizeDown() {
-        double historicalQuanity = 2;
+        double historicalQuantity = 2;
         double currentQuantity = 6.5;
-        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuantity);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -1090,9 +1087,9 @@ public class ResizerTest {
 
     @Test
     public void testResizeDecisionsUsingHistoricalQuantityNoResize() {
-        double historicalQuanity = 6.5;
+        double historicalQuantity = 6.5;
         double currentQuantity = 9;
-        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
+        Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuantity);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -1110,11 +1107,11 @@ public class ResizerTest {
      * the amount the market recommend resizing to based on historical quantity.
      *
      * @param currentQuantity The current quantity of the commodity sold by consumer.
-     * @param historicalQuanity The historical quantity of the commodity sold by consumer.
+     * @param historicalQuantity The historical quantity of the commodity sold by consumer.
      *
      * @return the constructed economy.
      */
-    private Economy setUpEconomyWithHistoricalQuantity(double currentQuantity, double historicalQuanity) {
+    private Economy setUpEconomyWithHistoricalQuantity(double currentQuantity, double historicalQuantity) {
         Economy economy = new Economy();
         final CommoditySpecification cpuSpec =
                         new CommoditySpecification(0, 1000);
@@ -1146,7 +1143,7 @@ public class ResizerTest {
             .getCommoditiesSold()
             .get(0)
                 .setQuantity(currentQuantity)
-                .setHistoricalQuantity(historicalQuanity)
+                .setHistoricalQuantity(historicalQuantity)
                 .setPeakQuantity(currentQuantity)
                 .setCapacity(10);
 
@@ -1172,16 +1169,16 @@ public class ResizerTest {
         double E = 0.00001;
         Economy economy = setupTopologyForResizeTest(100, 100,
                 100, 100, 70, 70, 20, 20, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setRateOfResize((float)Math.pow(10,10));
+        economy.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
 
-        Resize resizeAction1 = (Resize) actions.get(0);
-        Resize resizeAction2 = (Resize) actions.get(1);
+        Resize resizeAction1 = (Resize)actions.get(0);
+        Resize resizeAction2 = (Resize)actions.get(1);
         assertEquals(resizeAction1.getResizedCommodity().getSettings().getCapacityIncrement(), resizeAction1.getOldCapacity() - resizeAction1.getNewCapacity(), E);
         assertEquals(resizeAction2.getResizedCommodity().getSettings().getCapacityIncrement(), resizeAction2.getOldCapacity() - resizeAction2.getNewCapacity(), E);
     }
@@ -1195,18 +1192,112 @@ public class ResizerTest {
         double E = 0.00001;
         Economy economy = setupTopologyForResizeTest(100, 100,
                 100, 100, 70, 70, 95, 95, 0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setRateOfResize((float)Math.pow(10,10));
+        economy.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
 
-        Resize resizeAction1 = (Resize) actions.get(0);
-        Resize resizeAction2 = (Resize) actions.get(1);
+        Resize resizeAction1 = (Resize)actions.get(0);
+        Resize resizeAction2 = (Resize)actions.get(1);
         assertEquals(resizeAction1.getResizedCommodity().getSettings().getCapacityIncrement(), resizeAction1.getNewCapacity() - resizeAction1.getOldCapacity(), E);
         assertEquals(resizeAction2.getResizedCommodity().getSettings().getCapacityIncrement(), resizeAction2.getNewCapacity() - resizeAction2.getOldCapacity(), E);
     }
 
+    /**
+     * Create an economy with two consumers that can optionally belong to the same scaling group.
+     *
+     * @param configs array of triplets specifying configuration for consumers:
+     *                { buyer capacity, historical quantity, current quantity }
+     * @param consistentScaling true if the consumers belong to the same scaling group.
+     * @return the constructed economy.
+     */
+    private Economy createConsistentScalingEconomy(final double[][] configs,
+                                                   final boolean consistentScaling) {
+        Economy economy = new Economy();
+        final CommoditySpecification cpuSpec = new CommoditySpecification(0, 1000);
+        final CommoditySpecification vcpuSpec = new CommoditySpecification(1, 1000);
+        Basket basketSoldBySeller = new Basket(Collections.singleton(cpuSpec));
+        Basket basketSoldByBuyer = new Basket(Collections.singleton(vcpuSpec));
+
+        // create supplier
+        Trader seller = economy.addTrader(0, TraderState.ACTIVE, basketSoldBySeller);
+        seller
+            .getCommoditiesSold()
+            .get(0)
+            .setQuantity(20)
+            .setPeakQuantity(25)
+            .setCapacity(100);
+        seller.setDebugInfoNeverUseInCode("Seller");
+
+        // create consumers
+        int n = 1;
+        for (double[]config : configs) {
+            Trader buyer = economy.addTrader(1, TraderState.ACTIVE, basketSoldByBuyer);
+            economy.addBasketBought(buyer, basketSoldBySeller)
+                .setQuantity(0, config[2])
+                .setPeakQuantity(0, config[2])
+                .setMovable(true)
+                .move(seller);
+            buyer.setDebugInfoNeverUseInCode("Buyer-" + n);
+            if (consistentScaling) {
+                buyer.setScalingGroupId("scaling-group-1");
+            }
+
+            buyer
+                .getCommoditiesSold()
+                .get(0)
+                .setQuantity(config[2])
+                .setHistoricalQuantity(config[1])
+                .setPeakQuantity(config[2])
+                .setCapacity(config[0]);
+
+            economy.getModifiableRawCommodityMap().put(vcpuSpec.getBaseType(),
+                Arrays.asList(cpuSpec.getBaseType()));
+
+            buyer.getSettings().setMinDesiredUtil(0.6);
+            buyer.getSettings().setMaxDesiredUtil(0.7);
+            n += 1;
+        }
+
+        seller.getSettings().setMinDesiredUtil(0.6);
+        seller.getSettings().setMaxDesiredUtil(0.7);
+        economy.getSettings().setRightSizeLower(0.5);
+        economy.getSettings().setRightSizeUpper(0.8);
+        return economy;
+    }
+
+    /**
+     * Ensure that no-op resizes are not being generated due to consistent scaling. If scaled
+     * independently, we would generate two actions:
+     *
+     * <p>- Buyer-2: 10 -> 7
+     * - Buyer-3: 10 -> 14
+     *
+     * <p>As a scaling group, we should see three actions:
+     * - Buyer-1, Buyer-2, Buyer-3: 10 -> 14
+     *
+     * <p>Buyer-4 should not generate an action, because it is already at 14.
+     */
+
+    @Test
+    public void testConsistentResize() {
+        // buyerCapacity, historicalQuantity, currentQuantity
+        double[][] config = {
+            { 10.0, 6.5, 9.0 },  // No resize, .65 is in .5 to .8 range
+            { 10.0, 2.0, 6.5 },  // Old = 10, new = 7
+            { 10.0, 9.0, 6.5 },  // Old = 10, new = 14
+            { 14.0, 9.0, 14.0 }, // Old 14, new 14, engage, but old == new, so no action
+        };
+
+        Economy economy = createConsistentScalingEconomy(config, true);
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        Ledger ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+        assertEquals(3, actions.size());
+        assertTrue(actions.stream().allMatch(action -> ((Resize)action).getNewCapacity() == 14.0));
+    }
 }

@@ -93,7 +93,8 @@ public class ConsistentResizer {
          * so that we can avoid over allocation of its raw materials.
          * *
          * @param resize Resize action to add
-         * @param engage True if this Resize was initiated due to ROI calculations.
+         * @param engage True if this Resize was initiated due to ROI calculations and the new
+         *               capacity is different from the original capacity.
          * @param p a Pair containing the raw material and supplying Trader
          */
         void addResize(final Resize resize, final boolean engage,
