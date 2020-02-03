@@ -479,6 +479,7 @@ data:
             # The maximum message size for serializing percentile blobs
             # Whether to enable consistent scaling
             consistentScalingEnabled: true
+            enableInternalProbes: false
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

@@ -316,8 +316,7 @@ public class TargetsService implements ITargetsService {
         final List<TargetApiDTO> answer = new ArrayList<>(probes.size());
         for (ProbeInfo probeInfo : probes) {
             try {
-                if (isProbeLicensed(probeInfo)
-                    && (probeInfo.getCreationMode() != CreationMode.DERIVED)) {
+                if (isProbeLicensed(probeInfo) && isProbeExternallyVisible(probeInfo)) {
                     answer.add(mapProbeInfoToDTO(probeInfo));
                 }
             } catch (FieldVerificationException e) {
@@ -326,6 +325,16 @@ public class TargetsService implements ITargetsService {
             }
         }
         return answer;
+    }
+
+    private boolean isProbeExternallyVisible(ProbeInfo probeInfo) {
+        switch (probeInfo.getCreationMode()) {
+            case DERIVED:
+            case INTERNAL:
+                return false;
+            default:
+                return true;
+        }
     }
 
     /**
