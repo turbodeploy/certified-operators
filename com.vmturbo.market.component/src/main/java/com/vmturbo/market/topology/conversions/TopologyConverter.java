@@ -2177,6 +2177,9 @@ public class TopologyConverter {
             (commBoughtGrouping.hasMovable()
                 ? commBoughtGrouping.getMovable()
                 : AnalysisUtil.MOVABLE_TYPES.contains(entityType));
+        if (TopologyConversionUtils.isVsanStorage(buyer)) {
+            isMovable = false;
+        }
         if (commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
             // Turn off movable for cloud scaling group members that are not group leaders.
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;

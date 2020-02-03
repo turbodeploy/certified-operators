@@ -22,6 +22,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.StorageType;
 
 public class TopologyConversionUtils {
     public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
@@ -148,5 +149,23 @@ public class TopologyConversionUtils {
     public static boolean shouldConvertToTrader(int entityType) {
         return !TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION
                         .contains(entityType);
+    }
+
+    /**
+     * Checks if the entity passed is a vSan Storage.
+     *
+     * @param buyer the topology entity
+     * @return true if its a vsan Storage. False if it isn't.
+     */
+    public static boolean isVsanStorage(final TopologyEntityDTO buyer) {
+        if (buyer.getEntityType() == EntityType.STORAGE_VALUE
+                && buyer.getTypeSpecificInfo() != null
+                && buyer.getTypeSpecificInfo().getStorage() != null
+                && buyer.getTypeSpecificInfo().getStorage().getStorageType() != null
+                && StorageType.VSAN.getValue()
+                    == buyer.getTypeSpecificInfo().getStorage().getStorageType().getNumber()) {
+            return true;
+        }
+        return false;
     }
 }
