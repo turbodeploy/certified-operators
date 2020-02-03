@@ -37,7 +37,7 @@ public class ActionStatRollupSchedulerTest {
     private final ActionStatTable.Reader fromReader = mock(ActionStatTable.Reader.class);
     private final ActionStatTable.Writer toWriter = mock(ActionStatTable.Writer.class);
 
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final ExecutorService executorService = mock(ExecutorService.class);
 
     private final List<RollupDirection> rollupDependencies = Collections.singletonList(
         ImmutableRollupDirection.builder()
@@ -77,7 +77,7 @@ public class ActionStatRollupSchedulerTest {
         // Run
         rollupScheduler.scheduleRollups();
 
-        verify(rollup, timeout(1000)).run();
+        verify(executorService, timeout(1000)).submit(rollup);
 
         final ArgumentCaptor<ScheduledRollupInfo> rollupInfoCaptor =
             ArgumentCaptor.forClass(ScheduledRollupInfo.class);
@@ -105,7 +105,7 @@ public class ActionStatRollupSchedulerTest {
         rollupScheduler.scheduleRollups();
 
         // Should only run the rollup once.
-        verify(rollup, timeout(1000).times(1)).run();
+        verify(executorService, timeout(1000).times(1)).submit(rollup);
     }
 
     @Test
@@ -126,7 +126,7 @@ public class ActionStatRollupSchedulerTest {
         rollupScheduler.scheduleRollups();
 
         // Should run the rollup twice.
-        verify(rollup, timeout(1000).times(2)).run();
+        verify(executorService, timeout(1000).times(2)).submit(rollup);
     }
 
     @Test
