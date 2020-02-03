@@ -125,12 +125,14 @@ public interface IGroupStore {
     Set<Long> getGroupsByTargets(@Nonnull Collection<Long> targets);
 
     /**
-     * Returns all the tags present in the group component.
+     * Return the tags present in group component for required groups.
+     * If the are no requested groups, return tags for all exited groups in group component.
      *
-     * @return tags multi-map
+     * @param groupIds ids of requested groups
+     * @return map with tags related to groups
      */
     @Nonnull
-    Map<String, Set<String>> getTags();
+    Map<Long, Map<String, Set<String>>> getTags(@Nonnull Collection<Long> groupIds);
 
     /**
      * Returns direct static members of the specified group. Method does not perform any

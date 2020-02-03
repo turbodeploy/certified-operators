@@ -1385,20 +1385,31 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Map<String, Set<String>> getTags() {
-        final Map<String, Set<String>> result = new HashMap<>();
-        final Map<String, List<Record2<String, String>>> records =
-                dslContext.selectDistinct(GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
-                        .from(GROUP_TAGS)
-                        .fetch()
-                        .stream()
-                        .collect(Collectors.groupingBy(Record2::value1));
-        for (Entry<String, List<Record2<String, String>>> entry : records.entrySet()) {
-            final Set<String> tagsValues =
-                    entry.getValue().stream().map(Record2::value2).collect(Collectors.toSet());
-            result.put(entry.getKey(), Collections.unmodifiableSet(tagsValues));
+    public Map<Long, Map<String, Set<String>>> getTags(@Nonnull final Collection<Long> groupIds) {
+        final Map<Long, Map<String, Set<String>>> tagsMap = new HashMap<>();
+        SelectJoinStep<Record3<Long, String, String>> query =
+                dslContext.select(GROUP_TAGS.GROUP_ID, GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
+                        .from(GROUP_TAGS);
+        if (!groupIds.isEmpty()) {
+            query.where(GROUP_TAGS.GROUP_ID.in(groupIds));
         }
-        return Collections.unmodifiableMap(result);
+        final Result<Record3<Long, String, String>> groupsTags = query.fetch();
+        for (Record3<Long, String, String> record : groupsTags) {
+            final Long groupId = record.value1();
+            final String tagName = record.value2();
+            final String tagValue = record.value3();
+            final Map<String, Set<String>> tags = new HashMap<>();
+            tags.put(tagName, Sets.newHashSet(tagValue));
+            tagsMap.merge(groupId, tags, (stringSetMap, stringSetMap2) -> {
+                stringSetMap2.forEach(
+                        (key, value) -> stringSetMap.merge(key, value, (strings, strings2) -> {
+                            strings.addAll(strings2);
+                            return strings;
+                        }));
+                return stringSetMap;
+            });
+        }
+        return tagsMap;
     }
 
     @Nonnull

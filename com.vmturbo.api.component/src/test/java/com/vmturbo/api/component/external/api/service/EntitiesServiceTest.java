@@ -8,7 +8,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -58,9 +57,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -103,7 +103,7 @@ public class EntitiesServiceTest {
     private final SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
     private final PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
     private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
-    private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
+    private final GroupServiceMole groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
     private final ReportingServiceMole reportingService = spy(new ReportingServiceMole());
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
@@ -128,6 +128,7 @@ public class EntitiesServiceTest {
     private static final long PROBE_ID = 70L;
     private static final String PROBE_TYPE = "probe";
     private static final long VM_ID = 1L;
+    private static final long GROUP_ID = 2L;
     private static final String VM_DISPLAY_NAME = "VM";
     private static final EntityState VM_STATE = EntityState.POWERED_OFF;
     private static final String TAG_KEY = "TAG_KEY";
@@ -405,6 +406,36 @@ public class EntitiesServiceTest {
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(TAG_KEY, result.get(0).getKey());
         Assert.assertArrayEquals(TAG_VALUES.toArray(), result.get(0).getValues().toArray());
+    }
+
+    /**
+     * Test get tags for groups.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetTagsForGroup() throws Exception {
+        final GetTagsResponse tagsForGroupsResponse = GetTagsResponse.newBuilder()
+                .putTags(GROUP_ID, Tags.newBuilder()
+                        .putTags(TAG_KEY,
+                                TagValuesDTO.newBuilder().addAllValues(TAG_VALUES).build())
+                        .build())
+                .build();
+        when(groupService.getTags(
+                GetTagsRequest.newBuilder().addGroupId(GROUP_ID).build())).thenReturn(
+                tagsForGroupsResponse);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(GROUP_ID);
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(GROUP_ID))).thenReturn(apiId);
+
+        final List<TagApiDTO> tags = service.getTagsByEntityUuid(String.valueOf(GROUP_ID));
+        Assert.assertEquals(1, tags.size());
+        final TagApiDTO tagInfo = tags.iterator().next();
+        Assert.assertEquals(TAG_KEY, tagInfo.getKey());
+        Assert.assertEquals(TAG_VALUES, tagInfo.getValues());
     }
 
     /**

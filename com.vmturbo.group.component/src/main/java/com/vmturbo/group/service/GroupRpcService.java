@@ -421,14 +421,21 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void getTags(GetTagsRequest request, StreamObserver<GetTagsResponse> responseObserver) {
         executeOperation(responseObserver, (stores) -> {
-            final Map<String, Set<String>> resultMapBuilder = stores.getGroupStore().getTags();
-            final Tags.Builder resultBuilder = Tags.newBuilder();
-
-            resultMapBuilder.entrySet()
-                    .forEach(e -> resultBuilder.putTags(e.getKey(),
-                            TagValuesDTO.newBuilder().addAllValues(e.getValue()).build()));
-
-            responseObserver.onNext(GetTagsResponse.newBuilder().setTags(resultBuilder.build()).build());
+            final Map<Long, Map<String, Set<String>>> tagsToGroups =
+                    stores.getGroupStore().getTags(request.getGroupIdList());
+            final Map<Long, Tags> tagsMap = tagsToGroups.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Entry::getKey, el -> Tags.newBuilder()
+                            .putAllTags(el.getValue()
+                                    .entrySet()
+                                    .stream()
+                                    .collect(Collectors.toMap(Entry::getKey,
+                                            tag -> TagValuesDTO.newBuilder()
+                                                    .addAllValues(tag.getValue())
+                                                    .build())))
+                            .build()));
+            responseObserver.onNext(
+                    GetTagsResponse.newBuilder().putAllTags(tagsMap).build());
             responseObserver.onCompleted();
         });
     }
