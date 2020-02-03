@@ -25,6 +25,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public final class MarketAnalysisUtils {
 
+    // Epsilon for float comparison.
+    public static final float EPSILON = 0.00001f;
+
     // flow-0 key string constant used to decide ncm price function
     public static final String FLOW_ZERO_KEY = "FLOW-0";
 
