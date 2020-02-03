@@ -32,6 +32,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
 import com.vmturbo.api.dto.statistic.StatPercentileApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
@@ -419,6 +420,11 @@ public class StatsMapper {
             percentileValue.map(StatsMapper::calculatePercentile)
                             .map(StatsMapper::createPercentileApiDto)
                             .ifPresent(statApiDTO::setPercentile);
+            final List<StatHistUtilizationApiDTO> histUtilizationValues =
+                            convertedStatRecord.getHistUtilizationValueList().stream()
+                                            .map(StatsMapper::createHistUtilizationApiDto)
+                                            .collect(Collectors.toList());
+            statApiDTO.setHistUtilizations(histUtilizationValues);
         }
 
         if (filters.size() > 0) {
@@ -434,12 +440,22 @@ public class StatsMapper {
         return result;
     }
 
+    @Nonnull
+    private static StatHistUtilizationApiDTO createHistUtilizationApiDto(
+                    @Nonnull HistUtilizationValue histUtilizationValue) {
+        final StatHistUtilizationApiDTO result = new StatHistUtilizationApiDTO();
+        result.setType(histUtilizationValue.getType());
+        result.setCapacity(histUtilizationValue.getCapacity().getAvg());
+        result.setUsage(histUtilizationValue.getUsage().getAvg());
+        return result;
+    }
+
     @Nullable
     private static Float calculatePercentile(@Nonnull HistUtilizationValue value) {
         final StatValue usage = value.getUsage();
         final StatValue capacity = value.getCapacity();
         if (usage.hasAvg() && capacity.hasAvg()) {
-            return usage.getAvg() / capacity.getAvg() * 100;
+            return usage.getAvg() / capacity.getAvg();
         }
         return null;
     }
