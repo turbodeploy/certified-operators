@@ -657,7 +657,11 @@ public class GroupMapper {
 
          List<String> directMemberTypes = getDirectMemberTypes(groupDefinition);
 
-         if (!directMemberTypes.isEmpty()) {
+         if (groupDefinition.getType() == GroupType.ENTITY_DEFINITION
+                 && groupDefinition.getEntityDefinitionData().hasDefinedEntityType()) {
+             outputDTO.setGroupType(UIEntityType.fromType(groupDefinition.getEntityDefinitionData()
+                     .getDefinedEntityType().getNumber()).apiStr());
+         } else if (!directMemberTypes.isEmpty()) {
              if (groupDefinition.getType() == GroupType.RESOURCE) {
                  outputDTO.setGroupType(StringConstants.WORKLOAD);
              } else {
@@ -873,13 +877,15 @@ public class GroupMapper {
 
                     return Collections.emptyList();
                 }
-                // currently API only supports homogeneous dynamic groups
-                return Collections.singletonList(UIEntityType.fromType(groupDefinition
-                                    .getEntityFilters()
-                                    .getEntityFilter(0)
-                                    .getEntityType()
-                                )
-                                .apiStr());
+
+                return groupDefinition
+                        .getEntityFilters()
+                        .getEntityFilterList()
+                        .stream()
+                        .map(GroupProtoUtil::getEntityTypesFromEntityFilter)
+                        .flatMap(Collection::stream)
+                        .map(UIEntityType::displayName)
+                        .collect(Collectors.toList());
 
             case GROUP_FILTERS:
                 if (groupDefinition.getGroupFilters().getGroupFilterCount() == 0) {

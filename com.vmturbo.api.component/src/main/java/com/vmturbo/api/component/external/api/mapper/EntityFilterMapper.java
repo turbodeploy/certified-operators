@@ -535,18 +535,24 @@ public class EntityFilterMapper {
         final List<String> elements = Arrays.asList(useCase.getElements()
                         .split(ELEMENTS_DELIMITER));
 
+        // if the filter has an entity type - use it.
+        // otherwise - use the entityTypes given as argument.
+        final List<String> entityTypesList = filter.getEntityType() != null
+                        ? Collections.singletonList(filter.getEntityType())
+                        : entityTypes;
+
         Iterator<String> iterator = elements.iterator();
         final String firstToken = iterator.next();
         if (UIEntityType.fromString(firstToken) != UIEntityType.UNKNOWN) {
             parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(firstToken));
         } else {
-            parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(entityTypes));
+            parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(entityTypesList));
             iterator = elements.iterator();
         }
 
         final ImmutableList.Builder<SearchFilter> searchFilters = new ImmutableList.Builder<>();
         while (iterator.hasNext()) {
-            searchFilters.addAll(processToken(filter, entityTypes, iterator, useCase.getInputType(),
+            searchFilters.addAll(processToken(filter, entityTypesList, iterator, useCase.getInputType(),
                             firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
@@ -1007,6 +1013,12 @@ public class EntityFilterMapper {
         filterApiDTO.setExpVal(Objects.requireNonNull(sourceFilter.getExpressionValue()));
         filterApiDTO.setFilterType(Objects.requireNonNull(sourceFilter.getFilterType()));
         filterApiDTO.setCaseSensitive(Objects.requireNonNull(sourceFilter.getIsCaseSensitive()));
+
+        UIEntityType entityType = SearchProtoUtil.getEntityTypeFromSearchParameters(searchParameters);
+        if (entityType != UIEntityType.UNKNOWN) {
+            filterApiDTO.setEntityType(Objects.requireNonNull(entityType.displayName()));
+        }
+
         return filterApiDTO;
     }
 

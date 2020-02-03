@@ -792,17 +792,16 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .forEach(memberTypes::add);
                 break;
             case ENTITY_FILTERS:
-                final List<EntityFilter> filterList = groupDefinition
-                                .getEntityFilters().getEntityFilterList();
-
-                 filterList
+                groupDefinition
+                        .getEntityFilters()
+                        .getEntityFilterList()
                         .stream()
-                        .map(EntityFilter::getEntityType)
-                        .distinct()
+                        .map(GroupProtoUtil::getEntityTypesFromEntityFilter)
+                        .flatMap(Collection::stream)
                         .map(entityType -> MemberType
-                                            .newBuilder().setEntity(entityType).build())
+                                .newBuilder().setEntity(entityType.typeNumber()).build())
                         .forEach(memberTypes::add);
-                 break;
+                break;
             case GROUP_FILTERS:
                 // If the group type is dynamic group of groups we currently cannot determine the type
                 // expected in the group so we return empty list
