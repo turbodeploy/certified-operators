@@ -44,7 +44,7 @@ public class ReservedInstanceBoughtFilterTest {
                 .map(Condition::toString)
                 .collect(ImmutableList.toImmutableList());
 
-        assertThat(conditions, hasSize(1));
+        assertThat(conditions, hasSize(2));
         assertThat(conditionStrings.get(0), containsString(REGION_CLAUSE));
         assertThat(conditionStrings.get(0), containsString(OR));
         assertThat(conditionStrings.get(0), containsString(ZONE_CLAUSE));

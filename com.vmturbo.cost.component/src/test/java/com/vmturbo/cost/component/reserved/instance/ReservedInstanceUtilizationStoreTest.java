@@ -93,6 +93,7 @@ public class ReservedInstanceUtilizationStoreTest {
             .setProbeReservedInstanceId("testOne")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
+            .setStartTime(System.currentTimeMillis())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
             .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
@@ -107,6 +108,7 @@ public class ReservedInstanceUtilizationStoreTest {
             .setProbeReservedInstanceId("testTwo")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
+            .setStartTime(System.currentTimeMillis())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
             .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
@@ -121,6 +123,7 @@ public class ReservedInstanceUtilizationStoreTest {
             .setProbeReservedInstanceId("testThree")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(50L)
+            .setStartTime(System.currentTimeMillis())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
