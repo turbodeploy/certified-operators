@@ -202,6 +202,8 @@ public class StringConstants {
     public static final String TIER = "tier";
     public static final String BUSINESS_UNIT = "businessUnit";
     public static final String BUSINESS_APPLICATION = "BusinessApplication";
+    public static final String BUSINESS_TRANSACTION = "BusinessTransaction";
+    public static final String APPLICATION_COMPONENT = "ApplicationComponent";
     public static final String RESERVED_INSTANCE = "ReservedInstance";
     public static final String ACCOUNTID = "accountID";
     public static final String NUM_RI = "numRIs";

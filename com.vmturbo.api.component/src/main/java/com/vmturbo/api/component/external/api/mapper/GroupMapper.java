@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.EntityDefinitionData;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -121,6 +122,17 @@ public class GroupMapper {
             .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE)
             .put(StringConstants.RESOURCE_GROUP, GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE)
             .put(StringConstants.BILLING_FAMILY, GroupFilterMapper.BILLING_FAMILY_FILTER_TYPE)
+            .build();
+
+    /**
+     * This maps className used by external API to default filter type.
+     */
+    public static final Map<String, EntityType> GROUP_API_TYPE_TO_COMMON_ENTITY_TYPE =
+        ImmutableMap.<String, EntityType>builder()
+            .put(StringConstants.BUSINESS_TRANSACTION, EntityType.BUSINESS_TRANSACTION)
+            .put(StringConstants.SERVICE, EntityType.SERVICE)
+            .put(StringConstants.BUSINESS_APPLICATION, EntityType.BUSINESS_APPLICATION)
+            .put(StringConstants.APPLICATION_COMPONENT, EntityType.APPLICATION_COMPONENT)
             .build();
 
     /**
@@ -334,6 +346,39 @@ public class GroupMapper {
         }
 
         return new EntityEnvironment(environmentType, cloudType);
+    }
+
+    /**
+     * Converts an input API definition of an entity definition represented as a {@link GroupApiDTO} object to a
+     * {@link GroupDefinition} object.
+     *
+     * @param groupDto input API representation of an entity definition.
+     * @return input object converted to a {@link GroupDefinition} object.
+     * @throws OperationFailedException if the conversion fails.
+     */
+    public GroupDefinition toEntityDefinition(@Nonnull final GroupApiDTO groupDto) throws OperationFailedException {
+        GroupDefinition.Builder groupBuilder = GroupDefinition.newBuilder()
+            .setDisplayName(groupDto.getDisplayName())
+            .setType(GroupType.ENTITY_DEFINITION)
+            .setEntityDefinitionData(EntityDefinitionData.newBuilder()
+                .setDefinedEntityType(GROUP_API_TYPE_TO_COMMON_ENTITY_TYPE.get(groupDto.getGroupType())).build());
+        if (groupDto.getIsStatic()) {
+            // for the case static entity definition
+            final Set<Long> memberUuids = getGroupMembersAsLong(groupDto);
+            groupBuilder.setStaticGroupMembers(getStaticGroupMembers(null,
+                groupDto, memberUuids));
+        } else {
+            final List<SearchParameters> searchParameters = entityFilterMapper
+                .convertToSearchParameters(groupDto.getCriteriaList(),
+                    groupDto.getGroupType(), null);
+            groupBuilder.setEntityFilters(EntityFilters.newBuilder()
+                .addEntityFilter(EntityFilter.newBuilder()
+                    .setEntityType(UIEntityType.fromString(groupDto.getGroupType()).typeNumber())
+                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                        .addAllSearchParameters(searchParameters)))
+            );
+        }
+        return groupBuilder.build();
     }
 
     /**
