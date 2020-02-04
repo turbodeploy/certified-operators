@@ -22,6 +22,7 @@ message CostDTO {
         // Pricing per price id or account id to be used for Percentage RI Pricing or on-demand RI
         // License rate
         repeated CostTuple cost_tuple_list = 5;
+        optional int32 license_commodity_base_type = 6;
     }
 
     // The DTOs used in XL to carry the pricing information and commodity dependency constraint for

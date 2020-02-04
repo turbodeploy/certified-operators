@@ -243,7 +243,8 @@ public class Context {
 
     @Override
     public String toString() {
-        return String.format("[region id: %s, zone id: %s]", regionId_, zoneId_);
+        return String.format("[region id: %s, zone id: %s, price id: %s, account id: %s]",
+                regionId_, zoneId_, balanceAccount_.priceId_, balanceAccount_.id_);
     }
 
     /**
