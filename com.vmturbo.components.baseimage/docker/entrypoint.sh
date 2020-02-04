@@ -1,4 +1,20 @@
 #!/bin/bash
+# Wait until rsyslog container is up.
+# It it is not, we can loose some valuable logs information related to the component startup
+if [ -z "$LOG_TO_STDOUT" ]; then
+    try_number=0
+    while ! (echo ""> /dev/tcp/rsyslog/2514) ; do
+        sleep 1;
+        try_number=`expr $try_number + 1`
+        echo "Waiting for rsyslog to accept connections";
+        if [ "$try_number" -ge 30 ]; then
+             echo "Failed to access rsyslog daemon to 30 seconds. Exiting..."
+            exit 1;
+        fi
+    done;
+    echo "Successfully reached rsyslog. Starting the component ${instance_id:-vmt_component}..."
+fi
+
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when
 # starting a component, but not in production where we do not want logging to be captured by Docker
