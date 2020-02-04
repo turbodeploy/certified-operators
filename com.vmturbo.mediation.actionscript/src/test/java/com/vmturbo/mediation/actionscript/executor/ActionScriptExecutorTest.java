@@ -8,6 +8,8 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Charsets;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,8 +20,6 @@ import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import com.google.common.base.Charsets;
 
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
 import com.vmturbo.mediation.actionscript.ActionScriptTestBase;
@@ -271,7 +271,26 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
     }
 
     /**
-     * Create a new {@link ScriptRunner} to run a test
+     * Test that the ActionExecutionDTO json string passed to stdin is received by action script.
+     * We echo the stdin to the stdout, so we can verify this by checking the stdout.
+     *
+     * @throws ExecutionException execution error
+     */
+    @Test
+    public void testStdinReceived() throws ExecutionException {
+        ScriptRunner scriptRunner = makeScriptRunner("stdin.sh");
+        scriptRunner
+            .run()
+            .waitForCompletion()
+            .checkExit(0, null, null)
+            .checkStatus(ActionScriptExecutionStatus.COMPLETE)
+            .checkStdout(SshScriptExecutor.convertToCompactJson(scriptRunner.getActionExecutionDTO()))
+            .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
+    }
+
+    /**
+     * Create a new {@link ScriptRunner} to run a test.
+     *
      * @param scriptName script name configured into the action script workflow
      * @return new ScriptRunner instance
      */

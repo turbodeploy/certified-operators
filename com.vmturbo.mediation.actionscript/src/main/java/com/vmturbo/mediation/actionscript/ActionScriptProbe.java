@@ -144,14 +144,10 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
 
     @Nonnull
     private ActionResult getActionResultForStatus(ActionScriptExecutionStatus status) {
-        ActionResponseState state = null;
+        ActionResponseState state;
         switch (status) {
             case QUEUED:
                 state = ActionResponseState.QUEUED;
-                break;
-            case CANCELED:
-            case CANCELED_FROM_QUEUE:
-                state = ActionResponseState.FAILED;
                 break;
             case RUNNING:
                 state = ActionResponseState.IN_PROGRESS;
@@ -159,9 +155,12 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
             case COMPLETE:
                 state = ActionResponseState.SUCCEEDED;
                 break;
+            case CANCELED:
+            case CANCELED_FROM_QUEUE:
             case FAILED:
             case ERROR:
                 state = ActionResponseState.FAILED;
+                break;
             case NEW:
             default:
                 throw new IllegalStateException("Illegal action script execution status: " + status.name());
