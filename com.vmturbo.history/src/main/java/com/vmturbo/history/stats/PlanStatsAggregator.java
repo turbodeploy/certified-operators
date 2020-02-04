@@ -41,6 +41,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -313,6 +314,14 @@ public class PlanStatsAggregator {
         for (TopologyDTO.TopologyEntityDTO entityDTO : chunk) {
             for (TopologyDTO.CommoditySoldDTO commoditySoldDTO : entityDTO.getCommoditySoldListList()) {
                 final int commodityType = commoditySoldDTO.getCommodityType().getType();
+                if (commodityType == CommodityType.STORAGE_AMOUNT.getNumber()
+                    && EntityType.STORAGE.getNumber() != entityDTO.getEntityType()) {
+                    // Storage commodity counts are expected to be the aggregation of all
+                    // StorageAmount sold by all storage devices. We don't want to double count the
+                    // StorageAmount sold by other entity types (e.g. DiskArrays).
+                    // TODO (OM-55121): Generalize this to aggregate each commodity per entity type.
+                    continue;
+                }
                 double used = commoditySoldDTO.getUsed();
                 double capacity = commoditySoldDTO.getCapacity();
                 Integer commodityCount = commodityTypeCounts.get(commodityType);

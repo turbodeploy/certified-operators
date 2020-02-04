@@ -1,5 +1,8 @@
 package com.vmturbo.history.stats;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertThat;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -60,6 +63,9 @@ public class PlanStatsAggregatorTest {
         final TopologyEntityDTO pm3 = pm(50, CPU_MID, EntityState.POWERED_ON);
         final TopologyEntityDTO suspendedPm = pm(60, CPU_MAX, EntityState.SUSPENDED);
         final TopologyEntityDTO containerPod1 = containerPod(60);
+        final TopologyEntityDTO diskArray = diskArray(70, 500, 2000);
+        final TopologyEntityDTO storage1 = storage(80, 200, 1000);
+        final TopologyEntityDTO storage2 = storage(81, 300, 1000);
 
         final TopologyInfo topologyOrganizer = TopologyInfo.newBuilder()
             .setTopologyContextId(CONTEXT_ID)
@@ -70,6 +76,7 @@ public class PlanStatsAggregatorTest {
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));
         aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1, suspendedPm));
+        aggregator.handleChunk(Lists.newArrayList(diskArray, storage1, storage2));
         records = aggregator.statsRecords();
     }
 
@@ -98,12 +105,12 @@ public class PlanStatsAggregatorTest {
         List<String> propertyTypes = records.stream()
                 .map(MktSnapshotsStatsRecord::getPropertyType)
                 .collect(Collectors.toList());
-        Assert.assertEquals(Arrays.asList(
+        assertThat(propertyTypes, containsInAnyOrder(
             PREFIX + "NumHosts", PREFIX + "NumVMsPerHost", PREFIX + "NumContainersPerHost",
             PREFIX + "NumVMs", PREFIX + "NumStorages", PREFIX + "NumVMsPerStorage",
             PREFIX + "NumContainersPerStorage", PREFIX + "NumContainers",
-            PREFIX + "NumContainerPods", PREFIX + "NumCPUs", PREFIX + "CPU" ),
-            propertyTypes);
+            PREFIX + "NumContainerPods", PREFIX + "NumCPUs", PREFIX + "CPU",
+            PREFIX + "StorageAmount"));
     }
 
     /**
@@ -121,6 +128,29 @@ public class PlanStatsAggregatorTest {
         Assert.assertEquals(CPU_MAX, cpuStats.getMaxValue(), 0);
         Assert.assertEquals(PropertySubType.Used.getApiParameterName(),  cpuStats.getPropertySubtype());
         Assert.assertEquals(PREFIX + "CPU", cpuStats.getPropertyType());
+    }
+
+    /**
+     * Verify that the Storage stats record is as expected.
+     *
+     * <p>Specifically, ensure that the Storage amount (used and capacity) is not double-counted as
+     * a result of the presence of both a DiskArray and a Storage device.</p>
+     */
+    @Test
+    public void testStorageRecord() {
+        MktSnapshotsStatsRecord storageStatsRecord = records.stream()
+            .filter(rec -> rec.getPropertyType().contains("StorageAmount"))
+            .findFirst()
+            .get();
+        Assert.assertEquals(CONTEXT_ID, (long)storageStatsRecord.getMktSnapshotId());
+        // The aggregated capacity of both storage devices (but not the DiskArray)
+        Assert.assertEquals(2000, storageStatsRecord.getCapacity(), 0);
+        // The average used value of both storage devices (but not the DiskArray)
+        Assert.assertEquals(250, storageStatsRecord.getAvgValue(), 0);
+        // The min used value of both storage devices (but not the DiskArray)
+        Assert.assertEquals(200, storageStatsRecord.getMinValue(), 0);
+        // The max used value of both storage devices (but not the DiskArray)
+        Assert.assertEquals(300, storageStatsRecord.getMaxValue(), 0);
     }
 
     /**
@@ -153,10 +183,13 @@ public class PlanStatsAggregatorTest {
         Assert.assertEquals(PREFIX + "NumHosts", pmsStats.getPropertyType());
     }
 
-    private static CommodityType CPU_TYPE
+    private static final CommodityType CPU_TYPE
         = CommodityType.newBuilder().setType(CommodityDTO.CommodityType.CPU_VALUE).build();
 
-    private static CommodityBoughtDTO cpuBought = CommodityBoughtDTO.newBuilder()
+    private static final CommodityType STORAGE_AMOUNT_TYPE
+        = CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
+
+    private static final CommodityBoughtDTO cpuBought = CommodityBoughtDTO.newBuilder()
                     .setCommodityType(CPU_TYPE)
                     .build();
 
@@ -202,5 +235,54 @@ public class PlanStatsAggregatorTest {
                 .setDisplayName("ContainerPod-" + oid)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)
                 .build();
+    }
+
+    /**
+     * Creates a DiskArray TopologyEntityDTO.
+     *
+     * @param oid oid to use for the TopologyEntityDTO
+     * @param storageUsed the storage amount used
+     * @param storageCapacity the storage capacity
+     * @return TopologyEntityDTO created
+     */
+    private static TopologyEntityDTO diskArray(long oid, double storageUsed, double storageCapacity) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName("DiskArray-" + oid)
+            .setEntityType(EntityType.DISK_ARRAY_VALUE)
+            .addCommoditySoldList(storageAmount(storageUsed, storageCapacity))
+            .build();
+    }
+
+    /**
+     * Creates a Storage TopologyEntityDTO.
+     *
+     * @param oid oid to use for the TopologyEntityDTO
+     * @param storageUsed the storage amount used
+     * @param storageCapacity the storage capacity
+     * @return TopologyEntityDTO created
+     */
+    private static TopologyEntityDTO storage(long oid, double storageUsed, double storageCapacity) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName("Storage-" + oid)
+            .setEntityType(EntityType.STORAGE_VALUE)
+            .addCommoditySoldList(storageAmount(storageUsed, storageCapacity))
+            .build();
+    }
+
+    /**
+     * Creates a StorageAmount CommoditySoldDTO.
+     *
+     * @param storageUsed the used
+     * @param storageCapacity the capacity
+     * @return a StorageAmount CommoditySoldDTO
+     */
+    private static CommoditySoldDTO storageAmount(double storageUsed, double storageCapacity) {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(STORAGE_AMOUNT_TYPE)
+            .setUsed(storageUsed)
+            .setCapacity(storageCapacity)
+            .build();
     }
 }
