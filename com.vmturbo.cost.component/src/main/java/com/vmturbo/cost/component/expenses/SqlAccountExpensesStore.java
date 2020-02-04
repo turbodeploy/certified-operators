@@ -225,7 +225,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                 selectFrom.where(filter.getConditions()).fetch();
             return constructExpensesMap(records);
         } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
+            throw new DbException("Failed to get entity costs from DB", e);
         }
     }
 
