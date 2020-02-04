@@ -81,6 +81,14 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode vdcTopoPm;
     private SupplyChainNode vdcTopoVdc;
     private SupplyChainNode vdcTopoVm;
+    /**
+     * Constants and variables for checks related to container topologies with VDCs.
+     */
+    private static final long POD_1_ID = 1;
+    private static final long POD_2_ID = 2;
+    private static final long VDC_ID = 11;
+    private static final long VDC_CONTAINERS_TOPO_VM_1_ID = 21;
+    private static final long VDC_CONTAINERS_TOPO_VM_2_ID = 22;
 
     /**
      * Simple topology.
@@ -1344,6 +1352,99 @@ public class SupplyChainCalculatorTest {
                    containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.apiStr(),
                                       UIEntityType.VIRTUAL_DATACENTER.apiStr()));
         assertTrue(vdcTopoVm.getConnectedConsumerTypesList().isEmpty());
+    }
+
+    /**
+     * Tests container topology with VDC. Case 1: Indirection.
+     */
+    @Test
+    public void testVdcInContainerTopology1() {
+        /*
+         *  Topology:
+         *  POD1     POD2
+         *   |\     /|
+         *   | \   / |
+         *   |  \ /  |
+         *   |  VDC  |
+         *   |  / \  |
+         *   | /   \ |
+         *   VM1   VM2
+         *
+         *   Scoping on VM1 will not bring in POD2
+         *   scoping on POD1 will bring VM2
+         */
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_1_ID, UIEntityType.VIRTUAL_MACHINE),
+                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_2_ID, UIEntityType.VIRTUAL_MACHINE),
+                        TestGraphEntity.newBuilder(VDC_ID, UIEntityType.VIRTUAL_DATACENTER)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_2_ID),
+                        TestGraphEntity.newBuilder(POD_1_ID, UIEntityType.CONTAINER_POD)
+                                .addProviderId(VDC_ID)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
+                        TestGraphEntity.newBuilder(POD_2_ID, UIEntityType.CONTAINER_POD)
+                                .addProviderId(VDC_ID)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_2_ID));
+
+        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, VDC_CONTAINERS_TOPO_VM_1_ID));
+        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, POD_1_ID));
+    }
+
+    /**
+     * Tests container topology with VDC. Case 2: No unrelated VDCs are brought in by VMs.
+     */
+    @Test
+    public void testVdcInContainerTopology2() {
+        /*
+         *  Topology:
+         *  POD
+         *   | \
+         *   |  VDC1  VDC2
+         *   |  /      /
+         *   | /      /
+         *   VM-------
+         *
+         *   scoping on POD1 will not bring VDC2
+         */
+        final long vcd2Id = 500L;
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_1_ID, UIEntityType.VIRTUAL_MACHINE),
+                        TestGraphEntity.newBuilder(VDC_ID, UIEntityType.VIRTUAL_DATACENTER)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
+                        TestGraphEntity.newBuilder(vcd2Id, UIEntityType.VIRTUAL_DATACENTER)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
+                        TestGraphEntity.newBuilder(POD_1_ID, UIEntityType.CONTAINER_POD)
+                                .addProviderId(VDC_ID)
+                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID));
+
+        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, POD_1_ID));
+    }
+
+    private void checkContainerVdcTopoSupplyChainNodes(Map<Integer, SupplyChainNode> supplychain) {
+        final SupplyChainNode vmNode = supplychain.get(UIEntityType.VIRTUAL_MACHINE.typeNumber());
+        final SupplyChainNode vdcNode = supplychain.get(UIEntityType.VIRTUAL_DATACENTER.typeNumber());
+        final SupplyChainNode podNode = supplychain.get(UIEntityType.CONTAINER_POD.typeNumber());
+
+        assertTrue(vmNode.getConnectedProviderTypesList().isEmpty());
+        assertThat(vmNode.getConnectedConsumerTypesList(),
+                   containsInAnyOrder(UIEntityType.CONTAINER_POD.apiStr(),
+                                      UIEntityType.VIRTUAL_DATACENTER.apiStr()));
+
+        assertThat(podNode.getConnectedProviderTypesList(),
+                   containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr(),
+                                      UIEntityType.VIRTUAL_DATACENTER.apiStr()));
+        assertTrue(podNode.getConnectedConsumerTypesList().isEmpty());
+
+        assertEquals(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()),
+                     vdcNode.getConnectedProviderTypesList());
+        assertEquals(Collections.singletonList(UIEntityType.CONTAINER_POD.apiStr()),
+                     vdcNode.getConnectedConsumerTypesList());
+
+        assertEquals(Collections.singleton(VDC_CONTAINERS_TOPO_VM_1_ID), getAllNodeIds(vmNode));
+        assertEquals(Collections.singleton(VDC_ID), getAllNodeIds(vdcNode));
+        assertEquals(Collections.singleton(POD_1_ID), getAllNodeIds(podNode));
     }
 
     private Map<Integer, SupplyChainNode> getSupplyChain(
