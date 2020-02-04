@@ -307,6 +307,7 @@ public class Analysis {
         DataMetricTimer processResultTime = null;
         Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
         AnalysisResults results = null;
+        final Set<Long> oidsToRemove = new HashSet<>();
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
                     && !originalCloudTopology.getEntities().isEmpty()) {
@@ -392,12 +393,12 @@ public class Analysis {
                 // here, the effect on the analysis is exactly equivalent if we had unplaced them
                 // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
                 // an infinite quote which is exactly the same as not having a provider.
-                final Set<Long> oidsToRemove = topologyDTOs.values().stream()
+                topologyDTOs.values().stream()
                         .filter(dto -> dto.hasEdit())
                         .filter(dto -> dto.getEdit().hasRemoved()
                                 || dto.getEdit().hasReplaced())
-                        .map(TopologyEntityDTO::getOid)
-                        .collect(Collectors.toSet());
+                        .forEach(e -> oidsToRemove.add(e.getOid()));
+
                 if (oidsToRemove.size() > 0) {
                     logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
                     traderTOs = traderTOs.stream()
@@ -506,7 +507,8 @@ public class Analysis {
                     final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
                             .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
                             .map(ActionEntity::getId).collect(Collectors.toSet());
-                    copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds);
+
+                    copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
 
                     // Calculate the projected entity costs.
                     final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
@@ -599,9 +601,13 @@ public class Analysis {
      * projected topology if they have associated wasted storage actions.
      *
      * @param wastedStorageActionsVolumeIds volumes id associated with wasted storage actions.
+     * @param oidsRemoved entities removed via plan configurations.
+     *                    For example, configuration changes like remove/decommission hosts etc.
      */
     private void copySkippedEntitiesToProjectedTopology(
-            final Set<Long> wastedStorageActionsVolumeIds) {
+            final Set<Long> wastedStorageActionsVolumeIds,
+            @Nonnull final Set<Long> oidsRemoved) {
+
         // Calculate set of Volumes that have been already added to projected entities. They are:
         // 1. Volumes attached to VMs
         // 2. Detached volumes that have Delete action
@@ -623,6 +629,8 @@ public class Analysis {
                 .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
                 // Exclude Volumes that have been already added to projected entities
                 .filter(entity -> !alreadyAddedVolumeIds.contains(entity.getOid()))
+                // Exclude entities that were removed due to plan configurations in source topology
+                .filter(entity -> !oidsRemoved.contains(entity.getOid()))
                 .map(Analysis::toProjectedTopologyEntity)
                 .collect(Collectors.toSet());
 
