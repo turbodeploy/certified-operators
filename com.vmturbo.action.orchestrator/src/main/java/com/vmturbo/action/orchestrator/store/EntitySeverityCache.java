@@ -90,11 +90,13 @@ public class EntitySeverityCache {
      *                                                                            ----------------------------------/
      */
     private static final List<String> PROPAGATED_ENTITY_TYPES = Arrays.asList(
-        UIEntityType.VIRTUAL_MACHINE.apiStr(),
         UIEntityType.BUSINESS_APPLICATION.apiStr(),
+        UIEntityType.BUSINESS_TRANSACTION.apiStr(),
+        UIEntityType.SERVICE.apiStr(),
+        UIEntityType.APPLICATION_COMPONENT.apiStr(),
+        UIEntityType.VIRTUAL_MACHINE.apiStr(),
         UIEntityType.APPLICATION_SERVER.apiStr(),
         UIEntityType.DATABASE_SERVER.apiStr(),
-        UIEntityType.DATABASE.apiStr(),
         UIEntityType.DATABASE.apiStr(),
         UIEntityType.VIRTUAL_VOLUME.apiStr(),
         UIEntityType.STORAGE.apiStr(),
@@ -125,12 +127,12 @@ public class EntitySeverityCache {
                 .forEach(this::handleActionSeverity);
 
             riskPropagationBreakdown.clear();
-            Iterator<PartialEntityBatch> batchedBusinessAppIterator = repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                .addEntityType(EntityType.BUSINESS_APPLICATION_VALUE)
+            Iterator<PartialEntityBatch> batchedIterator = repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityType(Arrays.asList(EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE, EntityType.SERVICE_VALUE))
                 .setReturnType(Type.MINIMAL)
                 .build());
 
-            List<SupplyChainSeed> businessAppOidSeeds = Streams.stream(batchedBusinessAppIterator)
+            List<SupplyChainSeed> oidSeeds = Streams.stream(batchedIterator)
                 .map(PartialEntityBatch::getEntitiesList)
                 .flatMap(List::stream)
                 .map(PartialEntity::getMinimal)
@@ -145,14 +147,14 @@ public class EntitySeverityCache {
                 .collect(Collectors.toList());
 
             GetMultiSupplyChainsRequest getMultiSupplyChainsRequest = GetMultiSupplyChainsRequest.newBuilder()
-                .addAllSeeds(businessAppOidSeeds)
+                .addAllSeeds(oidSeeds)
                 .build();
 
             Iterator<GetMultiSupplyChainsResponse> multiSupplyChainIterator =
                 supplyChainService.getMultiSupplyChains(getMultiSupplyChainsRequest);
 
             multiSupplyChainIterator.forEachRemaining(getMultiSupplyChainsResponse -> {
-                long businessAppOid = getMultiSupplyChainsResponse.getSeedOid();
+                long oid = getMultiSupplyChainsResponse.getSeedOid();
                 SeverityCount severityCount = new SeverityCount();
                 for (SupplyChainNode node : getMultiSupplyChainsResponse.getSupplyChain().getSupplyChainNodesList()) {
                     for (MemberList memberList : node.getMembersByStateMap().values()) {
@@ -165,7 +167,7 @@ public class EntitySeverityCache {
                         }
                     }
                 }
-                riskPropagationBreakdown.put(businessAppOid, severityCount);
+                riskPropagationBreakdown.put(oid, severityCount);
             });
         }
     }
