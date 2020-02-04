@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -59,6 +60,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -139,6 +142,7 @@ public class AnalysisTest {
             mock(BuyRIImpactAnalysisFactory.class);
     private BuyRIImpactAnalysis buyRIImpactAnalysis = mock(BuyRIImpactAnalysis.class);
 
+    private ConsistentScalingHelper csm = mock(ConsistentScalingHelper.class);
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService);
@@ -154,7 +158,7 @@ public class AnalysisTest {
         listener = mock(AnalysisRICoverageListener.class);
         cloudTopology = mock(TopologyEntityCloudTopology.class);
         when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
-            .thenReturn(mock(ConsistentScalingHelper.class));
+            .thenReturn(csm);
         when(buyRIImpactAnalysisFactory.createAnalysis(eq(topologyInfo), any(), any(), any()))
                 .thenReturn(buyRIImpactAnalysis);
     }
@@ -202,6 +206,7 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getState()).thenReturn(AnalysisState.SUCCEEDED);
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
+        when(wastedFilesAnalysis.getStorageAmountReleasedForOid(anyLong())).thenReturn(Optional.empty());
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
@@ -549,4 +554,49 @@ public class AnalysisTest {
         Assert.assertTrue(analysis.execute());
     }
 
+    /**
+     *  Two VMs in the topology, one with Removed set and other not.
+     *  Removed entity should not be in projected topology.
+     */
+    @Test
+    public void testEntitiesRemoved() {
+        // 2 VMs in the topology, one with Removed set and other not
+        final TopologyEntityDTO removedVM = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.UNKNOWN)
+                .setEdit(Edit.newBuilder()
+                        .setRemoved(Removed.newBuilder().setPlanId(topologyId).build())
+                        .build())
+                .setOid(1L)
+                .build();
+        final TopologyEntityDTO vmInScope = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
+                .setOid(2L)
+                .build();
+        final Set<TopologyEntityDTO> topologySet = ImmutableSet.of(removedVM,
+                vmInScope);
+
+        // On Analysis execution, projected entities are populated
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                .setIncludeVDC(true)
+                .build();
+
+        when(cloudTopology.getAllEntitiesOfType(any())).thenReturn(ImmutableList
+                .of());
+
+        when(csm.getScalingGroupId(any())).thenReturn(Optional.empty());
+
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
+        analysis.execute();
+
+        // Assert that only 1 VM exists in the projected entities list.
+        Assert.assertTrue(analysis.getProjectedTopology().isPresent());
+        final Collection<ProjectedTopologyEntity> projectedEntities =
+                analysis.getProjectedTopology().get();
+        Assert.assertEquals(1, projectedEntities.size());
+        Assert.assertEquals(vmInScope.getOid(), projectedEntities.iterator().next().getEntity().getOid());
+    }
 }
