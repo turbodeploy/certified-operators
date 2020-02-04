@@ -44,6 +44,11 @@ public class SystemLoadReader {
 
     private SystemLoadHelper systemLoadHelper = null;
 
+    /**
+     * Create a new instance.
+     *
+     * @param historydbIO historydbio instance
+     */
     public SystemLoadReader(HistorydbIO historydbIO) {
         this.historydbIO = historydbIO;
     }
@@ -57,8 +62,9 @@ public class SystemLoadReader {
      *
      * @return The system load info (value, date) per slice.
      */
-    public @Nonnull Map<String, Pair<Double, Date>> initSystemLoad() {
-            Map<String, Pair<Double, Date>> systemLoad = Maps.newHashMap();
+    @Nonnull
+    public Map<Long, Pair<Double, Date>> initSystemLoad() {
+        Map<Long, Pair<Double, Date>> systemLoad = Maps.newHashMap();
         try {
             final long snapshot = System.currentTimeMillis();
             Date snapshotDate = new Date(snapshot);
@@ -66,9 +72,8 @@ public class SystemLoadReader {
             Date today = null;
             try {
                 today = sdf.parse(sdf.format(snapshotDate));
-            }
-            catch (ParseException e) {
-                logger.error("SYSLOAD- Error when parsing snaphot date during initialization of system load");
+            } catch (ParseException e) {
+                logger.error("SYSLOAD- Error when parsing snaphot date during initialization of system load", e);
             }
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(today);
@@ -81,18 +86,18 @@ public class SystemLoadReader {
                     .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(today.getTime()), new Timestamp(tomorrow.getTime())))
                     .and(SystemLoad.SYSTEM_LOAD.PROPERTY_TYPE.eq("system_load"));
 
-            Map<String, Double[]> slice2used = Maps.newHashMap();
-            Map<String, Double[]> slice2capacities = Maps.newHashMap();
-            List<SystemLoadRecord> records = (List<SystemLoadRecord>) historydbIO.execute(queryBuilder);
+            Map<Long, Double[]> slice2used = Maps.newHashMap();
+            Map<Long, Double[]> slice2capacities = Maps.newHashMap();
+            List<SystemLoadRecord> records = (List<SystemLoadRecord>)historydbIO.execute(queryBuilder);
 
             for (SystemLoadRecord record : records) {
-                String slice = record.getSlice();
+                long slice = Long.valueOf(record.getSlice());
                 Double used = record.getAvgValue();
                 Double capacity = record.getCapacity();
                 String propertySubtype = record.getPropertySubtype();
 
                 Optional<SystemLoadCommodities> optCommodity
-                    = SystemLoadCommodities.toSystemLoadCommodity(propertySubtype);
+                        = SystemLoadCommodities.toSystemLoadCommodity(propertySubtype);
                 // ignore unrecognized commodities. They can appear during upgrades when we have
                 // changed what is considered a system load commodity
                 if (optCommodity.isPresent()) {
@@ -122,7 +127,7 @@ public class SystemLoadReader {
                 }
             }
 
-            for (String slice : slice2used.keySet()) {
+            for (long slice : slice2used.keySet()) {
 
                 if (!slice2capacities.containsKey(slice)) {
                     logger.error("SYSLOAD- Error in the system load data of DB");
@@ -136,9 +141,8 @@ public class SystemLoadReader {
 
                 systemLoad.put(slice, new Pair<>(previousLoad, snapshotDate));
             }
-        }
-        catch (VmtDbException e) {
-            logger.error("Error when initializing system load : " + e);
+        } catch (VmtDbException e) {
+            logger.error("Error when initializing system load", e);
         }
 
         return systemLoad;
@@ -187,7 +191,7 @@ public class SystemLoadReader {
             List<SystemLoadRecord> systemLoadRecords = null;
 
             try {
-                systemLoadRecords = (List<SystemLoadRecord>) historydbIO.execute(systemLoadQueryBuilder);
+                systemLoadRecords = (List<SystemLoadRecord>)historydbIO.execute(systemLoadQueryBuilder);
             } catch (VmtDbException e) {
                 logger.error("Error when reading the system load records from the DB : " + e);
             }
@@ -220,7 +224,7 @@ public class SystemLoadReader {
             return loadCompare == 0 ? Integer.compare(day2, day1) : loadCompare; // earlier day has bigger number integer in Pair
         });
 
-        final int index = (int) ((systemLoads.size() - 1) * SYSTEM_LOAD_PERCENTILE / 100);
+        final int index = (int)((systemLoads.size() - 1) * SYSTEM_LOAD_PERCENTILE / 100);
         final Pair<Integer, Double> load = systemLoads.get(index);
 
         // Loading and returning all the system load records for the chosen snapshot
@@ -243,7 +247,7 @@ public class SystemLoadReader {
         List<SystemLoadRecord> records = null;
 
         try {
-            records = (List<SystemLoadRecord>) historydbIO.execute(queryBuilder);
+            records = (List<SystemLoadRecord>)historydbIO.execute(queryBuilder);
         } catch (VmtDbException e) {
             logger.error("Error when reading the system load info from the DB : " + e);
         }
