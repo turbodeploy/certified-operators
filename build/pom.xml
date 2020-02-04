@@ -749,6 +749,14 @@
         </profile>
 
         <profile>
+            <id>mediation-actionscript</id>
+            <modules>
+                <module>../com.vmturbo.mediation.actionscript</module>
+                <module>../com.vmturbo.mediation.actionscript.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>

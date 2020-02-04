@@ -21,8 +21,7 @@ public enum ActionScriptParameterDefinition {
     //VMT_NEW_COMMODITY("The name of the new commodity"),
     VMT_TARGET_INTERNAL("The name of the entity being acted upon"),
     VMT_TARGET_NAME("The display name of the entity being acted upon"),
-    VMT_TARGET_UUID("The UUID of the entity being acted upon"),
-    VMT_ACTION_DATA("A JSON representation of the full data associated with this action");
+    VMT_TARGET_UUID("The UUID of the entity being acted upon");
 
     private final String description;
 

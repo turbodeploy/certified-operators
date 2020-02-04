@@ -12,7 +12,6 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.mediation.actionscript.exception.ParameterMappingException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
@@ -121,10 +120,6 @@ public class ActionScriptParameterMapper {
             action -> getTargetSE(action).map(EntityDTO::getDisplayName));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_UUID,
             action -> getTargetSE(action).map(EntityDTO::getId));
-        // Embed the entire ActionExecutionDTO in the "VMT_ACTION_DATA" parameter as a JSON string
-        typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_DATA,
-            action -> Optional.of(ComponentGsonFactory
-                .createGsonNoPrettyPrint().toJson(action)));
 
         return Collections.unmodifiableMap(typeToFunction);
     }

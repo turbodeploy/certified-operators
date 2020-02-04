@@ -1,6 +1,8 @@
 package com.vmturbo.mediation.actionscript.executor;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PipedOutputStream;
 import java.util.Collection;
 import java.util.Collections;
@@ -11,6 +13,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.protobuf.util.JsonFormat;
 
 import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.session.ClientSession;
@@ -88,6 +92,7 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                 .collect(Collectors.toList());
             final String quotedScriptPath = quoteForSsh(workflow.getScriptPath());
             final String commandString = String.join(" ", envSettings) + " " + quotedScriptPath;
+            final String actionExecutionDTOJson = convertToCompactJson(actionExecution);
             try (
                 // channel for command execution
                 SignalingSshChannelExec channel = new SignalingSshChannelExec(commandString);
@@ -100,11 +105,14 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                     actionScriptExecutor.getProgressOutputUpdateIntervalSeconds());
                 // create pipe and handler for stderr
                 PipedOutputStream stderr = new PipedOutputStream();
-                OutputHandler stderrHandler = new OutputHandler(stderr, actionScriptExecutor.getMaxOutputLines(), STDERR_NAME)
-                // note: we do nothing with stdin
+                OutputHandler stderrHandler = new OutputHandler(stderr, actionScriptExecutor.getMaxOutputLines(), STDERR_NAME);
+                // use stdin to pass the whole ActionExecutionDTO json string (rather than using
+                // command line) to avoid the MAX_ARG_STRLEN limited by action script server
+                InputStream stdin = new ByteArrayInputStream(actionExecutionDTOJson.getBytes())
             ) {
                 // configure and start our channel
                 session.getService(ConnectionService.class).registerChannel(channel);
+                channel.setIn(stdin);
                 channel.setOut(stdout);
                 channel.setErr(stderr);
                 // opening the channel is what actually starts the remote command execution
@@ -274,6 +282,22 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                 : -1;
         } else {
             return maxEndTime - System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * Convert the given {@link ActionExecutionDTO} to compacted json string.
+     *
+     * @param actionExecutionDTO the ActionExecutionDTO to convert
+     * @return compacted json string, or empty string if any error happens
+     */
+    public static String convertToCompactJson(@Nonnull ActionExecutionDTO actionExecutionDTO) {
+        try {
+            return JsonFormat.printer().omittingInsignificantWhitespace().print(actionExecutionDTO);
+        } catch (Exception e) {
+            // if any error happens, return an empty string
+            logger.error("Failed to convert ActionExecutionDTO to json: {}", actionExecutionDTO, e);
+            return "";
         }
     }
 }
