@@ -349,9 +349,9 @@ then
   fi
 
   # Enable services for gluster
-  sed -i '/^After=.*/i Before=gfsck.service' /etc/systemd/system/kubelet.service
-  systemctl enable gfsck.service
-  systemctl daemon-reload
+  sudo sed -i '/^After=.*/i Before=gfsck.service' /etc/systemd/system/kubelet.service
+  sudo systemctl enable gfsck.service
+  sudo systemctl daemon-reload
 
   # Setup mariadb before brining up XL components
   #./mariadb_storage_setup.sh
