@@ -13,16 +13,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -58,6 +58,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.utilities.CopyActionEligibility;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
@@ -216,8 +217,15 @@ public class SdkToTopologyEntityConverter {
                         if (volumeId != null) {
                             cbBuilder.setVolumeId(volumeId);
                         }
+                        // Transfer the action eligibility settings from the
+                        // TopologyStitchingEntity's CommoditiesBought (if they were set)
+                        // to the TopologyEntityDTO's CommoditiesBoughtFromProvider
+                        CopyActionEligibility.transferActionEligibilitySettingsFromCommoditiesBought(
+                                commodityBought, cbBuilder);
+
                         return cbBuilder.build();
-                    }))
+                    })
+                )
                 .collect(Collectors.toList());
 
         // create the list of connected-to entities
@@ -282,26 +290,47 @@ public class SdkToTopologyEntityConverter {
 
         TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);
 
+        // Check the ActionEligibility in the entity DTO and if values
+        // for suspend and provision actions are supplied, else leave them unset
+        Optional<Boolean> suspendable = Optional.empty();
+        Optional<Boolean> cloneable = Optional.empty();
+        if (dto.hasActionEligibility()) {
+            CommonDTO.EntityDTO.ActionEligibility  actionEligibility = dto.getActionEligibility();
+
+            // Keep the suspendable setting from the entityDTO
+            if (actionEligibility.hasSuspendable()) {
+                suspendable = Optional.of(actionEligibility.getSuspendable());
+            } else {
+                suspendable = calculateSuspendabilityWithStitchingEntity(entity);
+            }
+
+            // Keep the provisionable setting from the entityDTO
+            if (actionEligibility.hasCloneable()) {
+                cloneable = Optional.of(actionEligibility.getCloneable());
+            }
+        }
+
         // Either monitored or controllable is false, set XL controllable to false.
         // Explanations: some probes still send "Monitored = false", but XL doesn't have "Monitored" property,
         // given the the semantic is the same, setting XL controllable to false.
         // When probes send "Controllable = false", set XL controllable to false.
         final TopologyEntityDTO.Builder retBuilder = newTopologyEntityDTO(
-            entityType,
-            entity.getOid(),
-            displayName,
-            soldList,
-            boughtList,
-            connectedEntities,
-            entityState,
-            entityPropertyMap,
-            entityTags,
-            availableAsProvider,
-            isShopTogether,
-            isControllable(isControllable, isMonitored),
-            isProviderMustClone,
-            isDeletable,
-            calculateSuspendabilityWithStitchingEntity(entity)
+                entityType,
+                entity.getOid(),
+                displayName,
+                soldList,
+                boughtList,
+                connectedEntities,
+                entityState,
+                entityPropertyMap,
+                entityTags,
+                availableAsProvider,
+                isShopTogether,
+                isControllable(isControllable, isMonitored),
+                isProviderMustClone,
+                isDeletable,
+                suspendable,
+                cloneable
         );
 
         retBuilder.setTypeSpecificInfo(info);
@@ -397,6 +426,10 @@ public class SdkToTopologyEntityConverter {
                             // pass empty stream as this method is only used for unit test
                             .map(commDTO -> newCommodityBoughtDTO(commDTO, Stream.empty()))
                             .collect(Collectors.toList()));
+            // Transfer the action eligibility settings from the SDK EntityDTO's CommodityBought (if they were set)
+            // to the TopologyEntityDTO's CommoditiesBoughtFromProvider
+            CopyActionEligibility.transferActionEligibilitySettingsFromEntityDTO(
+                                                                        commodityBought, cbBuilder);
 
             // TODO: Right now, we not guarantee that commodity bought will always have provider entity
             // type. In order to implement that, we need to have additional check that if commodity bought
@@ -445,6 +478,26 @@ public class SdkToTopologyEntityConverter {
 
         TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);
 
+        // Check the ActionEligibility in the entity DTO and if the values
+        // for suspend and provision actions are supplied, else leave them unset
+        Optional<Boolean> suspendable = Optional.empty();
+        Optional<Boolean> cloneable = Optional.empty();
+        if (dto.hasActionEligibility()) {
+            CommonDTO.EntityDTO.ActionEligibility actionEligibility = dto.getActionEligibility();
+
+            // Keep the suspendable setting from the entityDTO
+            if (actionEligibility.hasSuspendable()) {
+                suspendable = Optional.of(actionEligibility.getSuspendable());
+            } else {
+                suspendable = calculateSuspendability(dto);
+            }
+
+            // Keep the provisionable setting from the entityDTO
+            if (actionEligibility.hasCloneable()) {
+                cloneable = Optional.of(actionEligibility.getCloneable());
+            }
+        }
+
         // Either monitored or controllable is false, set XL controllable to false.
         // Explanations: some probes still send "Monitored = false", but XL doesn't have "Monitored" property,
         // given the the semantic is the same, setting XL controllable to false.
@@ -466,7 +519,8 @@ public class SdkToTopologyEntityConverter {
                 isControllable(isControllable, isMonitored),
                 isProviderMustClone,
                 isDeletable,
-                calculateSuspendability(dto)
+                suspendable,
+                cloneable
         );
 
         retBuilder.setTypeSpecificInfo(info);
@@ -493,7 +547,8 @@ public class SdkToTopologyEntityConverter {
             boolean isControllable,
             boolean isProviderMustClone,
             boolean isDeletable,
-            Optional<Boolean> suspendable
+            Optional<Boolean> suspendable,
+            Optional<Boolean> cloneable
         ) {
         AnalysisSettings.Builder analysisSettingsBuilder =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
@@ -502,6 +557,8 @@ public class SdkToTopologyEntityConverter {
                 .setProviderMustClone(isProviderMustClone)
                 .setIsAvailableAsProvider(availableAsProvider)
                 .setDeletable(isDeletable);
+
+        // Check if the suspend and provision values are supplied
         if (suspendable.isPresent()) {
             boolean suspendableValue = suspendable.get();
             analysisSettingsBuilder.setSuspendable(suspendableValue);
@@ -512,6 +569,8 @@ public class SdkToTopologyEntityConverter {
                 analysisSettingsBuilder.setCloneable(suspendableValue);
             }
         }
+
+        cloneable.ifPresent(analysisSettingsBuilder::setCloneable);
 
         final TopologyEntityDTO.Builder result =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
@@ -525,6 +584,7 @@ public class SdkToTopologyEntityConverter {
                         .addAllCommoditySoldList(soldList)
                         .addAllCommoditiesBoughtFromProviders(boughtList)
                         .addAllConnectedEntityList(connectedToList);
+
         return result;
     }
 

@@ -43,14 +43,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * <p>The action capabilities here are used for market analysis, not for execution.
  *
  * <p>An entity may be discovered by more than one probe, the current resolution strategy is:
- * From the list of probes that discover the entity with proper action capabilities set,
- * - If all probes have specified NOT_SUPPORTED capability for the same entity and action type, then
- *   disable the action for this entity.
- * - Otherwise, enable the action for this entity, unless the action is disabled in the user policy
- *   settings. This includes the cases where:
- *   - the action capability is not set by the probe, then it is treated as NOT_EXECUTABLE
- *     (see the definition in ActionPolicyDTO protocol)
- *   - the action capability is set to either SUPPORTED, or NOT_EXECUTABLE
+ * - Only the probe with action capabilities are selected to update the analysis settings.
+ * - If any of the probes do not contain a policy for a given entity and action type ,
+ *   then the entity is skipped by the editor
+ * - If any of the probes have specified NOT_SUPPORTED capability for the same entity and action type,
+ *   then disable the action for this entity.
+ * - Otherwise, enable the action for this entity, unless the action is disabled in entity level
+ *   settings.
  *
  * <p>TODO: The above resolution strategy is not enough to cover all use cases, as it is performed
  *     at entity type level. In some cases, we want to handle resolution at individual entity
