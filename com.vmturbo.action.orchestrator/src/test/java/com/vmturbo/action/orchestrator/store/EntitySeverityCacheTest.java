@@ -178,10 +178,6 @@ public class EntitySeverityCacheTest {
         final long storage2Oid = idCounter++;
         final long databaseOid = idCounter++;
         final long businessApp2Oid = idCounter++;
-        final long service1Oid = idCounter++;
-        final long service2Oid = idCounter++;
-        final long businessTx1Oid = idCounter++;
-        final long businessTx2Oid = idCounter++;
 
         List<ActionView> actions = Arrays.asList(
             actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
@@ -199,7 +195,7 @@ public class EntitySeverityCacheTest {
         // repository service will return the two business apps
         when(repositoryServiceMole.retrieveTopologyEntities(any())).thenReturn(
             Arrays.asList(PartialEntityBatch.newBuilder()
-                .addAllEntities(Stream.of(businessApp1Oid, businessApp2Oid, businessTx1Oid, businessTx2Oid, service1Oid, service2Oid)
+                .addAllEntities(Stream.of(businessApp1Oid, businessApp2Oid)
                     .map(businessAppOid -> PartialEntity.newBuilder()
                         .setMinimal(MinimalEntity.newBuilder()
                             .setOid(businessAppOid)
@@ -214,12 +210,8 @@ public class EntitySeverityCacheTest {
         ArgumentCaptor<GetMultiSupplyChainsRequest> getMultiSupplyChainsCaptor = ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
         when(supplyChainServiceMole.getMultiSupplyChains(getMultiSupplyChainsCaptor.capture())).thenReturn(
             Arrays.asList(
-                makeGetMultiSupplyChainsResponse(businessApp1Oid, businessApp1Oid, businessTx1Oid, service1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeGetMultiSupplyChainsResponse(businessApp2Oid, businessApp2Oid, businessTx2Oid, service2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                makeGetMultiSupplyChainsResponse(businessTx1Oid, businessTx1Oid, service1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeGetMultiSupplyChainsResponse(businessTx2Oid, businessTx2Oid, service2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                makeGetMultiSupplyChainsResponse(service1Oid, service1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeGetMultiSupplyChainsResponse(service2Oid, service2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid)
+                makeGetMultiSupplyChainsResponse(businessApp1Oid, businessApp1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
+                makeGetMultiSupplyChainsResponse(businessApp2Oid, businessApp2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid)
             ));
 
         entitySeverityCache.refresh(actionStore);
@@ -233,77 +225,40 @@ public class EntitySeverityCacheTest {
 
         // check that the appropriate request was sent to supply chain service
         GetMultiSupplyChainsRequest actualSupplyChainRequest = getMultiSupplyChainsCaptor.getValue();
-        assertEquals(6, actualSupplyChainRequest.getSeedsCount());
+        assertEquals(2, actualSupplyChainRequest.getSeedsCount());
         assertEquals(
-            ImmutableSet.of(businessApp1Oid, businessApp2Oid, businessTx1Oid, businessTx2Oid, service1Oid, service2Oid),
+            ImmutableSet.of(businessApp1Oid, businessApp2Oid),
             actualSupplyChainRequest.getSeedsList().stream()
                 .map(SupplyChainSeed::getSeedOid)
                 .collect(Collectors.toSet()));
         assertEquals(
-            ImmutableSet.of(businessApp1Oid, businessApp2Oid, businessTx1Oid, businessTx2Oid, service1Oid, service2Oid),
+            ImmutableSet.of(businessApp1Oid, businessApp2Oid),
             actualSupplyChainRequest.getSeedsList().stream()
                 .map(supplyChainSeed -> supplyChainSeed.getScope().getStartingEntityOid(0))
                 .collect(Collectors.toSet()));
 
-        // BusinessApp1 -> BTx -> Srv -> App -> VM1 -> PM1 -> Storage1
-        //                               Minor  Minor    Major
+        // BusinessApp1 -> App -> VM1 -> PM1 -> Storage1
+        //                       Minor  Minor    Major
         // Minor: 2
         // Major: 1
         // Normal: 2
-        // BusinessApp1, BusinessTx1, Service1 should have the same counts except NORMAL
-        // BusinessApp1
         actualSeverityCounts =
             entitySeverityCache.getSeverityCounts(Arrays.asList(businessApp1Oid));
         assertEquals(ImmutableMap.of(
                 Optional.of(Severity.MINOR), 2L,
                 Optional.of(Severity.MAJOR), 1L,
-                Optional.of(Severity.NORMAL), 4L),
-            actualSeverityCounts);
-        // BusinessTx1
-        actualSeverityCounts =
-                entitySeverityCache.getSeverityCounts(Arrays.asList(businessTx1Oid));
-        assertEquals(ImmutableMap.of(
-                Optional.of(Severity.MINOR), 2L,
-                Optional.of(Severity.MAJOR), 1L,
-                Optional.of(Severity.NORMAL), 3L),
-                actualSeverityCounts);
-        // Service1
-        actualSeverityCounts =
-                entitySeverityCache.getSeverityCounts(Arrays.asList(service1Oid));
-        assertEquals(ImmutableMap.of(
-                Optional.of(Severity.MINOR), 2L,
-                Optional.of(Severity.MAJOR), 1L,
                 Optional.of(Severity.NORMAL), 2L),
-                actualSeverityCounts);
+            actualSeverityCounts);
 
-
-        // BusinessApp2 -> BTx -> Srv -> DB -> VM2 -> PM2 -> Storage2
-        //                            Critical               Major
-        //                                                   Minor
+        // BusinessApp2 -> DB -> VM2 -> PM2 -> Storage2
+        //              Critical               Major
+        //                                     Minor
         // Critical: 1
         // Major: 1
         // Normal: 3
         // no minor because Storage2's max severity is major
-        // BusinessApp2, BusinessTx2, Service3 should have the same counts except NORMAL
-        // BusinessApp2
         actualSeverityCounts =
             entitySeverityCache.getSeverityCounts(Arrays.asList(businessApp2Oid));
-        assertEquals(ImmutableMap.of(
-            Optional.of(Severity.CRITICAL), 1L,
-            Optional.of(Severity.MAJOR), 1L,
-            Optional.of(Severity.NORMAL), 5L),
-            actualSeverityCounts);
-        // BusinessTx2
-        actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(businessTx2Oid));
-        assertEquals(ImmutableMap.of(
-            Optional.of(Severity.CRITICAL), 1L,
-            Optional.of(Severity.MAJOR), 1L,
-            Optional.of(Severity.NORMAL), 4L),
-            actualSeverityCounts);
-        // Service2
-        actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(service2Oid));
         assertEquals(ImmutableMap.of(
             Optional.of(Severity.CRITICAL), 1L,
             Optional.of(Severity.MAJOR), 1L,
