@@ -742,7 +742,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
             EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION,
             EntityType.DATABASE_SERVER, EntityType.SERVICE,
-            EntityType.APPLICATION_COMPONENT),
+            EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -766,7 +766,8 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
                     EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION,
-                    EntityType.DATABASE_SERVER, EntityType.SERVICE, EntityType.APPLICATION_COMPONENT),
+                    EntityType.DATABASE_SERVER, EntityType.SERVICE, EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
             true),
 

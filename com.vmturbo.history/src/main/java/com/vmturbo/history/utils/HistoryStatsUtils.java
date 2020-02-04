@@ -15,8 +15,10 @@ import static com.vmturbo.components.common.utils.StringConstants.PHYSICAL_MACHI
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE;
 import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.db.EntityType.APPLICATION;
+import static com.vmturbo.history.db.EntityType.APPLICATION_COMPONENT;
 import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
 import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
+import static com.vmturbo.history.db.EntityType.BUSINESS_TRANSACTION;
 import static com.vmturbo.history.db.EntityType.BUSINESS_USER;
 import static com.vmturbo.history.db.EntityType.CHASSIS;
 import static com.vmturbo.history.db.EntityType.DESKTOP_POOL;
@@ -48,11 +50,6 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
-
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -154,9 +151,11 @@ public class HistoryStatsUtils {
             SDK_ENTITY_TYPE_TO_ENTITY_TYPE =
             new ImmutableMap.Builder<CommonDTO.EntityDTO.EntityType, EntityType>()
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(EntityDTO.EntityType.BUSINESS_TRANSACTION, BUSINESS_TRANSACTION)
                     .put(CommonDTO.EntityDTO.EntityType.SERVICE, SERVICE)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
+                    .put(EntityDTO.EntityType.APPLICATION_COMPONENT, APPLICATION_COMPONENT)
                     .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINERPOD)
@@ -193,8 +192,10 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
                     .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
                     .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(EntityDTO.EntityType.BUSINESS_TRANSACTION, BUSINESS_TRANSACTION)
                     .put(CommonDTO.EntityDTO.EntityType.SERVICE, SERVICE)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
+                    .put(EntityDTO.EntityType.APPLICATION_COMPONENT, APPLICATION_COMPONENT)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
