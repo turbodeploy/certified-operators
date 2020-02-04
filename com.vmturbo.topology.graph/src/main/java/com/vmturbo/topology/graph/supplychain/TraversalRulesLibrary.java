@@ -38,10 +38,10 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // further traversal from them
                 new StorageRule<>(),
 
-                // special rule for VMs
-                    // treat VDCs as aggregators (traverse them, but do not continue
-                    // traversal from them)
-                new VMRule<>(),
+                // special rule for VMs and Container Pods
+                    // special treatment for related VDCs
+                    // (traverse them, but do not continue traversal from them)
+                new VdcAsAggregatorRule<>(),
 
                 // patch for DCs, because aggregation
                     // is not yet introduced on-prem
@@ -145,29 +145,46 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Rule specific to traversal of VMs.
+     * Entities that fall under this rule are VMs and container pods.
+     * They must treat related VDCs in a special way: they should
+     * allow traversal to related VDCs but disallow any further traversal
+     * from there on.
      *
-     * <p>When a VM is traversed, a providing should be treated as an aggregator.
-     *    That is, it should be traversed, but initiate no more traversals.
-     * </p>
+     * <p>This effect is achieved by using {@link DefaultTraversalRule},
+     *    but treating VDCs as aggregators.</p>
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
-    private static class VMRule<E extends TopologyGraphEntity<E>> extends DefaultTraversalRule<E> {
+    private static class VdcAsAggregatorRule<E extends TopologyGraphEntity<E>>
+            extends DefaultTraversalRule<E> {
         @Override
         public boolean isApplicable(@Nonnull final E entity, @Nonnull final TraversalMode traversalMode) {
-            return entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE;
+            return entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                        || entity.getEntityType() == EntityType.CONTAINER_POD_VALUE;
         }
 
         @Override
         protected Stream<E> getFilteredAggregators(@Nonnull E entity,
                                                    @Nonnull TraversalMode traversalMode) {
-            // treat VDCs as aggregators (i.e., include in the traversal
-            // but do not keep traversing from them)
-            return Stream.concat(super.getFilteredProviders(entity, traversalMode)
-                                    .filter(e -> e.getEntityType()
-                                                    == EntityType.VIRTUAL_DATACENTER_VALUE),
-                                 super.getFilteredAggregators(entity, traversalMode));
+            // VDCs to be treated as aggregators
+            final Stream<E> vdcAggregators;
+            if (traversalMode == TraversalMode.CONSUMES) {
+                // if going down, treat only producing VDCs as aggregators
+                // (adding consumers would bring in unwanted VDCs:
+                // see the topology in test
+                //     SupplyChainCalculatorTest.testVdcInContainerTopology2
+                // as an example)
+                vdcAggregators = super.getFilteredProviders(entity, traversalMode)
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE);
+            } else {
+                // if at the seed or going up, treat all VDCs as aggregators
+                vdcAggregators = Stream.concat(super.getFilteredProviders(entity, traversalMode),
+                                               super.getFilteredConsumers(entity, traversalMode))
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE);
+            }
+
+            // combine with true aggregators
+            return Stream.concat(vdcAggregators, super.getFilteredAggregators(entity, traversalMode));
         }
 
         @Override
@@ -175,6 +192,14 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                                                  @Nonnull TraversalMode traversalMode) {
             // ignore VDCs, because they are treated as aggregators
             return super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
+        }
+
+        @Override
+        protected Stream<E> getFilteredConsumers(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            // ignore VDCs, because they are treated as aggregators
+            return super.getFilteredConsumers(entity, traversalMode)
                         .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
         }
     }
