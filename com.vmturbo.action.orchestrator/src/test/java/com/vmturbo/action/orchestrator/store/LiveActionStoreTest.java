@@ -50,7 +50,6 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
-import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
@@ -63,7 +62,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -143,7 +141,7 @@ public class LiveActionStoreTest {
 
     @SuppressWarnings("unchecked")
     @Before
-    public void setup() throws TargetResolutionException, UnsupportedActionException {
+    public void setup() {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
             probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
             actionTranslator, clock, userSessionContext);
