@@ -1,5 +1,9 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -87,6 +91,11 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
                         riBoughtFilter.getRiBoughtIdList()));
             }
         }
+
+        // Ignore expired RIs
+        final LocalDateTime currentTime =
+            LocalDateTime.ofInstant(Instant.now(), ZoneId.from(ZoneOffset.UTC));
+        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.EXPIRY_TIME.ge(currentTime));
 
         return conditions.toArray(new Condition[conditions.size()]);
     }
