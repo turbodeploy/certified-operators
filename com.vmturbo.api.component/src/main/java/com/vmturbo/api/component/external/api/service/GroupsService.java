@@ -118,6 +118,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -172,6 +174,7 @@ public class GroupsService implements IGroupsService {
      */
     @VisibleForTesting
     static final String USER_GROUPS = "GROUP-MyGroups";
+    static final String ENTITY_DEFINITION = "ENTITY-DEFINITION";
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
@@ -608,6 +611,21 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
+    public GroupApiDTO createEntityDefinition(GroupApiDTO inputDTO) throws Exception {
+        final GroupDefinition groupDefinition = groupMapper
+            .toEntityDefinition(inputDTO);
+        final CreateGroupResponse createGroupResponse = groupServiceRpc.createGroup(
+            CreateGroupRequest
+                .newBuilder()
+                .setGroupDefinition(groupDefinition)
+                .setOrigin(GroupDTO.Origin.newBuilder() //setting System origin as it is an entity definition
+                    .setSystem(Origin.System.newBuilder()))
+                .build()
+        );
+        return groupMapper.toGroupApiDto(createGroupResponse.getGroup(), true);
+    }
+
+    @Override
     public GroupApiDTO createGroup(GroupApiDTO inputDTO) throws Exception {
         String username = getUsername();
 
@@ -902,6 +920,12 @@ public class GroupsService implements IGroupsService {
                                 .newBuilder().addOrigin(GroupDTO.Origin.Type.USER)))
                 .build(), true);
              return request.allResultsResponse(Lists.newArrayList(groups));
+        } else if (ENTITY_DEFINITION.equals(uuid)) { // Get all entities definitions
+            final Collection<GroupApiDTO> entities = getAllEntitiesDefinitions(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setOriginFilter(OriginFilter
+                    .newBuilder().addOrigin(Type.SYSTEM)))
+                .build(), true);
+            return request.allResultsResponse(Lists.newArrayList(entities));
         } else { // Get members of the group with the uuid (oid)
             final GroupAndMembers groupAndMembers =
                 groupExpander.getGroupWithMembers(uuid)
@@ -1077,6 +1101,35 @@ public class GroupsService implements IGroupsService {
     public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
                                              final boolean populateSeverity) {
         return getGroupApiDTOS(groupsRequest, populateSeverity, null);
+    }
+
+    /**
+     * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
+     * them to the associated {@link GroupApiDTO} format.
+     *
+     * @param groupsRequest The request.
+     * @param populateSeverity Whether or not to populate the severity in the response. Populating
+     *                         severity requires another relatively expensive RPC call, so use this
+     *                         only when necessary.
+     * @return The list of {@link GroupApiDTO} objects.
+     */
+    @Nonnull
+    public List<GroupApiDTO> getAllEntitiesDefinitions(final GetGroupsRequest groupsRequest,
+                                             final boolean populateSeverity) {
+        final Stream<GroupAndMembers> groupsWithMembers =
+            groupExpander.getGroupsWithMembers(groupsRequest);
+        final List<GroupApiDTO> entitiesDefinitions = groupsWithMembers
+            .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
+            .map(groupAndMembers -> {
+                EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+                GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(groupAndMembers, envCloudType.getEnvironmentType(),
+                    envCloudType.getCloudType(), populateSeverity);
+                return groupApiDTO;
+            })
+            .filter(groupApiDTO -> EnvironmentTypeMapper.matches(null,
+                groupApiDTO.getEnvironmentType()))
+            .collect(Collectors.toList());
+        return entitiesDefinitions;
     }
 
     /**
