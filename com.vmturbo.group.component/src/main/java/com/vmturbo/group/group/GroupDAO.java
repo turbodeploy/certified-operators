@@ -66,6 +66,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.EntityDefinitionData;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -273,6 +274,14 @@ public class GroupDAO implements IGroupStore {
                         "Group " + groupDefinition.getDisplayName() +
                                 " does not have any recognized selection criteria (" +
                                 groupDefinition.getSelectionCriteriaCase() + ")");
+        }
+        switch (groupDefinition.getGroupDataCase()) {
+            case ENTITY_DEFINITION_DATA:
+                groupPojo.setEntityDefinitionData(
+                        groupDefinition.getEntityDefinitionData().toByteArray());
+                break;
+            default:
+                break;
         }
         if (groupDefinition.hasOptimizationMetadata()) {
             final OptimizationMetadata metadata = groupDefinition.getOptimizationMetadata();
@@ -548,6 +557,15 @@ public class GroupDAO implements IGroupStore {
             } catch (InvalidProtocolBufferException e) {
                 throw new IllegalStateException(
                         "Failed to parse dynamic selection criteria for group " + groupIds, e);
+            }
+            try {
+                if (grouping.getEntityDefinitionData() != null) {
+                    defBuilder.setEntityDefinitionData(
+                            EntityDefinitionData.parseFrom(grouping.getEntityDefinitionData()));
+                }
+            } catch (InvalidProtocolBufferException e) {
+                throw new IllegalStateException(
+                        "Failed to parse group data for group " + groupIds, e);
             }
             builder.setDefinition(defBuilder);
             result.put(groupId, builder.build());
@@ -1380,6 +1398,7 @@ public class GroupDAO implements IGroupStore {
                         groupPojo.getOptimizationEnvironmentType())
                 .set(GROUPING.OPTIMIZATION_IS_GLOBAL_SCOPE,
                         groupPojo.getOptimizationIsGlobalScope())
+                .set(GROUPING.ENTITY_DEFINITION_DATA, groupPojo.getEntityDefinitionData())
                 .where(GROUPING.ID.eq(groupId));
     }
 
