@@ -320,7 +320,7 @@ public class PlanStatsAggregator {
                 if (commodityRecord == null) { // first time encountering commodity type
                     final String propertyType = HistoryStatsUtils.formatCommodityName(
                             commodityType, dbCommodityPrefix);
-                    final String propertySubtype = "used";
+                    final String propertySubtype = PropertySubType.Used.getApiParameterName();
                     commodityRecord = buildMktSnapshotsStatsRecord(snapshotTimestamp, used,
                             capacity, propertyType, propertySubtype, topologyContextId);
                     commodityAggregate.put(commodityType, commodityRecord);

@@ -23,9 +23,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -60,7 +60,6 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
@@ -137,7 +136,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     protected static final String COST_COMPONENT = "costComponent";
 
-    public static final String CURRENT_NUM_VOLUMES = "currentNumVolumes";
+    private static final String CURRENT_NUM_VOLUMES = "currentNumVolumes";
 
     private static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE,
         CURRENT_COST_PRICE);
@@ -513,8 +512,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      * @return {@link List} of {@link StatSnapshotApiDTO}
      */
     @Nonnull
-    @VisibleForTesting
-    List<StatSnapshotApiDTO> getGroupByVVAttachmentStat(@Nonnull List<CloudCostStatRecord> cloudCostStatRecords,
+    private List<StatSnapshotApiDTO> getGroupByVVAttachmentStat(@Nonnull List<CloudCostStatRecord> cloudCostStatRecords,
                                                         @Nonnull Set<StatApiInputDTO> requestedStats) {
         Set<Long> vvOids = cloudCostStatRecords.stream().flatMapToLong(cloudCostStatRecord ->
             cloudCostStatRecord.getStatRecordsList().stream()
@@ -960,7 +958,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      * @param statSnapshot stat snap shot
      * @return StatSnapshotApiDTO
      */
-    public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
+    private StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
@@ -974,23 +972,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     final List<StatFilterApiDTO> filters = new ArrayList<>();
                     final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
                     resultsTypeFilter.setType(COST_COMPONENT);
-                    switch (statRecord.getCategory()) {
-                        case ON_DEMAND_COMPUTE:
-                            resultsTypeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
-                            break;
-                        case IP:
-                            resultsTypeFilter.setValue(CostCategory.IP.name());
-                            break;
-                        case ON_DEMAND_LICENSE:
-                            resultsTypeFilter.setValue(CostCategory.ON_DEMAND_LICENSE.name());
-                            break;
-                        case STORAGE:
-                            resultsTypeFilter.setValue(CostCategory.STORAGE.name());
-                            break;
-                        case RI_COMPUTE:
-                            resultsTypeFilter.setValue(CostCategory.RI_COMPUTE.name());
-                            break;
-                    }
+                    resultsTypeFilter.setValue(getCostCategoryString(statRecord));
                     filters.add(resultsTypeFilter);
 
                     if (filters.size() > 0) {
@@ -1006,6 +988,22 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             })
             .collect(toList()));
         return dto;
+    }
+
+    @Nullable
+    @VisibleForTesting
+    static String getCostCategoryString(
+            @Nonnull final CloudCostStatRecord.StatRecord statRecord) {
+        if (!statRecord.hasCategory()) {
+            return null;
+        }
+        final Cost.CostCategory costCategory = statRecord.getCategory();
+        try {
+            return CostCategory.valueOf(costCategory.name()).name();
+        } catch (IllegalArgumentException ex) {
+            logger.error("Unknown cost category: " + costCategory, ex);
+            return null;
+        }
     }
 
     private boolean isVirtualVolumeCount(final StatApiInputDTO statApiInputDTO) {

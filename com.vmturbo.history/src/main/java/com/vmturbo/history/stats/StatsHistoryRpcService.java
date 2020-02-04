@@ -107,6 +107,7 @@ import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.writers.PercentileWriter;
 
 /**
@@ -637,8 +638,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 resultMap.put(recordedOn, statRecordBuilder.buildStatRecord(
                         propertyType,
                         propertySubtype,
-                        capacity,
-                        (Float)null,
+                        capacity, null,
                         null,
                         null,
                         value != null ? StatsAccumulator.singleStatValue(value) : null,

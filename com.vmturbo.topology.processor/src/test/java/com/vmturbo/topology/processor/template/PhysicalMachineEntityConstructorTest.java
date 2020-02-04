@@ -137,7 +137,7 @@ public class PhysicalMachineEntityConstructorTest {
         final TopologyEntityDTO.Builder topologyEntityDTO =
             new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
                 builder, topology, null);
-        assertEquals(14, topologyEntityDTO.getCommoditySoldListCount());
+        assertEquals(15, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.CPU_VALUE), epsilon);
@@ -197,7 +197,7 @@ public class PhysicalMachineEntityConstructorTest {
                     .addAllCommoditySoldList(pmCommoditySold)
                     .addAllCommoditiesBoughtFromProviders(pmCommodityBoughtFromProvider)
                     .build());
-        assertEquals(18, topologyEntityDTO.getCommoditySoldListCount());
+        assertEquals(19, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(4, topologyEntityDTO.getCommoditySoldListList().stream()
             .filter(commoditySoldDTO ->
                 !commoditySoldDTO.getCommodityType().getKey().isEmpty())

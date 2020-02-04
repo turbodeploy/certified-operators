@@ -95,7 +95,8 @@ public class ReservedCapacityAnalysisTest {
             .setIsResizeable(true)
             .setUsed(used)
             .setPeak(peak)
-            .setCapacityIncrement(increment);
+            .setCapacityIncrement(increment)
+            .setCapacity(200);
     }
 
     private TopologyEntityDTO.Builder[] createVMs() {
@@ -354,5 +355,24 @@ public class ReservedCapacityAnalysisTest {
         assertTrue(resize.hasScalingGroupId());
         assertTrue(explanation.hasScalingGroupId());
         assertEquals("scaling-group-1", explanation.getScalingGroupId());
+    }
+
+    /**
+     * We don't generate reservation resize actions for a VM or a container
+     * whose commodityBought has a reservation value at or higher than the capacity of the
+     * commodity sold. This is because the reservation is either locked to capacity or there
+     * is some misconfiguration and attempting to execute the action will fail if the resize
+     * is still about capacity.
+     */
+    @Test
+    public void testReservationEqualToCapacity() {
+        VM.addCommoditySoldList(VMemSold)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PM_OID)
+                .addCommodityBought(MemBought.setReservedCapacity(200)));
+        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
+        rca.execute(null);
+
+        assertEquals(0, rca.getActions().size());
     }
 }

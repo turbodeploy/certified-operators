@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -69,6 +70,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -188,6 +190,7 @@ public class AnalysisTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .build();
         when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of(vmOid, cloudVm));
+        when(cloudTopologyFactory.newCloudTopology(anyLong(), any())).thenReturn(cloudTopology);
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(cloudTopology);
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
@@ -200,7 +203,7 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
         return new Analysis(topoInfo, topologySet,
-            groupServiceClient, mockClock, analysisConfig,
+            new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 listener, consistentScalingHelperFactory);

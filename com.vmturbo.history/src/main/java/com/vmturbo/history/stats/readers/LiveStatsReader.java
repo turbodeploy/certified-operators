@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.TextFormat;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -53,6 +55,7 @@ import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.INonPaginatingStatsReader;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor;
@@ -73,9 +76,6 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // Partition the list of entities to read into chunks of this size in order not to flood the DB.
-    private static final int ENTITIES_PER_CHUNK = 50000;
-
     private final HistorydbIO historydbIO;
 
     private final TimeRangeFactory timeRangeFactory;
@@ -92,16 +92,23 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             .build()
             .register();
 
+    private final INonPaginatingStatsReader<HistUtilizationRecord> histUtilizationReader;
+    private final int entitiesPerChunk;
+
     public LiveStatsReader(@Nonnull final HistorydbIO historydbIO,
-                           @Nonnull final TimeRangeFactory timeRangeFactory,
-                           @Nonnull final StatsQueryFactory statsQueryFactory,
-                           @Nonnull final FullMarketRatioProcessorFactory fullMarketRatioProcessorFactory,
-                           @Nonnull final RatioRecordFactory ratioRecordFactory)  {
+                    @Nonnull final TimeRangeFactory timeRangeFactory,
+                    @Nonnull final StatsQueryFactory statsQueryFactory,
+                    @Nonnull final FullMarketRatioProcessorFactory fullMarketRatioProcessorFactory,
+                    @Nonnull final RatioRecordFactory ratioRecordFactory,
+                    @Nonnull INonPaginatingStatsReader<HistUtilizationRecord> histUtilizationReader,
+                    int entitiesPerChunk) {
         this.historydbIO = historydbIO;
         this.timeRangeFactory = timeRangeFactory;
         this.statsQueryFactory = statsQueryFactory;
         this.fullMarketRatioProcessorFactory = Objects.requireNonNull(fullMarketRatioProcessorFactory);
         this.ratioRecordFactory = Objects.requireNonNull(ratioRecordFactory);
+        this.histUtilizationReader = Objects.requireNonNull(histUtilizationReader);
+        this.entitiesPerChunk = entitiesPerChunk;
     }
 
     /**
@@ -241,7 +248,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         }
         // we need to specifically query for PI stats record if the commodity request list only
         // contains price index, otherwise, just fetch the regular commodity stats
-        Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageInfo.getEntityOids(),
+        final List<String> nextPageEntityOids = nextPageInfo.getEntityOids();
+        Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageEntityOids,
                 nextPageInfo.getTable(), statsFilter.getCommodityRequestsList(),
                 commRequestTimeRange.get(), AGGREGATE.NO_AGG);
         if (!query.isPresent()) {
@@ -252,18 +260,28 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         // run the query to get the stats in the same transaction.
         final Result<? extends Record> statsRecords = historydbIO.execute(
                 BasedbIO.Style.FORCED, query.get());
+        histUtilizationReader.getRecords(new HashSet<>(nextPageEntityOids), statsFilter)
+                        .forEach(record -> {
+                            final Long oid = record.getOid();
+                            addRecord(String.valueOf(oid), record, recordsByEntityId);
+                        });
         // Process the records, inserting them into the right entry in the linked hashmap.
         statsRecords.forEach(record -> {
             final String recordUuid = record.getValue(getStringField(nextPageInfo.getTable(), UUID));
-            final List<Record> recordListForEntity = recordsByEntityId.get(Long.parseLong(recordUuid));
-            if (recordListForEntity == null) {
-                throw new IllegalStateException("Record without requested ID returned from DB query.");
-            } else {
-                recordListForEntity.add(record);
-            }
+            addRecord(recordUuid, record, recordsByEntityId);
         });
 
         return new StatRecordPage(recordsByEntityId, nextPageInfo.getNextCursor(), nextPageInfo.getTotalRecordCount());
+    }
+
+    private static void addRecord(String recordUuid, Record record,
+                    Map<Long, List<Record>> recordsByEntityId) {
+        final List<Record> recordListForEntity = recordsByEntityId.get(Long.parseLong(recordUuid));
+        if (recordListForEntity == null) {
+            throw new IllegalStateException("Record without requested ID returned from DB query.");
+        } else {
+            recordListForEntity.add(record);
+        }
     }
 
     /**
@@ -341,7 +359,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
             int entityIndex = 0;
             while(entityIndex < numberOfEntitiesToPersist) {
-                final int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
+                final int nextIndex =
+                                Math.min(entityIndex + entitiesPerChunk, numberOfEntitiesToPersist);
                 final List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
                 final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(entityIdChunk,
                         entityType.getTimeFrameTable(timeRange.getTimeFrame()),
@@ -358,7 +377,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 }
                 answer.addAll(statsRecords);
                 logger.debug("  chunk size {}, statsRecords {}", entityIdChunk.size(), answerSize);
-                entityIndex = entityIndex + ENTITIES_PER_CHUNK;
+                entityIndex = entityIndex + entitiesPerChunk;
             }
             final Duration elapsed = Duration.between(start, Instant.now());
             if (logger.isDebugEnabled()) {
@@ -372,6 +391,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 entityClsMap, statsFilter.getCommodityRequestsList(), answer);
         }
 
+        answer.addAll(histUtilizationReader.getRecords(entityIds, statsFilter));
         final double elapsedSeconds = timer.observe();
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), elapsedSeconds);
         return answer;
@@ -469,6 +489,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         final List<Record> answer = ratioProcessor.processResults(result);
 
+        answer.addAll(histUtilizationReader.getRecords(Collections.emptySet(), statsFilter));
         final Duration overallElapsed = Duration.between(overallStart, Instant.now());
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(),
                 overallElapsed.toMillis() / 1000.0);

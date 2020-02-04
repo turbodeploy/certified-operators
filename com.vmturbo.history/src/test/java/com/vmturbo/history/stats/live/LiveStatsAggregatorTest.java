@@ -32,6 +32,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
+import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.stats.StatsTestUtils;
 
 /**
@@ -39,6 +40,7 @@ import com.vmturbo.history.stats.StatsTestUtils;
  */
 public class LiveStatsAggregatorTest {
 
+    private static final String PRODUCES = PropertySubType.Produces.getApiParameterName();
     private static LiveStatsAggregator aggregator;
     private static Record record;
     private static HistorydbIO historydbIO;
@@ -149,12 +151,12 @@ public class LiveStatsAggregatorTest {
         // "Produces" attribute records, recording # of sold commodities
         // 3 PMs sell one commodity each, 1 PM sells 2
         assertEquals(5.0, (double)dbMock.getRecords(Tables.PM_STATS_LATEST).stream()
-                        .filter(r -> r.getPropertyType().equalsIgnoreCase("Produces"))
+                        .filter(r -> r.getPropertyType().equalsIgnoreCase(PRODUCES))
                         .collect(Collectors.summingDouble(PmStatsLatestRecord::getAvgValue)),
                 0.0);
         // no VMs sell any commodities
         assertEquals(0, (double)dbMock.getRecords(Tables.VM_STATS_LATEST).stream()
-                        .filter(r -> r.getPropertyType().equalsIgnoreCase("Produces"))
+                        .filter(r -> r.getPropertyType().equalsIgnoreCase(PRODUCES))
                         .collect(Collectors.summingDouble(VmStatsLatestRecord::getAvgValue)),
                 0.0);
         // check flow capacities are correctly matched based on commodity key

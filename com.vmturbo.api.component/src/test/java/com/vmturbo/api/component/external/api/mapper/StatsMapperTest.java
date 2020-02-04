@@ -64,6 +64,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -85,7 +86,7 @@ public class StatsMapperTest {
     private static final String CSP = "CSP";
     private static final String AWS = "AWS";
     private static final String COST_COMPONENT = "costComponent";
-
+    private static final String PERCENTILE = "percentile";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -889,7 +890,12 @@ public class StatsMapperTest {
         assertThat(mappedStat.getRelatedEntity().getUuid(), is(test.getProviderUuid()));
         assertThat(mappedStat.getUnits(), is(test.getUnits()));
         assertThat(mappedStat.getValue(), is(test.getUsed().getAvg()));
-        assertThat(mappedStat.getPercentile().getPercentileUtilization(), is(test.getPercentileUtilization().getAvg()));
+        assertThat(mappedStat.getPercentile().getPercentileUtilization(),
+                        is(test.getHistUtilizationValueList().stream()
+                                        .filter(value -> PERCENTILE
+                                                        .equals(value.getType()))
+                                        .map(v -> v.getUsage().getAvg() / v.getCapacity().getAvg()
+                                                        * 100).findAny().get()));
         validateStatValue(mappedStat.getValues(), test.getUsed());
     }
 
@@ -935,17 +941,22 @@ public class StatsMapperTest {
      * @return a newly initialized {@link StatRecord.Builder} initialized based on the input index and postfix.
      */
     private StatRecord.Builder makeStatRecordBuilder(int index, String postfix, String relation) {
+        final StatValue capacity = buildStatValue(1000 + index);
         return StatRecord.newBuilder()
             .setName("name-" + postfix)
             .setProviderUuid(PUID + postfix)
             .setProviderDisplayName("provider-" + postfix)
-            .setCapacity(buildStatValue(1000 + index))
+            .setCapacity(capacity)
             .setReserved(2000 + index)
             .setCurrentValue(3000 + index)
             .setPeak(buildStatValue(index))
             .setUsed(buildStatValue(index + 100))
-            .setValues(buildStatValue(index + 200))
-            .setPercentileUtilization(buildStatValue(index + 300))
+            .setValues(buildStatValue(index + 200)).addHistUtilizationValue(
+                                        HistUtilizationValue.newBuilder()
+                                                        .setType(PERCENTILE)
+                                                        .setUsage(buildStatValue(index + 300))
+                                                        .setCapacity(capacity)
+                                                        .build())
             .setRelation(relation);
     }
 

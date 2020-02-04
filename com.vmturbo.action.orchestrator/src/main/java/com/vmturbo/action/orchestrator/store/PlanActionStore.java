@@ -423,21 +423,21 @@ public class PlanActionStore implements ActionStore {
         final Set<Long> entitiesToRetrieve =
                 new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
-        long planId = planData.getTopologyContextId();
+        long planContextId = planData.getTopologyContextId();
         // TODO: a temp fix to get the  entities used for buy RI.
         if (planData.getActionPlanType() == ActionPlanType.BUY_RI.getNumber()) {
-            planId = realtimeTopologyContextId;
+            planContextId = realtimeTopologyContextId;
         }
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, planId, planData.getTopologyId());
+            entitiesToRetrieve, planContextId);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
-                planId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.lastestRealtimeSnapshot(entitiesToRetrieve);
+                planContextId, planData.getTopologyId());
+            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve, realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 

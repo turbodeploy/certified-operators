@@ -388,7 +388,7 @@ public class ReportDBDataWriterTest {
     /**
      * Verify following data are int vmtdb database, they were populated with
      * V1.9__insert_missing_reportdata.sql
-     * 1. MarketSettingsManager is in the entities table
+     * 1.  MarketSettingsManager is in the entities table
      * ('MarketSettingsManager', 'MarketSettingsManager', '_1wq9QTUoEempSo2vlSygbA', 'MarketSettingsManager', NULL);
      * 2. PresentationManager is in the entities table
      * ('PresentationManager', 'PresentationManager', '_zfrLATUoEempSo2vlSygbA', 'PresentationManager', NULL);

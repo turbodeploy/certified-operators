@@ -4,13 +4,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -21,21 +19,20 @@ import com.google.common.collect.Sets;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.StringUtils;
-import org.immutables.value.Value;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -50,37 +47,18 @@ public class GroupExpander {
 
     private final GroupServiceBlockingStub groupServiceGrpc;
 
-    public GroupExpander(@Nonnull GroupServiceBlockingStub groupServiceGrpc) {
-        this.groupServiceGrpc = groupServiceGrpc;
-    }
+    private final GroupMemberRetriever groupMemberRetriever;
 
     /**
-     * A utility object to represent a group and its members.
+     * Creates an instance of GroupExpander.
      *
-     * TODO (roman, Mar 29 2019): Move this functionality to the group components.
-     * Edit the GetMembers call to return the leaf entity IDs, as well as the Group definition.
+     * @param groupServiceGrpc group RPC service end point.
+     * @param groupMemberRetriever service object to retrieve group and membership information.
      */
-    @Value.Immutable
-    public interface GroupAndMembers {
-        /**
-         * The {@link Grouping} definition retrieved from the group component.
-         *
-         * @return the group.
-         */
-        Grouping group();
-
-        /**
-         * The members of the group.
-         */
-        Collection<Long> members();
-
-        /**
-         * The entities in the group. In a non-nested group, this will be the same collection
-         * as the {@link GroupAndMembers#members()}. In a nested group, the members will be
-         * the immediate groups inside {@link GroupAndMembers#group()}, and the entities will be the
-         * leaf entities.
-         */
-        Collection<Long> entities();
+    public GroupExpander(@Nonnull GroupServiceBlockingStub groupServiceGrpc,
+                         @Nonnull GroupMemberRetriever groupMemberRetriever) {
+        this.groupServiceGrpc = groupServiceGrpc;
+        this.groupMemberRetriever = groupMemberRetriever;
     }
 
     /**
@@ -188,41 +166,7 @@ public class GroupExpander {
      */
     @Nonnull
     public GroupAndMembers getMembersForGroup(@Nonnull final Grouping group) {
-        ImmutableGroupAndMembers.Builder retBuilder = ImmutableGroupAndMembers.builder()
-            .group(group);
-        final List<Long> members;
-        if (group.getDefinition().hasStaticGroupMembers()) {
-            members = GroupProtoUtil.getStaticMembers(group);
-        } else {
-            final GetMembersResponse groupMembersResp =
-                            groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
-                                .setId(group.getId())
-                                .setExpectPresent(true)
-                                .build());
-            members = groupMembersResp.getMembers().getIdsList();
-        }
-
-        // now get the entities in the group. If this is a group-of-groups, the "members" in the group
-        // will be the group id's, while the "entities" in the group will be all the service entities
-        // contained within those nested groups. If this is NOT a group-of-groups, the "members" and
-        // "entities" will be the same -- the set of service entities contained in the group.
-        final Collection<Long> entities;
-        // If the group is nested, make a 2nd call with the "expand nested groups" flag to fetch
-        // the leaf entities in the nested groups.
-        if (GroupProtoUtil.isNestedGroup(group)) {
-            entities = groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
-                            .setId(group.getId())
-                            .setExpectPresent(true)
-                            .setExpandNestedGroups(true)
-                            .build())
-                        .getMembers().getIdsList();
-        } else {
-            entities = members;
-        }
-
-        retBuilder.members(members);
-        retBuilder.entities(entities);
-        return retBuilder.build();
+        return groupMemberRetriever.getMembersForGroup(group);
     }
 
     /**
@@ -234,10 +178,7 @@ public class GroupExpander {
      */
     public Stream<GroupAndMembers> getGroupsWithMembers(
                     @Nonnull final GetGroupsRequest getGroupsRequest) {
-        final Iterable<Grouping> retIt = () -> groupServiceGrpc.getGroups(getGroupsRequest);
-        return StreamSupport.stream(retIt.spliterator(), false)
-            // In the future we could support a group API call here.
-            .map(this::getMembersForGroup);
+        return groupMemberRetriever.getGroupsWithMembers(getGroupsRequest);
     }
 
     /**

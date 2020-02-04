@@ -158,7 +158,7 @@ public class SettingOverrides {
                                       @Nonnull GroupResolver groupResolver, TopologyGraph<TopologyEntity> topologyGraph) {
         Map<Setting, Set<Long>> entitiesToApplySetting = new HashMap<>();
         for (MaxUtilizationLevel u : maxUtilizationLevels) {
-            if (maxUtilizationLevels.stream().noneMatch(MaxUtilizationLevel::hasGroupOid)) {
+            if (!u.hasGroupOid()) {
                 // this is a full scope utilization setting
                 final Set<Long> entitiesOid = topologyGraph.entitiesOfType(u.getSelectedEntityType())
                         .map(TopologyGraphEntity::getOid)

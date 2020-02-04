@@ -75,15 +75,13 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 
 public class CloudCostsStatsSubQueryTest {
-    private static final long MILLIS = 1_000_000;
 
     private CostServiceMole costServiceMole = spy(new CostServiceMole());
+
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(costServiceMole);
 
-    CloudCostsStatsSubQuery query;
-
-    CostServiceBlockingStub costRpc;
+    private CloudCostsStatsSubQuery query;
 
     @Mock
     private RepositoryApi repositoryApi;
@@ -948,5 +946,24 @@ public class CloudCostsStatsSubQueryTest {
         Assert.assertEquals(2, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
         assertThat(scopeBuilder.getSpecificAccounts().getAccountIdsList(),
                 containsInAnyOrder(ACCOUNT_ID_1, ACCOUNT_ID_2));
+    }
+
+    /**
+     * Tests for {@link CloudCostsStatsSubQuery#getCostCategoryString(StatRecord)} method.
+     */
+    @Test
+    public void testGetCostCategoryString() {
+        final StatRecord onDemandComputeRecord = StatRecord.newBuilder()
+                .setCategory(CostCategory.ON_DEMAND_COMPUTE).build();
+        Assert.assertEquals("ON_DEMAND_COMPUTE",
+                CloudCostsStatsSubQuery.getCostCategoryString(onDemandComputeRecord));
+
+        final StatRecord spotRecord = StatRecord.newBuilder()
+                .setCategory(CostCategory.SPOT).build();
+        Assert.assertEquals("SPOT",
+                CloudCostsStatsSubQuery.getCostCategoryString(spotRecord));
+
+        final StatRecord nullRecord = StatRecord.newBuilder().build();
+        Assert.assertNull(CloudCostsStatsSubQuery.getCostCategoryString(nullRecord));
     }
 }

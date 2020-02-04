@@ -69,6 +69,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -172,7 +173,7 @@ public class ScopedTopologyTest {
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
-            groupServiceClient,
+            new GroupMemberRetriever(groupServiceClient),
             Clock.systemUTC(),
             analysisConfig,
             cloudTopologyFactory,
@@ -361,10 +362,11 @@ public class ScopedTopologyTest {
                 when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
                 when(topologyCostCalculatorFactory.newCalculator(any(), any())).thenReturn(topologyCostCalculator);
                 return new Analysis(topologyInfo, topologyDTOs,
-                        groupServiceClient, Clock.systemUTC(), configBuilder.build(),
-                        cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,
-                        wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                        mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory);
+                        new GroupMemberRetriever(groupServiceClient), Clock.systemUTC(),
+                        configBuilder.build(), cloudTopologyFactory, topologyCostCalculatorFactory,
+                        priceTableFactory, wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory,
+                        tierExcluderFactory, mock(AnalysisRICoverageListener.class),
+                        consistentScalingHelperFactory);
             });
 
         Analysis analysis =

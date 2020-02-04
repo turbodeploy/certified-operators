@@ -17,7 +17,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -38,6 +37,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisConfig;
@@ -145,13 +145,14 @@ public class MarketRunnerConfig {
     }
 
     @Bean
-    public GroupServiceBlockingStub groupServiceClient() {
-        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    public GroupMemberRetriever groupMemberRetriever() {
+        return new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(
+                groupClientConfig.groupChannel()));
     }
 
     @Bean
     public AnalysisFactory analysisFactory() {
-        return new DefaultAnalysisFactory(groupServiceClient(),
+        return new DefaultAnalysisFactory(groupMemberRetriever(),
                 settingServiceClient(),
                 marketPriceTableFactory(),
                 cloudTopologyFactory(),
@@ -222,7 +223,9 @@ public class MarketRunnerConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory();
+        return new DefaultTopologyEntityCloudTopologyFactory(
+                new GroupMemberRetriever(GroupServiceGrpc
+                        .newBlockingStub(groupClientConfig.groupChannel())));
     }
 
     @Bean

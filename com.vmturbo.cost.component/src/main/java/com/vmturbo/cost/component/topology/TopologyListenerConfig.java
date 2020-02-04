@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
@@ -34,6 +35,8 @@ import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 /**
@@ -53,7 +56,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         BuyRIAnalysisConfig.class,
         ReservedInstanceSpecConfig.class,
         CostDBConfig.class,
-        SupplyChainServiceConfig.class})
+        SupplyChainServiceConfig.class,
+        GroupClientConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -95,6 +99,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private SupplyChainServiceConfig supplyChainServiceConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -169,7 +176,9 @@ public class TopologyListenerConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory();
+        return new DefaultTopologyEntityCloudTopologyFactory(
+                new GroupMemberRetriever(GroupServiceGrpc
+                        .newBlockingStub(groupClientConfig.groupChannel())));
     }
 
     @Bean

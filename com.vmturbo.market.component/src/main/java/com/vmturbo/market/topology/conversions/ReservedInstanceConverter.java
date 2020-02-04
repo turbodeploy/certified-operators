@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.MarketTier;
@@ -44,12 +44,15 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  */
 public class ReservedInstanceConverter extends ComputeTierConverter {
     private static final Logger logger = LogManager.getLogger();
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
     ReservedInstanceConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
                          @Nonnull CostDTOCreator costDTOCreator,
-                         @Nonnull TierExcluder tierExcluder) {
+                         @Nonnull TierExcluder tierExcluder,
+                         @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         super(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
+        this.cloudTopology = cloudTopology;
     }
 
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
@@ -57,7 +60,8 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
             @Nonnull Map<Long, TopologyEntityDTO> topology,
             Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid) {
 
-        ReservedInstanceAggregator aggregator = new ReservedInstanceAggregator(cloudCostData, topology);
+        ReservedInstanceAggregator aggregator = new ReservedInstanceAggregator(cloudCostData,
+                topology, cloudTopology);
         // create RI aggregates from the RIs bought
         Collection<ReservedInstanceAggregate> riAggregates = aggregator.aggregate(topologyInfo);
         riDataMap = aggregator.getRIDataMap();
@@ -67,7 +71,8 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         for (ReservedInstanceAggregate riAggregate : riAggregates) {
             TopologyEntityDTO computeTier = riAggregate.getComputeTier();
             TopologyEntityDTO region = topology.get(riAggregate.getRiKey().getRegionId());
-            RiDiscountedMarketTier marketTier = new RiDiscountedMarketTier(computeTier, region, riAggregate);
+            RiDiscountedMarketTier marketTier = new RiDiscountedMarketTier(computeTier, region,
+                    riAggregate);
             String debugInfo = marketTier.getDisplayName();
             logger.debug("Creating trader for {}", debugInfo);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
@@ -81,11 +86,16 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setRiskBased(RiskBased.newBuilder()
                                     .setCloudCost(costDTOCreator
-                                            .createCbtpCostDTO(riAggregate.getRiKey(), accountPricingDataByBusinessAccountOid, region, computeTier))
+                                            .createCbtpCostDTO(riAggregate.getRiKey(),
+                                                    accountPricingDataByBusinessAccountOid,
+                                                    region, computeTier,
+                                                    riAggregate.getApplicableBusinessAccount()))
                                     .build()))
                     .setQuoteFactor(1)
                     .build();
-
+            logger.debug("CbtpCostDTO for RI: {} is: {}", riAggregate.getDisplayName(),
+                    settings.getQuoteFunction().getRiskBased().getCloudCost()
+                            .getCbtpResourceBundle());
             TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
                     // Type and Oid are the same in the topology DTOs and economy DTOs
                     .setOid(IdentityGenerator.next())

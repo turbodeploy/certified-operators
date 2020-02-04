@@ -112,11 +112,11 @@ public class PostStitchingTestUtilities {
     }
 
     static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldDTO> commoditiesSold,
-                                             @Nonnull final Map<String, String> propertyMap) {
-        return TopologyEntityBuilder.newBuilder()
-            .withCommoditiesSold(commoditiesSold)
-            .withProperties(propertyMap)
-            .build();
+                                             @Nonnull final TypeSpecificInfo typeSpecificInfo) {
+        TopologyEntityBuilder builder = TopologyEntityBuilder.newBuilder()
+            .withCommoditiesSold(commoditiesSold);
+        builder.getBuilder().getEntityBuilder().setTypeSpecificInfo(typeSpecificInfo);
+        return builder.build();
     }
 
     static TopologyEntity makeTopologyEntity(final long oid,

@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyEntityCloudTopologyFactoryTest {
@@ -57,7 +58,7 @@ public class TopologyEntityCloudTopologyFactoryTest {
     @Test
     public void testStream() {
         final TopologyEntityCloudTopologyFactory factory =
-                new DefaultTopologyEntityCloudTopologyFactory();
+                new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
         final TopologyEntityCloudTopology topology = factory.newCloudTopology(Stream.of(CLOUD_ENTITY_E, NON_CLOUD_ENTITY_E));
         assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY_E));
     }
@@ -70,7 +71,7 @@ public class TopologyEntityCloudTopologyFactoryTest {
                 .thenReturn(Collections.singleton(NON_CLOUD_ENTITY))
                 .thenReturn(Collections.singleton(CLOUD_ENTITY));
         final TopologyEntityCloudTopologyFactory factory =
-                new DefaultTopologyEntityCloudTopologyFactory();
+                new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
         final TopologyEntityCloudTopology topology = factory.newCloudTopology(1, remoteIterator);
         assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY_E));
     }

@@ -17,9 +17,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,13 +25,15 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
@@ -74,8 +73,9 @@ public class CloudTopologyConverter {
     private final Map<Long, TopologyEntityDTO> topology;
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
-    private final CloudCostData cloudCostData;
+    private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -89,6 +89,7 @@ public class CloudTopologyConverter {
      * @param cloudCostData Cloud Cost data
      * @param tierExcluder tier exclusion applicator which is used to apply tier
      *                                exclusion settings
+     * @param cloudTopology instance to look up topology relationships
      */
      @VisibleForTesting
      CloudTopologyConverter(
@@ -98,9 +99,11 @@ public class CloudTopologyConverter {
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
              @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
              @Nonnull CloudCostData cloudCostData,
-             @Nonnull TierExcluder tierExcluder) {
+             @Nonnull TierExcluder tierExcluder,
+             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
          this.topology = topology;
          this.topologyInfo = topologyInfo;
+         this.cloudTopology = cloudTopology;
          this.commodityConverter = commodityConverter;
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
@@ -108,7 +111,8 @@ public class CloudTopologyConverter {
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
-         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
+         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter,
+                 costDTOCreator, tierExcluder, cloudTopology);
          this.businessAccounts = businessAccounts;
          this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());
@@ -479,7 +483,8 @@ public class CloudTopologyConverter {
      *
      * @return An optional of AccountPricingData
      */
-    public Optional<AccountPricingData> getAccountPricingIdFromBusinessAccount(Long businessAccountOid) {
+    public Optional<AccountPricingData<TopologyEntityDTO>> getAccountPricingIdFromBusinessAccount(
+            Long businessAccountOid) {
         return cloudCostData.getAccountPricingData(businessAccountOid);
     }
 

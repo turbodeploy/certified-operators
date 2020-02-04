@@ -53,6 +53,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -664,7 +665,8 @@ public class InterpretActionTest {
                 m1Large.getOid(), entity(m1Large),
                 m1Medium.getOid(), entity(m1Medium));
         final TopologyEntityCloudTopology originalCloudTopology =
-                new TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory()
+                new TopologyEntityCloudTopologyFactory
+                        .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
                         .newCloudTopology(originalTopology.values().stream());
         Optional<Action> action = interpreter.interpretAction(actionTO, projectedTopology,
                                                               originalCloudTopology, projectedCosts,

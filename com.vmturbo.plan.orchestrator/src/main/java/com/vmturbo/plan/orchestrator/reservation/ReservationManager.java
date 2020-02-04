@@ -192,6 +192,9 @@ public class ReservationManager {
         synchronized (reservationSetLock) {
             Set<ReservationDTO.Reservation> updatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : reservationSet) {
+                if (reservation.getStatus() == ReservationStatus.INPROGRESS) {
+                    logger.info("Finished Reservation: " + reservation.getName());
+                }
                 if (isReservationSuccessful(reservation)) {
                     updatedReservation.add(reservation.toBuilder()
                             .setStatus(ReservationStatus.RESERVED).build());

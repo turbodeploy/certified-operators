@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -55,7 +56,7 @@ public class ReservedInstanceCoverageValidatorTest {
             mock(ReservedInstanceSpecStore.class);
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            new DefaultTopologyEntityCloudTopologyFactory();
+            new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
 
     private final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
             .setOid(oidProvider.incrementAndGet())

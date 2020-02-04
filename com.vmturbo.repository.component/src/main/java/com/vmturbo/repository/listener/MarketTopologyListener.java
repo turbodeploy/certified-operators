@@ -113,7 +113,6 @@ public class MarketTopologyListener implements
             TopologyInfo originalTopologyInfo,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
-
         if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
             updateLatestKnownProjectedTopologyId(projectedTopologyId);
         }

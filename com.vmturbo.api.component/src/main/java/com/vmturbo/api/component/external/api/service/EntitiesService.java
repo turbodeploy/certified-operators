@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -88,6 +91,8 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -663,15 +668,30 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
-        if (!uuidMapper.fromUuid(s).isEntity()) {
+        if (!(uuidMapper.fromUuid(s).isEntity() || uuidMapper.fromUuid(s).isGroup())) {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", s));
         }
-        long oid = uuidMapper.fromUuid(s).oid();
-        return TagsMapper.convertTagsToApi(repositoryApi.entityRequest(oid)
-            .getEntity()
-            .orElseThrow(() -> new UnknownObjectException(s))
-            .getTags().getTagsMap());
+        final ApiId apiId = uuidMapper.fromUuid(s);
+        long oid = apiId.oid();
+        final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
+        if (apiId.isGroup()) {
+            final GetTagsRequest tagsRequest =
+                    GetTagsRequest.newBuilder().addGroupId(oid).build();
+            final GetTagsResponse tagsForGroups =
+                    groupServiceClient.getTags(tagsRequest);
+            final Tags tags = tagsForGroups.getTagsMap().get(oid);
+            if (tags != null) {
+                tagsMap.putAll(tags.getTagsMap());
+            }
+        } else {
+            tagsMap.putAll(repositoryApi.entityRequest(oid)
+                    .getEntity()
+                    .orElseThrow(() -> new UnknownObjectException(s))
+                    .getTags()
+                    .getTagsMap());
+        }
+        return TagsMapper.convertTagsToApi(tagsMap);
     }
 
     @Override

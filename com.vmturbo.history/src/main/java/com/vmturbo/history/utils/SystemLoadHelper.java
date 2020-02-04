@@ -35,6 +35,7 @@ import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
+import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -47,6 +48,7 @@ public class SystemLoadHelper {
     // TODO unify: Any 7.21 changes needed?
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String USED = PropertySubType.Used.getApiParameterName();
 
     private SystemLoadReader systemLoadReader = null;
 
@@ -342,11 +344,11 @@ public class SystemLoadHelper {
             final String uuid = Long.toString(comm.second.getOid());
             final String propertyType = SystemLoadCommodities.toSystemLoadCommodity(comm.first.getCommodityType().getType()).toString();
 
-            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(
-                slice, new Timestamp(date.getTime()), uuid, null, propertyType,
-                "used", comm.first.getCapacity(), comm.first.getUsed(),
-                comm.first.getUsed(), comm.first.getPeak(),
-                RelationType.COMMODITIES, comm.first.getCommodityType().getKey());
+            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(slice,
+                            new Timestamp(date.getTime()), uuid, null, propertyType, USED,
+                            comm.first.getCapacity(), comm.first.getUsed(), comm.first.getUsed(),
+                            comm.first.getPeak(), RelationType.COMMODITIES,
+                            comm.first.getCommodityType().getKey());
             loader.insert(record);
         }
 
@@ -355,10 +357,10 @@ public class SystemLoadHelper {
             final String producerUuid = Long.toString(comm.second.getCommoditiesBoughtFromProviders(0).getProviderId());
             final String propertyType = SystemLoadCommodities.toSystemLoadCommodity(comm.first.getCommodityType().getType()).toString();
 
-            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(
-                slice, new Timestamp(date.getTime()), uuid, producerUuid, propertyType,
-                "used", null, comm.first.getUsed(), comm.first.getUsed(), comm.first.getPeak(),
-                RelationType.COMMODITIESBOUGHT, comm.first.getCommodityType().getKey());
+            final SystemLoadRecord record = SystemLoadDbUtil.createSystemLoadRecord(slice,
+                            new Timestamp(date.getTime()), uuid, producerUuid, propertyType, USED,
+                            null, comm.first.getUsed(), comm.first.getUsed(), comm.first.getPeak(),
+                            RelationType.COMMODITIESBOUGHT, comm.first.getCommodityType().getKey());
             loader.insert(record);
         }
 

@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -29,6 +30,7 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.cost.component.reserved.instance.listener.PlanTopologyListener;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -258,7 +260,9 @@ public class ReservedInstanceConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory();
+        return new DefaultTopologyEntityCloudTopologyFactory(
+                new GroupMemberRetriever(GroupServiceGrpc
+                        .newBlockingStub(groupClientConfig.groupChannel())));
     }
 
     /**

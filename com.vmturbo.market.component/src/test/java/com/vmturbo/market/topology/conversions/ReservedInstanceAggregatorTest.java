@@ -3,6 +3,7 @@ package com.vmturbo.market.topology.conversions;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -10,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Test;
@@ -20,6 +22,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -28,6 +31,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -45,6 +50,7 @@ public class ReservedInstanceAggregatorTest {
     private static final Tenancy TENANCY_1 = Tenancy.DEFAULT;
     private static final long TIER_1 = 50;
     private static final String FAMILY_1 = "LINUX";
+    private static final long BILLING_FAMILY_ID = 444L;
 
     private final Map<Long, TopologyEntityDTO> topology = Mockito.spy(new HashMap<>());
     private final ReservedInstanceBought riBought1 = ReservedInstanceBought.newBuilder().setId(10)
@@ -88,22 +94,26 @@ public class ReservedInstanceAggregatorTest {
 
         ReservedInstanceData riData3 = new ReservedInstanceData(riBought2, riSpec2);
 
-        final ReservedInstanceKey riKey1 = new ReservedInstanceKey(riData1, FAMILY_1);
-        final ReservedInstanceKey riKey2 = new ReservedInstanceKey(riData2, FAMILY_1);
-        final ReservedInstanceKey riKey3 = new ReservedInstanceKey(riData3, FAMILY_1);
+        final ReservedInstanceKey riKey1 = new ReservedInstanceKey(riData1, FAMILY_1,
+                BILLING_FAMILY_ID);
+        final ReservedInstanceKey riKey2 = new ReservedInstanceKey(riData2, FAMILY_1,
+                BILLING_FAMILY_ID);
+        final ReservedInstanceKey riKey3 = new ReservedInstanceKey(riData3, FAMILY_1,
+                BILLING_FAMILY_ID);
         final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder().setOid(TIER_1)
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
                         ComputeTierInfo.newBuilder().setFamily(FAMILY_1)
                                 .build()).build()).build();
+        final Set<Long> applicableBusinessAccounts = Collections.singleton((long)ACCOUNT_1);
         ReservedInstanceAggregate riAgg1 = new ReservedInstanceAggregate(riData1, riKey1,
-                computeTier);
+                computeTier, applicableBusinessAccounts);
         ReservedInstanceAggregate riAgg2 = new ReservedInstanceAggregate(riData2, riKey2,
-                computeTier);
+                computeTier, applicableBusinessAccounts);
         assertEquals(riAgg1, riAgg2);
 
         ReservedInstanceAggregate riAgg3 = new ReservedInstanceAggregate(riData3, riKey3,
-                computeTier);
+                computeTier, applicableBusinessAccounts);
         assertNotEquals(riAgg1, riAgg3);
 
         Set<ReservedInstanceAggregate> aggregates = new HashSet<>();
@@ -132,10 +142,17 @@ public class ReservedInstanceAggregatorTest {
         TopologyInfo topoInfo = TopologyInfo.newBuilder().build();
         CloudCostData ccd = mock(CloudCostData.class);
         when(ccd.getExistingRiBought()).thenReturn(Collections.singletonList(riData1));
-        ReservedInstanceAggregator ria = new ReservedInstanceAggregator(ccd, topology);
+        final TopologyEntityCloudTopology cloudTopology =
+                Mockito.mock(TopologyEntityCloudTopology.class);
+        when(cloudTopology.getBillingFamilyForEntity(anyLong()))
+                .thenReturn(Optional.of(ImmutableGroupAndMembers.builder()
+                        .group(Grouping.newBuilder().setId(1111L).build())
+                        .entities(Collections.emptyList())
+                        .members(Collections.emptyList())
+                        .build()));
+        ReservedInstanceAggregator ria = new ReservedInstanceAggregator(ccd, topology,
+                cloudTopology);
         assertEquals(0, ria.aggregate(topoInfo).size());
-
-
         TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder().setOid(TIER_1)
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(

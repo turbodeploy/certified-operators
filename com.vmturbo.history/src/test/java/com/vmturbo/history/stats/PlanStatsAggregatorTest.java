@@ -119,7 +119,7 @@ public class PlanStatsAggregatorTest {
         Assert.assertEquals((CPU_MIN + CPU_MID + CPU_MAX) / 3, cpuStats.getAvgValue(), 0);
         Assert.assertEquals(CPU_MIN, cpuStats.getMinValue(), 0);
         Assert.assertEquals(CPU_MAX, cpuStats.getMaxValue(), 0);
-        Assert.assertEquals("used",  cpuStats.getPropertySubtype());
+        Assert.assertEquals(PropertySubType.Used.getApiParameterName(),  cpuStats.getPropertySubtype());
         Assert.assertEquals(PREFIX + "CPU", cpuStats.getPropertyType());
     }
 

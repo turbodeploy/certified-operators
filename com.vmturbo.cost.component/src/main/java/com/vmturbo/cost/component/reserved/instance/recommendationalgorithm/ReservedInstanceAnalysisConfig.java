@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -20,6 +21,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Import({
@@ -97,6 +99,8 @@ public class ReservedInstanceAnalysisConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory();
+        return new DefaultTopologyEntityCloudTopologyFactory(
+                new GroupMemberRetriever(
+                        GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())));
     }
 }

@@ -119,7 +119,7 @@ public class MockGroupStore implements IGroupStore {
 
     @Nonnull
     @Override
-    public Map<String, Set<String>> getTags() {
+    public Map<Long, Map<String, Set<String>>> getTags(@Nonnull Collection<Long> groupIds) {
         return Collections.emptyMap();
     }
 

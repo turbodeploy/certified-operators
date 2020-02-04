@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -271,7 +272,7 @@ public class CoverageTopologyImpl implements CoverageTopology {
                         .map(SDKProbeType::create)
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet()))
-                .orElse(Collections.EMPTY_SET);
+                .orElse(Collections.emptySet());
     }
 
     /**
@@ -342,5 +343,14 @@ public class CoverageTopologyImpl implements CoverageTopology {
     @Override
     public long getRICoverageCapacityForEntity(final long entityId) {
         return cloudTopology.getRICoverageCapacityForEntity(entityId);
+    }
+
+    /**
+     * Not defined for CoverageTopologyImpl.
+     */
+    @Nonnull
+    @Override
+    public Optional<GroupAndMembers> getBillingFamilyForEntity(final long entityId) {
+        return Optional.empty();
     }
 }

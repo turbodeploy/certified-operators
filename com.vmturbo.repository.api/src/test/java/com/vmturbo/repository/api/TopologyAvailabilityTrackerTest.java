@@ -2,10 +2,12 @@ package com.vmturbo.repository.api;
 
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker.QueuedTopologyRequest;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker.TopologyUnavailableException;
 
@@ -49,11 +51,11 @@ public class TopologyAvailabilityTrackerTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testWaitForAnyRealtimeTopologySuccess() throws Exception {
+    public void testWaitForSourceRealtimeTopologySuccess() throws Exception {
         final long topologyId = 10;
         // Get the request first.
         QueuedTopologyRequest topologyRequest =
-            availabilityTracker.queueAnyTopologyRequest(REALTIME_CONTEXT);
+            availabilityTracker.queueAnyTopologyRequest(REALTIME_CONTEXT, TopologyType.SOURCE);
 
         // Topology is now available...
         availabilityTracker.onSourceTopologyAvailable(topologyId, REALTIME_CONTEXT);
@@ -111,11 +113,11 @@ public class TopologyAvailabilityTrackerTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testWaitForAnyRealtimeTopologyFailure() throws Exception {
+    public void testWaitForSourceRealtimeTopologyFailure() throws Exception {
         final long topologyId = 10;
         // Get the request first.
         QueuedTopologyRequest topologyRequest =
-            availabilityTracker.queueAnyTopologyRequest(REALTIME_CONTEXT);
+            availabilityTracker.queueAnyTopologyRequest(REALTIME_CONTEXT, TopologyType.SOURCE);
 
         // Topology is now available... BUT IT FAILED
         final String errMsg = "Failed";
@@ -268,25 +270,36 @@ public class TopologyAvailabilityTrackerTest {
         topologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Test that plan projected topology satisfies waiters.
-     *
-     * @throws Exception To satisfy compiler.
-     */
     @Test
-    public void testWaitForPlanTopologyFulfilledByProjected() throws Exception {
+    public void testWaitForSpecificTopologyType() throws Exception {
         final long planId = 123;
         final long topologyId = 10;
         // Get the request first.
-        QueuedTopologyRequest topologyRequest =
-            availabilityTracker.queueTopologyRequest(planId, topologyId);
+        QueuedTopologyRequest projectedTopologyRequest = availabilityTracker.queueAnyTopologyRequest(planId, TopologyType.PROJECTED);
+        QueuedTopologyRequest sourceTopologyRequest = availabilityTracker.queueAnyTopologyRequest(planId, TopologyType.SOURCE);
 
         // Projected topology is now available... but it's a different topology ID!
-        availabilityTracker.onProjectedTopologyAvailable(topologyId + 10, planId);
+        availabilityTracker.onSourceTopologyAvailable(topologyId + 10, planId);
 
-        // This should complete immediately, because the projected topology for plans counts,
-        // since we currently ONLY save the projected topology. No errors.
-        topologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+        // The source request should complete immediately.
+        sourceTopologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+
+        // This should throw an exception, since we only have the source so far.
+        try {
+            projectedTopologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+            Assert.fail("Request for projected topology satisfied by source topology.");
+        } catch (TopologyUnavailableException e) {
+            // Expected.
+        }
+
+        availabilityTracker.onProjectedTopologyAvailable(topologyId + 11, planId);
+
+        // Now it should return without an exception.
+        projectedTopologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+
+        QueuedTopologyRequest sourceTopologyRequest2 = availabilityTracker.queueAnyTopologyRequest(planId, TopologyType.SOURCE);
+        // The source request should still return - i.e. the projected shouldn't affect the source.
+        sourceTopologyRequest2.waitForTopology(1, TimeUnit.MILLISECONDS);
     }
 
     /**

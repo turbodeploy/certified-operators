@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -111,7 +112,17 @@ public class ReservedCapacityAnalysis {
                             break;
                         }
                     }
-                    if (commSold == null || !commSold.getIsResizeable()) {
+                    // We want to avoid resizing reservation when it is equal to or greater than
+                    // the capacity of the VM as there may be some misconfiguration or reservation
+                    // locking where the customer doesn't want reservation resizes since they
+                    // want it to remain locked to capacity. This will take precedence over
+                    // consistent scaling and this change will prevent this entity's tentative
+                    // reservation value from being considered when calculating the max reservation
+                    // for a scaling group.
+                    // TODO: Mediation should expose the reservation lock value on an entity
+                    if (commSold == null || !commSold.getIsResizeable()
+                            || (commBought.getReservedCapacity() - commSold.getCapacity()
+                                    >= -MarketAnalysisUtils.EPSILON)) {
                         continue;
                     }
                     calculateReservedCapacity(oid, commBought, commSold, consistentScalingHelper);

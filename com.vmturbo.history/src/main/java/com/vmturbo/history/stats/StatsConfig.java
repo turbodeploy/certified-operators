@@ -6,8 +6,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.jooq.Record;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +19,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.Builder;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
@@ -24,7 +30,6 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
-import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
 import com.vmturbo.history.stats.live.RatioRecordFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
@@ -33,8 +38,16 @@ import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
+import com.vmturbo.history.stats.readers.HistUtilizationReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.PercentileReader;
+import com.vmturbo.history.stats.snapshots.CapacityRecordVisitor.CapacityPopulator;
+import com.vmturbo.history.stats.snapshots.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator;
+import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor.PropertyTypePopulator;
+import com.vmturbo.history.stats.snapshots.SharedPropertyPopulator;
+import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
+import com.vmturbo.history.stats.snapshots.UsageRecordVisitor.UsagePopulator;
 
 /**
  * Spring configuration for Stats RPC service related objects.
@@ -42,6 +55,46 @@ import com.vmturbo.history.stats.readers.PercentileReader;
 @Configuration
 @Import({HistoryDbConfig.class, GroupClientConfig.class})
 public class StatsConfig {
+    /**
+     * Populates related entity type into {@link StatRecord.Builder} instance.
+     */
+    public static final SharedPropertyPopulator<String> RELATED_ENTITY_TYPE_POPULATOR =
+                    new SharedPropertyPopulator<String>() {
+                        @Override
+                        public void accept(@Nonnull StatRecord.Builder builder, @Nullable String value,
+                                        @Nullable Record record) {
+                            if (value != null) {
+                                builder.setRelatedEntityType(value);
+                            }
+                        }
+                    };
+    /**
+     * Populates relation into {@link StatRecord.Builder} instance.
+     */
+    public static final SharedPropertyPopulator<String> RELATION_POPULATOR =
+                    new SharedPropertyPopulator<String>() {
+                        @Override
+                        public void accept(@Nonnull Builder builder, @Nullable String value,
+                                        @Nullable Record record) {
+                            if (value != null) {
+                                builder.setRelation(value);
+                            }
+                        }
+                    };
+    /**
+     * Populates property type related information into {@link StatRecord.Builder} instance.
+     */
+    public static final PropertyTypePopulator PROPERTY_TYPE_POPULATOR =
+                    new PropertyTypePopulator();
+    /**
+     * Populates usage related information into {@link StatRecord.Builder} instance.
+     */
+    public static final UsagePopulator USAGE_POPULATOR = new UsagePopulator();
+    /**
+     * Populates capacity related information into {@link StatRecord.Builder} instance.
+     */
+    public static final CapacityPopulator CAPACITY_POPULATOR = new CapacityPopulator();
+
 
     @Autowired
     private HistoryDbConfig historyDbConfig;
@@ -79,6 +132,8 @@ public class StatsConfig {
     private int timeToWaitNetworkReadinessMs;
     @Value("${grpcReadingTimeoutMs}")
     private long grpcReadingTimeoutMs;
+    @Value("${history.entitiesReadPerChunk:5000}")
+    private int entitiesReadPerChunk;
 
 
     // TODO figure this out - plan stats writer probably needs to use bulk loader, etc.
@@ -114,12 +169,24 @@ public class StatsConfig {
 
     @Bean
     public StatSnapshotCreator statSnapshotCreator() {
-        return new DefaultStatSnapshotCreator(statRecordBuilder());
+        return createStatSnapshotCreator(liveStatsReader());
+    }
+
+    protected static DefaultStatSnapshotCreator createStatSnapshotCreator(
+                    LiveStatsReader liveStatsReader) {
+        return new DefaultStatSnapshotCreator(new ProducerIdPopulator(liveStatsReader));
     }
 
     @Bean
     public StatRecordBuilder statRecordBuilder() {
-        return new DefaultStatRecordBuilder(liveStatsReader());
+        return createStatRecordBuilder(liveStatsReader());
+    }
+
+    protected static DefaultStatRecordBuilder createStatRecordBuilder(
+                    LiveStatsReader liveStatsReader) {
+        return new DefaultStatRecordBuilder(RELATED_ENTITY_TYPE_POPULATOR, RELATION_POPULATOR,
+                        USAGE_POPULATOR, CAPACITY_POPULATOR, PROPERTY_TYPE_POPULATOR,
+                        new ProducerIdPopulator(liveStatsReader));
     }
 
     @Bean
@@ -169,7 +236,14 @@ public class StatsConfig {
             timeRangeFactory(),
             statsQueryFactory(),
             fullMarketRatioProcessorFactory(),
-            ratioRecordFactory());
+            ratioRecordFactory(),
+            histUtilizationReader(),
+            entitiesReadPerChunk);
+    }
+
+    @Bean
+    protected HistUtilizationReader histUtilizationReader() {
+        return new HistUtilizationReader(historyDbConfig.historyDbIO(), entitiesReadPerChunk);
     }
 
     @Bean

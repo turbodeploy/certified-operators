@@ -19,14 +19,20 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * A {@link CloudTopology} for {@link TopologyEntityDTO}, to be used when running the cost
@@ -42,14 +48,25 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
 
     private final Map<Long, Long> serviceForEntity;
 
+    private final SetOnce<Map<Long, GroupAndMembers>> businessAccountIdToBillingFamilyGroup
+            = new SetOnce<>();
+
+    private final GroupMemberRetriever groupMemberRetriever;
+
     /**
-     * Do not call directly, except in tests. Use {@link TopologyEntityCloudTopology}.
+     * Creates an instance of TopologyEntityCloudTopology with the provided topologyEntities and
+     * billingFamilies.
+     *
+     * @param topologyEntities stream of TopologyEntityDTOs from which the CloudTopology is
+     *                         constructed.
+     * @param groupMemberRetriever service object to retrieve billing families information.
      */
-    TopologyEntityCloudTopology(@Nonnull final Stream<TopologyEntityDTO> topologyEntitiesById) {
+    TopologyEntityCloudTopology(@Nonnull final Stream<TopologyEntityDTO> topologyEntities,
+                                @Nonnull final GroupMemberRetriever groupMemberRetriever) {
         final Map<Long, TopologyEntityDTO> entitiesMap = new HashMap<>();
         final Map<Long, Long> ownedBy = new HashMap<>();
         final Map<Long, Long> connectedToService = new HashMap<>();
-        topologyEntitiesById.forEach(cloudEntity -> {
+        topologyEntities.forEach(cloudEntity -> {
             final long id = cloudEntity.getOid();
             entitiesMap.put(id, cloudEntity);
             cloudEntity.getConnectedEntityListList().forEach(connection -> {
@@ -72,6 +89,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         this.topologyEntitiesById = Collections.unmodifiableMap(entitiesMap);
         this.ownedBy = Collections.unmodifiableMap(ownedBy);
         this.serviceForEntity = Collections.unmodifiableMap(connectedToService);
+        this.groupMemberRetriever = groupMemberRetriever;
     }
 
     @Nonnull
@@ -391,5 +409,60 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                             return 0L;
                     }
                 }).orElse(0L);
+    }
+
+    /**
+     * Returns the billing family group of the entity with the provided id.
+     *
+     * @param entityId of the entity for which billing family group is being returned.
+     * @return billing family group of the entity with the provided id.
+     */
+    @Override
+    @Nonnull
+    public Optional<GroupAndMembers> getBillingFamilyForEntity(final long entityId) {
+        businessAccountIdToBillingFamilyGroup
+                .ensureSet(this::createAccountIdToBillingFamilyGroupMap);
+
+        if (getEntity(entityId).map(entity -> entity.getEntityType()
+                == EntityType.BUSINESS_ACCOUNT_VALUE).orElse(false)) {
+            return businessAccountIdToBillingFamilyGroup.getValue()
+                    .map(map -> map.get(entityId));
+        } else {
+            final Long accountId = ownedBy.get(entityId);
+            if (accountId == null) {
+                logger.warn("OwnedBy account id not found for entityId: {}", entityId);
+                return Optional.empty();
+            }
+            return businessAccountIdToBillingFamilyGroup.getValue()
+                    .map(map -> map.get(accountId));
+        }
+    }
+
+    /**
+     * Creates a map from account id to Billing family group. It first retrieves all the billing
+     * family groups from the group component and then constructs the map from account id to
+     * billing family group.
+     *
+     * @return map from account id to billing family group.
+     */
+    private Map<Long, GroupAndMembers> createAccountIdToBillingFamilyGroupMap() {
+        // Retrieve Billing family groups from GroupMemberRetriever
+        final Stream<GroupAndMembers> billingFamilyGroups = retrieveBillingFamilyGroups();
+
+        // Create map from account id to Billing Family group
+        final Map<Long, GroupAndMembers> billingFamilyGroupByBusinessAccountId =
+                new HashMap<>();
+        billingFamilyGroups.forEach(group -> group.members()
+                .forEach(id -> billingFamilyGroupByBusinessAccountId.put(id, group)));
+        return billingFamilyGroupByBusinessAccountId;
+    }
+
+    private Stream<GroupAndMembers> retrieveBillingFamilyGroups() {
+        return groupMemberRetriever
+                .getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                .setGroupType(GroupType.BILLING_FAMILY)
+                                .build())
+                        .build());
     }
 }

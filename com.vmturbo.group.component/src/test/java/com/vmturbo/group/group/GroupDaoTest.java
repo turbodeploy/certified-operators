@@ -545,38 +545,59 @@ public class GroupDaoTest {
     }
 
     /**
-     * Tests how tags are queried from the database. All the tags put on different groups are
-     * expected to be returned as one map.
+     * Tests how tags are queried from the database. If requested certain groups retain tags
+     * related to these groups. If requested groups are not set then return tags for all existed
+     * groups in group component.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
-    public void testGetGroupTags() throws Exception {
+    public void testGetTagsForGroups() throws Exception {
         final Origin origin = createUserOrigin();
-        final String tag1 = "spell";
-        final String tag2 = "potion";
-        final String value1 = "against enemies";
-        final String value2 = "for friends";
-        final String value3 = "just for fun";
-        final GroupDefinition groupDefinition1 = createGroupDefinition();
+        final String tagName1 = "tag1";
+        final String tagName2 = "tag2";
+        final String tagName3 = "tag3";
+        final String tagValue11 = "tag1-1";
+        final String tagValue12 = "tag1-2";
+        final String tagValue2 = "tag2";
+        final String tagValue31 = "tag3-1";
+        final String tagValue32 = "tag3-2";
 
         final GroupDefinition groupDefinition2 = GroupDefinition.newBuilder(createGroupDefinition())
                 .setTags(Tags.newBuilder()
-                        .putTags(tag1, TagValuesDTO.newBuilder().addValues(value1).build())
-                        .putTags(tag2, TagValuesDTO.newBuilder().addValues(value2).build()))
+                        .putTags(tagName1, TagValuesDTO.newBuilder()
+                                .addAllValues(Arrays.asList(tagValue11, tagValue12))
+                                .build())
+                        .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue2).build()))
                 .build();
         final GroupDefinition groupDefinition3 = GroupDefinition.newBuilder(createGroupDefinition())
                 .setTags(Tags.newBuilder()
-                        .putTags(tag1, TagValuesDTO.newBuilder().addValues(value2).build())
-                        .putTags(tag2, TagValuesDTO.newBuilder().addValues(value2).build())
-                        .putTags(tag2, TagValuesDTO.newBuilder().addValues(value3).build()))
+                        .putTags(tagName3, TagValuesDTO.newBuilder()
+                                .addAllValues(Arrays.asList(tagValue31, tagValue32))
+                                .build()))
                 .build();
-        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
+
         groupStore.createGroup(OID2, origin, groupDefinition2, EXPECTED_MEMBERS, true);
         groupStore.createGroup(OID3, origin, groupDefinition3, EXPECTED_MEMBERS, true);
-        final Map<String, Set<String>> actualTags = groupStore.getTags();
-        Assert.assertEquals(Sets.newHashSet(value1, value2), actualTags.get(tag1));
-        Assert.assertEquals(Sets.newHashSet(value2, value3), actualTags.get(tag2));
+        final Map<Long, Map<String, Set<String>>> actualAllTags =
+                groupStore.getTags(Collections.emptyList());
+        Assert.assertEquals(2, actualAllTags.size());
+        final Map<String, Set<String>> group2Tags = actualAllTags.get(OID2);
+        final Set<String> group2TagNames = group2Tags.keySet();
+        final Set<String> group2TagValues = new HashSet<>();
+        group2Tags.values().forEach(group2TagValues::addAll);
+        Assert.assertEquals(Sets.newHashSet(tagName1, tagName2), group2TagNames);
+        Assert.assertEquals(Sets.newHashSet(tagValue11, tagValue12, tagValue2), group2TagValues);
+
+        final Map<Long, Map<String, Set<String>>> tagsForSingleGroup =
+                groupStore.getTags(Collections.singletonList(OID3));
+        Assert.assertEquals(1, tagsForSingleGroup.size());
+        final Map<String, Set<String>> group3Tags = tagsForSingleGroup.get(OID3);
+        final Set<String> group3TagNames = group3Tags.keySet();
+        final Set<String> group3TagValues = new HashSet<>();
+        group3Tags.values().forEach(group3TagValues::addAll);
+        Assert.assertEquals(Sets.newHashSet(tagName3), group3TagNames);
+        Assert.assertEquals(Sets.newHashSet(tagValue31, tagValue32), group3TagValues);
     }
 
     /**

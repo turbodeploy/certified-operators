@@ -1279,7 +1279,7 @@ public class GroupRpcServiceTest {
     @Test
     public void testGetTagsFailed() {
         final String errorMessage = "boom";
-        when(groupStoreDAO.getTags()).thenThrow(new DataAccessException(errorMessage));
+        when(groupStoreDAO.getTags(Collections.emptyList())).thenThrow(new DataAccessException(errorMessage));
         final StreamObserver<GetTagsResponse> mockObserver = mock(StreamObserver.class);
         final ArgumentCaptor<Throwable> captor = ArgumentCaptor.forClass(Throwable.class);
         groupRpcService.getTags(GroupDTO.GetTagsRequest.newBuilder().build(), mockObserver);

@@ -156,7 +156,7 @@ public class CopyCommodities {
                                 provider, commodityBought);
                         List<CommodityDTO.Builder> commoditiesBought = mergeCommoditiesBought(
                                 commodityBought.getBoughtList(),
-                                cb.isPresent() ? cb.get().getBoughtList() : null,
+                                cb.map(CommoditiesBought::getBoughtList).orElse(null),
                                 commodityMetaData, commBoughtMetaData != null);
                         return new CommoditiesBought(commoditiesBought, commodityBought.getVolumeId());
                     }).collect(Collectors.toList());
@@ -207,11 +207,7 @@ public class CopyCommodities {
                 mergeMetaDataSet.add(commBuilder.getCommodityType());
             }
         } else {
-            commodityMetaData.ifPresent(commMetaDataCollection -> {
-                for (CommodityType commMetaData : commMetaDataCollection) {
-                    mergeMetaDataSet.add(commMetaData);
-                }
-            });
+            commodityMetaData.ifPresent(mergeMetaDataSet::addAll);
         }
 
         // For all from Commodities whose type exists in mergeMetaData, merge with matching onto
@@ -228,7 +224,7 @@ public class CopyCommodities {
             }
         }
         // add any onto builders that didn't have matching from side commodities to the return value
-        mergeOntoCommoditiesMap.values().forEach(builder -> retVal.add(builder));
+        retVal.addAll(mergeOntoCommoditiesMap.values());
         return retVal;
     }
 }

@@ -21,6 +21,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.RelationTypeConverter;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
+import com.vmturbo.history.stats.PropertySubType;
 
 /**
  * Test the record transformer that adds rollup keys to entity stats records.
@@ -45,7 +46,7 @@ public class RollupKeyTest {
         record.setUuid("entity");
         record.setProducerUuid(null);
         record.setPropertyType("CPU");
-        record.setPropertySubtype("used");
+        record.setPropertySubtype(PropertySubType.Used.getApiParameterName());
         record.setRelation(RelationType.COMMODITIES);
         record.setCommodityKey(null);
         String relTypeAttr = String.valueOf(

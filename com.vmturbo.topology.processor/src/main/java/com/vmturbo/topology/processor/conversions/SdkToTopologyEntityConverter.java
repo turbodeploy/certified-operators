@@ -254,32 +254,16 @@ public class SdkToTopologyEntityConverter {
 
         // Add properties of related data to the entity property map - using reflection
         Lists.newArrayList(
+                // TODO (roman, Jan 31 2020) OM-55033 Get rid of application data.
+                // Only used in GuestLoadAppStitchingOperation.
                 dto.getApplicationData(),
+                // TODO (roman, Jan 31 2020) OM-55034: Get rid of these three.
+                // Only used in StorageAccessCapacityPostStitchingOperation.
                 dto.getDiskArrayData(),
-                dto.getPhysicalMachineData(),
-                dto.getPhysicalMachineRelatedData(),
                 dto.getStorageControllerRelatedData(),
-                dto.getReplacementEntityData(),
-                dto.getStorageData(),
-                dto.getVirtualDatacenterData(),
-                dto.getVirtualMachineData(),
-                dto.getProcessorPoolData(),
-                dto.getStorageControllerData(),
-                dto.getLogicalPoolData(),
-                dto.getVirtualApplicationData(),
-                dto.getProcessorPoolData(),
-                dto.getReservedInstanceData(),
-                dto.getContainerPodData(),
-                dto.getContainerData(),
-                dto.getBusinessAccountData(),
-                dto.getComputeTierData(),
-                dto.getVirtualVolumeData()
+                dto.getLogicalPoolData()
         ).forEach(
             data -> data.getAllFields().forEach(
-                // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
-                // TODO and this in particular why we need to get rid of these entity properties altogether,
-                // stop pretending these data structures do not exist cause they are hidden in an untyped
-                // string map, and use strongly typed fields
                 (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
             )
         );
@@ -448,13 +432,7 @@ public class SdkToTopologyEntityConverter {
         Lists.newArrayList(
                 dto.getApplicationData(),
                 dto.getDiskArrayData(),
-                dto.getPhysicalMachineData(),
-                dto.getPhysicalMachineRelatedData(),
-                dto.getStorageControllerRelatedData(),
-                dto.getReplacementEntityData(),
-                dto.getStorageData(),
-                dto.getVirtualDatacenterData(),
-                dto.getVirtualMachineData()
+                dto.getStorageControllerRelatedData()
         ).forEach(
                 data -> data.getAllFields().forEach(
                         // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String

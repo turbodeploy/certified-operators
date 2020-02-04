@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class GroupExpanderTest {
@@ -120,7 +121,8 @@ public class GroupExpanderTest {
     @Before
     public void setup() {
         GroupServiceBlockingStub groupServiceRpc = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
-        groupExpander = new GroupExpander(groupServiceRpc);
+        groupExpander = new GroupExpander(groupServiceRpc,
+                new GroupMemberRetriever(groupServiceRpc));
     }
 
     @Test

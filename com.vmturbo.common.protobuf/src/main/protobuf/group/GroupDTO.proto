@@ -437,10 +437,15 @@ message GetGroupsForEntitiesResponse {
     repeated Grouping groups = 2;
 }
 
-message GetTagsRequest {}
+// Request contains requested groups.
+message GetTagsRequest {
+    //If collection of requested groups is empty
+    //then return tags for all existed groups in group component
+    repeated int64 group_id = 1;
+}
 
 message GetTagsResponse {
-    optional .tag.Tags tags = 1;
+    map<int64, .tag.Tags> tags = 1;
 }
 
 // Request owners for groups
@@ -492,7 +497,7 @@ service GroupService {
     // Stores groups, clusters, settings and policies discovered in the customer's topology.
     rpc StoreDiscoveredGroupsPoliciesSettings (stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
 
-    // Returns all tags of groups
+    // Returns tags of groups
     rpc GetTags (GetTagsRequest) returns (GetTagsResponse);
 
     // Returns owners of requested groups

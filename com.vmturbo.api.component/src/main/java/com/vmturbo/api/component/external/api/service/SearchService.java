@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -113,6 +114,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -143,6 +145,7 @@ public class SearchService implements ISearchService {
     private final TargetsService targetsService;
 
     private final SearchServiceBlockingStub searchServiceRpc;
+
 
     private final EntitySeverityServiceBlockingStub entitySeverityRpc;
 
@@ -884,10 +887,9 @@ public class SearchService implements ISearchService {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
         if (GroupMapper.GROUP_CLASSES.contains(entityType)) {
             // retrieve tags from the group service
-            final Map<String, TagValuesDTO> tags =
-                    groupServiceRpc.getTags(
-                            GetTagsRequest.newBuilder().build())
-                            .getTags().getTagsMap();
+            final Map<Long, Tags> tagsOfGroups =
+                    groupServiceRpc.getTags(GetTagsRequest.newBuilder().build()).getTagsMap();
+            final Map<String, TagValuesDTO> tags = convertReceivedTags(tagsOfGroups);
 
             // map to desired output
             tags.entrySet().forEach(tagEntry -> {
@@ -918,6 +920,30 @@ public class SearchService implements ISearchService {
             });
         }
         return optionApiDTOs;
+    }
+
+    /**
+     * Convert received tags in order to have map contains entries of tag's name and related existed
+     * values from all groups.
+     *
+     * @param tagsOfGroups tags of all groups
+     * @return map of tag names to tag values
+     */
+    private Map<String, TagValuesDTO> convertReceivedTags(Map<Long, Tags> tagsOfGroups) {
+        final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
+        for (Tags tags : tagsOfGroups.values()) {
+            Map<String, TagValuesDTO> tagsOfGroup = tags.getTagsMap();
+            for (Entry<String, TagValuesDTO> tag : tagsOfGroup.entrySet()) {
+                tagsMap.merge(tag.getKey(), tag.getValue(),
+                        (tagValuesDTO, tagValuesDTO2) -> TagValuesDTO.newBuilder()
+                                .addAllValues(Stream.of(tagValuesDTO.getValuesList(),
+                                        tagValuesDTO2.getValuesList())
+                                        .flatMap(Collection::stream)
+                                        .collect(Collectors.toSet()))
+                                .build());
+            }
+        }
+        return tagsMap;
     }
 
     @Nonnull

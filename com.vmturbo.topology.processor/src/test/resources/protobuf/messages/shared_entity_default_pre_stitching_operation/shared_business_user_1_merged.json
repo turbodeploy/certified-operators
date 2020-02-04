@@ -1,0 +1,293 @@
+{
+  "entityType": 17,
+  "oid": "1",
+  "displayName": "corp.vmturbo.com\\horizon-user-57_1",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 40,
+        "key": "BUSINESS_USER_SOLD_CPU_KEY"
+      },
+      "used": 123.0,
+      "peak": 0.0,
+      "capacity": 0.0,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "displayName": ""
+    },
+    {
+      "commodityType": {
+        "type": 40,
+        "key": "BUSINESS_USER_SOLD_CPU_KEY_DIFFERENT_1"
+      },
+      "used": 456.0,
+      "peak": 0.0,
+      "capacity": 0.0,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "displayName": ""
+    },
+    {
+      "commodityType": {
+        "type": 40,
+        "key": "BUSINESS_USER_SOLD_CPU_KEY_DIFFERENT_2"
+      },
+      "used": 678.0,
+      "peak": 0.0,
+      "capacity": 0.0,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "displayName": ""
+    }
+  ],
+  "commoditiesBoughtFromProviders": [
+    {
+      "providerId": "15",
+      "providerEntityType": 62,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 91
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 90
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 94
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 89
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 93
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 92
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 88,
+            "key": "DesktopPool::e806ea83d05a9d8ff24cf977d8f794797891fd21"
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        }
+      ]
+    },
+    {
+      "providerId": "10",
+      "providerEntityType": 10,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 88,
+            "key": "ActiveSession::6e049ca6928df8c4ced6fb3b7c899eb653e65ccb"
+          },
+          "used": 1.0,
+          "peak": 0.0,
+          "active": false,
+          "displayName": ""
+        }
+      ]
+    },
+    {
+      "providerId": "11",
+      "providerEntityType": 10,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 88,
+            "key": "ActiveSession::12349ca6928df8c4ced6fb3b7c899eb653e65123"
+          },
+          "used": 1.0,
+          "peak": 0.0,
+          "active": false,
+          "displayName": ""
+        }
+      ]
+    },
+    {
+      "providerId": "14",
+      "providerEntityType": 62,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 21,
+            "key": "BUSINESS_USER_BOUGHT_KEY"
+          },
+          "used": 380.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": "",
+          "reservedCapacity": 0.0
+        },
+        {
+          "commodityType": {
+            "type": 21,
+            "key": "BUSINESS_USER_BOUGHT_KEY_DIFFERENT_2"
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": "",
+          "reservedCapacity": 0.0
+        },
+        {
+          "commodityType": {
+            "type": 88,
+            "key": "DesktopPool::1ccbaa36cd0962aef6ca3dd3b21452d11742c355"
+          },
+          "used": 1.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 91
+          },
+          "used": 26190.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 90
+          },
+          "used": 2097152.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 94
+          },
+          "used": 26190.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": "",
+          "utilizationData": {
+            "point": [
+              41.106452266269066
+            ],
+            "lastPointTimestampMs": "1579600758251",
+            "intervalMs": 600000
+          }
+        },
+        {
+          "commodityType": {
+            "type": 89
+          },
+          "used": 2521.8333333333335,
+          "peak": 0.0,
+          "active": true,
+          "displayName": ""
+        },
+        {
+          "commodityType": {
+            "type": 93
+          },
+          "used": 762662.2666666667,
+          "peak": 0.0,
+          "active": true,
+          "displayName": "",
+          "utilizationData": {
+            "point": [
+              36.366570790608726
+            ],
+            "lastPointTimestampMs": "1579600758250",
+            "intervalMs": 600000
+          }
+        },
+        {
+          "commodityType": {
+            "type": 21,
+            "key": "BUSINESS_USER_BOUGHT_KEY_DIFFERENT_1"
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "active": true,
+          "displayName": "",
+          "reservedCapacity": 0.0
+        },
+        {
+          "commodityType": {
+            "type": 92
+          },
+          "used": 2521.8333333333335,
+          "peak": 0.0,
+          "active": true,
+          "displayName": "",
+          "utilizationData": {
+            "point": [
+              96.99358974358975
+            ],
+            "lastPointTimestampMs": "1579600758250",
+            "intervalMs": 600000
+          }
+        }
+      ]
+    }
+  ],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "vmStitchingKey": "a449a445be79e12f8267d818b63db9c4e9a8ab86",
+    "relatedGroups": "[]",
+    "distinguishedName": "CN=horizon-user-57,OU=VMware Horizon,OU=Testing,OU=Users,OU=Domain,DC=corp,DC=vmturbo,DC=com"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "businessUser": {
+    }
+  }
+}

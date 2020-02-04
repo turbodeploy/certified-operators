@@ -261,7 +261,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         try {
             final Reservation reservation = reservationDao.createReservation(request.getReservation());
             final Reservation queuedReservation = reservationManager.intializeReservationStatus(reservation);
-            logger.info("Created Reservation " + request.getReservation().getName());
+            logger.info("Created Reservation: " + request.getReservation().getName());
             responseObserver.onNext(queuedReservation);
             responseObserver.onCompleted();
         } catch (Exception e) {

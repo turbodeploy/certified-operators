@@ -9,6 +9,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.group.api.GroupAndMembers;
 
 /**
  * Represents the subset of the topology that lives in the cloud, and provides methods required
@@ -216,4 +217,13 @@ public interface CloudTopology<ENTITY_CLASS> {
      * @return The RI coverage capacity of the target entity
      */
     long getRICoverageCapacityForEntity(long entityId);
+
+    /**
+     * Returns the billing family group of the entity with the provided id.
+     *
+     * @param entityId of the entity for which billing family group is being returned.
+     * @return billing family group of the entity with the provided id.
+     */
+    @Nonnull
+    Optional<GroupAndMembers> getBillingFamilyForEntity(long entityId);
 }

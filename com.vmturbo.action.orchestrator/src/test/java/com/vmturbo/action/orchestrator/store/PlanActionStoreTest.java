@@ -150,9 +150,9 @@ public class PlanActionStoreTest {
     }
 
     public void setEntitiesOIDs() {
-        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
-        when(entitiesSnapshotFactory.lastestRealtimeSnapshot(any())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), eq(realtimeId))).thenReturn(snapshot);
         for (long i=1; i<10;i++) {
             createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
         }

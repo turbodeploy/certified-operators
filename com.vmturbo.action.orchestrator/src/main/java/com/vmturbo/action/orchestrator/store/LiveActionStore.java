@@ -445,13 +445,12 @@ public class LiveActionStore implements ActionStore {
 
     private boolean populateBuyRIActions(@Nonnull ActionPlan actionPlan) {
         final long planId = actionPlan.getId();
-        final Long topologyContextId = actionPlan.getInfo().getBuyRi().getTopologyContextId();
         // (Oct 24 2019): When processing BuyRI actions we always use the realtime snapshot.
         // This is necessary because in a pure BuyRI plan we don't have a plan-specific source
         // topology. This is safe because we only need the names of the related regions and tiers,
         // which don't change between realtime and plan.
-        final EntitiesAndSettingsSnapshot snapshot =
-                entitySettingsCache.lastestRealtimeSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()));
+        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
+                ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), topologyContextId);
 
         // All RI translations should be passthrough, but we do it here anyway for consistency
         // with the "normal" action case.
