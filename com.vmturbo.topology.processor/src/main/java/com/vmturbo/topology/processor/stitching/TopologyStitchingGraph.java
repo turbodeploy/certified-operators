@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.commons.lang.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,6 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.stitching.utilities.CopyActionEligibility;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 
@@ -209,11 +210,16 @@ public class TopologyStitchingGraph {
                     volumeId = volumeData.getOid();
                 }
 
-                entity.addProviderCommodityBought(provider, new CommoditiesBought(
-                    commodityBought.getBoughtList().stream()
-                        .map(CommodityDTO::toBuilder)
-                        .collect(Collectors.toList()), volumeId));
+                CommoditiesBought bought = new CommoditiesBought(
+                        commodityBought.getBoughtList().stream()
+                                .map(CommodityDTO::toBuilder)
+                                .collect(Collectors.toList()), volumeId);
+                // Pass on the action eligibility settings that are provided in the
+                // CommodityBought section of the SDK's EntityDTO
+                CopyActionEligibility.transferActionEligibilitySettingsFromEntityDTO(
+                                                                    commodityBought, bought);
 
+                entity.addProviderCommodityBought(provider, bought);
                 provider.addConsumer(entity);
             }
 
@@ -292,6 +298,8 @@ public class TopologyStitchingGraph {
 
         return entity;
     }
+
+
 
     // Cloud probes generally use "layeredOver" to represent aggregation,
     // and "consistsOf" to represent ownership. This method creates the

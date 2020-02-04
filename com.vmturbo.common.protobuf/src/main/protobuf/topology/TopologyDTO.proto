@@ -562,6 +562,12 @@ message TopologyEntityDTO {
         // the list of movable types in AnalysisUtil.
         optional bool movable = 4;
 
+        // Whether the group of commodities bought can be started on a one provider.
+        optional bool startable = 6 [default = true];
+
+        // Whether this entity is scalable.
+        optional bool scalable = 7 [default = true];
+
         // id of the volume which is associated with this set of bought commodities, it is used to
         // support volumes in the cloud
         optional int64 volume_id = 5;

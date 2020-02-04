@@ -2,6 +2,7 @@ package com.vmturbo.stitching.utilities;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,6 +23,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 public class CommoditiesBought {
 
     private final List<CommodityDTO.Builder> boughtList;
+
+    // Settings for the eligibility of an entity with respect to a particular provider.
+    // Indicates the entity's eligibility to move across providers
+    private Optional<Boolean> movable = Optional.empty();
+    // Indicates the entity's eligibility to start on a provider
+    private Optional<Boolean> startable = Optional.empty();
+    // Indicates the entity's eligibility to scale on a provider
+    private Optional<Boolean> scalable = Optional.empty();
 
     private Long volumeId;
 
@@ -47,6 +56,30 @@ public class CommoditiesBought {
 
     public void setVolumeId(@Nonnull Long volumeId) {
         this.volumeId = volumeId;
+    }
+
+    public Optional<Boolean> getMovable() {
+        return movable;
+    }
+
+    public void setMovable(boolean movable) {
+        this.movable = Optional.of(movable);
+    }
+
+    public Optional<Boolean> getStartable() {
+        return startable;
+    }
+
+    public void setStartable(boolean startable) {
+        this.startable = Optional.of(startable);
+    }
+
+    public Optional<Boolean> getScalable() {
+        return scalable;
+    }
+
+    public void setScalable(boolean scalable) {
+        this.scalable = Optional.of(scalable);
     }
 
     /**
