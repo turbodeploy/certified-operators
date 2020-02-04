@@ -21,6 +21,12 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
@@ -32,14 +38,9 @@ import org.jooq.Record7;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
+import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -54,6 +55,7 @@ import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -241,22 +243,23 @@ public class SqlEntityCostStore implements EntityCostStore {
     @Override
     public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter entityCostFilter) throws DbException {
         try {
-            final Field<Long> entityId = (Field<Long>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
-            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>)entityCostFilter.getTable().field(ENTITY_COST.CREATED_TIME.getName());
-            final Field<Integer> entityType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
-            final Field<Integer> costType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_TYPE.getName());
-            final Field<Integer> costSource = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_SOURCE.getName());
-            final Field<Integer> currency = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.CURRENCY.getName());
-            final Field<BigDecimal> amount = (Field<BigDecimal>)entityCostFilter.getTable().field(ENTITY_COST.AMOUNT.getName());
+            final Table<?> table = entityCostFilter.getTable();
+            final Field<Long> entityId = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID);
+            final Field<LocalDateTime> createdTime = getField(table, ENTITY_COST.CREATED_TIME);
+            final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
+            final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
+            final Field<Integer> currency = getField(table, ENTITY_COST.CURRENCY);
+            final Field<BigDecimal> amount = getField(table, ENTITY_COST.AMOUNT);
             List<Field<?>> list = Arrays.asList(entityId, createdTime, entityType, costType, currency, amount);
             List<Field<?>> modifiableList = new ArrayList<>(list);
-            if (entityCostFilter.getTable().equals(ENTITY_COST)) {
+            if (table.equals(ENTITY_COST)) {
+                final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
                 modifiableList.add(costSource);
             }
 
             SelectConditionStep<Record> selectCondition = dsl
                     .select(modifiableList)
-                    .from(entityCostFilter.getTable())
+                    .from(table)
                     .where(entityCostFilter.getConditions());
 
             // If latest timestamp is requested only return the info related to latest timestamp
@@ -264,14 +267,14 @@ public class SqlEntityCostStore implements EntityCostStore {
                 selectCondition =
                         selectCondition.and(ENTITY_COST.CREATED_TIME.eq(
                                 dsl.select(DSL.max(ENTITY_COST.CREATED_TIME))
-                                        .from(ENTITY_COST)
+                                        .from(table)
                                         .where(entityCostFilter.getConditions())));
             }
 
             final Result<? extends Record> records = selectCondition.fetch();
             return constructEntityCostMap(records);
         } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
+            throw new DbException("Failed to get entity costs from DB", e);
         }
     }
 
@@ -306,19 +309,19 @@ public class SqlEntityCostStore implements EntityCostStore {
                 return constructStatRecordsMap(fetchRecords(entityCostFilter));
             }
         } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
+            throw new DbException("Failed to get entity costs from DB", e);
         }
     }
 
     @Nonnull
     private Map<Long, Collection<StatRecord>> fetchStatRecordsByGroup(@Nonnull final CostFilter entityCostFilter) {
-        CostGroupBy costGroupBy = entityCostFilter.getCostGroupBy();
-        Set<Field<?>> groupByFields = costGroupBy.getGroupByFields();
-        Field<LocalDateTime> createdTimeField = (Field<LocalDateTime>)costGroupBy.getTable()
-                .field(ENTITY_COST.CREATED_TIME.getName());
-        final Field<Integer> entityType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
-        final Field<Integer> costType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_TYPE.getName());
-        Set<Field<?>> selectableFields = Sets.newHashSet(costGroupBy.getGroupByFields());
+        final CostGroupBy costGroupBy = entityCostFilter.getCostGroupBy();
+        final Set<Field<?>> groupByFields = costGroupBy.getGroupByFields();
+        final Table<?> table = costGroupBy.getTable();
+        final Field<LocalDateTime> createdTimeField = getField(table, ENTITY_COST.CREATED_TIME);
+        final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
+        final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
+        final Set<Field<?>> selectableFields = Sets.newHashSet(costGroupBy.getGroupByFields());
         selectableFields.add(createdTimeField);
         selectableFields.add(entityType);
         selectableFields.add(costType);
@@ -326,12 +329,11 @@ public class SqlEntityCostStore implements EntityCostStore {
         selectableFields.add(max(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(min(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(avg(costGroupBy.getAmountFieldInTable()));
-        Result<Record> res = dsl
+        final Result<Record> res = dsl
                 .select(selectableFields)
-                .from(costGroupBy.getTable())
+                .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
-                .and(getConditionForEntityCost(dsl, entityCostFilter.isLatest(), createdTimeField,
-                        costGroupBy.getTable()))
+                .and(getConditionForEntityCost(dsl, entityCostFilter, createdTimeField, table))
                 .groupBy(ImmutableList.copyOf(groupByFields))
                 .fetch();
         return createGroupByStatRecords(res, selectableFields);
@@ -340,23 +342,24 @@ public class SqlEntityCostStore implements EntityCostStore {
     @Nonnull
     private Result<? extends Record> fetchRecords(
             @Nonnull final CostFilter entityCostFilter) throws DataAccessException {
-        final Field<Long> entityId = (Field<Long>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
-        final Field<LocalDateTime> createdTime = (Field<LocalDateTime>)entityCostFilter.getTable().field(ENTITY_COST.CREATED_TIME.getName());
-        final Field<Integer> entityType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
-        final Field<Integer> costType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_TYPE.getName());
-        final Field<Integer> costSource = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_SOURCE.getName());
-        final Field<Integer> currency = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.CURRENCY.getName());
-        final Field<BigDecimal> amount = (Field<BigDecimal>)entityCostFilter.getTable().field(ENTITY_COST.AMOUNT.getName());
-        List<Field<?>> list = Arrays.asList(entityId, createdTime, entityType, costType, currency, amount);
-        List<Field<?>> modifiableList = new ArrayList<>(list);
-        if (entityCostFilter.getTable().equals(ENTITY_COST)) {
+        final Table<?> table = entityCostFilter.getTable();
+        final Field<Long> entityId = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID);
+        final Field<LocalDateTime> createdTime = getField(table, ENTITY_COST.CREATED_TIME);
+        final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
+        final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
+        final Field<Integer> currency = getField(table, ENTITY_COST.CURRENCY);
+        final Field<BigDecimal> amount = getField(table, ENTITY_COST.AMOUNT);
+        final List<Field<?>> list = Arrays.asList(entityId, createdTime, entityType, costType, currency, amount);
+        final List<Field<?>> modifiableList = new ArrayList<>(list);
+        if (table.equals(ENTITY_COST)) {
+            final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
             modifiableList.add(costSource);
         }
         return dsl
                 .select(modifiableList)
-                .from(entityCostFilter.getTable())
+                .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
-                .and(getConditionForEntityCost(dsl, entityCostFilter.isLatest(), createdTime, entityCostFilter.getTable()))
+                .and(getConditionForEntityCost(dsl, entityCostFilter, createdTime, table))
                 .fetch();
     }
 
@@ -492,25 +495,36 @@ public class SqlEntityCostStore implements EntityCostStore {
      * Helper method to create the extra condition based on if the query is latest EntityCost only.
      *
      * @param dsl      dslContext used.
-     * @param isLatest if the query only needs latest values.
+     * @param entityCostFilter Filter for requested entity costs.
      * @param createdTime FieldName for created_Time.
      * @param table table to be used in condition.
      * @return {@link Condition}. This is used in the query.
      */
     @Nonnull
-    private Condition getConditionForEntityCost(final DSLContext dsl, final boolean isLatest,
-                                                final Field<LocalDateTime> createdTime,
-                                                final Table<?> table) {
-        if (isLatest) {
+    private Condition getConditionForEntityCost(
+            @Nonnull final DSLContext dsl,
+            @Nonnull final CostFilter entityCostFilter,
+            @Nonnull final Field<LocalDateTime> createdTime,
+            @Nonnull final Table<?> table) {
+        if (entityCostFilter.isLatest()) {
             return dsl.transactionResult(transaction -> {
                 final DSLContext transactionContext = DSL.using(transaction);
-                LocalDateTime res = transactionContext.select(max(createdTime)).from(table)
+                LocalDateTime res = transactionContext
+                        .select(max(createdTime))
+                        .from(table)
+                        .where(Arrays.asList(entityCostFilter.getConditions()))
                         .fetchOne("max", LocalDateTime.class);
                 return createdTime.eq(res);
             });
         } else {
             return trueCondition();
         }
+    }
+
+    private static <T> Field<T> getField(
+            @Nonnull final Table<?> table,
+            @Nonnull final TableField<EntityCostRecord, T> field) {
+        return (Field<T>)table.field(field.getName());
     }
 
     /**
