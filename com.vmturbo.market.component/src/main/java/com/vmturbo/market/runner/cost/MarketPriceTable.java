@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -93,7 +95,7 @@ public class MarketPriceTable {
      * A mapping between the OS string indicated by the license access commodity key
      * and the corresponding {@link CloudCostDTO.OSType}.
      */
-    public static final Map<String, OSType> OS_TYPE_MAP = ImmutableMap.<String, CloudCostDTO.OSType>builder()
+    public static final BiMap<String, OSType> OS_TYPE_MAP = ImmutableBiMap.<String, CloudCostDTO.OSType>builder()
             .put("Linux", OSType.LINUX)
             .put("RHEL", OSType.RHEL)
             .put("SUSE", OSType.SUSE)
@@ -419,6 +421,62 @@ public class MarketPriceTable {
 
         return priceBuilder.build();
     }
+
+
+    /**
+     * Gets the Reserved Instance Prices for a given tier and region condensed into a ComputeTierPrice
+     * bundle.
+     *
+     * @param accountPricingData The account specific pricing data.
+     * @param region The region to get the pricing for.
+     * @param tier The compute tier to get the pricing for.
+     *
+     * @return The ComputeTierPriceBundle.
+     */
+    public ComputePriceBundle getReservedLicensePriceBundle(AccountPricingData accountPricingData, TopologyEntityDTO region,
+                                                TopologyEntityDTO tier) {
+        final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
+        if (accountPricingData == null) {
+            logger.debug("Account Pricing data not found.");
+            return priceBuilder.build();
+        }
+        long tierId = tier.getOid();
+        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, region.getOid(), accountPricingData);
+
+        if (regionPriceTable == null) {
+            logger.debug("No prices found for region {}, for account pricing data with id {}",
+                    region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
+            return priceBuilder.build();
+        }
+
+        ComputeTierPriceList computeTierPrices = regionPriceTable.getComputePricesByTierIdMap().get(tierId);
+        if (computeTierPrices == null) {
+            logger.debug("Price list not found for tier {} in region {}'s price table." +
+                            " Cost data might not have been uploaded, or the tier is not available in the region.",
+                    tierId, region.getDisplayName());
+        }
+        final OSType baseOsType = computeTierPrices.getBasePrice().getGuestOsType();
+        entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
+                tier.getCommoditySoldListList().stream()
+                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .map(CommoditySoldDTO::getCommodityType)
+                        .map(licenceCommodityType -> OS_TYPE_MAP.get(licenceCommodityType.getKey()))
+                        .forEach(osType -> {
+                            // Get the license price tuple and get the reserved license price.
+                            final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(osType,
+                                    computeTierConfig.getNumCores(), computeTierPrices, computeTierConfig.isBurstableCPU());
+                            double reservedLicensePrice = licensePrice.getReservedInstanceLicensePrice();
+                            logger.debug("Found reserved instance license price {} for region {} and tier {}" +
+                                    " and account pricing data oid {}", reservedLicensePrice, region.getDisplayName(),
+                                    tier.getDisplayName(), accountPricingData.getAccountPricingDataOid());
+                            priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
+                                    reservedLicensePrice, osType == baseOsType);
+                        });
+        });
+        return priceBuilder.build();
+    }
+
+
 
     /**
      * A bundle of of possible prices for a (storage tier, region) combination. The possible

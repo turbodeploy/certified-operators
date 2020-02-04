@@ -1,5 +1,8 @@
 package com.vmturbo.market.topology.conversions;
 
+import io.jsonwebtoken.lang.Collections;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -263,19 +266,23 @@ public class CostDTOCreator {
                               Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid,
                               TopologyEntityDTO region, TopologyEntityDTO computeTier,
                               final Set<Long> applicableBusinessAccounts) {
-        final Set<CostTuple> costTuples = applicableBusinessAccounts.stream()
-                .map(accountId -> createCbtpCostTuple(reservedInstanceKey,
-                        accountPricingDataByBusinessAccountOid.get(accountId), region,
-                        computeTier, accountId))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<CostTuple> costTupleList = new HashSet<>();
+        for (Long accountId: applicableBusinessAccounts) {
+            Set<CostTuple> cbtpCostTuples = createCbtpCostTuple(reservedInstanceKey,
+                    accountPricingDataByBusinessAccountOid.get(accountId), region,
+                    computeTier, accountId);
+            if (cbtpCostTuples != null) {
+                costTupleList.addAll(cbtpCostTuples);
+            }
+        }
 
         return CostDTO.newBuilder().setCbtpResourceBundle(
                 CbtpCostDTO.newBuilder().setCouponBaseType(
                         CommodityDTO.CommodityType
                                 .COUPON_VALUE)
-                        .addAllCostTupleList(costTuples)
+                        .addAllCostTupleList(costTupleList)
                         .setDiscountPercentage(1)
+                        .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                         .build()).build();
     }
 
@@ -288,10 +295,10 @@ public class CostDTOCreator {
      * @param computeTier of the RI.
      * @param accountId for which the costTuple is being created.
      *
-     * @return The Cost DTO builder with the parameters set.
+     * @return The list of cost tuples to be added to the cost dto.
      */
     @Nullable
-    private CostDTOs.CostDTO.CostTuple createCbtpCostTuple(final ReservedInstanceKey riKey,
+    private Set<CostDTOs.CostDTO.CostTuple> createCbtpCostTuple(final ReservedInstanceKey riKey,
                                                            final AccountPricingData
                                                                    accountPricingData,
                                                            final TopologyEntityDTO region,
@@ -301,17 +308,62 @@ public class CostDTOCreator {
             logger.warn("Account pricing data not found for account id: {}", accountId);
             return null;
         }
-        final CostTuple.Builder builder = CostTuple.newBuilder();
+        Set<CostTuple> costTuples = new HashSet<>();
         // Set deprecation factor
         final ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(computeTier,
                 region.getOid(), accountPricingData);
         final Optional<ComputePrice> templatePrice =
                 priceBundle.getPrices().stream().filter(s -> s.getOsType()
-                .equals(riKey.getOs())).findFirst();
-        templatePrice.ifPresent(computePrice
-                -> builder.setPrice(computePrice.getHourlyPrice() * riCostDeprecationFactor));
+                        .equals(riKey.getOs())).findFirst();
+        ComputePriceBundle licensePriceBundle = marketPriceTable.getReservedLicensePriceBundle(accountPricingData, region, computeTier);
+        List<ComputePrice> reservedLicensePriceList = licensePriceBundle.getPrices();
+        // If we have reserved license pricing and the pricing is not 0 then that price is set on the
+        // cbtp cost dto. If we don't have reserved license pricing, we will use fractional compute pricing.
+        if (Collections.isEmpty(reservedLicensePriceList)) {
+            CostTuple.Builder builder = CostTuple.newBuilder();
+            setZoneIdAndRegionInfo(riKey, accountPricingData, builder, accountId);
+            Optional<CommodityType> osComm = computeTier.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
+                            && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riKey.getOs())))
+                    .map(CommoditySoldDTO::getCommodityType).findFirst();
+            builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.toMarketCommodityId(osComm.get()) : 0);
+            if (templatePrice.isPresent()) {
+                builder.setPrice(templatePrice.get().getHourlyPrice() * riCostDeprecationFactor);
+            }
+            costTuples.add(builder.build());
+        } else {
+            // Iterate over all the reserved license prices for all licenses
+            for (ComputePrice riPrice : reservedLicensePriceList) {
+                CostTuple.Builder builder = CostTuple.newBuilder();
+                setZoneIdAndRegionInfo(riKey, accountPricingData, builder, accountId);
+                if (riPrice.getHourlyPrice() != 0.0) {
+                    builder.setPrice(riPrice.getHourlyPrice());
+                } else {
+                    if (templatePrice.isPresent()) {
+                        builder.setPrice(templatePrice.get().getHourlyPrice() * riCostDeprecationFactor);
+                    }
+                }
+                Optional<CommodityType> osComm = computeTier.getCommoditySoldListList().stream()
+                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
+                                && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riPrice.getOsType())))
+                        .map(CommoditySoldDTO::getCommodityType).findFirst();
+                builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.toMarketCommodityId(osComm.get()) : 0);
+                costTuples.add(builder.build());
+            }
+        }
+        return costTuples;
+    }
 
-        // Set location info
+    /**
+     * Sets the ri zone and region info on the cbtp cost dto builder.
+     *
+     * @param riKey Info about the reserved instance key object.
+     * @param accountPricingData The account specific pricing data.
+     * @param builder The cbtp cost dto builder.
+     * @param accountId The account id to be set on the cbtp cost dto builder.
+     */
+    private void setZoneIdAndRegionInfo(ReservedInstanceKey riKey, AccountPricingData accountPricingData,
+                                        CostTuple.Builder builder, Long accountId) {
         if (riKey.getZoneId() != 0) {
             builder.setZoneId(riKey.getZoneId());
         } else {
@@ -321,7 +373,6 @@ public class CostDTOCreator {
         // Set account id (for single scope RI) or price id (for shared scope RI)
         builder.setBusinessAccountId(riKey.getShared() ?
                 accountPricingData.getAccountPricingDataOid() : accountId);
-        return builder.build();
     }
 
     /**
