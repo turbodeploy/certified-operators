@@ -18,6 +18,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,9 +37,12 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -154,7 +159,7 @@ public class EntitySettingQueryExecutor {
                 .collect(Collectors.groupingBy(grp -> grp.getSetting().getSettingSpecName()));
 
         final Map<String, SettingSpec> settingSpecs = getSettingSpecs(settingGroupsBySpecName.keySet());
-
+        final Map<Long, SettingPolicy> rawSettingPoliciesById = getSpecificRawSettingPolicies(settingGroupsBySpecName);
 
         // Arrange the active settings by manager UUID.
         final Map<String, List<SettingApiDTO<String>>> settingsByMgrUuid = new HashMap<>();
@@ -175,7 +180,7 @@ public class EntitySettingQueryExecutor {
 
             for (UIEntityType type : types) {
                 final Optional<SettingApiDTO<String>> setting = entitySettingGroupMapper.toSettingApiDto(
-                    settingGroups, settingSpec, Optional.of(type), includePolicyBreakdown);
+                    settingGroups, settingSpec, Optional.of(type), includePolicyBreakdown, rawSettingPoliciesById);
                 if (!setting.isPresent()) {
                     continue;
                 }
@@ -214,6 +219,39 @@ public class EntitySettingQueryExecutor {
     }
 
     /**
+     * If any entity setting group has more than 1 policy, then we fetch the raw policy definition
+     * for those policies. We do this because for the specs which have setting groups with more
+     * than 1 policy, we list all the raw policies and their setting values instead of listing the
+     * setting groups.
+     *
+     * @param settingGroupsBySpecName The entity setting groups grouped by spec name
+     * @return a map of setting policy id to the raw setting policy
+     */
+    @Nonnull
+    private Map<Long, SettingPolicy> getSpecificRawSettingPolicies(
+        @Nonnull final Map<String, List<EntitySettingGroup>> settingGroupsBySpecName) {
+
+        final Set<Long> policyIdsToFetch = Sets.newHashSet();
+        settingGroupsBySpecName.forEach((specName, settingGroups) -> {
+            if (settingGroups.stream().anyMatch(esg -> esg.getPolicyIdCount() > 1)) {
+                Set<Long> policyIds = settingGroups.stream()
+                    .map(EntitySettingGroup::getPolicyIdList)
+                    .flatMap(List::stream)
+                    .map(SettingPolicyId::getPolicyId)
+                    .collect(Collectors.toSet());
+                policyIdsToFetch.addAll(policyIds);
+            }
+        });
+        final Map<Long, SettingPolicy> rawSettingPoliciesById = Maps.newHashMap();
+        if (!policyIdsToFetch.isEmpty()) {
+            settingPolicyService.listSettingPolicies(
+                ListSettingPoliciesRequest.newBuilder().addAllIdFilter(policyIdsToFetch).build())
+                .forEachRemaining(sp -> rawSettingPoliciesById.put(sp.getId(), sp));
+        }
+        return rawSettingPoliciesById;
+    }
+
+    /**
      * Utility class to isolate the mapping logic from the fetching logic, mainly for unit testing.
      * Responsible for converting {@link EntitySettingGroup}s
      */
@@ -228,8 +266,15 @@ public class EntitySettingQueryExecutor {
         private Optional<SettingApiDTO<String>> dtoFromGroup(@Nonnull final EntitySettingGroup settingGroup,
                                                      final Optional<UIEntityType> type,
                                                      final SettingSpec settingSpec) {
+            return dtoFromSetting(settingGroup.getSetting(), type, settingSpec);
+        }
+
+        @Nonnull
+        private Optional<SettingApiDTO<String>> dtoFromSetting(@Nonnull final Setting setting,
+                                                             final Optional<UIEntityType> type,
+                                                             final SettingSpec settingSpec) {
             final SettingApiDTOPossibilities possibilities = settingsMapper.toSettingApiDto(
-                settingGroup.getSetting(), settingSpec);
+                setting, settingSpec);
             return type.map(uiType -> possibilities.getSettingForEntityType(uiType.apiStr()))
                 .orElseGet(() -> possibilities.getAll().stream().findFirst());
         }
@@ -251,13 +296,15 @@ public class EntitySettingQueryExecutor {
          * @param includePolicyBreakdown If true, populate the {@link SettingApiDTO#getActiveSettingsPolicies()}
          *                               field in the returned value using the policy information
          *                               in the input {@link EntitySettingGroup}s.
+         * @param rawSettingPoliciesById settingPolicies by id
          * @return An optional containing the {@link SettingApiDTO} representing the setting.
          */
         @Nonnull
         public Optional<SettingApiDTO<String>> toSettingApiDto(@Nonnull final List<EntitySettingGroup> groups,
                                                        @Nonnull final SettingSpec settingSpec,
                                                        final Optional<UIEntityType> type,
-                                                       final boolean includePolicyBreakdown) {
+                                                       final boolean includePolicyBreakdown,
+                                                       final Map<Long, SettingPolicy> rawSettingPoliciesById) {
             Preconditions.checkArgument(!groups.isEmpty());
 
             // The dominant group is the one that applies to the most entities.
@@ -280,6 +327,53 @@ public class EntitySettingQueryExecutor {
                         // this entity type. This doesn't count as an "active" policy for API/UI
                         // purposes.
                         activePolicies = Collections.emptyList();
+                    } else if (groups.stream().anyMatch(g -> g.getPolicyIdCount() > 1)) {
+                        // If any of the entitySettingGroups have more than one policy, then the
+                        // activePolicies should just list all the policies of all the entitySettingGroups.
+                        // We create one SettingActivePolicyApiDTO for each policy instead of one
+                        // per group because one group can have multiple policies and
+                        // SettingActivePolicyApiDTO has place only for one policy.
+                        // We need to do this for all the settingGroups, not just for the
+                        // settingGroup which has more than one policy because the same policy can
+                        // be repeated in multiple settingGroups, and it would be confusing to the
+                        // user to see the same policy multiple times with different number of entities in each.
+                        Map<Long, SettingActivePolicyApiDTO> activePolicyMap = Maps.newHashMap();
+                        for (EntitySettingGroup group : groups) {
+                            for (SettingPolicyId settingPolicy : group.getPolicyIdList()) {
+                                if (activePolicyMap.containsKey(settingPolicy.getPolicyId())) {
+                                    // If the policy has been seen before in any of the entitySettingGroups,
+                                    // then just update the number of entities affected by this policy.
+                                    SettingActivePolicyApiDTO activePolicy = activePolicyMap.get(settingPolicy.getPolicyId());
+                                    activePolicy.setNumEntities(activePolicy.getNumEntities() + group.getEntityOidsCount());
+                                } else {
+                                    SettingActivePolicyApiDTO settingActivePolicyApiDTO =
+                                        new SettingActivePolicyApiDTO();
+                                    final BaseApiDTO policy = new BaseApiDTO();
+                                    policy.setDisplayName(settingPolicy.getDisplayName());
+                                    policy.setUuid(Long.toString(settingPolicy.getPolicyId()));
+                                    settingActivePolicyApiDTO.setSettingsPolicy(policy);
+                                    settingActivePolicyApiDTO.setNumEntities(group.getEntityOidsCount());
+
+                                    SettingPolicy rawSettingPolicy = rawSettingPoliciesById.get(settingPolicy.getPolicyId());
+                                    if (rawSettingPolicy != null) {
+                                        Optional<Setting> setting = rawSettingPolicy.getInfo().getSettingsList().stream()
+                                            .filter(s -> s.getSettingSpecName().equals(settingSpec.getName()))
+                                            .findFirst();
+                                        if (setting.isPresent()) {
+                                            final Optional<SettingApiDTO<String>> dto = dtoFromSetting(setting.get(), type, settingSpec);
+                                            if (dto.isPresent()) {
+                                                settingActivePolicyApiDTO.setValue(dto.get().getValue());
+                                            } else {
+                                                logger.warn("Failed to get API DTO for setting: {}",
+                                                    setting);
+                                            }
+                                        }
+                                    }
+                                    activePolicyMap.put(settingPolicy.getPolicyId(), settingActivePolicyApiDTO);
+                                }
+                            }
+                        }
+                        activePolicies = activePolicyMap.values().stream().collect(Collectors.toList());
                     } else {
                         activePolicies = groups.stream()
                             .map(settingGroup -> {
@@ -287,10 +381,9 @@ public class EntitySettingQueryExecutor {
                                 if (dto.isPresent()) {
                                     final SettingActivePolicyApiDTO settingActivePolicyApiDTO =
                                         new SettingActivePolicyApiDTO();
-
-                                    // The SettingActivePolicyApiDTO has only one settingsPolicy.
-                                    // That is why we take the first SettingPolicyId in the EntitySettingGroup.
-                                    // If the API dto were to change, we could easily put multiple SettingsPolicies here.
+                                    // If we are in this else block, it means that each
+                                    // entitySettingGroup has only one PolicyId. So we pick the
+                                    // first one to create the BaseApiDTO policy.
                                     final BaseApiDTO policy = new BaseApiDTO();
                                     policy.setDisplayName(settingGroup.getPolicyId(0).getDisplayName());
                                     policy.setUuid(Long.toString(settingGroup.getPolicyId(0).getPolicyId()));
