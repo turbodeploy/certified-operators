@@ -53,6 +53,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
+import com.vmturbo.api.dto.scenario.IncludedCouponsApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
 import com.vmturbo.api.dto.scenario.MaxUtilizationApiDTO;
 import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
@@ -87,6 +88,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel.Builder;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
@@ -733,6 +735,21 @@ public class ScenarioMapper {
                 scenarioChanges.add(riSetting);
             }
         }
+
+        // TODO: Other Plan Changes are incorporated in buildPlanChanges
+        // based on whether there are constraints to remove.  Possibly Combine logic.
+        final IncludedCouponsApiDTO includedCoupons = configChanges.getIncludedCoupons();
+        if (includedCoupons != null) {
+            final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
+            planChangesBuilder.setIncludedCoupons(IncludedCoupons.newBuilder()
+                                     .addAllIncludedCouponOids(
+                                           includedCoupons.getIncludedCouponOidsList())
+                                     .setIsWhiteList(includedCoupons.isIswhiteList())
+                                     .build());
+            scenarioChanges.add(ScenarioChange.newBuilder()
+                                .setPlanChanges(planChangesBuilder.build()).build());
+        }
+
         return scenarioChanges.build();
     }
 
@@ -784,6 +801,7 @@ public class ScenarioMapper {
         if (!CollectionUtils.isEmpty(constraintsToRemove)) {
             planChangesBuilder.addAllIgnoreConstraints(getIgnoreConstraintsPlanSetting(constraintsToRemove));
         }
+
         return ScenarioChange.newBuilder().setPlanChanges(planChangesBuilder.build()).build();
     }
 
@@ -1137,6 +1155,19 @@ public class ScenarioMapper {
             .convertToPlanSetting(settingChanges));
         outputChanges.setAddPolicyList(Lists.newArrayList());
         outputChanges.setRemovePolicyList(Lists.newArrayList());
+        Optional<IncludedCoupons> includedCoupons = allPlanChanges
+                        .stream().filter(PlanChanges::hasIncludedCoupons)
+                        .map(PlanChanges::getIncludedCoupons)
+                        .findFirst();
+        if (includedCoupons.isPresent()) {
+            final IncludedCouponsApiDTO includedCouponsDto = new IncludedCouponsApiDTO();
+            IncludedCoupons includedCouponsMsg = includedCoupons.get();
+            includedCouponsDto.setIncludedCouponOidsList(includedCouponsMsg.getIncludedCouponOidsList());
+            includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList() ?
+                            includedCouponsMsg.getIsWhiteList() : true);
+            outputChanges.setIncludedCoupons(includedCouponsDto);
+        }
+
         outputChanges.setRiSettingList(riSetting);
         changes.stream()
                 .filter(change -> change.getDetailsCase() ==  DetailsCase.PLAN_CHANGES

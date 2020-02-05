@@ -20,6 +20,8 @@ import org.junit.Test;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -67,6 +69,8 @@ public class PlanRpcServiceTest {
             BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             1, TimeUnit.SECONDS);
     }
 

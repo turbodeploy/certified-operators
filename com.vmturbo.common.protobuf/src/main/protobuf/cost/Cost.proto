@@ -642,6 +642,11 @@ message AccountFilter {
     repeated int64 account_id = 1;
 }
 
+message RiFilter {
+    // A list of RI ids to filter by, for e.g. RIs to be included in plans.
+    repeated int64 ri_id = 1;
+}
+
 message EntityFilter {
     // A list of entity ids need to filter by.
     repeated int64 entity_id = 1;
@@ -679,9 +684,13 @@ message GetReservedInstanceBoughtByTopologyRequest {
     optional .topology.TopologyType topology_type = 2;
     optional int32 scope_entity_type = 3;
     repeated int64 scope_seed_oids = 4;
+    // Specifies whether to get the plan saved RIs from db.  Initially, when plan is still
+    // being configured, for instance, the data store won't have plan saved RIs, hence we would
+    // retrieve them from the real-time topology information.
+    optional bool get_saved = 5 [default = true];
 }
 
-// A response contains a list reserved instance bought.
+// This response contains a list reserved instance bought by topology.
 message GetReservedInstanceBoughtByTopologyResponse {
     // A list of reserved instance bought.
     repeated ReservedInstanceBought reserved_instance_bought = 1;
@@ -750,6 +759,17 @@ message GetPlanReservedInstanceBoughtCountByTemplateResponse {
 // will be AND'd with the account filter (if configured)
 message GetPlanReservedInstanceBoughtRequest {
     optional int64 planId = 1;
+}
+
+// A request to get RIs by id, for e.g. the user selected RIs to be included in the plan.
+message GetReservedInstanceBoughtByIdRequest {
+    // get reserved instance bought filter by included RI ids.
+    optional RiFilter ri_filter = 1;
+}
+
+// This response contains a list of reserved instance bought by Id.
+message GetReservedInstanceBoughtByIdResponse {
+    repeated ReservedInstanceBought reserved_instance_bought = 1;
 }
 
 // A request to get RI cost stats for both current and projected RIs.
@@ -1133,6 +1153,10 @@ service ReservedInstanceBoughtService {
     // reserved instance bought.
     rpc GetReservedInstanceBoughtCount(GetReservedInstanceBoughtCountRequest) returns
     (GetReservedInstanceBoughtCountResponse);
+
+    // Get the reserved instance bought by id.
+    rpc GetReservedInstanceBoughtById(GetReservedInstanceBoughtByIdRequest) returns
+    (GetReservedInstanceBoughtByIdResponse);
 }
 
 // A service for getting reserved instance spec.
@@ -1191,6 +1215,9 @@ service PlanReservedInstanceService {
     // Delete plan reserved instance stats
     rpc DeletePlanReservedInstanceStats(DeletePlanReservedInstanceStatsRequest) returns
     (DeletePlanReservedInstanceStatsResponse);
+
+    rpc InsertPlanReservedInstanceBought(UploadRIDataRequest) returns
+    (UploadRIDataResponse);
 
     // Get plan reserved instance cost stats
     rpc GetPlanReservedInstanceCostStats(GetPlanReservedInstanceCostStatsRequest) returns

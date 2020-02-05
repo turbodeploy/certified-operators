@@ -92,6 +92,8 @@ public class ArangoRepositoryRpcServiceTest {
     private RepositoryClient repoClient;
     private final long topologyContextId = 1111;
     private final long topologyId = 2222;
+    // The  realtime topology context Id.
+    private static final Long realtimeTopologyContextId = 777777L;
     private RepositoryServiceBlockingStub repositoryService;
 
     private TopologyProtobufsManager topologyProtobufsManager = mock(TopologyProtobufsManager.class);
@@ -120,9 +122,8 @@ public class ArangoRepositoryRpcServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        repoClient = new RepositoryClient(grpcServer.getChannel());
+        repoClient = new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId);
         repositoryService = RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
     }
 
     @Test

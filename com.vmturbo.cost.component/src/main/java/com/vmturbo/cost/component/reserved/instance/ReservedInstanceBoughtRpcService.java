@@ -24,8 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
@@ -33,6 +36,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountReque
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
@@ -59,6 +63,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
 
+    private final PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
+
     private final Long realtimeTopologyContextId;
 
     private PriceTableStore priceTableStore;
@@ -70,6 +76,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
             @Nonnull final RepositoryClient repositoryClient,
             @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
+            @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
             final long realTimeTopologyContextId,
             @Nonnull final PriceTableStore priceTableStore,
             @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore) {
@@ -79,6 +86,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 Objects.requireNonNull(entityReservedInstanceMappingStore);
         this.repositoryClient = repositoryClient;
         this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
+        this.planReservedInstanceService = planReservedInstanceService;
         this.realtimeTopologyContextId = realTimeTopologyContextId;
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
@@ -97,18 +105,35 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
         } else {
             final long topologyContextId = request.hasTopologyContextId() ?
-                    request.getTopologyContextId() : realtimeTopologyContextId;
-            final Map<EntityType, Set<Long>> cloudScopeTuples = repositoryClient.getEntityOidsByType(
-                    request.getScopeSeedOidsList(),
-                    topologyContextId,
-                    supplyChainServiceBlockingStub);
+                                        request.getTopologyContextId() : realtimeTopologyContextId;
+            // If getSaved is true, get the saved plan RIs, else get them from real-time.
+            // When plan is still being configured, for instance, there will be no saved RIs.
+            boolean getSaved = !request.hasGetSaved();
+            // Retrieve the RIs selected by user to include in the plan.
+            if (getSaved && topologyContextId != realtimeTopologyContextId) {
+                final GetPlanReservedInstanceBoughtRequest planSavedRiRequest =
+                                                      GetPlanReservedInstanceBoughtRequest
+                                                                      .newBuilder()
+                                                                      .setPlanId(topologyContextId)
+                                                                      .build();
+                unstitchedReservedInstances = planReservedInstanceService
+                            .getPlanReservedInstanceBought(planSavedRiRequest)
+                            .getReservedInstanceBoughtsList();
+            } else {
+                final Map<EntityType, Set<Long>> cloudScopeTuples = repositoryClient.getEntityOidsByType(
+                        request.getScopeSeedOidsList(),
+                        topologyContextId,
+                        supplyChainServiceBlockingStub);
 
-            final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
-                    .cloudScopeTuples(cloudScopeTuples)
-                    .build();
+                final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
+                        .cloudScopeTuples(cloudScopeTuples)
+                        .build();
 
-            unstitchedReservedInstances = reservedInstanceBoughtStore
-                    .getReservedInstanceBoughtByFilter(riBoughtFilter);
+                unstitchedReservedInstances = reservedInstanceBoughtStore
+                        .getReservedInstanceBoughtByFilter(riBoughtFilter);
+            }
+            logger.info("Retrieved # of RIs: " + unstitchedReservedInstances.size() + " for planId: "
+                                                    + topologyContextId);
         }
 
 
@@ -140,7 +165,6 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                             .addAllReservedInstanceBoughts(
                                     createStitchedRIBoughtInstances(reservedInstancesBought))
                             .build();
-
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
@@ -150,6 +174,40 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         } catch (StatusRuntimeException e) {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to get reserved instance bought by filter due to " + e.getLocalizedMessage())
+                .asException());
+        }
+    }
+
+    @Override
+    public void getReservedInstanceBoughtById(
+            GetReservedInstanceBoughtByIdRequest request,
+            StreamObserver<GetReservedInstanceBoughtByIdResponse> responseObserver) {
+        try {
+            final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
+                            .riBoughtFilter(Cost.ReservedInstanceBoughtFilter
+                                            .newBuilder()
+                                            .setExclusionFilter(false)
+                                            .addAllRiBoughtId(request.getRiFilter().getRiIdList())
+                                            .build())
+                            .build();
+            final List<ReservedInstanceBought> reservedInstancesBought =
+                           reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(filter);
+
+            final GetReservedInstanceBoughtByIdResponse response =
+                    GetReservedInstanceBoughtByIdResponse.newBuilder()
+                            .addAllReservedInstanceBought(
+                                    createStitchedRIBoughtInstances(reservedInstancesBought))
+                            .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to get reserved instance bought by Id filter.")
+                    .asException());
+        } catch (StatusRuntimeException e) {
+            responseObserver.onError(Status.INTERNAL
+                .withDescription("Failed to get reserved instance bought by Id filter due to " + e.getLocalizedMessage())
                 .asException());
         }
     }

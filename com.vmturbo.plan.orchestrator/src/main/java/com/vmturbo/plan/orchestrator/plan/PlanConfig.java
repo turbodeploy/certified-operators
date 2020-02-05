@@ -27,6 +27,8 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -148,6 +150,8 @@ public class PlanConfig {
             buyRIService(),
             groupServiceBlockingStub(),
             repositoryServiceBlockingStub(),
+            planReservedInstanceService(),
+            boughtRIService(),
             startAnalysisRetryTimeoutMin,
             TimeUnit.MINUTES);
     }
@@ -163,6 +167,16 @@ public class PlanConfig {
     }
 
     /**
+     * Bean for Reserved Instance Bought Rpc Service.
+     *
+     * @return a ReservedInstanceBoughtServiceBlockingStub.
+     */
+    @Bean
+    public ReservedInstanceBoughtServiceBlockingStub boughtRIService() {
+        return ReservedInstanceBoughtServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
      * Grpc stub for the plan reserved instance service.
      *
      * @return The {@link PlanReservedInstanceServiceBlockingStub}.
@@ -170,6 +184,17 @@ public class PlanConfig {
     @Bean
     public PlanReservedInstanceServiceBlockingStub planReservedInstanceService() {
         return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Sends commands to the Plan Reserved Instance Service using gRPC.
+     *
+     * @return PlanReservedInstanceClient.
+     */
+    @Bean
+    public PlanReservedInstanceClient planReservedInstanceClient() {
+        return new PlanReservedInstanceClient(planReservedInstanceService(),
+                                              boughtRIService());
     }
 
     /**

@@ -35,6 +35,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
@@ -72,6 +74,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private SupplyChainServiceBlockingStub supplyChainService;
 
+    private PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
+
     private final Long realtimeTopologyContextId = 777777L;
 
     private ReservedInstanceSpecStore reservedInstanceSpecStore =
@@ -81,8 +85,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
                 reservedInstanceBoughtStore,
-               reservedInstanceMappingStore, repositoryClient, supplyChainService,
-               realtimeTopologyContextId, priceTableStore, reservedInstanceSpecStore);
+                   reservedInstanceMappingStore, repositoryClient, supplyChainService,
+                   planReservedInstanceService, realtimeTopologyContextId, priceTableStore,
+                   reservedInstanceSpecStore);
 
     /**
      * Set up a test GRPC server.
@@ -92,14 +97,6 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private ReservedInstanceBoughtServiceBlockingStub client;
 
-    // Constants as defined in EntityType
-    //private static final int REGION_VALUE = 54;
-    //private static final int AVAILABILITY_ZONE_VALUE = 55;
-    //private static final int BUSINESS_ACCOUNT_VALUE = 28;
-
-    //private static final String REGION = "Region";
-    //private static final String AVAILABILITY_ZONE = "AvailabilityZone";
-    //private static final String BUSINESS_ACCOUNT = "BusinessAccount";
 
     private static final Long VM1_OID = 123L;
     private static final Long VM2_OID = 456L;
@@ -125,7 +122,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
     public void setup() {
         client = ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        repositoryClient = new RepositoryClient(grpcServer.getChannel());
+        planReservedInstanceService = PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        repositoryClient = new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId);
         when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Collections.singletonList(createRiBought()));
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))

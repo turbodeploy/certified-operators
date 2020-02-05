@@ -99,9 +99,14 @@ public class RepositoryClientConfig {
         return topologyAvailabilityTracker;
     }
 
+    /**
+     * Bean for Repository Client.
+     *
+     * @return RepositoryClient.
+     */
     @Bean
     public RepositoryClient repositoryClient() {
-        return new RepositoryClient(repositoryChannel());
+        return new RepositoryClient(repositoryChannel(), realtimeTopologyContextId);
     }
 
     @Bean
