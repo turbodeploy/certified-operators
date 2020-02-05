@@ -29,6 +29,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -503,21 +504,30 @@ public class ServiceConfig {
         final StatsService statsService = new StatsService(
             communicationConfig.historyRpcService(),
             communicationConfig.planRpcService(),
-            communicationConfig.repositoryApi(),
-            communicationConfig.repositoryRpcService(),
-            communicationConfig.supplyChainFetcher(),
             mapperConfig.statsMapper(),
-            communicationConfig.groupExpander(),
-            Clock.systemUTC(),
             communicationConfig.groupRpcService(),
             mapperConfig.magicScopeGateway(),
             userSessionContext(),
-            communicationConfig.serviceEntityMapper(),
             mapperConfig.uuidMapper(),
             statsQueryExecutor(),
-            planEntityStatsFetcher());
+            planEntityStatsFetcher(),
+            paginatedStatsExecutor());
         groupsService().setStatsService(statsService);
         return statsService;
+    }
+
+    @Bean
+    public PaginatedStatsExecutor paginatedStatsExecutor() {
+        return new PaginatedStatsExecutor(
+                mapperConfig.statsMapper(),
+                mapperConfig.uuidMapper(),
+                Clock.systemUTC(),
+                communicationConfig.repositoryApi(),
+                communicationConfig.historyRpcService(),
+                communicationConfig.supplyChainFetcher(),
+                userSessionContext(),
+                communicationConfig.groupExpander()
+                );
     }
 
     @Bean
