@@ -54,10 +54,8 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
 @EnableTransactionManagement
 public class SQLDatabaseConfig {
 
-    private static final String ENABLE_SECURE_DB_CONNECTION = "enableSecureDBConnection";
-
-    private final boolean isSecureDBConnectionRequested =
-        EnvironmentUtils.parseBooleanFromEnv(ENABLE_SECURE_DB_CONNECTION);
+    @Value("${enableSecureDBConnection:false}")
+    private boolean isSecureDBConnectionRequested;
 
     @Value("${dbHost}")
     private String dbHost;
