@@ -94,6 +94,7 @@ public class SettingStore implements DiagsRestorable {
     private final GroupToSettingPolicyIndex groupToSettingPolicyIndex;
 
     private final SettingsUpdatesSender settingsUpdatesSender;
+
     /**
      * Create a new SettingStore.
      *
@@ -147,27 +148,34 @@ public class SettingStore implements DiagsRestorable {
         try {
             return dslContext.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
-                // Explicitly search for an existing policy with the same name, so that we
+                // Search for an existing policy with the same name, so that we
                 // know when to throw a DuplicateNameException as opposed to a generic
                 // DataIntegrityException.
                 final Record1<Long> existingId = context.select(SETTING_POLICY.ID)
                         .from(SETTING_POLICY)
                         .where(SETTING_POLICY.NAME.eq(settingPolicyInfo.getName()))
                         .fetchOne();
-                if (existingId != null) {
+                // Allow overriding default policies
+                if (existingId != null && type != Type.DEFAULT) {
                     throw new DuplicateNameException(existingId.value1(),
                             settingPolicyInfo.getName());
                 }
-
-                final long settingPolicyId = identityProvider.next();
+                final long settingPolicyId = existingId != null
+                    ? existingId.value1()
+                    : identityProvider.next();
                 final SettingPolicy jooqSettingPolicy = new SettingPolicy(
-                    settingPolicyId,
-                    settingPolicyInfo.getName(),
-                    settingPolicyInfo.getEntityType(),
-                    settingPolicyInfo,
-                    SettingPolicyTypeConverter.typeToDb(type),
-                    settingPolicyInfo.getTargetId());
-                context.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
+                        settingPolicyId,
+                        settingPolicyInfo.getName(),
+                        settingPolicyInfo.getEntityType(),
+                        settingPolicyInfo,
+                        SettingPolicyTypeConverter.typeToDb(type),
+                        settingPolicyInfo.getTargetId());
+                SettingPolicyRecord record = context.newRecord(SETTING_POLICY, jooqSettingPolicy);
+                if (existingId == null) {
+                    record.store();
+                } else {
+                    record.update();
+                }
                 if (settingPolicyInfo.hasScheduleId()) {
                     // OM-52825 will deal with SettingPolicyInfo refactoring
                     assignSchedule(context, settingPolicyId,
@@ -176,7 +184,6 @@ public class SettingStore implements DiagsRestorable {
                 SettingProto.SettingPolicy newSettingPolicy = toSettingPolicy(jooqSettingPolicy);
                 groupToSettingPolicyIndex.add(newSettingPolicy);
                 return newSettingPolicy;
-
             });
         } catch (DataAccessException e) {
             // Jooq will rethrow a DuplicateNameException thrown in the transactionResult call
@@ -199,13 +206,13 @@ public class SettingStore implements DiagsRestorable {
      * An ID will be assigned to this policy.
      * @throws InvalidItemException If the input setting policy is not valid.
      * @throws DuplicateNameException If there is already a setting policy with the same name as
-     * the input setting policy.
+     * the new info (other than the policy to update).
      * @throws DataAccessException If there is another problem connecting to the database.
      */
     @Nonnull
     public SettingProto.SettingPolicy createUserSettingPolicy(
             @Nonnull final SettingPolicyInfo settingPolicyInfo)
-            throws InvalidItemException, DuplicateNameException {
+            throws InvalidItemException, DuplicateNameException, DataAccessException {
         return internalCreateSettingPolicy(settingPolicyInfo, Type.USER);
     }
 
@@ -219,13 +226,13 @@ public class SettingStore implements DiagsRestorable {
      * An ID will be assigned to this policy.
      * @throws InvalidItemException If the input setting policy is not valid.
      * @throws DuplicateNameException If there is already a setting policy with the same name as
-     * the input setting policy.
+     * the new info (other than the policy to update).
      * @throws DataAccessException If there is another problem connecting to the database.
      */
     @Nonnull
     public SettingProto.SettingPolicy createDefaultSettingPolicy(
             @Nonnull final SettingPolicyInfo settingPolicyInfo)
-            throws InvalidItemException, DuplicateNameException {
+            throws InvalidItemException, DuplicateNameException, DataAccessException {
         return internalCreateSettingPolicy(settingPolicyInfo, Type.DEFAULT);
     }
 
@@ -239,13 +246,13 @@ public class SettingStore implements DiagsRestorable {
      * An ID will be assigned to this policy.
      * @throws InvalidItemException If the input setting policy is not valid.
      * @throws DuplicateNameException If there is already a setting policy with the same name as
-     * the input setting policy.
+     * the new info (other than the policy to update).
      * @throws DataAccessException If there is another problem connecting to the database.
      */
     @Nonnull
     public SettingProto.SettingPolicy createDiscoveredSettingPolicy(
             @Nonnull final SettingPolicyInfo settingPolicyInfo)
-            throws InvalidItemException, DuplicateNameException {
+            throws InvalidItemException, DuplicateNameException, DataAccessException {
         return internalCreateSettingPolicy(settingPolicyInfo, Type.DISCOVERED);
     }
 
@@ -440,14 +447,14 @@ public class SettingStore implements DiagsRestorable {
             // Jooq will rethrow exceptions thrown in the transactionResult call
             // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
             if (e.getCause() instanceof SettingPolicyNotFoundException) {
-                throw (SettingPolicyNotFoundException) e.getCause();
+                throw (SettingPolicyNotFoundException)e.getCause();
             } else if (e.getCause() instanceof InvalidItemException) {
                 // This shouldn't happen, because default setting policies created from the
                 // setting specs should always be valid. Must be some programming error!
                 throw new IllegalStateException("DefaultSettingPolicyCreator produced an " +
                         "invalid setting policy! Error: " + e.getMessage());
             } else if (e.getCause() instanceof IllegalArgumentException) {
-                throw (IllegalArgumentException) e.getCause();
+                throw (IllegalArgumentException)e.getCause();
             } else {
                 throw e;
             }
@@ -981,7 +988,7 @@ public class SettingStore implements DiagsRestorable {
      * @param settingPolicies The setting policies to insert.
      */
     private void insertAllSettingPolicies(@Nonnull final List<SettingProto.SettingPolicy> settingPolicies)
-        throws SQLTransientException, DataAccessException{
+        throws SQLTransientException, DataAccessException {
         // It should be unusual to have a a very high number of setting policies, so
         // creating them iteratively should be ok. If there is a performance issue here,
         // consider batching or performing dump/restore via the SQL dump/restore feature.
@@ -1022,7 +1029,7 @@ public class SettingStore implements DiagsRestorable {
         List<SettingProto.SettingPolicy> policies = policiesForGroup.get(deletedGroupId);
         int policiesUpdated = 0;
         for (final SettingProto.SettingPolicy policy : policies) {
-            if (! (policy.hasInfo() && policy.getInfo().hasScope())) {
+            if (!(policy.hasInfo() && policy.getInfo().hasScope())) {
                 continue;
             }
 
@@ -1036,7 +1043,7 @@ public class SettingStore implements DiagsRestorable {
             SettingProto.SettingPolicyInfo.Builder policyInfoBuilder = policy.getInfo().toBuilder();
             List<Long> originalGroups = policyInfoBuilder.getScopeBuilder().getGroupsList();
             List<Long> modifiedGroups = originalGroups.stream()
-                    .filter(groupId -> ! groupId.equals(deletedGroupId))
+                    .filter(groupId -> !groupId.equals(deletedGroupId))
                     .collect(Collectors.toList());
             boolean wasUpdated = originalGroups.size() != modifiedGroups.size();
 
