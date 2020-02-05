@@ -184,6 +184,18 @@ public class ReservationManager {
     }
 
     /**
+     * Check if the reservation has expired.
+     * @param reservation reservation of interest
+     * @return false if the reservation has not expired.
+     *         true  otherwise.
+     */
+    public boolean hasReservationExpired(@Nonnull final ReservationDTO.Reservation reservation) {
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
+        final DateTime expirationDate = new DateTime(reservation.getExpirationDate(), DateTimeZone.UTC);
+        return expirationDate.isEqual(today) || expirationDate.isBefore(today);
+    }
+
+    /**
      * Update the reservation status from INPROGRESS to RESERVED/PLACEMENT_FIELD
      * based on if the reservation is successful.
      * @param reservationSet the set of reservations to be updated

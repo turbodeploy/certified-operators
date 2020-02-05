@@ -1,5 +1,7 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -47,16 +49,18 @@ public class ReservationManagerTest {
                             .setTemplateId(234L)))
             .build();
 
-    // 100 hrs later
+    // active 100 hrs later expires 101 hrs later
     private Reservation testFutureReservation = Reservation.newBuilder()
             .setId(1001)
             .setName("test-reservation")
             .setStartDate(System.currentTimeMillis() + 1000 * 60 * 60 * 100)
+            .setExpirationDate(System.currentTimeMillis() + 1000 * 60 * 60 * 101)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
                             .setTemplateId(234L)))
             .build();
+
 
     private Reservation unfulfilledReservation = Reservation.newBuilder()
             .setId(1002)
@@ -103,6 +107,30 @@ public class ReservationManagerTest {
                                     .addPlacementInfo(PlacementInfo.newBuilder().setProviderId(500L)))))
             .build();
 
+    // expired
+    private Reservation testExpiredReservation = Reservation.newBuilder()
+            .setId(1006)
+            .setName("test-reservation")
+            .setStartDate(System.currentTimeMillis() - 2000)
+            .setExpirationDate(System.currentTimeMillis() - 1000)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
+            .build();
+
+    // active for the last 2 hrs and expires in another hr
+    private Reservation testActiveNotExpiredReservation = Reservation.newBuilder()
+            .setId(1007)
+            .setName("test-reservation")
+            .setStartDate(System.currentTimeMillis() - 1000 * 60 * 60 * 2)
+            .setExpirationDate(System.currentTimeMillis() + 1000 * 60 * 60)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
+            .build();
+
     /**
      * Initial setup.
      * @throws Exception because of calls to reservationDao methods.
@@ -133,6 +161,16 @@ public class ReservationManagerTest {
         Reservation queuedReservation =
                 reservationManager.intializeReservationStatus(testReservation);
         assert (queuedReservation.getStatus().equals(ReservationStatus.UNFULFILLED));
+    }
+
+    /**
+     * Test intializeReservationStatus method with current reservation.
+     */
+    @Test
+    public void testHasReservationExpired() {
+        assertFalse(reservationManager.hasReservationExpired(testFutureReservation));
+        assertFalse(reservationManager.hasReservationExpired(testActiveNotExpiredReservation));
+        assertTrue(reservationManager.hasReservationExpired(testExpiredReservation));
     }
 
     /**
