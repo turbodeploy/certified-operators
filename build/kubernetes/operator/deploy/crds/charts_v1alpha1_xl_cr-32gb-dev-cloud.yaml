@@ -178,6 +178,8 @@ spec:
         memory: 512Mi
 
   # Resources limits - Probes
+  # Don't specify resource limits for AWS or Azure here, instead obtain the resource limits from the
+  # helm-chars/probes values.yaml files.
   mediation-actionscript:
     resources:
       limits:
@@ -190,34 +192,6 @@ spec:
     resources:
       limits:
         memory: 1Gi
-  mediation-aws:
-    resources:
-      limits:
-        memory: 1Gi
-  mediation-awsbilling:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-awscost:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-awslambda:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-azure:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-azurecost:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-azurevolumes:
-    resources:
-      limits:
-        memory: 512Mi
   mediation-cloudfoundry:
     resources:
       limits:
