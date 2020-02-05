@@ -1,5 +1,6 @@
 package com.vmturbo.auth.component.userscope;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -10,10 +11,10 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import io.grpc.stub.StreamObserver;
 
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,8 +44,10 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -210,9 +213,9 @@ public class UserScopeServiceTest {
 
         EntityAccessScopeContents scopeContents = response.getEntityAccessScopeContents();
         Assert.assertThat(scopeContents.getAccessibleOids().getArray().getOidsList(),
-                Matchers.containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
+                containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
         Assert.assertThat(scopeContents.getSeedOids().getArray().getOidsList(),
-                Matchers.containsInAnyOrder(dcId));
+                containsInAnyOrder(dcId));
     }
 
     // verify that the entity access scope is unrestricted
@@ -230,13 +233,13 @@ public class UserScopeServiceTest {
         OidSetDTO accessibleOids = contents.getAccessibleOids();
         Assert.assertTrue(accessibleOids.hasArray());
         Assert.assertThat(accessibleOids.getArray().getOidsList(),
-                Matchers.containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
+                containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
 
         // also verify the seed oids list
         OidSetDTO seedOids = contents.getSeedOids();
         Assert.assertTrue(seedOids.hasArray());
         Assert.assertThat(seedOids.getArray().getOidsList(),
-                Matchers.containsInAnyOrder(2L));
+                containsInAnyOrder(2L));
     }
 
     // test that an empty group list results in an unrestricted access scope.
@@ -345,7 +348,7 @@ public class UserScopeServiceTest {
         OidSetDTO accessibleOids = response.getEntityAccessScopeContents().getAccessibleOids();
         Assert.assertTrue(accessibleOids.hasArray());
         Assert.assertThat(accessibleOids.getArray().getOidsList(),
-                Matchers.containsInAnyOrder(10L, 11L));
+                containsInAnyOrder(10L, 11L));
     }
 
     // test the "get current user access scope" when no local session exists.
@@ -365,5 +368,27 @@ public class UserScopeServiceTest {
         EntityAccessScopeResponse response = responseCaptor.getValue();
 
         verifyFullAccess(response.getEntityAccessScopeContents());
+    }
+
+
+    /**
+     * Verify that fetch static cloud infra for getEntityAccessScopeMembers.
+     */
+    @Test
+    public void testGetEntityAccessScopeMembersWithStaticCloudInfra() {
+        PropertyFilter propertyFilter = UserScopeService.STATIC_CLOUD_ENTITY_TYPES;
+        List<Long> sampleIDs = ImmutableList.of(101L);
+        doReturn(SearchEntityOidsResponse.newBuilder().addAllEntities(sampleIDs).build())
+                .when(searchService).searchEntityOids(eq(
+                SearchEntityOidsRequest.newBuilder().addSearchParameters(SearchParameters.newBuilder()
+                        .setStartingFilter(propertyFilter)).build()));
+        EntityAccessScopeResponse response = userScopeServiceClient.getEntityAccessScopeMembers(
+                EntityAccessScopeRequest.newBuilder()
+                        .addGroupId(1)
+                        .build());
+        List<Long> expectedList = Lists.newArrayList(sampleIDs);
+        expectedList.addAll(TEST_SUPPLY_CHAIN_OIDS);
+        Assert.assertThat(response.getEntityAccessScopeContents().getAccessibleOids().getArray().getOidsList(),
+                containsInAnyOrder(expectedList.toArray()));
     }
 }
