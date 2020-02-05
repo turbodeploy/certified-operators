@@ -232,7 +232,8 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 return Optional.empty();
             } else if (connectedRegions.size() > 1) {
                 logger.warn("Entity {} connected to multiple regions: {}! Choosing the first.",
-                    connectedRegions.stream()
+                    () -> entity.getOid(),
+                    () -> connectedRegions.stream()
                         .map(region -> Long.toString(region.getOid()))
                         .collect(Collectors.joining(",")));
             }
@@ -255,9 +256,10 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 return Optional.empty();
             } else if (connectedAZs.size() > 1) {
                 logger.warn("Entity {} connected to multiple availability zone: {}! Choosing the first.",
-                        connectedAZs.stream()
-                                .map(region -> Long.toString(region.getOid()))
-                                .collect(Collectors.joining(",")));
+                    () -> entity.getOid(),
+                    () -> connectedAZs.stream()
+                        .map(region -> Long.toString(region.getOid()))
+                        .collect(Collectors.joining(",")));
             }
             return Optional.of(connectedAZs.iterator().next());
         });
