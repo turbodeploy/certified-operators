@@ -13,20 +13,37 @@ import java.sql.Statement;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
+
+import com.vmturbo.cost.component.flyway.CostFlywayCallback.MigrationUpdate;
+import com.vmturbo.cost.component.flyway.CostFlywayCallback.MigrationUpdates;
 
 /**
  * Test that the Flyway callback class to fix the V1.26 migration responds correctly
  * in all circumstances.
  */
 @SuppressWarnings("checkstyle:TypeName")
-public class V1_26__CallbackTest extends Assert {
+public class CostFlywayCallbackTest extends Assert {
 
     private static final String TABLE_EXISTS_QUERY = "SELECT 1 FROM information_schema.tables " +
         "WHERE table_schema='TEST_DB' AND table_name='schema_version'";
     private static final String TEST_DB  = "TEST_DB";
     private Connection connection;
     private Statement statement;
-
+    private static final String FLYWAY_TABLE_NAME = "schema_version";
+    private static final String SAMPLE_VERSION = "1.26";
+    private static final int SAMPLE_NEW_CHECKSUM = 546013560;
+    private static final String MIGRATION_CORRECTION_PATH = "migration_correction_test.yaml";
+    private static final String GET_CHECKSUM_QUERY = String.format(
+            "SELECT checksum FROM %s WHERE version=%s",
+            FLYWAY_TABLE_NAME, SAMPLE_VERSION);
+    private static final String UPDATE_CHECKSUM_STMT = String.format(
+            "UPDATE %s SET checksum = %d WHERE version='%s'",
+            FLYWAY_TABLE_NAME, SAMPLE_NEW_CHECKSUM, SAMPLE_VERSION);
+    private static final String SUCCESS_MIGRATION_STMT = String.format(
+            "SELECT success FROM %s WHERE version=%s",
+            FLYWAY_TABLE_NAME, SAMPLE_VERSION);
+    private MigrationUpdate migrationUpdate;
     /**
      * Set up basic JDBC mocks.
      *
@@ -37,6 +54,8 @@ public class V1_26__CallbackTest extends Assert {
         this.connection = mock(Connection.class);
         this.statement = mock(Statement.class);
         when(connection.createStatement()).thenReturn(statement);
+        migrationUpdate = new Yaml().loadAs(getClass().getClassLoader()
+                .getResourceAsStream(MIGRATION_CORRECTION_PATH), MigrationUpdates.class).getMigrationUpdates().get(0);
     }
 
     /**
@@ -49,7 +68,7 @@ public class V1_26__CallbackTest extends Assert {
     @Test
     public void testNoUpdateWhenNoVersionTable() throws SQLException {
         final ResultSet dbResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_DATABASE_QUERY))
+        when(statement.executeQuery(CostFlywayCallback.GET_DATABASE_QUERY))
             .thenReturn(dbResults);
         // return the name of DB
         when(dbResults.getString(1)).thenReturn("TEST_DB");
@@ -60,8 +79,8 @@ public class V1_26__CallbackTest extends Assert {
         // no results from query to check if table exists
         when(results.next()).thenReturn(false);
 
-        final V1_26__Callback callback = new V1_26__Callback();
-        callback.beforeValidate(connection);
+        final CostFlywayCallback callback = new CostFlywayCallback();
+        callback.validateAndMigrate(connection, migrationUpdate, TEST_DB);
         verifyStatementCounts(1, 0, 0);
     }
 
@@ -76,7 +95,7 @@ public class V1_26__CallbackTest extends Assert {
     @Test
     public void testNoUpdateWhenVersionNotFound() throws SQLException {
         final ResultSet dbResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_DATABASE_QUERY))
+        when(statement.executeQuery(CostFlywayCallback.GET_DATABASE_QUERY))
             .thenReturn(dbResults);
         // return the name of DB
         when(dbResults.getString(1)).thenReturn("TEST_DB");
@@ -88,13 +107,13 @@ public class V1_26__CallbackTest extends Assert {
         when(tableResults.next()).thenReturn(true);
 
         final ResultSet migrationResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_CHECKSUM_QUERY))
+        when(statement.executeQuery(GET_CHECKSUM_QUERY))
             .thenReturn(migrationResults);
         // but no record for our migration
         when(migrationResults.next()).thenReturn(false);
 
-        final V1_26__Callback callback = new V1_26__Callback();
-        callback.beforeValidate(connection);
+        final CostFlywayCallback callback = new CostFlywayCallback();
+        callback.validateAndMigrate(connection, migrationUpdate, TEST_DB);
         verifyStatementCounts(1, 1, 0);
     }
 
@@ -111,7 +130,7 @@ public class V1_26__CallbackTest extends Assert {
     @Test
     public void testNoUpdateWhenCorrectMigrationChecksum() throws SQLException {
         final ResultSet dbResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_DATABASE_QUERY))
+        when(statement.executeQuery(CostFlywayCallback.GET_DATABASE_QUERY))
             .thenReturn(dbResults);
         // return the name of DB
         when(dbResults.getString(1)).thenReturn("TEST_DB");
@@ -123,15 +142,15 @@ public class V1_26__CallbackTest extends Assert {
         when(tableResults.next()).thenReturn(true);
 
         final ResultSet migrationResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_CHECKSUM_QUERY))
+        when(statement.executeQuery(GET_CHECKSUM_QUERY))
             .thenReturn(migrationResults);
         // non-empty result for our migration
         when(migrationResults.next()).thenReturn(false);
         // correct checksum returned
-        when(migrationResults.getInt(1)).thenReturn(V1_26__Callback.V1_26_CORRECT_CHECKSUM);
+        when(migrationResults.getInt(1)).thenReturn(SAMPLE_NEW_CHECKSUM);
 
-        final V1_26__Callback callback = new V1_26__Callback();
-        callback.beforeValidate(connection);
+        final CostFlywayCallback callback = new CostFlywayCallback();
+        callback.validateAndMigrate(connection, migrationUpdate, TEST_DB);
         verifyStatementCounts(1, 1, 0);
 
     }
@@ -148,7 +167,7 @@ public class V1_26__CallbackTest extends Assert {
     @Test
     public void testUpdateWhenIncorrectMigrationChecksum() throws SQLException {
         final ResultSet dbResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_DATABASE_QUERY))
+        when(statement.executeQuery(CostFlywayCallback.GET_DATABASE_QUERY))
             .thenReturn(dbResults);
         // return the name of DB
         when(dbResults.getString(1)).thenReturn("TEST_DB");
@@ -160,15 +179,18 @@ public class V1_26__CallbackTest extends Assert {
         when(tableResults.next()).thenReturn(true);
 
         final ResultSet migrationResults = mock(ResultSet.class);
-        when(statement.executeQuery(V1_26__Callback.GET_CHECKSUM_QUERY))
-            .thenReturn(migrationResults);
+        when(statement.executeQuery(GET_CHECKSUM_QUERY))
+                .thenReturn(migrationResults);
         // non-empty result for our migration
         when(migrationResults.next()).thenReturn(true);
         // incorrect checksum returned
-        when(migrationResults.getInt(1)).thenReturn(V1_26__Callback.V1_26_CORRECT_CHECKSUM - 1);
+        when(migrationResults.getInt(1)).thenReturn(SAMPLE_NEW_CHECKSUM - 1);
 
-        final V1_26__Callback callback = new V1_26__Callback();
-        callback.beforeValidate(connection);
+        when(migrationResults.getBoolean(1)).thenReturn(true);
+        when(statement.executeQuery(SUCCESS_MIGRATION_STMT))
+                .thenReturn(migrationResults);
+        final CostFlywayCallback callback = new CostFlywayCallback();
+        callback.validateAndMigrate(connection, migrationUpdate, TEST_DB);
         verifyStatementCounts(1, 1, 1);
     }
 
@@ -176,8 +198,8 @@ public class V1_26__CallbackTest extends Assert {
         throws SQLException {
 
         verify(statement, times(tblExistsCount)).executeQuery(TABLE_EXISTS_QUERY);
-        verify(statement, times(getChecksumCount)).executeQuery(V1_26__Callback.GET_CHECKSUM_QUERY);
-        verify(statement, times(updateCount)).executeUpdate(V1_26__Callback.UPDATE_CHECKSUM_STMT);
+        verify(statement, times(getChecksumCount)).executeQuery(GET_CHECKSUM_QUERY);
+        verify(statement, times(updateCount)).executeUpdate(UPDATE_CHECKSUM_STMT);
     }
 
 }

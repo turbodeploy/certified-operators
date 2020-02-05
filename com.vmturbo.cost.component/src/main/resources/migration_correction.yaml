@@ -1,0 +1,7 @@
+## this file should only be used to update an already committed migration script which is causing failures.
+## For new updates please create a new flyway migration script.
+migrationUpdates:
+  - version: 1.26
+    newChecksum: 546013560
+  - version: 1.32
+    newChecksum: 1773912990
