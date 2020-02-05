@@ -34,10 +34,12 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ActionOnProviderEligibility;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 public class TopologyStitchingGraphTest {
@@ -604,6 +606,66 @@ public class TopologyStitchingGraphTest {
         assertThat(graph.getEntity(e2_2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
         graph.removeEntity(graph.getEntity(e1_1.getEntityDtoBuilder()).get());
         assertThat(graph.getEntity(e2_2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
+    }
+
+    /**
+     * Test that the action eligibility data set in the commodity bought section of
+     * the SDK's entity DTO is transferred to the TopologyStitchingEntity.
+     */
+    @Test
+    public void testMoveEligibilityData() {
+        final CommodityBought validCommBought = CommodityBought.newBuilder()
+                .setProviderId(validEntity.getLocalId())
+                .setActionEligibility(ActionOnProviderEligibility.newBuilder()
+                        .setMovable(false)
+                        .build())
+                .addBought(CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.MEM))
+                .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addCommoditiesBought(validCommBought));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        Map<StitchingEntity, List<CommoditiesBought>> commBoughtList = resEntity.getCommodityBoughtListByProvider();
+        for (StitchingEntity se : commBoughtList.keySet()) {
+            List<CommoditiesBought> bought =   commBoughtList.get(se);
+            for (CommoditiesBought b : bought) {
+                assertEquals(b.getMovable().get(), false);
+            }
+        }
+    }
+
+    /**
+     * Test that the CommoditiesBought of the TopologyStitchingEntity does not contain any values
+     * for the action eligibility attributes if the action eligibility data
+     * is not set in the commodity bought section of the SDK's entity DTO.
+     */
+    @Test
+    public void testUnsetMoveActionEligibilityData() {
+        final CommodityBought validCommBought = CommodityBought.newBuilder()
+                .setProviderId(validEntity.getLocalId())
+                .addBought(CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.MEM))
+                .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addCommoditiesBought(validCommBought));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        Map<StitchingEntity, List<CommoditiesBought>> commBoughtList = resEntity.getCommodityBoughtListByProvider();
+        for (StitchingEntity se : commBoughtList.keySet()) {
+            List<CommoditiesBought> bought =   commBoughtList.get(se);
+            for (CommoditiesBought b : bought) {
+                assertEquals(b.getMovable(), Optional.empty());
+            }
+        }
     }
 
     private Optional<TopologyStitchingEntity> entityByLocalId(@Nonnull final TopologyStitchingGraph graph,

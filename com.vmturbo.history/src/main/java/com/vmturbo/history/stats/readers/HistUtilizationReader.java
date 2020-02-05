@@ -70,10 +70,10 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                     @Nonnull Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes)
                     throws VmtDbException {
         try (DSLContext context = DSL.using(historydbIO.transConnection())) {
-            final Collection<Condition> conditions =
+            final Condition condition =
                             getPropertyToUtilizationTypeConditions(propertyTypeToUtilizationTypes);
             final List<HistUtilizationRecord> result = getChunkedEntityIds(entityIds).stream()
-                            .map(chunk -> getHistUtilizationRecordsPage(chunk, context, conditions))
+                            .map(chunk -> getHistUtilizationRecordsPage(chunk, context, condition))
                             .flatMap(Collection::stream).collect(Collectors.toList());
             return Collections.unmodifiableList(result);
         }
@@ -91,7 +91,9 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
     @Nonnull
     private static Result<HistUtilizationRecord> getHistUtilizationRecordsPage(
                     @Nonnull Collection<String> entityIds, @Nonnull DSLContext context,
-                    @Nonnull Collection<Condition> conditions) {
+                    @Nonnull Condition propertyToUtilizationTypeCondition) {
+        final Collection<Condition> conditions = new HashSet<>();
+        conditions.add(propertyToUtilizationTypeCondition);
         if (!entityIds.isEmpty()) {
             final Condition oidCondition = HistUtilization.HIST_UTILIZATION.OID
                             .in(entityIds.stream().map(Long::valueOf).collect(Collectors.toSet()));
@@ -104,7 +106,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
     }
 
     @Nonnull
-    private static Collection<Condition> getPropertyToUtilizationTypeConditions(
+    private static Condition getPropertyToUtilizationTypeConditions(
                     @Nonnull Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes) {
         final Collection<Condition> result = new HashSet<>();
         propertyTypeToUtilizationTypes.forEach((propertyType, utilizationTypes) -> {
@@ -118,7 +120,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                             HistUtilization.HIST_UTILIZATION.VALUE_TYPE.in(utilizationTypes);
             result.add(DSL.and(propertyTypeCondition, valueTypeCondition));
         });
-        return result;
+        return DSL.or(result);
     }
 
     @Nonnull

@@ -666,7 +666,6 @@ public class CostRpcService extends CostServiceImplBase {
                     }
                 }
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-                cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
                 // if this is not a grouping request; everything else.
                 snapshotToEntityCostMap.forEach((time, statRecords) -> {
                     final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()

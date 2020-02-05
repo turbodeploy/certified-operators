@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -890,12 +891,15 @@ public class StatsMapperTest {
         assertThat(mappedStat.getRelatedEntity().getUuid(), is(test.getProviderUuid()));
         assertThat(mappedStat.getUnits(), is(test.getUnits()));
         assertThat(mappedStat.getValue(), is(test.getUsed().getAvg()));
-        assertThat(mappedStat.getPercentile().getPercentileUtilization(),
-                        is(test.getHistUtilizationValueList().stream()
-                                        .filter(value -> PERCENTILE
-                                                        .equals(value.getType()))
-                                        .map(v -> v.getUsage().getAvg() / v.getCapacity().getAvg()
-                                                        * 100).findAny().get()));
+        final StatHistUtilizationApiDTO percentile = mappedStat.getHistUtilizations().get(0);
+        final HistUtilizationValue expected = test.getHistUtilizationValueList().stream()
+                        .filter(value -> PERCENTILE.equals(value.getType())).findAny().get();
+        assertThat(percentile.getUsage(),
+                        is(expected.getUsage().getAvg()));
+        assertThat(percentile.getCapacity(),
+                        is(expected.getCapacity().getAvg()));
+        assertThat(percentile.getType(),
+                        is(expected.getType()));
         validateStatValue(mappedStat.getValues(), test.getUsed());
     }
 

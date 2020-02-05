@@ -128,8 +128,8 @@ public class HashableCoverageKeyCreator implements CoverageKeyCreator {
         return optDirectOwner.map(directOwner -> {
 
             if (keyCreationConfig.isSharedScope()) {
-                final long sharedOwnerOid = coverageTopology.getOwner(directOwner.getOid())
-                        .map(TopologyEntityDTO::getOid)
+                final long sharedOwnerOid = coverageTopology.getBillingFamilyForEntity(directOwner.getOid())
+                        .map(g -> g.group().getId())
                         .orElse(directOwner.getOid());
 
                 keyBuilder.keyMaterial(ACCOUNT_SCOPE_OID_KEY, sharedOwnerOid);

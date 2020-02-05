@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# Wait until rsyslog container is up.
+# It it is not, we can loose some valuable logs information related to the component startup
+if [ -z "$LOG_TO_STDOUT" ]; then
+    try_number=0
+    while ! (echo ""> /dev/tcp/rsyslog/2514) ; do
+        sleep 1;
+        try_number=`expr $try_number + 1`
+        echo "Waiting for rsyslog to accept connections";
+        if [ "$try_number" -ge 30 ]; then
+             echo "Failed to access rsyslog daemon to 30 seconds. Exiting..."
+            exit 1;
+        fi
+    done;
+    echo "Successfully reached rsyslog. Starting the DB component..."
+fi
+
+
 DEFAULT_MYSQL_CONF=/etc/mysql/my.cnf
 MYSQL_CONF=/var/lib/mysql/my.cnf
 USER=`/usr/bin/id -nu`

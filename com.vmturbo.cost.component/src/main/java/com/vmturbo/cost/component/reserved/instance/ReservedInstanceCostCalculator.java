@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,14 +48,23 @@ public class ReservedInstanceCostCalculator {
      * @return Map of getProbeReservedInstanceId -> amortizedCost.
      */
     public Map<String, Double> calculateReservedInstanceAmortizedCost(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos) {
-        final Set<Long> riSpecIdSet = reservedInstanceBoughtInfos.stream()
-                        .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
-                        .collect(Collectors.toSet());
-        final Map<Long, Integer> riSpecToTermMap =
-                        reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIdSet).stream()
-                                        .collect(Collectors.toMap(Cost.ReservedInstanceSpec::getId,
-                                                        a -> a.getReservedInstanceSpecInfo()
-                                                                        .getType().getTermYears()));
+        @Nonnull final Map<Long, Integer> riSpecToTermMap =
+            getRiSpecIdToTermInYearMap(reservedInstanceBoughtInfos);
+        return calculateReservedInstanceAmortizedCost(reservedInstanceBoughtInfos, riSpecToTermMap);
+    }
+
+    /**
+     * Method that will calculate the per instance amortized cost for a given list of ReservedInstanceBoughtInfos.
+     * This method looks up the term of an RI from the reserved instance spec store. This is then used
+     * to calculate the per instance amortized cost = (fixedCost/730 * 12 * term) + recurringCost.
+     *
+     * @param reservedInstanceBoughtInfos List of ReservedInstanceBoughtInfo.
+     * @param riSpecToTermMap A map from RI spec Id used in the list of input RIs to their term
+     *                        in years.
+     * @return Map of getProbeReservedInstanceId -> amortizedCost.
+     */
+    public Map<String, Double> calculateReservedInstanceAmortizedCost(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos,
+                                                                      @Nonnull final Map<Long, Integer> riSpecToTermMap) {
 
         final Map<String, Double> probeRIIDToAmortizedCost = new HashMap<>();
         for (ReservedInstanceBoughtInfo reservedInstanceBoughtInfo : reservedInstanceBoughtInfos) {
@@ -79,5 +90,52 @@ public class ReservedInstanceCostCalculator {
             }
         }
         return probeRIIDToAmortizedCost;
+    }
+
+    /**
+     * This method will calculate the expiry date of input RIs and return them as a map of
+     * reserved instance probe id to the expiry date in milliseconds.
+     *
+     * @param reservedInstanceBoughtInfos List of input reserved instance bought.
+     * @param riSpecToTermMap A map from RI spec Id used in the list of input RIs to their term
+     *                        in years.
+     * @return a map from the probe id for RI bought to expiry time in millis.
+     */
+    public Map<String, Long> calculateReservedInstanceExpiryDateMillis(
+                @Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos,
+                @Nonnull final Map<Long, Integer> riSpecToTermMap) {
+        final Map<String, Long> probeRIIDToExpiryDateInMillis = new HashMap<>();
+        for (ReservedInstanceBoughtInfo reservedInstanceBoughtInfo : reservedInstanceBoughtInfos) {
+            if (!riSpecToTermMap.containsKey(reservedInstanceBoughtInfo.getReservedInstanceSpec())) {
+                logger.error("The term years for RI Spec with Id {} is not provided.",
+                    reservedInstanceBoughtInfo.getReservedInstanceSpec());
+                continue;
+            }
+            // Get the time that RI expires
+            final long reservedInstanceExpirationMillis = Instant
+                .ofEpochMilli(reservedInstanceBoughtInfo.getStartTime())
+                .plus(riSpecToTermMap.get(reservedInstanceBoughtInfo.getReservedInstanceSpec()) * 365L,
+                    ChronoUnit.DAYS).toEpochMilli();
+            probeRIIDToExpiryDateInMillis.put(reservedInstanceBoughtInfo.getProbeReservedInstanceId(),
+                reservedInstanceExpirationMillis);
+        }
+        return probeRIIDToExpiryDateInMillis;
+    }
+
+    /**
+     * For input list of RI bought returns a map from associated spec IDs to their terms.
+     *
+     * @param reservedInstanceBoughtInfos the list of RI bought.
+     * @return map from specs ids to their term in year.
+     */
+    public Map<Long, Integer> getRiSpecIdToTermInYearMap(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos) {
+        final Set<Long> riSpecIdSet = reservedInstanceBoughtInfos.stream()
+            .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
+            .collect(Collectors.toSet());
+
+        return reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIdSet).stream()
+            .collect(Collectors.toMap(Cost.ReservedInstanceSpec::getId,
+                a -> a.getReservedInstanceSpecInfo()
+                    .getType().getTermYears()));
     }
 }

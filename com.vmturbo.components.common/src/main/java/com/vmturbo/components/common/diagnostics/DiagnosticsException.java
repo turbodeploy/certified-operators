@@ -28,12 +28,8 @@ public class DiagnosticsException extends Exception {
      * @param errors the list of errors to start with
      */
     public DiagnosticsException(@Nonnull final List<String> errors) {
+        super('[' + String.join(",", errors) + ']');
         this.errors = errors;
-    }
-
-    @Override
-    public String getLocalizedMessage() {
-        return '[' + String.join(",", getErrors()) + ']';
     }
 
     /**
@@ -42,7 +38,7 @@ public class DiagnosticsException extends Exception {
      * @param error the text of the error message to record
      */
     public DiagnosticsException(@Nonnull final String error) {
-        this.errors = Collections.singletonList(error);
+        this(Collections.singletonList(error));
     }
 
     /**
@@ -51,19 +47,19 @@ public class DiagnosticsException extends Exception {
      * @param error the description of the error condition
      * @param cause the exception that represents the error
      */
-    public DiagnosticsException(@Nonnull final String error,
-                                @Nonnull final Throwable cause) {
-        super(cause);
+    public DiagnosticsException(@Nonnull final String error, @Nonnull final Throwable cause) {
+        super(error, cause);
         this.errors = Collections.singletonList(error);
     }
 
     /**
      * Register an error described only by a Throwable. Initialize the List holder
      * for subsequent error messages.
+     *
      * @param cause the exception that represents the error
      */
     public DiagnosticsException(@Nonnull final Throwable cause) {
-        super(cause);
+        super(cause.getMessage(), cause);
         this.errors = Collections.emptyList();
     }
 

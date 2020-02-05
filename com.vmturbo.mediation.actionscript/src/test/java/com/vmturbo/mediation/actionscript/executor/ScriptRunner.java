@@ -48,6 +48,7 @@ class ScriptRunner {
     private Integer progressUdpateInterval = null;
     private Integer maxOutputLines = null;
     private TestAccess testAccess = null;
+    private ActionExecutionDTO actionExecutionDTO = null;
 
     ScriptRunner(final @Nonnull String scriptName, final @Nonnull ActionScriptProbeAccount accountValues) {
         this.accountValues = accountValues;
@@ -90,7 +91,8 @@ class ScriptRunner {
     ScriptRunner run() {
         logger.info("Running script {}", scriptName);
         this.progressTracker = new TestProgressTracker();
-        this.executor = new ActionScriptExecutor(accountValues, createActionExecution(scriptPath, scriptName, timeoutSeconds), progressTracker);
+        this.actionExecutionDTO = createActionExecution(scriptPath, scriptName, timeoutSeconds);
+        this.executor = new ActionScriptExecutor(accountValues, actionExecutionDTO, progressTracker);
         this.testAccess = executor.getTestAccess();
         // perform any customizations to the executor before running it
         if (gracePeriodSeconds != null) {
@@ -318,5 +320,14 @@ class ScriptRunner {
                     .setDisplayName("PM With Greener Grass")))
             .setWorkflow(workFlowBuilder.build())
             .build();
+    }
+
+    /**
+     * Get the ActionExecutionDTO for this script runner.
+     *
+     * @return {@link ActionExecutionDTO}
+     */
+    public ActionExecutionDTO getActionExecutionDTO() {
+        return actionExecutionDTO;
     }
 }

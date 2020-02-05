@@ -1,7 +1,9 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.AVAILIBILITY_ZONE_A;
+import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.BILLING_FAMILY_GROUPS;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.BUSINESS_ACCOUNT;
+import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.BUSINESS_ACCOUNT_B;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.COMPUTER_TIER_MEDIUM;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.COMPUTE_TIER_SMALL;
 import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopologyTest.OID_PROVIDER;
@@ -12,9 +14,14 @@ import static com.vmturbo.reserved.instance.coverage.allocator.AwsAllocationTopo
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.stream.Stream;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableTable;
@@ -29,15 +36,24 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator.RICoverageAllocatorConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
-
 public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReservedInstanceCoverageAllocatorTest{
+
+    GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
+
+    /**
+     * Setup method for tests.
+     */
+    @Before
+    public void testSetup() {
+        when(groupMemberRetriever.getGroupsWithMembers(any())).thenReturn(Stream.of(BILLING_FAMILY_GROUPS));
+    }
 
     @Test
     public void testDirectZonalAssignment() {
@@ -55,6 +71,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 SDKProbeType.AWS,
                 Collections.singleton(zonalRiBought),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,
@@ -80,33 +97,26 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
     @Test
     public void testSharedZonalAssignment() {
-        final TopologyEntityDTO businessAccountB = BUSINESS_ACCOUNT.toBuilder()
-                .setOid(OID_PROVIDER.incrementAndGet())
-                .clearConnectedEntityList()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(BUSINESS_ACCOUNT.getOid())
-                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setConnectionType(ConnectionType.OWNS_CONNECTION))
-                .build();
         final ReservedInstanceBought zonalRiBoughtB = ReservedInstanceBought.newBuilder()
                 .setId(OID_PROVIDER.incrementAndGet())
                 .setReservedInstanceBoughtInfo(RI_BOUGHT_SMALL_REGIONAL
                         .getReservedInstanceBoughtInfo()
                         .toBuilder()
                         .setAvailabilityZoneId(AVAILIBILITY_ZONE_A.getOid())
-                        .setBusinessAccountId(businessAccountB.getOid()))
+                        .setBusinessAccountId(BUSINESS_ACCOUNT_B.getOid()))
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
                 Collections.singleton(zonalRiBoughtB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,
                 VIRTUAL_MACHINE_SMALL_A,
                 BUSINESS_ACCOUNT,
-                businessAccountB);
+                BUSINESS_ACCOUNT_B);
 
 
         /*
@@ -136,6 +146,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,
@@ -165,33 +176,25 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
     @Test
     public void testSharedRegionalAssignment() {
 
-        final TopologyEntityDTO businessAccountB = BUSINESS_ACCOUNT.toBuilder()
-                .setOid(OID_PROVIDER.incrementAndGet())
-                .clearConnectedEntityList()
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(BUSINESS_ACCOUNT.getOid())
-                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setConnectionType(ConnectionType.OWNS_CONNECTION))
-                .build();
-
         final ReservedInstanceBought regionalRIB = ReservedInstanceBought.newBuilder()
                 .setId(OID_PROVIDER.incrementAndGet())
                 .setReservedInstanceBoughtInfo(RI_BOUGHT_SMALL_REGIONAL
                         .getReservedInstanceBoughtInfo()
                         .toBuilder()
-                        .setBusinessAccountId(businessAccountB.getOid()))
+                        .setBusinessAccountId(BUSINESS_ACCOUNT_B.getOid()))
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
                 SDKProbeType.AWS,
                 Collections.singleton(regionalRIB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,
                 VIRTUAL_MACHINE_SMALL_A,
                 BUSINESS_ACCOUNT,
-                businessAccountB);
+                BUSINESS_ACCOUNT_B);
 
         /*
          * Invoke SUT
@@ -228,6 +231,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,
@@ -268,6 +272,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,
@@ -329,6 +334,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 SDKProbeType.AWS,
                 Collections.singleton(sizeFlexibleRI),
                 Collections.singleton(riSpec),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 COMPUTER_TIER_MEDIUM,
                 AVAILIBILITY_ZONE_A,
@@ -371,6 +377,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                groupMemberRetriever,
                 COMPUTE_TIER_SMALL,
                 AVAILIBILITY_ZONE_A,
                 REGION,

@@ -319,6 +319,7 @@ public class WastedFilesAnalysisTest {
         // make sure storage tier is the target of each action
         analysis.getActions().forEach(action -> {
             assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
+            assertEquals("Each action should be executable", true, action.getExecutable());
 
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, target.getType());
@@ -392,6 +393,7 @@ public class WastedFilesAnalysisTest {
         // make sure storage tier is the target of each action
         analysis.getActions().forEach(action -> {
             assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
+            assertEquals("Each action should be executable", true, action.getExecutable());
 
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, target.getType());

@@ -10,7 +10,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.mediation.actionscript.exception.ParameterMappingException;
 import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterDefinition;
 import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterMapper;
@@ -90,40 +89,6 @@ public class ActionScriptParameterMapperTest {
         actionScriptParameters.stream()
             .forEach(actionScriptParameter ->
                 Assert.assertFalse(actionScriptParameter.getValue().isEmpty()));
-    }
-
-    /**
-     * Test mapping a single parameter--VMT_ACTION_DATA
-     */
-    @Test
-    public void testMappingFullActionDataParameter() {
-        // Create a representation of the action in this test
-        final ActionExecutionDTO actionExecutionDTO = createSampleAction();
-        // Create a list of parameters representing all the default parameters
-        final List<Parameter> parameters = Arrays.asList(Parameter.newBuilder()
-            .setName(ActionScriptParameterDefinition.VMT_ACTION_DATA.name())
-            .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
-            .build());
-        // Test the mapping function
-        final Set<ActionScriptParameter> actionScriptParameters =
-            ActionScriptParameterMapper.mapParameterValues(actionExecutionDTO, parameters);
-        // Validate the results
-        Assert.assertEquals(1, actionScriptParameters.size());
-        // Extract the single resulting parameter
-        ActionScriptParameter actionScriptParameter = actionScriptParameters.stream().findAny().get();
-        // Check that the parameter has the right name
-        Assert.assertEquals(ActionScriptParameterDefinition.VMT_ACTION_DATA.name(),
-            actionScriptParameter.getName());
-        // Check that the parameter has a non-empty value
-        final String jsonValue = actionScriptParameter.getValue();
-        Assert.assertFalse(jsonValue.isEmpty());
-        // Check that the parameter has the right value: a json string representing the entire
-        // ActionExecutionDTO.
-        // First deserialize the json
-        final ActionExecutionDTO deserializedActionExecutionDTO =
-            ComponentGsonFactory.createGsonNoPrettyPrint().fromJson(jsonValue, ActionExecutionDTO.class);
-        // Now compare the deserialized DTO to the original
-        Assert.assertEquals(actionExecutionDTO, deserializedActionExecutionDTO);
     }
 
     /**

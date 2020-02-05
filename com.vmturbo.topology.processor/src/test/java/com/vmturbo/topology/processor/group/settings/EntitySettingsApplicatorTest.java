@@ -11,17 +11,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -29,6 +26,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
@@ -157,6 +157,17 @@ public class EntitySettingsApplicatorTest {
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
 
+    private static final Setting SUSPEND_RECOMMEND_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+            .build();
+
+    private static final Setting PROVISION_RECOMMEND_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+            .build();
+
+
     private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
@@ -281,7 +292,7 @@ public class EntitySettingsApplicatorTest {
 
     /**
      * Tests application of resize setting with DISABLED value. Commodities which have isResizeable
-     * true should be shange, commodities with isResizeable=false shouldn't be changed.
+     * true should be change, commodities with isResizeable=false shouldn't be changed.
      */
     @Test
     public void testResizeSettingDisabled() {
@@ -365,7 +376,63 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Tests move setting application. The result topology entity has to be marked not movable.
+     * Test that if the resizeable is disabled at the entity level,
+     * it is not enabled by the user setting.
+     */
+    @Test
+    public void testResizeSettingDisabledAtEntityLevel() {
+        // entity has resizable disabled at entity level
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(false, false),
+                                                             Optional.ofNullable(CommodityType.VCPU));
+        // user setting is enabled
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.MANUAL.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.AUTOMATIC.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.RECOMMEND.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Test that the resizeable that is unset at the entity level, is set to the user setting.
+     */
+    @Test
+    public void testResizeSettingUnsetAtEntityLevel() {
+        TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder();
+        entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build()));
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.DISABLED.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
+
+        entity = TopologyEntityDTO.newBuilder();
+        entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build()));
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.AUTOMATIC.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        Assert.assertEquals(true, entity.getCommoditySoldList(0).getIsResizeable());
+    }
+
+
+    /**
+     * Tests move setting application.
+     * The result is that the topology entity has to be marked not movable
+     * if the user setting disables move for that entity type
      */
     @Test
     public void testMoveApplicatorForVM() {
@@ -377,6 +444,59 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Test that the user setting cannot override the entity's disabled move setting.
+     */
+    @Test
+    public void testDoNotOverrideEntityMove() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setMovable(false));
+        applySettings(TOPOLOGY_INFO, entity, MOVE_AUTOMATIC_SETTING);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Test that move settings are enabled by the user setting.
+     */
+    @Test
+    public void testApplyEnableMoveUserSetting() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+
+        // Movable is not set in the entity
+        assertFalse(entity.getCommoditiesBoughtFromProviders(0).hasMovable());
+
+        applySettings(TOPOLOGY_INFO, entity, MOVE_AUTOMATIC_SETTING);
+        assertTrue(entity.getCommoditiesBoughtFromProviders(0).hasMovable()
+                        && entity.getCommoditiesBoughtFromProviders(0).getMovable());
+    }
+
+    /**
+     * Test that move settings are disabled by the user setting.
+     */
+    @Test
+    public void testApplyDisableMoveUserSetting() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+
+        // Movable is not set in the entity
+        assertFalse(entity.getCommoditiesBoughtFromProviders(0).hasMovable());
+
+        applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertTrue(entity.getCommoditiesBoughtFromProviders(0).hasMovable()
+                && !entity.getCommoditiesBoughtFromProviders(0).getMovable());
     }
 
     /**
@@ -417,7 +537,7 @@ public class EntitySettingsApplicatorTest {
 
         applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
         assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(2));
-        assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+        assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
         assertThat(vmEntity.getCommoditiesBoughtFromProviders(1).getMovable(), is(false));
     }
 
@@ -433,8 +553,7 @@ public class EntitySettingsApplicatorTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PARENT_ID)
                 .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId)
-                .setMovable(false));
+                .setVolumeId(stId));
 
         final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -442,6 +561,7 @@ public class EntitySettingsApplicatorTest {
 
         applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
         assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertFalse(vmEntity.getCommoditiesBoughtFromProviders(0).hasMovable());
         assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
     }
 
@@ -602,7 +722,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testMovaApplicatorForStorage() {
+    public void testMoveApplicatorForStorage() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.STORAGE_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -614,7 +734,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testMovaApplicatorNoProviderForStorage() {
+    public void testMoveApplicatorNoProviderForStorage() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.STORAGE_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -632,11 +752,69 @@ public class EntitySettingsApplicatorTest {
                 .setEntityType(EntityType.BUSINESS_USER_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderId(PARENT_ID)
-                        .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE)
-                        .setMovable(false));
+                        .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE));
         applySettings(TOPOLOGY_INFO, entity, BUSINESS_USER_MOVE_RECOMMEND_SETTING);
         Assert.assertEquals(1, entity.getCommoditiesBoughtFromProvidersCount());
         Assert.assertTrue(entity.getCommoditiesBoughtFromProviders(0).getMovable());
+    }
+
+    /**
+     * Test that suspend and provision settings are disabled by the user setting.
+     *
+     */
+    @Test
+    public void testApplyDisabledSuspendAndProvisionUserSetting() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setDisplayName("Pod1")
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)));
+
+        // Entity did not contain suspend and clone setting values.
+        assertFalse(entity.getAnalysisSettings().hasSuspendable());
+        assertFalse(entity.getAnalysisSettings().hasCloneable());
+
+
+        // Disable the suspend and provision
+        applySettings(TOPOLOGY_INFO, entity, SUSPEND_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getSuspendable());
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Test that disabled suspend and provision settings in the entity
+     * are not overridden by the user setting.
+     */
+    @Test
+    public void testDoNotOverrideEntitySuspendAndProvision() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setCloneable(false)
+                        .setSuspendable(false));
+
+        // Entity contains suspend and clone setting values.
+        assertTrue(entity.getAnalysisSettings().hasSuspendable()
+                     && !entity.getAnalysisSettings().getSuspendable());
+        assertTrue(entity.getAnalysisSettings().hasCloneable()
+                    && !entity.getAnalysisSettings().getCloneable());
+
+        // User settings cannot override the entity's disabled state
+        applySettings(TOPOLOGY_INFO, entity, SUSPEND_RECOMMEND_SETTING);
+        assertFalse(entity.getAnalysisSettings().getSuspendable());
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_RECOMMEND_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
     }
 
     @Test

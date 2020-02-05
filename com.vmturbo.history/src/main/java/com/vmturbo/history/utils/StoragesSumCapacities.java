@@ -1,46 +1,32 @@
 package com.vmturbo.history.utils;
 
-import java.util.Map;
+import static gnu.trove.impl.Constants.DEFAULT_CAPACITY;
+import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
 
-import com.google.common.collect.Maps;
+import gnu.trove.map.TLongDoubleMap;
+import gnu.trove.map.hash.TLongDoubleHashMap;
 
 /**
  * The class StoragesSumCapacities stores the sums of capacities per slice for the commodities
  * sold by storages.
  */
-// TODO Should this really be a collection of static maps with no coordation of reads and writes?
 public class StoragesSumCapacities {
-    private static Map<String, Double> storage_access = Maps.newHashMap();
-    private static Map<String, Double> storage_provisioned = Maps.newHashMap();
-    private static Map<String, Double> storage_amount = Maps.newHashMap();
+    private TLongDoubleMap storage_access = new TLongDoubleHashMap(
+            DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L, Double.NaN);
+    private TLongDoubleMap storage_provisioned = new TLongDoubleHashMap(
+            DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L, Double.NaN);
+    private TLongDoubleMap storage_amount = new TLongDoubleHashMap(
+            DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L, Double.NaN);
 
-    public static Map<String, Double> getStorageAccess() {
+    public TLongDoubleMap getStorageAccess() {
         return storage_access;
     }
 
-    public static Map<String, Double> getStorageProvisioned() {
+    public TLongDoubleMap getStorageProvisioned() {
         return storage_provisioned;
     }
 
-    public static Map<String, Double> getStorageAmount() {
+    public TLongDoubleMap getStorageAmount() {
         return storage_amount;
-    }
-
-    public static void setStorageAccess(Map<String, Double> storage_access) {
-        StoragesSumCapacities.storage_access = storage_access;
-    }
-
-    public static void setStorageProvisioned(Map<String, Double> storage_provisioned) {
-        StoragesSumCapacities.storage_provisioned = storage_provisioned;
-    }
-
-    public static void setStorageAmount(Map<String, Double> storage_amount) {
-        StoragesSumCapacities.storage_amount = storage_amount;
-    }
-
-    public static void init() {
-        storage_access.clear();
-        storage_provisioned.clear();
-        storage_amount.clear();
     }
 }

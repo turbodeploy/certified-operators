@@ -346,11 +346,13 @@ public class CoverageTopologyImpl implements CoverageTopology {
     }
 
     /**
-     * Not defined for CoverageTopologyImpl.
+     * Returns the billing family for the entity and its member.
+     *
+     * @return the the billing family for the entity and its member.
      */
     @Nonnull
     @Override
     public Optional<GroupAndMembers> getBillingFamilyForEntity(final long entityId) {
-        return Optional.empty();
+        return cloudTopology.getBillingFamilyForEntity(entityId);
     }
 }

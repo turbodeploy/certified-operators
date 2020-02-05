@@ -67,6 +67,7 @@ public class SdkToTopologyEntityConverterTest {
     private static final long PM_FAILOVER_OID = 104L;
     private static final long VM_OID = 100L;
     private static final long DS_OID = 205L;
+    private static final long POD_OID = 105L;
 
     private static final double DELTA = 1e-8;
 
@@ -100,6 +101,13 @@ public class SdkToTopologyEntityConverterTest {
         assertEquals(vmProbeDTO.getDisplayName(), vmTopologyDTO.getDisplayName());
         assertEquals(3, vmTopologyDTO.getCommoditySoldListCount()); // 2xVCPU, 1xVMem
         assertEquals(2, vmTopologyDTO.getCommoditiesBoughtFromProvidersCount()); // buying from two providers
+
+        assertFalse(vmTopologyDTO.getAnalysisSettings().hasSuspendable());
+        assertFalse(vmTopologyDTO.getAnalysisSettings().hasCloneable());
+
+        for (CommoditiesBoughtFromProvider bought : vmTopologyDTO.getCommoditiesBoughtFromProvidersList()) {
+            assertFalse(bought.hasMovable());
+        }
 
         // check that vcpu P2 sold has the effective capacity limited
         Optional<CommoditySoldDTO> P2VCPUCommoditySold = vmTopologyDTO.getCommoditySoldListList().stream()
@@ -654,4 +662,55 @@ public class SdkToTopologyEntityConverterTest {
     private static boolean isNotAccessCommodity(CommoditySoldDTO comm) {
         return !isAccessCommodity(comm);
     }
+
+    /**
+     * Test that the action eligibility settings from the SDK DTO
+     * are transferred to the TopologyEntity DTO.
+     * @throws IOException
+     *      reading from file exception
+     */
+    @Test
+    public void testNodeAndPodWithActionEligibility() throws IOException {
+        // VM DTO containing suspendable = false
+        CommonDTO.EntityDTO vmProbeDTO = messageFromJsonFile("protobuf/messages/kube-master-node-1.dto.json");
+        // Pod DTO containing suspendable = false, cloneable = false, movable across providers = false
+        CommonDTO.EntityDTO podProbeDTO = messageFromJsonFile("protobuf/messages/kube-daemon-pod-1.dto.json");
+
+        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
+        // The entities are placed in the map so that there are forward references (from the VM to the other two)
+        probeDTOs.put(VM_OID, vmProbeDTO);
+        probeDTOs.put(POD_OID, podProbeDTO);
+        final List<TopologyEntityDTO> topologyDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toList());
+
+        // VM
+        TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, VM_OID);
+        // has suspendable setting and is disabled
+        assertTrue(vmTopologyDTO.getAnalysisSettings().hasSuspendable());
+        assertFalse(vmTopologyDTO.getAnalysisSettings().getSuspendable());
+
+        // Pod
+        TopologyEntityDTO podTopologyDTO = findEntity(topologyDTOs, POD_OID);
+        // has suspendable setting and is disabled
+        assertTrue(podTopologyDTO.getAnalysisSettings().hasSuspendable());
+        assertFalse(podTopologyDTO.getAnalysisSettings().getSuspendable());
+        // has cloneable setting and is disabled
+        assertTrue(podTopologyDTO.getAnalysisSettings().hasCloneable());
+        assertFalse(podTopologyDTO.getAnalysisSettings().getCloneable());
+
+        // has movable setting for each provider and is disabled
+          for (CommoditiesBoughtFromProvider bought : podTopologyDTO.getCommoditiesBoughtFromProvidersList()) {
+              if (bought.getProviderEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                  assertTrue(bought.hasMovable());
+                  assertFalse(bought.getMovable());
+              }
+              if (bought.getProviderEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE) {
+                  assertTrue(bought.hasMovable());
+                  assertFalse(bought.getMovable());
+              }
+          }
+    }
+
 }

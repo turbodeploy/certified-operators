@@ -227,7 +227,7 @@ public class WastedFilesAnalysis {
                 // Assign a unique ID to each generated action.
                 .setId(IdentityGenerator.next())
                 .setDeprecatedImportance(0.0D)
-                .setExecutable(false)
+                .setExecutable(true)
                 .setInfo(ActionInfo.newBuilder().setDelete(deleteBuilder));
         Metrics.WASTED_FILES_ACTION_COUNTER.increment();
         return action;

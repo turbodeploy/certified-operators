@@ -11,11 +11,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Result;
@@ -30,7 +31,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
@@ -89,6 +89,7 @@ public class ReservedInstanceBoughtStoreTest {
                     .setReservedInstanceSpec(101L)
                     .setAvailabilityZoneId(100L)
                     .setNumBought(10)
+                    .setStartTime(System.currentTimeMillis())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
                                     .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
@@ -100,6 +101,7 @@ public class ReservedInstanceBoughtStoreTest {
                     .setReservedInstanceSpec(102L)
                     .setAvailabilityZoneId(100L)
                     .setNumBought(20)
+                    .setStartTime(System.currentTimeMillis())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
@@ -112,6 +114,7 @@ public class ReservedInstanceBoughtStoreTest {
                     .setReservedInstanceSpec(102L)
                     .setAvailabilityZoneId(50L)
                     .setNumBought(30)
+                    .setStartTime(System.currentTimeMillis())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
@@ -124,6 +127,7 @@ public class ReservedInstanceBoughtStoreTest {
                     .setReservedInstanceSpec(101L)
                     .setAvailabilityZoneId(50L)
                     .setNumBought(40)
+                    .setStartTime(System.currentTimeMillis())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
                                     .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))

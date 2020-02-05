@@ -19,13 +19,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -326,7 +326,17 @@ public class EntitySettingsApplicator {
                     .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
                     .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
                     .filter(predicate)
-                    .forEach(c -> c.setMovable(movable));
+                    .forEach(c -> {
+                        // Apply setting value only if move is not disabled by the entity
+                        if (!c.hasMovable() || (c.hasMovable() && c.getMovable())) {
+                            c.setMovable(movable);
+                        } else {
+                            // Do not override with the setting if move has been disabled at entity level
+                            logger.trace("{}:{} Not overriding move setting, move is disabled at entity level {}",
+                                    entity::getEntityType, entity::getDisplayName,
+                                    c::getMovable);
+                        }
+                    });
         }
     }
 
@@ -483,10 +493,12 @@ public class EntitySettingsApplicator {
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
             // when setting value is DISABLED, set suspendable to false,
-            // otherwise keep the original value which could be set during converting SDK entityDTO.
-            if (getEntitySettingSpecs().getValue(setting, ActionMode.class) ==
-                    ActionMode.DISABLED) {
+            // otherwise keep the original value which could have been set
+            // when converting from SDK entityDTO.
+            if (ActionMode.DISABLED.name().equals(setting.getEnumSettingValue().getValue())) {
                 entity.getAnalysisSettingsBuilder().setSuspendable(false);
+                logger.trace("Disabled suspendable for {}::{}",
+                                entity::getEntityType, entity::getDisplayName);
             }
         }
     }
@@ -520,10 +532,15 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Setting setting) {
-            entity.getAnalysisSettingsBuilder()
-                    .setCloneable(getEntitySettingSpecs().getValue(setting, ActionMode.class) !=
-                            ActionMode.DISABLED);
+                          @Nonnull final Setting setting) {
+            // when setting value is DISABLED, set cloneable to false,
+            // otherwise keep the original value which could have been set
+            // when converting from SDK entityDTO.
+            if (ActionMode.DISABLED.name().equals(setting.getEnumSettingValue().getValue())) {
+                entity.getAnalysisSettingsBuilder().setCloneable(false);
+                logger.trace("Disabled provision for {}::{}",
+                            entity::getEntityType, entity::getDisplayName);
+            }
         }
     }
 
@@ -540,16 +557,28 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
             final boolean resizeable =
-                    getEntitySettingSpecs().getValue(setting, ActionMode.class) !=
-                            ActionMode.DISABLED;
+                    ActionMode.DISABLED !=
+                            getEntitySettingSpecs().getValue(setting, ActionMode.class);
             entity.getCommoditySoldListBuilderList()
                     .forEach(commSoldBuilder -> {
                         /* We shouldn't change isResizable if it comes as false from a probe side.
                            For example static memory VMs comes from Hyper-V targets with resizeable=false
                            for VMEM(53) commodities.
                          */
-                        if (commSoldBuilder.getIsResizeable()) {
+                        // Apply setting value only if resize is not disabled by the entity
+                        if (!commSoldBuilder.hasIsResizeable() ||
+                                (commSoldBuilder.hasIsResizeable() && commSoldBuilder.getIsResizeable())) {
                             commSoldBuilder.setIsResizeable(resizeable);
+
+                            if (!resizeable) {
+                                logger.trace("Disabled resize for {}:{}:{}",
+                                        entity::getEntityType, entity::getDisplayName,
+                                        commSoldBuilder::getCommodityType);
+                            }
+                        } else {
+                            // Do not override with the setting if resize has been disabled at entity level
+                            logger.trace("{}:{}:{} : Not overriding resizeable setting, resizeable is disabled at entity level",
+                                    entity::getEntityType, entity::getDisplayName, commSoldBuilder::getCommodityType);
                         }
                     });
         }

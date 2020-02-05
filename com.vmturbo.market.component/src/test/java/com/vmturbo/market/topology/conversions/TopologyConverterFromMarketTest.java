@@ -25,11 +25,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.protobuf.util.JsonFormat;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,8 +56,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.Units;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -84,6 +84,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -1500,6 +1501,12 @@ public class TopologyConverterFromMarketTest {
                 .setCommodityType(vMemType)
                 .setUsed(VMEM_USAGE)
                 .setCapacity(OLD_TIER_CAPACITY).build();
+        CommoditySoldDTO vStorageSoldDTO = CommoditySoldDTO.newBuilder()
+                .setCommodityType(vStorageType)
+                .setUsed(VMEM_USAGE)
+                .setIsResizeable(false)
+                .setCapacity(OLD_TIER_CAPACITY).build();
+
         Mockito.doReturn(Optional.of(boughtDTO)).when(mockINdex)
                 .getCommBought(Mockito.anyLong(), Mockito.anyLong(),
                         Mockito.anyObject(), Mockito.anyLong());
@@ -1508,6 +1515,7 @@ public class TopologyConverterFromMarketTest {
                 .setOid(CLOUD_VM_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .addCommoditySoldList(soldDTO)
+                .addCommoditySoldList(vStorageSoldDTO)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
                         .newBuilder().setProviderId(PM_OID)
                         .addAllCommodityBought(boughtDTOList)
@@ -1515,7 +1523,9 @@ public class TopologyConverterFromMarketTest {
                         .build())
                 .build();
         Mockito.doReturn(Optional.of(soldDTO)).when(mockINdex)
-                .getCommSold(Mockito.anyLong(), Mockito.anyObject());
+                .getCommSold(anyLong(), Mockito.anyObject());
+        Mockito.doReturn(Optional.of(vStorageSoldDTO)).when(mockINdex)
+                .getCommSold(CLOUD_VM_OID, vStorageType);
 
         return originalEntityDTO;
     }
@@ -1528,8 +1538,13 @@ public class TopologyConverterFromMarketTest {
                 .setOid(entityOid)
                 .setEntityType(entityTypeValue);
         for (int type: soldCommodityTypeValues) {
+            boolean resizable = true;
+            if (type == CommodityDTO.CommodityType.VSTORAGE_VALUE) {
+                resizable = false;
+            }
             entityDTO
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setIsResizeable(resizable)
                         .setCommodityType(
                                 CommodityType.newBuilder()
                                         .setType(type).build()));

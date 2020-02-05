@@ -174,7 +174,7 @@ public class GroupsService implements IGroupsService {
      */
     @VisibleForTesting
     static final String USER_GROUPS = "GROUP-MyGroups";
-    static final String ENTITY_DEFINITION = "ENTITY-DEFINITION";
+    static final String ENTITY_DEFINITION = "ENTITY_DEFINITION";
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
@@ -618,7 +618,8 @@ public class GroupsService implements IGroupsService {
                 .newBuilder()
                 .setGroupDefinition(groupDefinition)
                 .setOrigin(GroupDTO.Origin.newBuilder() //setting System origin as it is an entity definition
-                    .setSystem(Origin.System.newBuilder()))
+                    .setSystem(Origin.System.newBuilder()
+                        .setDescription("EntityDefinition")))
                 .build()
         );
         return groupMapper.toGroupApiDto(createGroupResponse.getGroup(), true);

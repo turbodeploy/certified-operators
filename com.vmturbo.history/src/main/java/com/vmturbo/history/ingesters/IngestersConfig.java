@@ -41,7 +41,6 @@ import com.vmturbo.history.listeners.TopologyCoordinator;
 import com.vmturbo.history.listeners.TopologyCoordinatorConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;
-import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
@@ -181,7 +180,8 @@ public class IngestersConfig {
                         ),
                         new SystemLoadWriter.Factory(
                                 groupServiceBlockingStub(),
-                                systemLoadHelper()
+                                statsConfig.systemLoadReader(),
+                                historyDbConfig.historyDbIO()
                         ),
                         new EntitiesWriter.Factory(
                                 historyDbConfig.historyDbIO()
@@ -272,18 +272,6 @@ public class IngestersConfig {
     RollupProcessor rollupProcessor() {
         return new RollupProcessor(
                 historyDbConfig.historyDbIO(), bulkLoaderThreadPool());
-    }
-
-    /**
-     * Create a new system load helper for use by the system load writer of the
-     * live topology ingester.
-     *
-     * @return new system load helper
-     */
-    @Bean
-    SystemLoadHelper systemLoadHelper() {
-        return new SystemLoadHelper(statsConfig.systemLoadReader(),
-                historyDbConfig.historyDbIO());
     }
 
     /**

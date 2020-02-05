@@ -1199,8 +1199,11 @@ public class SupplyChainFetcherFactory {
                             entityTypeSes.forEach(se -> {
                                 String uuid = se.getUuid();
                                 Map<AspectName, EntityAspect> aspects = Maps.newHashMap();
-                                if (groupAspectToUuidMapHasEntries) {
-                                    aspects.putAll(groupAspectToUuidMap.get(uuid));
+                                final Map<AspectName, EntityAspect> groupAspects = groupAspectToUuidMap.get(uuid);
+                                if (groupAspects != null) {
+                                    aspects.putAll(groupAspects);
+                                } else {
+                                    logger.error("Cannot get aspects for entity with uuid {}", uuid);
                                 }
                                 if (entityAspectMapRemainingHasEntries) {
                                     Map<AspectName, EntityAspect> entityAspectMap = entityAspectMapRemaining.get(Long.valueOf(uuid));

@@ -202,6 +202,7 @@ public class ActionsServiceTest {
 
     /**
      * Tests getting action details for actions with/without spec, order of details the same as in request.
+     * Verifies that when input DTO contains no topologyContextId, the default realtime one is used.
      */
     @Test
     public void testGetActionDetailsByUuids() {
@@ -241,10 +242,43 @@ public class ActionsServiceTest {
         MultiActionRequest multiActionRequest = actualRequests.get(0);
         assertEquals(actionIdWithSpec, multiActionRequest.getActionIds(0));
         assertEquals(actionIdNoSpec, multiActionRequest.getActionIds(1));
+        assertEquals(REALTIME_TOPOLOGY_ID, multiActionRequest.getTopologyContextId());
 
         List<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getAllValues();
         assertEquals(1, actualOrchestratorActions.size());
         assertEquals(actionIdWithSpec, actualOrchestratorActions.get(0).getActionId());
+    }
+
+    /**
+     * Tests getting action details for actions in a specific topology context.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsInTopologyContext() {
+        final long actionId = 10;
+        final long topologyContextId = 20;
+        final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Collections.singletonList(Long.toString(actionId)));
+        inputDTO.setTopologyContextId(Long.toString(topologyContextId));
+
+        final List<ActionOrchestratorAction> mockActions =
+            Collections.singletonList(ActionOrchestratorAction.getDefaultInstance());
+        final ArgumentCaptor<MultiActionRequest> requestCaptor =
+            ArgumentCaptor.forClass(MultiActionRequest.class);
+        when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
+
+        when(actionSpecMapper.createActionDetailsApiDTO(any()))
+            .thenReturn(mock(ActionDetailsApiDTO.class));
+
+        final Map<String, ActionDetailsApiDTO> resultDetailMap =
+            actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+
+        assertEquals(1, resultDetailMap.size());
+        final List<MultiActionRequest> requests = requestCaptor.getAllValues();
+        assertEquals(1, requests.size());
+        final MultiActionRequest multiActionRequest = requests.get(0);
+        assertEquals(topologyContextId, multiActionRequest.getTopologyContextId());
+        assertEquals(1, multiActionRequest.getActionIdsCount());
+        assertEquals(actionId, multiActionRequest.getActionIds(0));
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {

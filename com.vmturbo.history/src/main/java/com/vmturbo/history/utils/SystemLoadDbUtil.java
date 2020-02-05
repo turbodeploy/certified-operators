@@ -21,11 +21,13 @@ public class SystemLoadDbUtil {
 
     private static double maxCapacity = 0.0;
 
-    private SystemLoadDbUtil() {}
+    private SystemLoadDbUtil() {
+    }
 
     /**
      * The method creates a record for the table system_load,
      * taking as parameters the values for each attribute of the record.
+     *
      * @param slice           the slice for the record
      * @param snapshot        snapshot time
      * @param uuid            uuid
@@ -40,12 +42,12 @@ public class SystemLoadDbUtil {
      * @param commodityKey    commodity key
      * @return record for system_load DB table
      */
-    public static SystemLoadRecord createSystemLoadRecord(String slice, Timestamp snapshot, String uuid,
-                               String producerUuid, String propertyType, String propertySubtype,
-                               Double capacity, Double avgValue, Double minValue, Double maxValue,
-                               RelationType relation, String commodityKey) {
+    public static SystemLoadRecord createSystemLoadRecord(long slice, Timestamp snapshot, String uuid,
+            String producerUuid, String propertyType, String propertySubtype,
+            Double capacity, Double avgValue, Double minValue, Double maxValue,
+            RelationType relation, String commodityKey) {
         SystemLoadRecord record = new SystemLoadRecord();
-        record.setSlice(slice);
+        record.setSlice(Long.toString(slice));
         record.setSnapshotTime(snapshot);
         record.setUuid(uuid);
         record.setProducerUuid(producerUuid);
@@ -64,14 +66,14 @@ public class SystemLoadDbUtil {
      * The method deletes all the system load related records for a specific slice in the day
      * snapshot.
      *
-     * @param slice The slice we want to delete.
-     * @param snapshot The snapshot for which we want to delete all the records for that day.
+     * @param slice       The slice we want to delete.
+     * @param snapshot    The snapshot for which we want to delete all the records for that day.
      * @param historydbIO db methods
      * @throws VmtDbException if a db operation fails
      * @throws ParseException if interrupted
      */
-    public static void deleteSystemLoadRecords(String slice, long snapshot, HistorydbIO historydbIO)
-                            throws VmtDbException, ParseException {
+    public static void deleteSystemLoadRecords(long slice, long snapshot, HistorydbIO historydbIO)
+            throws VmtDbException, ParseException {
 
         Date snapshotDate = new Date(snapshot);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
@@ -83,8 +85,8 @@ public class SystemLoadDbUtil {
 
         DeleteConditionStep<SystemLoadRecord> queryBuilder = historydbIO.JooqBuilder()
                 .delete(SystemLoad.SYSTEM_LOAD)
-                .where(SystemLoad.SYSTEM_LOAD.SLICE.eq(slice)
-                .and(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(today.getTime()), new Timestamp(tomorrow.getTime()))));
+                .where(SystemLoad.SYSTEM_LOAD.SLICE.eq(Long.toString(slice))
+                        .and(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(today.getTime()), new Timestamp(tomorrow.getTime()))));
 
         historydbIO.execute(queryBuilder);
     }

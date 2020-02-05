@@ -1,17 +1,12 @@
 package com.vmturbo.mediation.diagnostic;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Objects;
-import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
 import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 
 /**
@@ -19,7 +14,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
  */
 public class MediationDiagnosticsHandler {
 
-    private final Logger logger = LogManager.getLogger();
     private final String envTmpDiagsDir;
 
     /**
@@ -39,6 +33,10 @@ public class MediationDiagnosticsHandler {
     public void dump(@Nonnull final ZipOutputStream diagnosticZip) {
         final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
         iterateOverAllInPath(diagsWriter, new File(envTmpDiagsDir));
+        if (!diagsWriter.getErrors().isEmpty()) {
+            diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
+                    diagsWriter.getErrors().iterator());
+        }
     }
 
     /**
@@ -57,19 +55,9 @@ public class MediationDiagnosticsHandler {
                 if (probeDiagsFile.isDirectory()) {
                     iterateOverAllInPath(diagnosticZip, probeDiagsFile);
                 } else {
-                    writeDiagsFileToStream(diagnosticZip, probeDiagsFile.toString());
+                    diagnosticZip.dumpDiagnosable(new FileDiagnosticsProvider(probeDiagsFile));
                 }
             }
-        }
-    }
-
-    private void writeDiagsFileToStream(@Nonnull DiagnosticsWriter diagsWriter,
-            @Nonnull String diagsFileName) {
-        try {
-            Stream<String> streamValuesToWrite = Files.lines(Paths.get(diagsFileName));
-            diagsWriter.writeZipEntry(diagsFileName, streamValuesToWrite.iterator());
-        } catch (Exception e) {
-            logger.error("Failed to collect diags {}", diagsFileName, e);
         }
     }
 }

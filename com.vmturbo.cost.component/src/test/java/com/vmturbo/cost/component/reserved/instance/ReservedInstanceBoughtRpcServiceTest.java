@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,7 +51,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
@@ -117,12 +115,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final long RI_BOUGHT_COUNT = 4L;
     private static final double TIER_PRICE = 0.41;
     private static final double delta = 0.01;
-    private static final long RI_BOUGHT_ID_1 = 8000L;
-    private static final long RI_BOUGHT_ID_2 = 8001L;
     private static final long RI_BOUGHT_ID_3 = 8002L;
-    private static final long RI_SPEC_ID_2 = 2223L;
     private static final long RI_SPEC_ID_3 = 2224L;
-    private static final double COUPON_COUNT = 3d;
 
     /**
      * Initialize instances for each test.
@@ -345,54 +339,17 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .build();
 
         // Set up what RI bought store returns
-        ReservedInstanceBought riBoughtWrongSpec = ReservedInstanceBought.newBuilder()
-            .setId(RI_BOUGHT_ID_1)
-            .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                .setReservedInstanceSpec(RI_SPEC_ID)
-                .setStartTime(Instant.now().minus(100, ChronoUnit.DAYS).toEpochMilli())
-                .build())
-            .build();
-        ReservedInstanceBought riBoughtExpired = ReservedInstanceBought.newBuilder()
-            .setId(RI_BOUGHT_ID_2)
-            .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                .setReservedInstanceSpec(RI_SPEC_ID_2)
-                .setStartTime(Instant.now().minus(380, ChronoUnit.DAYS).toEpochMilli())
-                .build())
-            .build();
         ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
             .setId(RI_BOUGHT_ID_3)
             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
                 .setReservedInstanceSpec(RI_SPEC_ID_3)
                 .setStartTime(Instant.now().minus(600, ChronoUnit.DAYS).toEpochMilli())
+                .setStartTime(Instant.now().plus(495, ChronoUnit.DAYS).toEpochMilli())
                 .build())
             .build();
 
         when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
-            .thenReturn(ImmutableList.of(riBoughtWrongSpec, riBoughtExpired, riBought));
-
-        // Set up what RI spec store returns
-        ReservedInstanceSpec expiredRISpec = ReservedInstanceSpec.newBuilder()
-            .setId(RI_SPEC_ID_2)
-            .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
-                .setRegionId(REGION1_OID)
-                .setTierId(TIER_ID)
-                .setType(CloudCostDTO.ReservedInstanceType.newBuilder()
-                    .setTermYears(1))
-                .build())
-            .build();
-        ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
-            .setId(RI_SPEC_ID_3)
-            .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
-                .setRegionId(REGION1_OID)
-                .setTierId(TIER_ID)
-                .setType(CloudCostDTO.ReservedInstanceType.newBuilder()
-                    .setTermYears(3))
-                .build())
-            .build();
-
-        when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(ImmutableSet.of(RI_SPEC_ID,
-            RI_SPEC_ID_2, RI_SPEC_ID_3)))
-            .thenReturn(ImmutableList.of(expiredRISpec, riSpec));
+            .thenReturn(ImmutableList.of(riBought));
 
         // ACT
         GetReservedInstanceBoughtByTopologyResponse response = client.getReservedInstanceBoughtByTopology(request);
