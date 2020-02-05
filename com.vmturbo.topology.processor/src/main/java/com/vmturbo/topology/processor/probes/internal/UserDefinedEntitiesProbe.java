@@ -4,6 +4,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,7 +13,6 @@ import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
-import com.vmturbo.platform.sdk.common.supplychain.SupplyChainBuilder;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.ISupplyChainAwareProbe;
@@ -31,6 +31,18 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
      */
     public static final String UDE_PROBE_TYPE = "User Defined Entities";
 
+    private final UserDefinedEntitiesProbeRetrieval retrieval;
+
+    /**
+     * Constructor.
+     *
+     * @param retrieval - a retrieval that collect groups and group members.
+     */
+    @ParametersAreNonnullByDefault
+    public UserDefinedEntitiesProbe(@Nonnull UserDefinedEntitiesProbeRetrieval retrieval) {
+        this.retrieval = retrieval;
+    }
+
     @Nonnull
     @Override
     public Class<UserDefinedEntitiesProbeAccount> getAccountDefinitionClass() {
@@ -40,7 +52,7 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
     @Nonnull
     @Override
     public Set<TemplateDTO> getSupplyChainDefinition() {
-        return new SupplyChainBuilder().configure();
+        return new UserDefinedEntitiesSupplyChain().getSupplyChainDefinition();
     }
 
     @Nonnull
@@ -65,7 +77,7 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
         final String targetName = account.getTargetName();
         try {
             final UserDefinedEntitiesProbeConverter converter = new UserDefinedEntitiesProbeConverter();
-            final UserDefinedEntitiesProbeExplorer explorer = new UserDefinedEntitiesProbeExplorer();
+            final UserDefinedEntitiesProbeExplorer explorer = new UserDefinedEntitiesProbeExplorer(retrieval);
             return converter.convertToResponse(explorer.getUserDefinedGroups());
         } catch (Exception e) {
             LOGGER.info("Internal probe {} discovery error.", targetName);

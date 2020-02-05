@@ -19,10 +19,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiSecurityConfig;
@@ -132,6 +134,12 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Autowired
     private TargetConfig targetConfig;
 
+    @Autowired
+    private EntityRetriever entityRetriever;
+
+    @Autowired
+    private GroupServiceGrpc.GroupServiceBlockingStub groupService;
+
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
@@ -185,7 +193,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         final ProbeStore probeStore = probeConfig.probeStore();
         final TargetStore targetStore = targetConfig.targetStore();
         final InternalProbeManager internalProbeManager
-                = new InternalProbeManager(server, probeStore, targetStore);
+                = new InternalProbeManager(server, probeStore, targetStore, groupService, entityRetriever);
         internalProbeManager.createProbes();
     }
 

@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.probes.internal;
 
+import static com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse.getDescriptor;
 import static com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage.MediationServerMessageCase.DISCOVERYREQUEST;
 
 import java.util.Objects;
@@ -9,8 +10,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -34,27 +35,23 @@ public class InternalProbeTransportSubstitute implements ITransport<MediationSer
      *
      * @param internalProbe - an internal probe, which is registered inside the Topology-Processor.
      */
-    public InternalProbeTransportSubstitute(@Nonnull IDiscoveryProbe internalProbe) {
+    InternalProbeTransportSubstitute(@Nonnull IDiscoveryProbe internalProbe) {
         this.internalProbe = Objects.requireNonNull(internalProbe);
     }
 
     @Override
     public void close() {
-
+        LOGGER.debug("close");
     }
 
     @Override
-    public void send(MediationServerMessage serverMessage) throws CommunicationException, InterruptedException {
-        if (serverMessage != null && serverMessage.getMediationServerMessageCase() == DISCOVERYREQUEST) {
-            LOGGER.debug("Discovery request received");
+    public void send(MediationServerMessage request) {
+        if (request != null && request.getMediationServerMessageCase() == DISCOVERYREQUEST) {
             if (Objects.nonNull(clientHandler)) {
-                final int messageId = serverMessage.getMessageID();
+                LOGGER.info("Start discovery UDE internal probe.");
                 final DiscoveryResponse response = getDiscoveryResponse();
-                clientHandler.onMessage(MediationClientMessage
-                        .newBuilder()
-                        .setMessageID(messageId)
-                        .setDiscoveryResponse(response)
-                        .build());
+                LOGGER.info("Discovery UDE internal probe finished.");
+                sendResponse(response, request.getMessageID());
             } else {
                 LOGGER.error("Internal probe`s client handler is NULL");
             }
@@ -65,11 +62,21 @@ public class InternalProbeTransportSubstitute implements ITransport<MediationSer
     private DiscoveryResponse getDiscoveryResponse() {
         try {
             final Object account = internalProbe.getAccountDefinitionClass().newInstance();
-            final DiscoveryResponse response = internalProbe.discoverTarget(account);
-            return response;
+            return internalProbe.discoverTarget(account);
         } catch (Exception e) {
             LOGGER.error("Error while discovery an internal probe {}", e.getMessage());
             return SDKUtil.createDiscoveryError(e.getMessage());
+        }
+    }
+
+    private void sendResponse(@Nonnull DiscoveryResponse response, int messageId) {
+        final MessageChunker<DiscoveryResponse> discoveryChunker =
+                new MessageChunker<>(getDescriptor(), DiscoveryResponse::newBuilder);
+        for (DiscoveryResponse chunk : discoveryChunker.chunk(response)) {
+            final MediationClientMessage msgToSend =
+                    MediationClientMessage.newBuilder().setDiscoveryResponse(chunk)
+                            .setMessageID(messageId).build();
+            clientHandler.onMessage(msgToSend);
         }
     }
 

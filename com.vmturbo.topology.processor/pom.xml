@@ -327,6 +327,11 @@
             <artifactId>com.vmturbo.commons</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.common</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.antlr</groupId>

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.probes.internal;
 
 import static com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import static com.vmturbo.topology.processor.probes.internal.InternalProbeValidator.isProbeValid;
 
 import java.util.Optional;
 
@@ -10,8 +11,10 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -28,37 +31,52 @@ public class InternalProbeManager {
     private final RemoteMediationServer server;
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
+    private final GroupServiceBlockingStub groupService;
+    private final EntityRetriever entityRetriever;
 
     /**
      * Constructor.
      *
-     * @param server      - Remote mediation (SDK) server.
-     * @param probeStore  - class for registering probes.
-     * @param targetStore - class for CRUD operations on registered targets.
+     * @param server          - Remote mediation (SDK) server.
+     * @param probeStore      - class for registering probes.
+     * @param targetStore     - class for CRUD operations on registered targets.
+     * @param groupService    - API interface for Group component.
+     * @param entityRetriever - retriever for entities from repository component.
      */
     @ParametersAreNonnullByDefault
-    public InternalProbeManager(RemoteMediationServer server, ProbeStore probeStore, TargetStore targetStore) {
+    public InternalProbeManager(RemoteMediationServer server, ProbeStore probeStore,
+                                TargetStore targetStore, GroupServiceBlockingStub groupService,
+                                EntityRetriever entityRetriever) {
         this.server = server;
         this.probeStore = probeStore;
         this.targetStore = targetStore;
+        this.groupService = groupService;
+        this.entityRetriever = entityRetriever;
     }
 
     /**
      * The method creates internal probes for TP.
      */
     public void createProbes() {
-        createInternalProbeUDF();
+        createInternalProbeUDE();
     }
 
     /**
      * Creates 'UserDefinedEntities' probe.
      */
-    private void createInternalProbeUDF() {
-        final InternalProbeDefinition probeDefinition = new UserDefinedEntitiesProbeDefinition();
+    private void createInternalProbeUDE() {
+        final UserDefinedEntitiesProbeRetrieval udeProbeRetrieval
+                = new UserDefinedEntitiesProbeRetrieval(groupService, entityRetriever);
+        final InternalProbeDefinition probeDefinition
+                = new UserDefinedEntitiesProbeDefinition(udeProbeRetrieval);
         createInternalProbe(probeDefinition);
     }
 
     private void createInternalProbe(@Nonnull InternalProbeDefinition definition) {
+        if (!isProbeValid(definition.getProbeInfo())) {
+            LOGGER.warn("Internal probe validation failed.");
+            return;
+        }
         server.registerTransport(createContainerInfo(definition.getProbeInfo()), definition.getTransport());
         final Optional<Long> optional = probeStore.getProbeIdForType(definition.getProbeType());
         // If probe successfully created.
