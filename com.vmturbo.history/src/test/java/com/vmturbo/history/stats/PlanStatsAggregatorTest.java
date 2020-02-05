@@ -47,7 +47,7 @@ public class PlanStatsAggregatorTest {
     private static double CPU_MIN = 10;
     private static double CPU_MID = 20;
     private static double CPU_MAX = 30;
-    private static Collection<TopologyEntityDTO> leanDTOs;
+    private static final long DEFAULT_PROVIDER_ID = 999;
 
     /**
      * Set up a topology of a few VMs and a few PMs.
@@ -57,10 +57,14 @@ public class PlanStatsAggregatorTest {
     public static void setup() {
         final TopologyEntityDTO vm1 = vm(10, EntityState.POWERED_ON);
         final TopologyEntityDTO vm2 = vm(20, EntityState.POWERED_ON);
+        // Suspended VM -- should be filtered out
         final TopologyEntityDTO suspendedVm = vm(25, EntityState.SUSPENDED);
+        // Unplaced VM -- should be filtered out
+        final TopologyEntityDTO unplacedVm = vm(26, EntityState.POWERED_ON, -1);
         final TopologyEntityDTO pm1 = pm(30, CPU_MIN, EntityState.POWERED_ON);
         final TopologyEntityDTO pm2 = pm(40, CPU_MAX, EntityState.POWERED_ON);
-        final TopologyEntityDTO pm3 = pm(50, CPU_MID, EntityState.POWERED_ON);
+        final TopologyEntityDTO pm3 = pm(50, CPU_MID, EntityState.POWERED_ON, -1);
+        // Suspended Host -- should be filtered out
         final TopologyEntityDTO suspendedPm = pm(60, CPU_MAX, EntityState.SUSPENDED);
         final TopologyEntityDTO containerPod1 = containerPod(60);
         final TopologyEntityDTO diskArray = diskArray(70, 500, 2000);
@@ -73,7 +77,7 @@ public class PlanStatsAggregatorTest {
             .build();
         HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class), null);
         aggregator = new PlanStatsAggregator(null, historydbIO, topologyOrganizer, true);
-        aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
+        aggregator.handleChunk(Lists.newArrayList(vm1, pm1, unplacedVm));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));
         aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1, suspendedPm));
         aggregator.handleChunk(Lists.newArrayList(diskArray, storage1, storage2));
@@ -194,6 +198,11 @@ public class PlanStatsAggregatorTest {
                     .build();
 
     private static TopologyEntityDTO vm(long oid, EntityState state) {
+        // Place VMs by default;
+        return vm(oid, state, DEFAULT_PROVIDER_ID);
+    }
+
+    private static TopologyEntityDTO vm(long oid, EntityState state, long providerId) {
         return TopologyEntityDTO.newBuilder()
                     .setOid(oid)
                     .setDisplayName("VM-" + oid)
@@ -201,19 +210,31 @@ public class PlanStatsAggregatorTest {
                     .setEntityState(state)
                     // 999 is the provider id. Don't care that it doesn't exist.
                     .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(999)
+                        .setProviderId(providerId)
                         .addCommodityBought(cpuBought))
                     .build();
     }
 
     private static TopologyEntityDTO pm(long oid, double cpuUsed, EntityState state) {
+        // Place PMs by default
+        return pm(oid, cpuUsed, state, DEFAULT_PROVIDER_ID);
+    }
+
+    private static TopologyEntityDTO pm(long oid, double cpuUsed, EntityState state, long providerId) {
         return TopologyEntityDTO.newBuilder()
-                    .setOid(oid)
-                    .setDisplayName("PM-" + oid)
-                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setEntityState(state)
-                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(PhysicalMachineInfo.newBuilder().setNumCpus(6)))
-                    .addCommoditySoldList(cpu(cpuUsed)).build();
+            .setOid(oid)
+            .setDisplayName("PM-" + oid)
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setEntityState(state)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(PhysicalMachineInfo.newBuilder().setNumCpus(6)))
+            .addCommoditySoldList(cpu(cpuUsed))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.DATACENTER_VALUE)))
+                .setProviderId(providerId)
+                .build())
+            .build();
     }
 
     private static CommoditySoldDTO cpu(double used) {

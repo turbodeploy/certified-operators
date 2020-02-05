@@ -42,6 +42,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.repository.service.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
@@ -69,10 +70,11 @@ public class PlanStatsService {
             && EntityState.SUSPENDED == topologyEntityDTO.getEntityState();
 
     /**
-     * A predicate to test whether a given {@link TopologyEntityDTO} is placed.
+     * A predicate to test whether a given {@link TopologyEntityDTO} is an unplaced VM.
      */
-    private static final Predicate<TopologyEntityDTO> ENTITY_PLACED =
-        topologyEntityDTO -> TopologyDTOUtil.isPlaced(topologyEntityDTO);
+    private static final Predicate<TopologyEntityDTO> UNPLACED_VM =
+        topologyEntityDTO -> EntityType.VIRTUAL_MACHINE.getValue() == topologyEntityDTO.getEntityType()
+            && !TopologyDTOUtil.isPlaced(topologyEntityDTO);
 
     /**
      * A factory for creating {@link EntityStatsPaginationParams}.
@@ -166,9 +168,9 @@ public class PlanStatsService {
         updatedEntityPredicate = updatedEntityPredicate
             // Filter suspended entities from both the source and projected topologies
             .and(ENTITY_SUSPENDED.negate())
-            // Filter unplaced entities from both the source and projected topologies (though we
+            // Filter unplaced VMs from both the source and projected topologies (though we
             // generally only expect to encounter them in the projected topology)
-            .and(ENTITY_PLACED);
+            .and(UNPLACED_VM.negate());
 
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> entities = retrieveTopologyEntitiesAndStats(
@@ -266,9 +268,9 @@ public class PlanStatsService {
         final Predicate<TopologyEntityDTO> updatedEntityPredicate = entityPredicate
             // Filter suspended entities from both the source and projected topologies
             .and(ENTITY_SUSPENDED.negate())
-            // Filter unplaced entities from both the source and projected topologies (though we
+            // Filter unplaced VMs from both the source and projected topologies (though we
             // generally only expect to encounter them in the projected topology)
-            .and(ENTITY_PLACED);
+            .and(UNPLACED_VM.negate());
         // Filter entities added via scenario changes from the source topology response
         final Predicate<TopologyEntityDTO> sourceEntityPredicate = updatedEntityPredicate
             .and(ENTITY_ADDED_BY_SCENARIO.negate());
