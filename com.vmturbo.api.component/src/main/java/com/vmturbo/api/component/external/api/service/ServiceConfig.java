@@ -130,6 +130,10 @@ public class ServiceConfig {
     @Value("${clockSkewSecond:600}")
     private String clockSkewSecond;
 
+    // maximum placement count.
+    @Value("${maximumPlacementCount:100}")
+    private int maximumPlacementCount;
+
     /**
      * Deployment configuration used to expose areas of the application front or backend.
      */
@@ -410,7 +414,8 @@ public class ServiceConfig {
     public ReservationsService reservationsService() {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
-                mapperConfig.reservationMapper());
+                mapperConfig.reservationMapper(),
+                maximumPlacementCount);
     }
 
     @Bean
