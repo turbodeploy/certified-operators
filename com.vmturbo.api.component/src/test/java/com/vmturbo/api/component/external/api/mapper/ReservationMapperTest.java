@@ -33,11 +33,14 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOMoles.DeploymentProfileServiceMole;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -162,6 +165,11 @@ public class ReservationMapperTest {
         Reservation.Builder reservationBuider = Reservation.newBuilder();
         reservationBuider.setId(111);
         reservationBuider.setName("test-reservation");
+        reservationBuider.setConstraintInfoCollection(ConstraintInfoCollection
+                .newBuilder()
+                .addReservationConstraintInfo(ReservationConstraintInfo
+                        .newBuilder().setConstraintId(123456L)
+                .setType(Type.CLUSTER)));
         reservationBuider.setStartDate(today.getTime());
         reservationBuider.setExpirationDate(nextMonth.getTime());
         reservationBuider.setStatus(ReservationStatus.RESERVED);
@@ -217,6 +225,9 @@ public class ReservationMapperTest {
         assertEquals(1L, reservationApiDTO.getDemandEntities().size());
         assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getComputeResources().size());
+        assertEquals("123456", reservationApiDTO.getConstraintInfos().get(0).getUuid());
+        assertEquals("CLUSTER", reservationApiDTO.getConstraintInfos()
+                .get(0).getConstraintType());
         assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().size());
         final ResourceApiDTO computeResource = reservationApiDTO.getDemandEntities().get(0)
