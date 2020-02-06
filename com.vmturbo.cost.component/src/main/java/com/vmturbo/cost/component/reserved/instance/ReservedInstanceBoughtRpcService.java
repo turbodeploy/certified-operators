@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountReque
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -47,6 +48,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -247,8 +249,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 .peek(riBoughtBuilder -> {
                     Optional.ofNullable(riSpecIdToRiSpec.get(riBoughtBuilder
                             .getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
-                            .flatMap(spec -> getOnDemandCurrencyAmountForRISpec(spec,
-                                    priceTableByRegion))
+                            .flatMap(spec -> getOnDemandCurrencyAmountForRISpec(
+                                    spec.getReservedInstanceSpecInfo(), priceTableByRegion))
                             .ifPresent(amount -> riBoughtBuilder
                             .getReservedInstanceBoughtInfoBuilder()
                             .getReservedInstanceDerivedCostBuilder()
@@ -261,16 +263,39 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     }
 
     private Optional<CurrencyAmount> getOnDemandCurrencyAmountForRISpec(
-            final ReservedInstanceSpec riSpec,
+            final ReservedInstanceSpecInfo riSpecInfo,
             final Map<Long, Pricing.OnDemandPriceTable> priceTableByRegion) {
-        final long regionId = riSpec.getReservedInstanceSpecInfo().getRegionId();
-        final long tierId = riSpec.getReservedInstanceSpecInfo().getTierId();
+        final long regionId = riSpecInfo.getRegionId();
+        final long tierId = riSpecInfo.getTierId();
+        final OSType osType = riSpecInfo.getOs();
         return Optional.ofNullable(priceTableByRegion.get(regionId))
                 .map(OnDemandPriceTable::getComputePricesByTierIdMap)
                 .map(computeTierPrices -> computeTierPrices.get(tierId))
-                .map(ComputeTierPriceList::getBasePrice)
-                .flatMap(prices -> prices.getPricesList().stream().findAny())
+                .flatMap(priceList -> getOsAdjustedAmount(priceList, osType,
+                        riSpecInfo.getPlatformFlexible()));
+    }
+
+    private Optional<CurrencyAmount> getOsAdjustedAmount(final ComputeTierPriceList priceList,
+                                                         final OSType osType,
+                                                         final boolean platformFlexible) {
+        final Optional<CurrencyAmount> baseAmount = priceList.getBasePrice()
+                .getPricesList()
+                .stream()
+                .findAny()
                 .map(Price::getPriceAmount);
+        if (platformFlexible || priceList.getBasePrice().getGuestOsType() == osType) {
+            return baseAmount;
+        } else {
+            return priceList.getPerConfigurationPriceAdjustmentsList().stream()
+                    .filter(configPrice -> configPrice.getGuestOsType() == osType)
+                    .filter(configPrice -> !configPrice.getPricesList().isEmpty())
+                    .findAny()
+                    .map(configPrice -> configPrice.getPricesList().iterator().next()
+                            .getPriceAmount())
+                    .flatMap(osCost -> baseAmount.map(baseCost -> CurrencyAmount.newBuilder()
+                            .setAmount(baseCost.getAmount() + osCost.getAmount())
+                            .build()));
+        }
     }
 
     @Override
