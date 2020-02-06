@@ -21,13 +21,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -62,6 +62,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
+import com.vmturbo.topology.processor.conversions.AppComponentConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -995,16 +996,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
                                           @Nonnull final DiscoveryResponse response) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
+        final DiscoveryResponse newFormatResponse = new AppComponentConverter().convertResponse(response);
         // Discovery response changed since last discovery
-        final boolean change = !response.hasNoChange();
+        final boolean change = !newFormatResponse.hasNoChange();
         final long targetId = discovery.getTargetId();
         // pjs: these discovery results can be pretty huge, (i.e. the cloud price discovery is over
         // 100 mb of json), so I'm splitting this into two messages, a debug and trace version so
         // you don't get large response dumps by accident. Maybe we should have a toggle that
         // controls whether the actual response is logged instead.
         logger.debug("Received discovery result from target {}: {} bytes",
-                targetId, response.getSerializedSize());
-        logger.trace("Discovery result from target {}: {}", targetId, response);
+                targetId, newFormatResponse.getSerializedSize());
+        logger.trace("Discovery result from target {}: {}", targetId, newFormatResponse);
         if (!change) {
             logger.info("No change since last discovery of target {}", targetId);
         }
@@ -1032,23 +1034,23 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         // the topological information will be inconsistent. (ie if the entities are placed in the
                         // entityStore but the discoveredGroupUploader throws an exception, the entity and group
                         // information will be inconsistent with each other because we do not roll back on failure.
-                        entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, response.getEntityDTOList());
-                        discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
+                        entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, newFormatResponse.getEntityDTOList());
+                        discoveredGroupUploader.setTargetDiscoveredGroups(targetId, newFormatResponse.getDiscoveredGroupList());
                         discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(targetId,
-                            response.getEntityProfileList(), response.getDeploymentProfileList(),
-                            response.getEntityDTOList());
+                            newFormatResponse.getEntityProfileList(), newFormatResponse.getDeploymentProfileList(),
+                            newFormatResponse.getEntityDTOList());
                         discoveredWorkflowUploader.setTargetWorkflows(targetId,
-                            response.getWorkflowList());
-                        DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
-                        derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
+                            newFormatResponse.getWorkflowList());
+                        DISCOVERY_SIZE_SUMMARY.observe((double)newFormatResponse.getEntityDTOCount());
+                        derivedTargetParser.instantiateDerivedTargets(targetId, newFormatResponse.getDerivedTargetList());
                         discoveredCloudCostUploader.recordTargetCostData(targetId,
                                 targetStore.getProbeTypeForTarget(targetId), discovery,
-                            response.getNonMarketEntityDTOList(), response.getCostDTOList(),
-                            response.getPriceTable());
-                        if (response.hasDiscoveryContext()) {
-                            currentTargetDiscoveryContext.put(targetId, response.getDiscoveryContext());
+                            newFormatResponse.getNonMarketEntityDTOList(), newFormatResponse.getCostDTOList(),
+                            newFormatResponse.getPriceTable());
+                        if (newFormatResponse.hasDiscoveryContext()) {
+                            currentTargetDiscoveryContext.put(targetId, newFormatResponse.getDiscoveryContext());
                         }
-                        systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
+                        systemNotificationProducer.sendSystemNotification(newFormatResponse.getNotificationList(), target.get());
                         if (discoveryDumper != null) {
                             final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
                             String displayName = target.isPresent()
@@ -1059,10 +1061,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 // make sure we have up-to-date settings if this is a user-initiated discovery
                                 targetDumpingSettings.refreshSettings();
                             }
-                            discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
+                            discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, newFormatResponse, new ArrayList<>());
                         }
                         // Flows
-                        matrix.update(response.getFlowDTOList());
+                        matrix.update(newFormatResponse.getFlowDTOList());
                     } catch (TargetNotFoundException e) {
                         final String message = "Failed to process discovery for target "
                                 + targetId
@@ -1082,7 +1084,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     return;
                 }
             }
-            operationComplete(discovery, success, response.getErrorDTOList());
+            operationComplete(discovery, success, newFormatResponse.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |
                 IdentityProviderException | RuntimeException e) {
             final String messageDetail = e.getLocalizedMessage() != null
