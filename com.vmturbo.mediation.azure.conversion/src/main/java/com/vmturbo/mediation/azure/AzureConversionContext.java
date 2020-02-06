@@ -21,7 +21,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
@@ -43,7 +42,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new AzureComputeTierConverter());
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));
-        converters.put(EntityType.REGION, new RegionConverter(SDKProbeType.AZURE));
         converters.put(EntityType.STORAGE, new AzureStorageConverter(SDKProbeType.AZURE));
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AZURE));

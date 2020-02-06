@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.azure.AzureAccount;
+import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 /**
@@ -32,7 +33,7 @@ public class AzureVolumesConversionProbe extends AzureVolumesProbe {
                 azureAccount::getName);
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
-        final DiscoveryResponse newDiscoveryResponse = new AzureVolumesCloudDiscoveryConverter(
+        final DiscoveryResponse newDiscoveryResponse = new CloudDiscoveryConverter(
                 getRawDiscoveryResponse(azureAccount),
                 new AzureVolumesConversionContext()).convert();
 

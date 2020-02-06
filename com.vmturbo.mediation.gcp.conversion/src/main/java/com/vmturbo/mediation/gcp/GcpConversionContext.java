@@ -25,7 +25,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
@@ -51,7 +50,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
-        converters.put(EntityType.REGION, new RegionConverter(SDKProbeType.GCP));
         converters.put(EntityType.STORAGE, new StorageConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.GCP));

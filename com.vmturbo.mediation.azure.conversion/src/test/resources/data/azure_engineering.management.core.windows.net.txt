@@ -7,693 +7,5052 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::southcentralus::DC::southcentralus"
   displayName: "azure-South Central US"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::southcentralus::DCDC::southcentralus"
-    capacity: 1.0E9
+    key: "DataCenter::azure::southcentralus::DC::southcentralus"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
   }
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::japaneast::DC::japaneast"
   displayName: "azure-Japan East"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::japaneast::DCDC::japaneast"
-    capacity: 1.0E9
+    key: "DataCenter::azure::japaneast::DC::japaneast"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::westindia::DC::westindia"
   displayName: "azure-West India"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::westindia::DCDC::westindia"
-    capacity: 1.0E9
+    key: "DataCenter::azure::westindia::DC::westindia"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9999"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::australiacentral::DC::australiacentral"
   displayName: "azure-Australia Central"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::australiacentral::DCDC::australiacentral"
-    capacity: 1.0E9
+    key: "DataCenter::azure::australiacentral::DC::australiacentral"
   }
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::canadaeast::DC::canadaeast"
   displayName: "azure-Canada East"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::canadaeast::DCDC::canadaeast"
-    capacity: 1.0E9
+    key: "DataCenter::azure::canadaeast::DC::canadaeast"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9999"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::canadacentral::DC::canadacentral"
   displayName: "azure-Canada Central"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::canadacentral::DCDC::canadacentral"
-    capacity: 1.0E9
+    key: "DataCenter::azure::canadacentral::DC::canadacentral"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::brazilsouth::DC::brazilsouth"
   displayName: "azure-Brazil South"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::brazilsouth::DCDC::brazilsouth"
-    capacity: 1.0E9
+    key: "DataCenter::azure::brazilsouth::DC::brazilsouth"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::southindia::DC::southindia"
   displayName: "azure-South India"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::southindia::DCDC::southindia"
-    capacity: 1.0E9
+    key: "DataCenter::azure::southindia::DC::southindia"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::eastasia::DC::eastasia"
   displayName: "azure-East Asia"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::eastasia::DCDC::eastasia"
-    capacity: 1.0E9
+    key: "DataCenter::azure::eastasia::DC::eastasia"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+   entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
   }
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::koreacentral::DC::koreacentral"
   displayName: "azure-Korea Central"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::koreacentral::DCDC::koreacentral"
-    capacity: 1.0E9
+    key: "DataCenter::azure::koreacentral::DC::koreacentral"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::francesouth::DC::francesouth"
   displayName: "azure-France South"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::francesouth::DCDC::francesouth"
-    capacity: 1.0E9
+    key: "DataCenter::azure::francesouth::DC::francesouth"
   }
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::australiaeast::DC::australiaeast"
   displayName: "azure-Australia East"
   commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::australiaeast::DCDC::australiaeast"
-    capacity: 1.0E9
+    key: "DataCenter::azure::australiaeast::DC::australiaeast"
   }
-  commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
   }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::westus::DC::westus"
   displayName: "azure-West US"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::westus::DCDC::westus"
-    capacity: 1.0E9
+    key: "DataCenter::azure::westus::DC::westus"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
   }
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::australiasoutheast::DC::australiasoutheast"
   displayName: "azure-Australia Southeast"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::australiasoutheast::DCDC::australiasoutheast"
-    capacity: 1.0E9
+    key: "DataCenter::azure::australiasoutheast::DC::australiasoutheast"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::uksouth::DC::uksouth"
   displayName: "azure-UK South"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::uksouth::DCDC::uksouth"
-    capacity: 1.0E9
+    key: "DataCenter::azure::uksouth::DC::uksouth"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::japanwest::DC::japanwest"
   displayName: "azure-Japan West"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::japanwest::DCDC::japanwest"
-    capacity: 1.0E9
+    key: "DataCenter::azure::japanwest::DC::japanwest"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::ukwest::DC::ukwest"
   displayName: "azure-UK West"
   commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::ukwest::DCDC::ukwest"
-    capacity: 1.0E9
+    key: "DataCenter::azure::ukwest::DC::ukwest"
   }
-  commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
   }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::eastus2::DC::eastus2"
   displayName: "azure-East US 2"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::eastus2::DCDC::eastus2"
-    capacity: 1.0E9
+    key: "DataCenter::azure::eastus2::DC::eastus2"
   }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "22"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "2"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "1981"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "40"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "73"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "30"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "20"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9974"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::northcentralus::DC::northcentralus"
   displayName: "azure-North Central US"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::northcentralus::DCDC::northcentralus"
-    capacity: 1.0E9
+    key: "DataCenter::azure::northcentralus::DC::northcentralus"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::westcentralus::DC::westcentralus"
   displayName: "azure-West Central US"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::westcentralus::DCDC::westcentralus"
-    capacity: 1.0E9
+    key: "DataCenter::azure::westcentralus::DC::westcentralus"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::westeurope::DC::westeurope"
   displayName: "azure-West Europe"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::westeurope::DCDC::westeurope"
-    capacity: 1.0E9
+    key: "DataCenter::azure::westeurope::DC::westeurope"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "2"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9997"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::westus2::DC::westus2"
   displayName: "azure-West US 2"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::westus2::DCDC::westus2"
-    capacity: 1.0E9
+    key: "DataCenter::azure::westus2::DC::westus2"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "4"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9998"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "6"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::centralindia::DC::centralindia"
   displayName: "azure-Central India"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::centralindia::DCDC::centralindia"
-    capacity: 1.0E9
+    key: "DataCenter::azure::centralindia::DC::centralindia"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::northeurope::DC::northeurope"
   displayName: "azure-North Europe"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::northeurope::DCDC::northeurope"
-    capacity: 1.0E9
+    key: "DataCenter::azure::northeurope::DC::northeurope"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "5"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "5"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9996"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::centralus::DC::centralus"
   displayName: "azure-Central US"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::centralus::DCDC::centralus"
-    capacity: 1.0E9
+    key: "DataCenter::azure::centralus::DC::centralus"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "20"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "60"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "60"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::australiacentral2::DC::australiacentral2"
   displayName: "azure-Australia Central 2"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::australiacentral2::DCDC::australiacentral2"
-    capacity: 1.0E9
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+    key: "DataCenter::azure::australiacentral2::DC::australiacentral2"
   }
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::francecentral::DC::francecentral"
   displayName: "azure-France Central"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::francecentral::DCDC::francecentral"
-    capacity: 1.0E9
+    key: "DataCenter::azure::francecentral::DC::francecentral"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9997"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "7"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::koreasouth::DC::koreasouth"
   displayName: "azure-Korea South"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::koreasouth::DCDC::koreasouth"
-    capacity: 1.0E9
+    key: "DataCenter::azure::koreasouth::DC::koreasouth"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::southeastasia::DC::southeastasia"
   displayName: "azure-South East Asia"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::southeastasia::DCDC::southeastasia"
-    capacity: 1.0E9
+    key: "DataCenter::azure::southeastasia::DC::southeastasia"
   }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
+   entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "10000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
-  entityType: DATACENTER
+  entityType: REGION
   id: "azure::eastus::DC::eastus"
   displayName: "azure-East US"
   commoditiesSold {
-    commodityType: POWER
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: COOLING
-    capacity: 100000.0
-  }
-  commoditiesSold {
-    commodityType: SPACE
-    capacity: 100000.0
-  }
-  commoditiesSold {
     commodityType: DATACENTER
-    key: "DataCenter::DataCenter::azure::eastus::DCDC::eastus"
-    capacity: 1.0E9
+    key: "DataCenter::azure::eastus::DC::eastus"
   }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardMSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNVFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachines"
+    value: "9996"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEISv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::cores"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEIv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA0_A7Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::virtualMachineScaleSets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardAv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardGFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardBSFamily"
+    value: "6"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDv2PromoFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCFamily"
+    value: "12"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardEv3Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::basicAFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNDSFamily"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::availabilitySets"
+    value: "2000"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardFSv2Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardLSv2Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardHFamily"
+    value: "8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardA8_A11Family"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardNCSv3Family"
+    value: "0"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardESv3Family"
+    value: "4"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDFamily"
+    value: "10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "azureQuotaRemaining::758ad253-cbf5-4b18-8863-3eed0825bf07::standardDSv3Family"
+    value: "10"
+  }
+
   powerState: POWERED_ON
 }
 entityDTO {
@@ -752,7 +5111,7 @@ entityDTO {
     providerId: "azure::ukwest::DC::ukwest"
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::ukwest::DCDC::ukwest"
+      key: "DataCenter::azure::ukwest::DC::ukwest"
       used: 1.0
     }
     bought {
@@ -1019,7 +5378,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::northcentralus::DCDC::northcentralus"
+      key: "DataCenter::azure::northcentralus::DC::northcentralus"
       used: 1.0
     }
     bought {
@@ -1282,7 +5641,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::australiasoutheast::DCDC::australiasoutheast"
+      key: "DataCenter::azure::australiasoutheast::DC::australiasoutheast"
       used: 1.0
     }
   }
@@ -1541,7 +5900,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::canadaeast::DCDC::canadaeast"
+      key: "DataCenter::azure::canadaeast::DC::canadaeast"
       used: 1.0
     }
   }
@@ -1796,7 +6155,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::westeurope::DCDC::westeurope"
+      key: "DataCenter::azure::westeurope::DC::westeurope"
       used: 1.0
     }
     bought {
@@ -2055,7 +6414,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::australiacentral2::DCDC::australiacentral2"
+      key: "DataCenter::azure::australiacentral2::DC::australiacentral2"
       used: 1.0
     }
     bought {
@@ -2143,7 +6502,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::koreasouth::DCDC::koreasouth"
+      key: "DataCenter::azure::koreasouth::DC::koreasouth"
       used: 1.0
     }
   }
@@ -2394,7 +6753,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::eastus2::DCDC::eastus2"
+      key: "DataCenter::azure::eastus2::DC::eastus2"
       used: 1.0
     }
     bought {
@@ -2661,7 +7020,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::northeurope::DCDC::northeurope"
+      key: "DataCenter::azure::northeurope::DC::northeurope"
       used: 1.0
     }
   }
@@ -2908,7 +7267,7 @@ entityDTO {
     providerId: "azure::australiaeast::DC::australiaeast"
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::australiaeast::DCDC::australiaeast"
+      key: "DataCenter::azure::australiaeast::DC::australiaeast"
       used: 1.0
     }
     bought {
@@ -3175,7 +7534,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::uksouth::DCDC::uksouth"
+      key: "DataCenter::azure::uksouth::DC::uksouth"
       used: 1.0
     }
     bought {
@@ -3438,7 +7797,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::australiacentral::DCDC::australiacentral"
+      key: "DataCenter::azure::australiacentral::DC::australiacentral"
       used: 1.0
     }
   }
@@ -3522,7 +7881,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::westus::DCDC::westus"
+      key: "DataCenter::azure::westus::DC::westus"
       used: 1.0
     }
   }
@@ -3781,7 +8140,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::centralus::DCDC::centralus"
+      key: "DataCenter::azure::centralus::DC::centralus"
       used: 1.0
     }
   }
@@ -4040,7 +8399,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::southindia::DCDC::southindia"
+      key: "DataCenter::azure::southindia::DC::southindia"
       used: 1.0
     }
   }
@@ -4295,7 +8654,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::eastasia::DCDC::eastasia"
+      key: "DataCenter::azure::eastasia::DC::eastasia"
       used: 1.0
     }
     bought {
@@ -4558,7 +8917,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::westus2::DCDC::westus2"
+      key: "DataCenter::azure::westus2::DC::westus2"
       used: 1.0
     }
   }
@@ -4817,7 +9176,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::southcentralus::DCDC::southcentralus"
+      key: "DataCenter::azure::southcentralus::DC::southcentralus"
       used: 1.0
     }
   }
@@ -5076,7 +9435,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::canadacentral::DCDC::canadacentral"
+      key: "DataCenter::azure::canadacentral::DC::canadacentral"
       used: 1.0
     }
   }
@@ -5335,7 +9694,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::francesouth::DCDC::francesouth"
+      key: "DataCenter::azure::francesouth::DC::francesouth"
       used: 1.0
     }
   }
@@ -5419,7 +9778,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::koreacentral::DCDC::koreacentral"
+      key: "DataCenter::azure::koreacentral::DC::koreacentral"
       used: 1.0
     }
   }
@@ -5678,7 +10037,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::eastus::DCDC::eastus"
+      key: "DataCenter::azure::eastus::DC::eastus"
       used: 1.0
     }
   }
@@ -5933,7 +10292,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::francecentral::DCDC::francecentral"
+      key: "DataCenter::azure::francecentral::DC::francecentral"
       used: 1.0
     }
     bought {
@@ -6196,7 +10555,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::westcentralus::DCDC::westcentralus"
+      key: "DataCenter::azure::westcentralus::DC::westcentralus"
       used: 1.0
     }
   }
@@ -6455,7 +10814,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::japaneast::DCDC::japaneast"
+      key: "DataCenter::azure::japaneast::DC::japaneast"
       used: 1.0
     }
   }
@@ -6714,7 +11073,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::japanwest::DCDC::japanwest"
+      key: "DataCenter::azure::japanwest::DC::japanwest"
       used: 1.0
     }
   }
@@ -6973,7 +11332,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::centralindia::DCDC::centralindia"
+      key: "DataCenter::azure::centralindia::DC::centralindia"
       used: 1.0
     }
   }
@@ -7232,7 +11591,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::brazilsouth::DCDC::brazilsouth"
+      key: "DataCenter::azure::brazilsouth::DC::brazilsouth"
       used: 1.0
     }
   }
@@ -7487,7 +11846,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::southeastasia::DCDC::southeastasia"
+      key: "DataCenter::azure::southeastasia::DC::southeastasia"
       used: 1.0
     }
     bought {
@@ -7746,7 +12105,7 @@ entityDTO {
     }
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::westindia::DCDC::westindia"
+      key: "DataCenter::azure::westindia::DC::westindia"
       used: 1.0
     }
     bought {
@@ -28883,7 +33242,7 @@ entityDTO {
     providerId: "azure::eastus2::DC::eastus2"
     bought {
       commodityType: DATACENTER
-      key: "DataCenter::DataCenter::azure::eastus2::DCDC::eastus2"
+      key: "DataCenter::azure::eastus2::DC::eastus2"
       used: 1.0
     }
   }

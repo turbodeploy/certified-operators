@@ -38,7 +38,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConver
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
@@ -480,7 +479,7 @@ public class AwsCloudDiscoveryConverterTest {
 
     @Test
     public void testRegionConverter() {
-        IEntityConverter converter = new RegionConverter(SDKProbeType.AWS);
+        IEntityConverter converter = new DefaultConverter();
         newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);

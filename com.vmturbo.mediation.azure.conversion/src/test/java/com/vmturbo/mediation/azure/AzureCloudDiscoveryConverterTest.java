@@ -30,8 +30,8 @@ import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseTierConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
@@ -370,7 +370,7 @@ public class AzureCloudDiscoveryConverterTest {
 
     @Test
     public void testRegionConverter() {
-        IEntityConverter converter = new RegionConverter(SDKProbeType.AZURE);
+        IEntityConverter converter = new DefaultConverter();
         newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);
