@@ -47,7 +47,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
  * We also kickoff a new reservation plan if no other plan is running.
  * All the state transition logic is handled by this class.
  */
-public class ReservationManager implements PlanStatusListener {
+public class ReservationManager implements PlanStatusListener, ReservationStatusListener {
     private final Logger logger = LogManager.getLogger();
 
     private final ReservationDao reservationDao;
@@ -72,6 +72,7 @@ public class ReservationManager implements PlanStatusListener {
         this.planDao = Objects.requireNonNull(planDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.planService = Objects.requireNonNull(planRpcService);
+        this.reservationDao.addListener(this);
     }
 
     public ReservationDao getReservationDao() {
@@ -337,5 +338,10 @@ public class ReservationManager implements PlanStatusListener {
                 updateReservationsOnPlanFailure();
             }
         }
+    }
+
+    @Override
+    public void onReservationDeleted(@Nonnull final Reservation reservation) {
+        checkAndStartReservationPlan();
     }
 }
