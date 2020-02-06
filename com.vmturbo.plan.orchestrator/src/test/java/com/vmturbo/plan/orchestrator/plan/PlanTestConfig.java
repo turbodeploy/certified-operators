@@ -174,7 +174,8 @@ public class PlanTestConfig {
         return new PlanRpcService(planDao(),
             analysisClient(), planNotificationSender(), startAnalysisThreadPool(),
             userSessionContext(), buyRIService(), groupServiceBlockingStub(),
-            repositoryServiceBlockingStub(), planRIService(), boughtRIService(), 1, TimeUnit.SECONDS);
+            repositoryServiceBlockingStub(), planRIService(), boughtRIService(), 1,
+            TimeUnit.SECONDS, REALTIME_TOPOLOGY_ID);
     }
 
     @Bean

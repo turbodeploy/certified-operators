@@ -34,6 +34,8 @@ public class PlanReservedInstanceClient {
 
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtService;
 
+    private Long realtimeTopologyContextId;
+
     /**
      * Constructor.
      *
@@ -41,9 +43,11 @@ public class PlanReservedInstanceClient {
      * @param reservedInstanceBoughtService ReservedInstanceBoughtServiceBlockingStub.
      */
     public PlanReservedInstanceClient(@Nonnull PlanReservedInstanceServiceBlockingStub planRIService,
-                      @Nonnull ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService) {
+                      @Nonnull ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
+                      final Long realtimeTopologyContextId) {
         this.planRIService = planRIService;
         this.riBoughtService = reservedInstanceBoughtService;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /** Save the list of {@link ReservedInstanceBought} which belong to the input scope, and are selected
@@ -75,12 +79,12 @@ public class PlanReservedInstanceClient {
         if (includeAll) { //include all RIs in scope.
             List<ReservedInstanceBought> allRiBought = riBoughtService
                             .getReservedInstanceBoughtByTopology(
-                                                     GetReservedInstanceBoughtByTopologyRequest
-                                                         .newBuilder()
-                                                         .setTopologyType(TopologyType.PLAN)
-                                                         .setTopologyContextId(topologyContextId)
-                                                         .addAllScopeSeedOids(seedEntities)
-                                                         .build())
+                                             GetReservedInstanceBoughtByTopologyRequest
+                                                 .newBuilder()
+                                                 .setTopologyType(TopologyType.PLAN)
+                                                 .setTopologyContextId(realtimeTopologyContextId)
+                                                 .addAllScopeSeedOids(seedEntities)
+                                                 .build())
                             .getReservedInstanceBoughtList();
             insertPlanIncludedCoupons(allRiBought, topologyContextId);
         } else if (!includedCouponOidsList.isEmpty()) {  //include the selected RIs in scope.

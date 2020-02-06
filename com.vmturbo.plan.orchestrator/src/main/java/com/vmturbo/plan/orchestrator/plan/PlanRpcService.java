@@ -79,6 +79,8 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final PlanReservedInstanceServiceBlockingStub planRIService;
 
+    private Long realtimeTopologyContextId;
+
     public PlanRpcService(@Nonnull final PlanDao planDao,
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
@@ -90,7 +92,8 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
                           final long startAnalysisRetryTimeout,
-                          @Nonnull final TimeUnit startAnalysisRetryTimeUnit) {
+                          @Nonnull final TimeUnit startAnalysisRetryTimeUnit,
+                          final Long realtimeTopologyContextId) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
@@ -102,6 +105,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         this.planRIService = planRIService;
         this.reservedInstanceBoughtService = reservedInstanceBoughtService;
         this.startAnalysisRetryMs = startAnalysisRetryTimeUnit.toMillis(startAnalysisRetryTimeout);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -113,7 +117,7 @@ public class PlanRpcService extends PlanServiceImplBase {
             responseObserver.onCompleted();
             // save the user selected RI/Coupons included in the plan.
             PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
-                                             planRIService, reservedInstanceBoughtService);
+                         planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
             planRIClient.savePlanIncludedCoupons(plan);
             logger.info("Plan {} successfully created", plan.getPlanId());
         } catch (IntegrityException e) {

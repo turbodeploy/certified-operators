@@ -136,7 +136,8 @@ public class PlanConfig {
             planReservedInstanceService(),
             boughtRIService(),
             startAnalysisRetryTimeoutMin,
-            TimeUnit.MINUTES);
+            TimeUnit.MINUTES,
+            realtimeTopologyContextId);
     }
 
     @Bean
@@ -177,7 +178,7 @@ public class PlanConfig {
     @Bean
     public PlanReservedInstanceClient planReservedInstanceClient() {
         return new PlanReservedInstanceClient(planReservedInstanceService(),
-                                              boughtRIService());
+                                              boughtRIService(), realtimeTopologyContextId);
     }
 
     /**

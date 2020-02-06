@@ -47,6 +47,9 @@ public class PlanRpcServiceTest {
     private final BuyRIAnalysisServiceMole testBuyRiRpcService = spy(new BuyRIAnalysisServiceMole());
     private final GroupServiceMole testGroupRpcService = spy(new GroupServiceMole());
     private final RepositoryServiceMole testRepositoryRpcService = spy(new RepositoryServiceMole());
+    private final long topologyId = 2222;
+    // The  realtime topology context Id.
+    private static final Long realtimeTopologyContextId = 777777L;
 
     //Runs tasks on same thread that's invoking execute/submit
     private ExecutorService sameThreadExecutor = MoreExecutors.newDirectExecutorService();
@@ -71,7 +74,7 @@ public class PlanRpcServiceTest {
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            1, TimeUnit.SECONDS);
+            1, TimeUnit.SECONDS, realtimeTopologyContextId );
     }
 
     /**

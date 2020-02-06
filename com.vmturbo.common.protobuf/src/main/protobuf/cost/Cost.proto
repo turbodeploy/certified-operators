@@ -643,7 +643,7 @@ message AccountFilter {
 }
 
 message RiFilter {
-    // A list of RI ids to filter by, for e.g. RIs to be included in plans.
+    // A list of RI IDs to filter by, for e.g., RIs to be included in plans.
     repeated int64 ri_id = 1;
 }
 

@@ -104,7 +104,10 @@ message ScenarioChange {
         optional IncludedCoupons included_coupons = 7;
 
         message IncludedCoupons {
+           // User selected OIDs of RIs/Coupons to include in OC plans.
            repeated int64 included_coupon_oids = 1;
+           // Specied whether the above list is a white (included - default)
+           // or excluded (black) list.
            optional bool is_white_list = 2 [default = true];
         }
 
