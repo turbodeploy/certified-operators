@@ -77,7 +77,10 @@ public class AvailableEntityTimestampsTest extends QueryTestBase {
         Query query = Queries.getAvailableEntityTimestampsQuery(TimeFrame.LATEST,
                 EntityType.PHYSICAL_MACHINE, "xyzzy", 0,
                 null, null, false);
-        queryChecker.withTables("pm_stats_latest FORCE INDEX \\(uuid\\)")
+        queryChecker
+                // TODO reinstate check for index hint when the hint is back in
+//                .withTables("pm_stats_latest FORCE INDEX \\(uuid\\)")
+                .withTables("pm_stats_latest")
                 .withSelectFields("pm_stats_latest.snapshot_time")
                 .withConditions("pm_stats_latest.uuid = 'xyzzy'")
                 .withSortFields("pm_stats_latest.snapshot_time")

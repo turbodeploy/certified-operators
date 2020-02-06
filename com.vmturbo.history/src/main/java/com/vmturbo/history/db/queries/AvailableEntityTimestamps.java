@@ -80,7 +80,9 @@ public class AvailableEntityTimestamps extends QueryBase {
             addConditions(uuidField.eq(entityOid));
             // make sure we use the uuid index when we're given an oid; a bad index choice
             // here can kill this query!
-            forceIndex(entityTable, StringConstants.UUID);
+            // TODO: reinstate this hint after entity stats table anomalies have been fixed
+            // (ref: OM-55219)
+//            forceIndex(entityTable, StringConstants.UUID);
         }
         orderBy(snapshotTimeField, SortOrder.DESC);
         limit(limit);
