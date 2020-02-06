@@ -234,6 +234,15 @@ public class ReservationPolicyFactory {
                         .map(TopologyEntity::toString)
                         .collect(Collectors.joining(", ")));
                 return ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, matchingHosts);
+            case POLICY:
+                // The "policy" case is handled separately.
+                // When a reservation is constrained by an existing policy we don't create a NEW
+                // policy to the reservation, but add the reservation's entity to the existing
+                // policy (currently (Feb 2020) in the PolicyManager).
+                // We can safely skip handling it here.
+                logger.debug("Ignoring policy constraint (policy {}) during provider lookup.",
+                    constraint.getConstraintId());
+                return Collections.emptyMap();
             default:
                 throw new IllegalArgumentException("Constraint " + constraint.getType() +
                         " type is not support.");

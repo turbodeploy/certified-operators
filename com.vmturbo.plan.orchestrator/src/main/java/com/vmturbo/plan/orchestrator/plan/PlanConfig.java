@@ -43,14 +43,9 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.cost.api.CostClientConfig;
-import com.vmturbo.cost.api.CostComponent;
-import com.vmturbo.cost.api.impl.CostSubscription;
-import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
-import com.vmturbo.market.component.api.MarketComponent;
-import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
@@ -65,7 +60,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
-        GroupClientConfig.class, CostClientConfig.class, MarketClientConfig.class})
+        GroupClientConfig.class, CostClientConfig.class, GlobalConfig.class})
 public class PlanConfig {
 
     /**
@@ -111,7 +106,7 @@ public class PlanConfig {
     private UserSessionConfig userSessionConfig;
 
     @Autowired
-    private MarketClientConfig marketClientConfig;
+    private GlobalConfig globalConfig;
 
     @Bean
     public PlanDao planDao() {
@@ -126,18 +121,6 @@ public class PlanConfig {
                 planReservedInstanceService(),
                 costService(),
                 planTimeOutHours);
-    }
-
-    /**
-     * Java Bean for Market component.
-     *
-     * @return The Market component.
-     */
-    @Bean
-    public MarketComponent marketComponent() {
-        final MarketComponent market = marketClientConfig.marketComponent(
-            MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisStatusNotification));
-        return market;
     }
 
     @Bean
@@ -245,15 +228,10 @@ public class PlanConfig {
         aoClientConfig.actionOrchestratorClient().addListener(listener);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addListener(listener);
-        costComponent().addCostNotificationListener(listener);
-        marketComponent().addAnalysisStatusListener(listener);
+        globalConfig.costNotificationClient().addCostNotificationListener(listener);
+        globalConfig.marketNotificationClient().addAnalysisStatusListener(listener);
+        globalConfig.tpNotificationClient().addTopologySummaryListener(listener);
         return listener;
-    }
-
-    @Bean
-    public CostComponent costComponent() {
-        return costClientConfig.costComponent(
-                CostSubscription.forTopic(Topic.COST_STATUS_NOTIFICATION));
     }
 
     /**
