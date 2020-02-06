@@ -13,8 +13,10 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -74,6 +76,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -1400,13 +1403,17 @@ public class ScenarioMapper {
             this.groupMap = new HashMap<>();
             final Set<Long> involvedGroups = PlanDTOUtil.getInvolvedGroups(changes);
             if (!involvedGroups.isEmpty()) {
-                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                final Iterator<Grouping> iterator = groupRpcService.getGroups(GetGroupsRequest.newBuilder()
                         .setGroupFilter(
                                 GroupFilter.newBuilder()
                                     .addAllId(involvedGroups)
-                        ).build())
-                    .forEachRemaining(group -> groupMap.put(group.getId(),
-                            groupMapper.toGroupApiDto(group)));
+                        ).build());
+                final List<Grouping> groups = Lists.newArrayList(iterator);
+                final Map<Long, GroupApiDTO> apiGroups =
+                        groupMapper.groupsToGroupApiDto(groups, false);
+                for (Entry<Long, GroupApiDTO> entry : apiGroups.entrySet()) {
+                    groupMap.put(entry.getKey(), entry.getValue());
+                }
             }
         }
 

@@ -1,10 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,11 +26,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 
 public class SeverityPopulator {
+    private static final String NORMAL_SEVERITY_NAME = ActionDTOUtil.getSeverityName(Severity.NORMAL);
     private static final Logger logger = LogManager.getLogger();
     private final EntitySeverityServiceBlockingStub severityService;
 
@@ -116,7 +115,7 @@ public class SeverityPopulator {
      * @return a mapping between entity id and corresponding severity.
      */
     @Nonnull
-    public Map<Long, Optional<Severity>> calculateSeverities(final long topologyContextId,
+    private Map<Long, Optional<Severity>> calculateSeverities(final long topologyContextId,
                                                @Nonnull final Collection<Long> entityOids) {
     try {
             Iterable<EntitySeveritiesResponse> response = () ->
@@ -152,43 +151,16 @@ public class SeverityPopulator {
 
 
     /**
-     * Calculate the highest severity for the passed in entity OIDs.
-     * TODO: to improve performance, move the calculation to Group component, and cache results.
-     * TODO: Created OM-43416 for this change.
+     * Gets the severity map for the specified context and collection of entities.
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityOids        The set of entity OIDs.
      * @return calculated highest severity
      */
     @Nonnull
-    public Optional<Severity> calculateSeverity(final long topologyContextId,
-                                                @Nonnull final Collection<Long> entityOids) {
-        try {
-            Iterable<EntitySeveritiesResponse> response = () -> severityService.getEntitySeverities(
-                MultiEntityRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .addAllEntityIds(entityOids)
-                    .build());
-
-            List<EntitySeverity> entitySeverityList = processEntitySeverityStream(response);
-
-            // Calculate the highest severity based on enum value: NORMAL(1), MINOR(2), MAJOR(3), CRITICAL(4)
-            return Optional.ofNullable(entitySeverityList
-                    .stream()
-                    .map(EntitySeverity::getSeverity)
-                    .reduce(Severity.NORMAL, (first, second)
-                            -> first.getNumber() > second.getNumber() ? first : second));
-        } catch (RuntimeException e) {
-            if (e instanceof StatusRuntimeException) {
-                // This is a gRPC StatusRuntimeException
-                Status status = ((StatusRuntimeException)e).getStatus();
-                logger.warn("Unable to fetch severities: {} caused by {}.",
-                        status.getDescription(), status.getCause());
-            } else {
-                logger.error("Error when fetching severities: ", e);
-            }
-        }
-        return Optional.of(Severity.NORMAL);
+    public SeverityMap getSeverityMap(final long topologyContextId,
+            @Nonnull final Collection<Long> entityOids) {
+        return new SeverityMap(calculateSeverities(topologyContextId, entityOids));
     }
 
     /**
@@ -213,11 +185,10 @@ public class SeverityPopulator {
      * Wraps a map of EntityId -> Severity.
      * Rather than returning null for an unknown entity, it returns NORMAL.
      */
-    private static class SeverityMap {
-        private final String NORMAL_SEVERITY_NAME = ActionDTOUtil.getSeverityName(Severity.NORMAL);
+    public static class SeverityMap {
         private final Map<Long, Optional<Severity>> severities;
 
-        public SeverityMap(@Nonnull final Map<Long, Optional<Severity>> severities) {
+        private SeverityMap(@Nonnull final Map<Long, Optional<Severity>> severities) {
             this.severities = Objects.requireNonNull(severities);
         }
 
@@ -233,17 +204,22 @@ public class SeverityPopulator {
                 .map(ActionDTOUtil::getSeverityName)
                 .orElse(NORMAL_SEVERITY_NAME);
         }
-    }
 
-    private List<EntitySeverity> processEntitySeverityStream(Iterable<EntitySeveritiesResponse> response) {
-        List<EntitySeverity> entitySeverityList = new ArrayList<>();
-        StreamSupport.stream(response.spliterator(), false)
-            .forEach(chunk -> {
-                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                    entitySeverityList.addAll(chunk.getEntitySeverity()
-                        .getEntitySeverityList());
-                }
-            });
-        return entitySeverityList;
+        /**
+         * Calculate the highest severity for the passed in entity OIDs.
+         *
+         * @param entityOids The set of entity OIDs.
+         * @return calculated highest severity
+         */
+        @Nonnull
+        public Severity calculateSeverity(@Nonnull final Collection<Long> entityOids) {
+            return entityOids.stream()
+                    .map(severities::get)
+                    .filter(Objects::nonNull)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .max(Comparator.comparing(Severity::getNumber))
+                    .orElse(Severity.NORMAL);
+        }
     }
 }

@@ -449,7 +449,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      */
     private Map<Long, GroupAndMembers> createAccountIdToBillingFamilyGroupMap() {
         // Retrieve Billing family groups from GroupMemberRetriever
-        final Stream<GroupAndMembers> billingFamilyGroups = retrieveBillingFamilyGroups();
+        final Collection<GroupAndMembers> billingFamilyGroups = retrieveBillingFamilyGroups();
 
         // Create map from account id to Billing Family group
         final Map<Long, GroupAndMembers> billingFamilyGroupByBusinessAccountId =
@@ -459,7 +459,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         return billingFamilyGroupByBusinessAccountId;
     }
 
-    private Stream<GroupAndMembers> retrieveBillingFamilyGroups() {
+    private Collection<GroupAndMembers> retrieveBillingFamilyGroups() {
         return groupMemberRetriever
                 .getGroupsWithMembers(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder()

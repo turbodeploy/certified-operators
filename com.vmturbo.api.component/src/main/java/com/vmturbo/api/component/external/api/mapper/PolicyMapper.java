@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -193,7 +194,10 @@ public class PolicyMapper {
         final GroupApiDTO groupApiDTO;
         final Grouping group = groupsByID.get(groupId);
         if (group != null) {
-            groupApiDTO = groupMapper.toGroupApiDto(group);
+            groupApiDTO = groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                    .values()
+                    .iterator()
+                    .next();
         } else {
             // group may have been deleted, so just create a default group with only uuid
             logger.warn("Group {} for policy \"{}\" not found", groupId, policyName);

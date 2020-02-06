@@ -3,15 +3,25 @@ package com.vmturbo.api.component.external.api.mapper;
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -31,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMap;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -70,21 +81,21 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.TargetInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Maps groups between their API DTO representation and their protobuf representation.
  */
 public class GroupMapper {
     private static final Logger logger = LogManager.getLogger();
+    private static final long REQUEST_TIMEOUT_SEC = 5 * 60;
 
     /**
      * The set of probe types whose environment type should be treated as CLOUD. This is different
@@ -135,8 +146,6 @@ public class GroupMapper {
 
     private final GroupExpander groupExpander;
 
-    private final TopologyProcessor topologyProcessor;
-
     private final EntityFilterMapper entityFilterMapper;
 
     private final GroupFilterMapper groupFilterMapper;
@@ -153,11 +162,12 @@ public class GroupMapper {
 
     private final CloudTypeMapper cloudTypeMapper;
 
+    private final ExecutorService threadPool;
+
     /**
      * Creates an instance of GroupMapper using all the provided dependencies.
      *  @param supplyChainFetcherFactory for getting supply chain info.
      * @param groupExpander for getting members of groups.
-     * @param topologyProcessor for communicating with topology processor.
      * @param repositoryApi for communicating with the api.
      * @param entityFilterMapper for converting between internal and api filter representation.
      * @param groupFilterMapper for converting between internal and api filter representation.
@@ -167,20 +177,20 @@ public class GroupMapper {
      * @param realtimeTopologyContextId the topology context id, used for getting severity.
      * @param thinTargetCache for retrieving targets without making a gRPC call.
      * @param cloudTypeMapper for getting information about cloud mappers.
+     * @param threadPool thread pool to use for parallel requests
      */
     public GroupMapper(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final GroupExpander groupExpander,
-                       @Nonnull final TopologyProcessor topologyProcessor,
                        @Nonnull final RepositoryApi repositoryApi,
                        @Nonnull final EntityFilterMapper entityFilterMapper,
                        @Nonnull final GroupFilterMapper groupFilterMapper,
                        @Nonnull final SeverityPopulator severityPopulator,
                        @Nonnull final BusinessAccountRetriever businessAccountRetriever,
                        @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
-                       long realtimeTopologyContextId, ThinTargetCache thinTargetCache, CloudTypeMapper cloudTypeMapper) {
+                       long realtimeTopologyContextId, ThinTargetCache thinTargetCache, CloudTypeMapper cloudTypeMapper,
+                       @Nonnull final ExecutorService threadPool) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
-        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.entityFilterMapper = entityFilterMapper;
         this.groupFilterMapper = groupFilterMapper;
@@ -190,6 +200,7 @@ public class GroupMapper {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.thinTargetCache = thinTargetCache;
         this.cloudTypeMapper = cloudTypeMapper;
+        this.threadPool = Objects.requireNonNull(threadPool);
     }
 
     /**
@@ -255,9 +266,27 @@ public class GroupMapper {
         return groupBuilder.build();
     }
 
+    @Nullable
+    private EntityEnvironment getApplianceEnvironment() {
+        final Set<Optional<CloudType>> cloudType = thinTargetCache.getAllTargets()
+                .stream()
+                .map(ThinTargetInfo::probeInfo)
+                .map(probe -> cloudTypeMapper.fromTargetType(probe.type()))
+                .collect(Collectors.toSet());
+        if (cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty()))) {
+            return new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN);
+        } else if (cloudType.size() == 1) {
+            return new EntityEnvironment(EnvironmentType.CLOUD, cloudType.iterator().next().get());
+        } else {
+            return null;
+        }
+    }
+
     /**
      * Return the environment type and the cloud type for a given group.
      * @param groupAndMembers - the parsed groupAndMembers object for a given group.
+     * @param entities map of all the entities (this map contains members of a group, not
+     *         vice versa).
      * @return the EnvCloudMapper:
      * EnvironmentType:
      *  - CLOUD if all group members are CLOUD entities or it is empty cloud group or regular
@@ -270,14 +299,18 @@ public class GroupMapper {
      *  - HYBRID if the group contains members both AWS entities and AZURE entities.
      *  - UNKNOWN if the group type cannot be determined
      */
-    public EntityEnvironment getEnvironmentAndCloudTypeForGroup(@Nonnull final GroupAndMembers groupAndMembers) {
+    private EntityEnvironment getEnvironmentAndCloudTypeForGroup(
+            @Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull Map<Long, MinimalEntity> entities) {
         // parse the entities members of groupDto
         final Set<CloudType> cloudTypes = EnumSet.noneOf(CloudType.class);
         EnvironmentTypeEnum.EnvironmentType envType = null;
         final Set<Long> targetSet = new HashSet<>(groupAndMembers.entities());
         if (!targetSet.isEmpty()) {
-            for (MinimalEntity entity : repositoryApi.entitiesRequest(targetSet)
-                    .getMinimalEntities()
+            for (MinimalEntity entity : groupAndMembers.entities()
+                    .stream()
+                    .map(entities::get)
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList())) {
                 if (envType != entity.getEnvironmentType()) {
                     envType = (envType == null) ? entity.getEnvironmentType() : EnvironmentTypeEnum.EnvironmentType.HYBRID;
@@ -337,43 +370,77 @@ public class GroupMapper {
     }
 
     /**
-     * Converts an internal representation of a group represented as a {@Grouping} object
-     * to API representation of the object.
+     * Converts an internal representation of a group represented as a {@link Grouping} object
+     * to API representation of the object. Resulting groups are guaranteed to be in the same
+     * size and order as source {@code group}.
      *
-     * @param group The internal representation of the object.
-     * @param environmentType The environment type to set on the converted object.
-     * @return the converted object.
-     */
-    public GroupApiDTO toGroupApiDto(@Nonnull final Grouping group, EnvironmentType environmentType) {
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), environmentType, CloudType.UNKNOWN, false);
-    }
-
-
-    /**
-     * Converts an internal representation of a group represented as a {@Grouping} object
-     * to API representation of the object.
-     *
-     * @param group The internal representation of the object.
-     * @return the converted object.
-     */
-    public GroupApiDTO toGroupApiDto(@Nonnull final Grouping group) {
-        return toGroupApiDto(group, false);
-    }
-
-    /**
-     * Converts an internal representation of a group represented as a {@Grouping} object
-     * to API representation of the object.
-     *
-     * @param group The internal representation of the object.
+     * @param groups The internal representation of the object.
      * @param populateSeverity whether or not to populate severity of the group
      * @return the converted object.
      */
-    public GroupApiDTO toGroupApiDto(@Nonnull final Grouping group, boolean populateSeverity) {
-        GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group);
-        EntityEnvironment envCloudType = getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+    @Nonnull
+    public Map<Long, GroupApiDTO> groupsToGroupApiDto(@Nonnull final List<Grouping> groups,
+            boolean populateSeverity) {
+        final List<GroupAndMembers> groupsAndMembers =
+                groups.stream().map(groupExpander::getMembersForGroup).collect(Collectors.toList());
+        final List<GroupApiDTO> apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity);
+        final Map<Long, GroupApiDTO> result = new LinkedHashMap<>(groups.size());
+        final Iterator<Grouping> iterator = groups.iterator();
+        for (GroupApiDTO apiGroup : apiGroups) {
+            result.put(iterator.next().getId(), apiGroup);
+        }
+        return result;
+    }
 
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), envCloudType.getEnvironmentType(),
-                envCloudType.getCloudType(), populateSeverity);
+    /**
+     * Converts groups and members to API objects.
+     *
+     * @param groupsAndMembers source groups to convert
+     * @param populateSeverity whether to calculate and set severity values.
+     * @return resulting groups. Positions in the resulting list are guaranteed to match positions
+     *         in the source list
+     */
+    @Nonnull
+    public List<GroupApiDTO> toGroupApiDto(@Nonnull List<GroupAndMembers> groupsAndMembers,
+            boolean populateSeverity) {
+        final Set<Long> members = groupsAndMembers.stream()
+                .map(GroupAndMembers::entities)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        final EntityEnvironment entityEnvironment = getApplianceEnvironment();
+        final Future<Set<Long>> activeEntities = threadPool.submit(() -> getActiveMembers(members));
+        final Future<Map<Long, String>> ownerDisplayNames =
+                threadPool.submit(() -> getOwnerNames(groupsAndMembers));
+        final Future<SeverityMap> severityMap = threadPool.submit(
+                () -> severityPopulator.getSeverityMap(realtimeTopologyContextId, members));
+        final Future<Map<Long, MinimalEntity>> entities;
+        if (entityEnvironment == null) {
+            entities = threadPool.submit(() -> getEntities(members));
+        } else {
+            entities = CompletableFuture.completedFuture(null);
+        }
+        final GroupConversionContext context;
+        try {
+
+            context = new GroupConversionContext(
+                    activeEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
+                    ownerDisplayNames.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
+                    entities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS), entityEnvironment,
+                    severityMap.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException("Failed to convert groups " +
+                    groupsAndMembers.stream().map(GroupAndMembers::group).map(Grouping::getId), e);
+        }
+        return groupsAndMembers.stream()
+                .map(group -> toGroupApiDto(group, context, populateSeverity))
+                .collect(Collectors.toList());
+    }
+
+    @Nonnull
+    private Map<Long, MinimalEntity> getEntities(@Nonnull Set<Long> members) {
+        return repositoryApi.entitiesRequest(members)
+                .getMinimalEntities()
+                .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
     }
 
     /**
@@ -381,37 +448,39 @@ public class GroupMapper {
      *
      * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
      *                        describing the XL group and its members.
-     * @param environmentType The environment type of the group.
-     * @param cloudType The cloud type of the group.
+     * @param conversionContext group conversion context
      * @param populateSeverity whether or not to populate severity of the group
      * @return The {@link GroupApiDTO} object.
      */
-    @SuppressWarnings("checkstyle:RegexpSingleline")
     @Nonnull
-    public GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
-                                     @Nonnull final EnvironmentType environmentType,
-                                     @Nonnull final CloudType cloudType,
-                                     boolean populateSeverity) {
+    private GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull GroupConversionContext conversionContext, boolean populateSeverity) {
+
+        final EntityEnvironment envCloudType = conversionContext.getEntityEnvironment()
+                .orElseGet(() -> getEnvironmentAndCloudTypeForGroup(groupAndMembers,
+                        conversionContext.getEntities()));
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
-        outputDTO = convertToGroupApiDto(groupAndMembers);
+        outputDTO = convertToGroupApiDto(groupAndMembers, conversionContext);
 
         outputDTO.setDisplayName(group.getDefinition().getDisplayName());
         outputDTO.setUuid(Long.toString(group.getId()));
 
-        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
+        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(envCloudType.getEnvironmentType()));
         outputDTO.setEntitiesCount(groupAndMembers.entities().size());
-        outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
+        outputDTO.setActiveEntitiesCount(
+                getActiveEntitiesCount(groupAndMembers, conversionContext.getActiveEntities()));
 
-        calculateEstimatedCostForCloudEnv(groupAndMembers, environmentType).ifPresent(
+        calculateEstimatedCostForCloudEnv(groupAndMembers, envCloudType.getEnvironmentType()).ifPresent(
                 outputDTO::setCostPrice);
 
         // only populate severity if required and if the group is not empty, since it's expensive
         if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
-            severityPopulator.calculateSeverity(realtimeTopologyContextId, groupAndMembers.entities())
-                    .ifPresent(severity -> outputDTO.setSeverity(severity.name()));
+            outputDTO.setSeverity(conversionContext.getSeverityMap()
+                    .calculateSeverity(groupAndMembers.entities())
+                    .name());
         }
-        outputDTO.setCloudType(cloudType);
+        outputDTO.setCloudType(envCloudType.getCloudType());
         return outputDTO;
     }
 
@@ -479,13 +548,39 @@ public class GroupMapper {
     }
 
     /**
-     * Converts an internal representation of a group represented as a {@Grouping} object
+     * Returns a map from BusinessAccount OID -> BusinessAccount name.
+     *
+     * @param groupsAndMembers groups to query onwers for
+     * @return map
+     */
+    @Nonnull
+    private Map<Long, String> getOwnerNames(@Nonnull Collection<GroupAndMembers> groupsAndMembers) {
+        final Set<Long> ownerIds = groupsAndMembers.stream()
+                .map(GroupAndMembers::group)
+                .map(Grouping::getDefinition)
+                .filter(def -> def.getType() == GroupType.RESOURCE)
+                .filter(GroupDefinition::hasOwner)
+                .map(GroupDefinition::getOwner)
+                .collect(Collectors.toSet());
+        if (ownerIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        final Map<Long, String> result = repositoryApi.entitiesRequest(ownerIds)
+                .getMinimalEntities()
+                .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
+        return Collections.unmodifiableMap(result);
+    }
+
+    /**
+     * Converts an internal representation of a group represented as a {@link Grouping} object
      * to API representation of the object.
      *
      * @param groupAndMembers The internal representation of the object.
+     * @param conversionContext group conversion context
      * @return the converted object with some of the details filled in.
      */
-     private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers) {
+    private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull GroupConversionContext conversionContext) {
          final Grouping group = groupAndMembers.group();
          final GroupDefinition groupDefinition = group.getDefinition();
          final GroupApiDTO outputDTO;
@@ -494,14 +589,15 @@ public class GroupMapper {
                 outputDTO = extractBillingFamilyInfo(groupAndMembers);
                 break;
              case RESOURCE:
-                 outputDTO = new ResourceGroupApiDTO();
+                final ResourceGroupApiDTO resourceGroup = new ResourceGroupApiDTO();
+                outputDTO = resourceGroup;
                  if (groupDefinition.hasOwner()) {
-                     final long groupOwner = groupDefinition.getOwner();
-                     ((ResourceGroupApiDTO)outputDTO).setParentUuid(String.valueOf(groupOwner));
-                     repositoryApi.entityRequest(groupOwner)
-                            .getMinimalEntity()
-                            .ifPresent(el -> ((ResourceGroupApiDTO)outputDTO).setParentDisplayName(
-                                    el.getDisplayName()));
+                    final String ownerName = conversionContext.getOwnerDisplayName()
+                            .get(groupDefinition.getOwner());
+                    if (ownerName != null) {
+                        resourceGroup.setParentUuid(Long.toString(groupDefinition.getOwner()));
+                        resourceGroup.setParentDisplayName(ownerName);
+                    }
                  } else {
                      logger.error("The resource group '{}'({}) doesn't have owner",
                             groupDefinition.getDisplayName(), group.getId());
@@ -780,39 +876,27 @@ public class GroupMapper {
     }
 
     /**
-     * Converts from {@link GroupAndMembers} to {@link GroupApiDTO} without setting the active
-     * entities count.
+     * Retunrs all the active entities from the specified OIDs.
      *
-     * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
-     *                        describing the XL group and its members.
-     * @param environmentType The environment type of the group.
-     * @param cloudType The cloud type of the group.
-     * @return The {@link GroupApiDTO} object.
+     * @param members oids to filter
+     * @return a subset of {@code members} containing only active entities
      */
     @Nonnull
-    public GroupApiDTO toGroupApiDtoWithoutActiveEntities(@Nonnull final GroupAndMembers groupAndMembers,
-                                     @Nonnull EnvironmentType environmentType, @Nonnull CloudType cloudType) {
-        final GroupApiDTO outputDTO;
-        final Grouping group = groupAndMembers.group();
-        outputDTO = toGroupApiDto(groupAndMembers.group());
-        outputDTO.setDisplayName(group.getDefinition().getDisplayName());
-        outputDTO.setUuid(Long.toString(groupAndMembers.group().getId()));
-        outputDTO.setMembersCount(groupAndMembers.members().size());
-        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
-            .map(oid -> Long.toString(oid))
-            .collect(Collectors.toList()));
-
-        if (EnvironmentType.UNKNOWN.equals(environmentType)) {
-             EntityEnvironment envCloudType = getEnvironmentAndCloudTypeForGroup(groupAndMembers);
-            environmentType = envCloudType.getEnvironmentType();
-            cloudType = envCloudType.getCloudType();
+    private Set<Long> getActiveMembers(@Nonnull Set<Long> members) {
+        if (members.isEmpty()) {
+            return Collections.emptySet();
         }
-
-        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
-        outputDTO.setCloudType(cloudType);
-        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
-
-        return outputDTO;
+        final PropertyFilter startingFilter = SearchProtoUtil.idFilter(members);
+        try {
+            return repositoryApi.newSearchRequest(
+                    SearchProtoUtil.makeSearchParameters(startingFilter)
+                            .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                                    SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
+                            .build()).getOids();
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to query repository for active entities " + members, e);
+            return members;
+        }
     }
 
     /**
@@ -820,44 +904,43 @@ public class GroupMapper {
      *
      * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
      *                        describing the XL group and its members.
+     * @param activeEntities active entities for the current context. They are entities from
+     *          different group, so here we have to calculate actual count. Does not work for
+     *          temprary groups
      * @return The number of active entities
      */
-    public int getActiveEntitiesCount(@Nonnull final GroupAndMembers groupAndMembers) {
+    private int getActiveEntitiesCount(@Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull Set<Long> activeEntities) {
         // Set the active entities count.
         final Grouping group = groupAndMembers.group();
-        try {
-            // We need to find the number of active entities in the group. The best way to do that
-            // is to do a search, and return only the counts. This minimizes the amount of
-            // traffic across the network - although for large groups this is still a lot!
-            final PropertyFilter startingFilter;
-            if (group.getDefinition().getIsTemporary()
-                            && group.getDefinition().hasOptimizationMetadata()
-                            && group.getDefinition().getOptimizationMetadata()
-                                    .getIsGlobalScope()) {
-                // In a global temp group we can just set the environment type.
-                startingFilter = SearchProtoUtil.entityTypeFilter(group
-                                .getDefinition()
-                                .getStaticGroupMembers()
-                                .getMembersByType(0)
-                                .getType()
-                                .getEntity()
-                                );
-            } else {
-                // In any other group we need to send the entity IDs to the search service as the
-                // starting filter.
-                startingFilter = SearchProtoUtil.idFilter(groupAndMembers.entities());
+        // We need to find the number of active entities in the group. The best way to do that
+        // is to do a search, and return only the counts. This minimizes the amount of
+        // traffic across the network - although for large groups this is still a lot!
+        final PropertyFilter startingFilter;
+        if (group.getDefinition().getIsTemporary() &&
+                group.getDefinition().hasOptimizationMetadata() &&
+                group.getDefinition().getOptimizationMetadata().getIsGlobalScope()) {
+            // In a global temp group we can just set the environment type.
+            startingFilter = SearchProtoUtil.entityTypeFilter(group.getDefinition()
+                    .getStaticGroupMembers()
+                    .getMembersByType(0)
+                    .getType()
+                    .getEntity());
+            try {
+                return (int)repositoryApi.newSearchRequest(
+                        SearchProtoUtil.makeSearchParameters(startingFilter)
+                                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                                        SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
+                                .build()).count();
+            } catch (StatusRuntimeException e) {
+                logger.error("Search for active entities in group {} failed. Error: {}", group.getId(), e.getMessage());
+                // As a fallback, assume every entity is active.
+                return groupAndMembers.entities().size();
             }
-            return (int)repositoryApi.newSearchRequest(
-                SearchProtoUtil.makeSearchParameters(startingFilter)
-                    .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                        SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
-                    .build())
-                .count();
-        } catch (StatusRuntimeException e) {
-            logger.error("Search for active entities in group {} failed. Error: {}",
-                group.getId(), e.getMessage());
-            // As a fallback, assume every entity is active.
-            return groupAndMembers.entities().size();
+        } else {
+            final Set<Long> entities = new HashSet<>(groupAndMembers.entities());
+            entities.retainAll(activeEntities);
+            return entities.size();
         }
     }
 
@@ -876,19 +959,88 @@ public class GroupMapper {
         if (environmentTypeFromUI != EnvironmentType.HYBRID) {
             return environmentTypeFromUI;
         }
-        try {
-            final Set<Long> addedProbeIds = topologyProcessor.getAllTargets().stream()
-                .map(TargetInfo::getProbeId)
+        final Set<ThinProbeInfo> addedProbeTypes = thinTargetCache.getAllTargets()
+                .stream()
+                .map(ThinTargetInfo::probeInfo)
                 .collect(Collectors.toSet());
-            final boolean hasCloudEnvironmentTarget = topologyProcessor.getAllProbes().stream()
-                .filter(probeInfo -> addedProbeIds.contains(probeInfo.getId()))
-                .anyMatch(probeInfo -> CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType()));
-            return hasCloudEnvironmentTarget ? EnvironmentType.HYBRID : EnvironmentType.ONPREM;
-        } catch (CommunicationException e) {
-            logger.error("Error fetching targets and probes from topology processor", e);
-            return EnvironmentType.HYBRID;
-        }
+        final boolean hasCloudEnvironmentTarget = addedProbeTypes.stream()
+                .anyMatch(probeInfo -> CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.type()));
+        return hasCloudEnvironmentTarget ? EnvironmentType.HYBRID : EnvironmentType.ONPREM;
     }
 
+    /**
+     * Helper structure, holding all the data necessary for batch conversion of groups.
+     */
+    private static class GroupConversionContext {
+        private final Set<Long> activeEntities;
+        private final Map<Long, String> ownerDisplayName;
+        private final Map<Long, MinimalEntity> entities;
+        private final EntityEnvironment entityEnvironment;
+        private final SeverityMap severityMap;
+
+        GroupConversionContext(@Nonnull Set<Long> activeEntities,
+                @Nonnull Map<Long, String> ownerDisplayName,
+                @Nullable Map<Long, MinimalEntity> entities,
+                @Nullable EntityEnvironment entityEnvironment,
+                @Nonnull SeverityMap severityMap) {
+            this.activeEntities = Objects.requireNonNull(activeEntities);
+            this.ownerDisplayName = Objects.requireNonNull(ownerDisplayName);
+            this.entities = entities;
+            this.entityEnvironment = entityEnvironment;
+            this.severityMap = Objects.requireNonNull(severityMap);
+        }
+
+        /**
+         * Returns a set of active entities OIDs.
+         *
+         * @return a set of OIDs
+         */
+        @Nonnull
+        public Set<Long> getActiveEntities() {
+            return activeEntities;
+        }
+
+        /**
+         * Returns a map from owner OID -> owner display name.
+         *
+         * @return map of owner display names
+         */
+        @Nonnull
+        public Map<Long, String> getOwnerDisplayName() {
+            return ownerDisplayName;
+        }
+
+        /**
+         * Returns a map of entities in this request.
+         *
+         * @return map of entities
+         */
+        @Nullable
+        public Map<Long, MinimalEntity> getEntities() {
+            return entities;
+        }
+
+        /**
+         * Returns global entity environment. If this value is set, this means, that all the
+         * entities in the environment have the same environment and cloud types. Either
+         * this value or {@link #getEntities()} must be non-null.
+         *
+         * @return global entity environment
+         */
+        @Nonnull
+        public Optional<EntityEnvironment> getEntityEnvironment() {
+            return Optional.ofNullable(entityEnvironment);
+        }
+
+        /**
+         * Severity map of all the entities in the request.
+         *
+         * @return severity map
+         */
+        @Nonnull
+        public SeverityMap getSeverityMap() {
+            return severityMap;
+        }
+    }
 
 }

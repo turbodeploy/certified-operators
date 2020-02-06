@@ -17,7 +17,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,8 +40,6 @@ import org.springframework.validation.Errors;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
-import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
-import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
@@ -79,7 +76,6 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -101,15 +97,12 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -303,8 +296,9 @@ public class GroupsService implements IGroupsService {
 
         final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
         if (groupAndMembers.isPresent()) {
-            EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers.get());
-            return groupMapper.toGroupApiDto(groupAndMembers.get(), envCloudType.getEnvironmentType(), envCloudType.getCloudType(), true);
+            return groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers.get()), true)
+                    .iterator()
+                    .next();
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -625,7 +619,10 @@ public class GroupsService implements IGroupsService {
                             .build()
                             );
 
-        return groupMapper.toGroupApiDto(resp.getGroup(), true);
+        return groupMapper.groupsToGroupApiDto(Collections.singletonList(resp.getGroup()), true)
+                .values()
+                .iterator()
+                .next();
     }
 
     @VisibleForTesting
@@ -661,7 +658,11 @@ public class GroupsService implements IGroupsService {
                                         .setId(Long.parseLong(uuid))
                                         .setNewDefinition(groupDefinition)
                                         .build());
-        return groupMapper.toGroupApiDto(response.getUpdatedGroup(), true);
+        return groupMapper.groupsToGroupApiDto(
+                Collections.singletonList(response.getUpdatedGroup()), true)
+                .values()
+                .iterator()
+                .next();
     }
 
     @Override
@@ -1045,22 +1046,22 @@ public class GroupsService implements IGroupsService {
      * @return The list of {@link GroupApiDTO} objects.
      */
     @Nonnull
-    public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
+    private List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
             final boolean populateSeverity,
             @Nullable final EnvironmentType environmentType) {
-        final Stream<GroupAndMembers> groupsWithMembers =
-                groupExpander.getGroupsWithMembers(groupsRequest);
-        final List<GroupApiDTO> retList = groupsWithMembers
-                .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
-                .map(groupAndMembers -> {
-                    EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
-                    GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(groupAndMembers, envCloudType.getEnvironmentType(), envCloudType.getCloudType(), populateSeverity);
-                    return groupApiDTO;
-                })
-                .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
-                        groupApiDTO.getEnvironmentType()))
-                .collect(Collectors.toList());
-        return retList;
+        final List<GroupAndMembers> groupsWithMembers =
+                groupExpander.getGroupsWithMembers(groupsRequest)
+                        .stream()
+                        .filter(group -> !isHiddenGroup(group.group()))
+                        .collect(Collectors.toList());
+        final List<GroupApiDTO> result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity);
+        if ((environmentType == null) || (environmentType == EnvironmentType.HYBRID)) {
+            return result;
+        } else {
+            return result.stream()
+                    .filter(group -> group.getEnvironmentType() == environmentType)
+                    .collect(Collectors.toList());
+        }
     }
 
     /**
@@ -1120,31 +1121,15 @@ public class GroupsService implements IGroupsService {
                         .setEntity(UIEntityType.fromString(groupType).typeNumber())
                         .build();
             }
-            groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest)
-                .filter(g -> {
-                    final GroupDefinition group = g.group().getDefinition();
-                    if (group.hasStaticGroupMembers()) {
-                        // static group
-                        return group.getStaticGroupMembers().getMembersByTypeList().stream()
-                                .anyMatch(staticMembersByType ->
-                                        staticMembersByType.getType().equals(groupMembersType));
-                    } else if (group.hasGroupFilters()) {
-                        // dynamic group of groups
-                        return group.getGroupFilters().getGroupFilterList().stream()
-                                .anyMatch(groupFilter -> groupFilter.getGroupType() ==
-                                        groupMembersType.getGroup());
-                    } else if (group.hasEntityFilters()) {
-                        // dynamic group of entities
-                        return group.getEntityFilters().getEntityFilterList().stream()
-                                .anyMatch(entityFilter -> entityFilter.getEntityType() ==
-                                        groupMembersType.getEntity());
-                    }
-                    return false;
-                }).collect(Collectors.toList());
+            final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
+            groupsWithMembers = new ArrayList<>(rawGroups.size());
+            for (GroupAndMembers groupAndMembers: rawGroups) {
+                if (groupMatchMemberType(groupAndMembers.group().getDefinition(), groupMembersType)) {
+                    groupsWithMembers.add(groupAndMembers);
+                }
+            }
         } else {
-            groupsWithMembers =
-                groupExpander.getGroupsWithMembers(groupsRequest).collect(Collectors.toList());
-
+            groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest);
         }
 
         Map<String, GroupAndMembers> idToGroupAndMembers = new HashMap<>();
@@ -1153,6 +1138,41 @@ public class GroupsService implements IGroupsService {
             .forEach((group) -> idToGroupAndMembers.put(Long.toString(group.group().getId()), group));
 
         return nextGroupPage(groupsWithMembers, idToGroupAndMembers, paginationRequest, environmentType);
+    }
+
+    /**
+     * Method determine whether a group is expected to have members of the specified type.
+     *
+     * @param group group to test
+     * @param groupMembersType member type to expect
+     * @return whether group has members with the expected type
+     */
+    private static boolean groupMatchMemberType(@Nonnull GroupDefinition group,
+            @Nonnull MemberType groupMembersType) {
+        if (group.hasStaticGroupMembers()) {
+            // static group
+            return group.getStaticGroupMembers()
+                    .getMembersByTypeList()
+                    .stream()
+                    .anyMatch(staticMembersByType -> staticMembersByType.getType()
+                            .equals(groupMembersType));
+        } else if (group.hasGroupFilters()) {
+            // dynamic group of groups
+            return group.getGroupFilters()
+                    .getGroupFilterList()
+                    .stream()
+                    .anyMatch(groupFilter -> groupFilter.getGroupType() ==
+                            groupMembersType.getGroup());
+        } else if (group.hasEntityFilters()) {
+            // dynamic group of entities
+            return group.getEntityFilters()
+                    .getEntityFilterList()
+                    .stream()
+                    .anyMatch(entityFilter -> entityFilter.getEntityType() ==
+                            groupMembersType.getEntity());
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -1227,96 +1247,6 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Get a mapping between a group id and its corresponding severity.
-     *
-     * @param groupsWithMembers a list of groups with their respective members
-     * @return a Map containing a group id and its corresponding severity
-     */
-    private Map<Long, Severity> getGroupsSeverities(List<GroupAndMembers> groupsWithMembers) {
-        final Map<Long, Severity> groupSeverity = new HashMap<>();
-        Map<Long, Optional<Severity>> entitiesSeverityMap =
-            severityPopulator.calculateSeverities(realtimeTopologyContextId,
-                groupsWithMembers.stream()
-                    .flatMap(groupAndMembers -> groupAndMembers.entities().stream())
-                    .collect(Collectors.toSet()));
-
-        groupsWithMembers.forEach(groupAndMembers -> {
-            groupSeverity.put(groupAndMembers.group().getId(), groupAndMembers.entities().stream()
-                .map(entitiesSeverityMap::get)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .reduce(Severity.NORMAL, (first, second)
-                    -> first.getNumber() > second.getNumber() ? first : second));
-        });
-        return groupSeverity;
-    }
-
-    /**
-     * Return a List of {@link GroupApiDTO} with groups containing essential information
-     * for the ordering.
-     *
-     * @param groupsWithMembers The groups to populate with information.
-     * @param searchOrderBy Contains the parameters for the ordering.
-     * @param environmentType type of the environment to include in response, if null, all are included
-     * @return An ordered list of {@link GroupApiDTO}.
-     */
-    private List<GroupApiDTO> setPrePaginationGroupsInformation(
-            @Nonnull List<GroupAndMembers> groupsWithMembers,
-            @Nonnull SearchOrderBy searchOrderBy,
-            @Nullable EnvironmentType environmentType) {
-        final boolean populateSeverity = searchOrderBy == SearchOrderBy.SEVERITY;
-        // We only populate severity BEFORE pagination if we are ordering by severity for
-        // pagination.
-        final Map<Long, Severity> groupSeverities =
-            populateSeverity ?
-                getGroupsSeverities(groupsWithMembers) : new HashMap<>();
-
-        return groupsWithMembers.stream()
-            .filter(groupWithMembers -> !isHiddenGroup(groupWithMembers.group()))
-            .map(groupAndMembers -> {
-                GroupApiDTO groupApiDTO = groupMapper.toGroupApiDtoWithoutActiveEntities(groupAndMembers,
-                    EnvironmentType.UNKNOWN, CloudType.UNKNOWN);
-                if (populateSeverity) {
-                    groupApiDTO.setSeverity(groupSeverities.get(groupAndMembers.group().getId()).name());
-                }
-                return groupApiDTO;
-            })
-            .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
-                    groupApiDTO.getEnvironmentType()))
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Return a List of {@link BaseApiDTO} containing groups that contains all the missing
-     * information
-     * after being ordered.
-     *
-     * @param groupApiDTOs The groups to populate with information.
-     * @param searchOrderBy Contains the parameters for the ordering.
-     * @param idToGroupAndMembers contains a mapping from a group id to its members.
-     * @return An ordered list of {@link BaseApiDTO}.
-     */
-    private List<BaseApiDTO> setPostPaginationGroupsInformation(List<GroupApiDTO> groupApiDTOs,
-                                                     SearchOrderBy searchOrderBy, Map<String,
-        GroupAndMembers> idToGroupAndMembers ) {
-
-        if (searchOrderBy != SearchOrderBy.SEVERITY) {
-            List<GroupAndMembers> limitedGroupsWithMembers =
-                groupApiDTOs.stream().map(groupApiDTO -> idToGroupAndMembers.get(groupApiDTO.getUuid())).collect(Collectors.toList());
-            final Map<Long, Severity> limitedGroupSeverities  =
-                getGroupsSeverities(limitedGroupsWithMembers);
-            groupApiDTOs.forEach(groupApiDTO -> {
-                groupApiDTO.setSeverity(limitedGroupSeverities.get(Long.parseLong(groupApiDTO.getUuid())).name());
-            });
-        }
-        List<BaseApiDTO> retList = groupApiDTOs.stream().map(groupApiDTO -> {
-            groupApiDTO.setActiveEntitiesCount(groupMapper.getActiveEntitiesCount(idToGroupAndMembers.get(groupApiDTO.getUuid())));
-            return groupApiDTO;
-        }).collect(Collectors.toList());
-        return retList;
-    }
-
-    /**
      * Return a SearchPaginationResponse containing groups ordered and limited according to the
      * paginationRequest parameters.
      *
@@ -1331,13 +1261,6 @@ public class GroupsService implements IGroupsService {
             final Map<String, GroupAndMembers> idToGroupAndMembers,
             final SearchPaginationRequest paginationRequest,
             @Nullable final EnvironmentType environmentType) throws InvalidOperationException {
-        // In this function get information about groups and order them. Since it's an expensive
-        // call we need to make sure to retrieve information for all of groups only if they are
-        // needed for the sorting. For example, if we sort by severity, we need to fetch and set
-        // the severities to the groups before ordering them. If instead we order by name, we can
-        // fetch and set the severities only for the groups we are paginating. For this reason
-        // two functions that dynamically get the correct information based on the ordering are
-        // used: setPrePaginationGroupsInformation and setPostPaginationGroupsInformation.
 
         final long skipCount;
         if (paginationRequest.getCursor().isPresent()) {
@@ -1356,8 +1279,15 @@ public class GroupsService implements IGroupsService {
             skipCount = 0;
         }
 
-        final List<GroupApiDTO> groupApiDTOs =
-            setPrePaginationGroupsInformation(groupsWithMembers, paginationRequest.getOrderBy(), environmentType);
+        final List<GroupApiDTO> allGroupApiDTOs = groupMapper.toGroupApiDto(groupsWithMembers, true);
+        final List<GroupApiDTO> groupApiDTOs;
+        if (environmentType == null || environmentType == EnvironmentType.HYBRID) {
+            groupApiDTOs = allGroupApiDTOs;
+        } else {
+            groupApiDTOs = allGroupApiDTOs.stream()
+                    .filter(group -> group.getEnvironmentType() == environmentType)
+                    .collect(Collectors.toList());
+        }
 
         final List<GroupApiDTO> paginatedGroupApiDTOs =
             groupApiDTOs.stream()
@@ -1367,8 +1297,8 @@ public class GroupsService implements IGroupsService {
                 .limit(paginationRequest.getLimit())
                 .collect(Collectors.toList());
 
-        final List<BaseApiDTO> retList = setPostPaginationGroupsInformation(paginatedGroupApiDTOs,
-            paginationRequest.getOrderBy(), idToGroupAndMembers);
+        final List<BaseApiDTO> retList = new ArrayList<>();
+        retList.addAll(paginatedGroupApiDTOs);
 
         long nextCursor = skipCount + paginatedGroupApiDTOs.size();
         if (nextCursor == idToGroupAndMembers.values().size()) {
@@ -1465,45 +1395,6 @@ public class GroupsService implements IGroupsService {
         } else {
             return false;
         }
-    }
-
-    /**
-     * Return the clusters containing the provided scopes, assumed to be entities.
-     *
-     * @param clusterType The type of clusters to return.
-     * @param scopes The scopes - assumed to be entities.
-     * @param environmentType type of the environment to include in response, if null, all are included
-     * @return The {@link GroupApiDTO}s returning the clusters of the provided entities.
-     */
-    @Nonnull
-    private List<GroupApiDTO> getClustersOfEntities(
-            @Nonnull GroupType clusterType,
-            @Nullable final List<String> scopes,
-            @Nullable EnvironmentType environmentType) {
-        // As of today (Feb 2019), the scopes object could only have one id (PM oid).
-        // If there is PM oid, we want to retrieve the Cluster that the PM belonged to.
-        if (CollectionUtils.isEmpty(scopes)) {
-            return Collections.emptyList();
-        }
-        final Collection<Long> scopeIds =
-                scopes.stream().map(Long::parseLong).collect(Collectors.toList());
-        final GetGroupsForEntitiesResponse response = groupServiceRpc.getGroupsForEntities(
-                GetGroupsForEntitiesRequest.newBuilder()
-                        .addAllEntityId(scopeIds)
-                        .addGroupType(clusterType)
-                        .setLoadGroupObjects(true)
-                        .build());
-        return response.getGroupsList()
-            .stream()
-            .map(groupExpander::getMembersForGroup)
-            .map(clusterAndMembers -> {
-                EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers);
-                GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(clusterAndMembers, envCloudType.getEnvironmentType(), envCloudType.getCloudType(), true);
-                return groupApiDTO;
-            })
-            .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
-                    groupApiDTO.getEnvironmentType()))
-            .collect(Collectors.toList());
     }
 
     /**

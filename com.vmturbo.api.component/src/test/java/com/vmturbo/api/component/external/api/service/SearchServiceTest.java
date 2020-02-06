@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,6 +51,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -206,9 +209,11 @@ public class SearchServiceTest {
     private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+    private ExecutorService threadPool;
 
     @Before
     public void setUp() throws Exception {
+        threadPool = Executors.newCachedThreadPool();
         final long realTimeContextId = 777777;
         final SearchServiceBlockingStub searchGrpcStub =
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -225,9 +230,10 @@ public class SearchServiceTest {
         Mockito.when(searchFilterResolver.resolveExternalFilters(Mockito.any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
+        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                businessAccountRetriever, costServiceBlockingStub, realTimeContextId, targetCache, cloudTypeMapper);
+                businessAccountRetriever, costServiceBlockingStub, realTimeContextId, targetCache,
+                cloudTypeMapper, threadPool);
 
         searchService = spy(new SearchService(
                 repositoryApi,
@@ -250,6 +256,14 @@ public class SearchServiceTest {
                 entityFilterMapper,
                 entityAspectMapper,
                 searchFilterResolver));
+    }
+
+    /**
+     * Cleans up resources after the test.
+     */
+    @After
+    public void shutdown() {
+        threadPool.shutdownNow();
     }
 
     /**

@@ -6,9 +6,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -74,8 +74,10 @@ public class PolicyMapperTest {
                 .addMergeGroupIds(testConsumerId);
 
         GroupMapper mockGroupMapper = Mockito.mock(GroupMapper.class);
-        when(mockGroupMapper.toGroupApiDto(consumerGroup)).thenReturn(consumerDTO);
-        when(mockGroupMapper.toGroupApiDto(providerGroup)).thenReturn(providerDTO);
+        Mockito.when(mockGroupMapper.groupsToGroupApiDto(Collections.singletonList(consumerGroup),
+                false)).thenReturn(Collections.singletonMap(consumerGroup.getId(), consumerDTO));
+        Mockito.when(mockGroupMapper.groupsToGroupApiDto(Collections.singletonList(providerGroup),
+                false)).thenReturn(Collections.singletonMap(providerGroup.getId(), providerDTO));
         policyMapper = new PolicyMapper(mockGroupMapper);
 
     }
