@@ -20,7 +20,8 @@ public class HistUtilizationEditor extends
                     HistUtilizationLoadingTask,
                     CachingHistoricalEditorConfig,
                     Float,
-                    StatsHistoryServiceBlockingStub> {
+                    StatsHistoryServiceBlockingStub,
+                    Void> {
 
     public HistUtilizationEditor(CachingHistoricalEditorConfig config,
                     StatsHistoryServiceBlockingStub statsHistoryClient) {

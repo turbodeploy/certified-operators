@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -32,12 +33,14 @@ import com.vmturbo.stitching.EntityCommodityReference;
  * @param <HistoryLoadingTask> loader of DbValue's from the persistent store
  * @param <Config> per-editor type configuration values holder
  * @param <Stub> type of history component stub
+ * @param <CheckpointResult> the result of checkpoint, if applicable
  */
-public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHistoryCommodityData<Config, DbValue>,
+public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHistoryCommodityData<Config, DbValue, CheckpointResult>,
             HistoryLoadingTask extends IHistoryLoadingTask<Config, DbValue>,
             Config extends CachingHistoricalEditorConfig,
             DbValue,
-            Stub extends io.grpc.stub.AbstractStub<Stub>>
+            Stub extends io.grpc.stub.AbstractStub<Stub>,
+            CheckpointResult>
         extends AbstractHistoricalEditor<Config, Stub> {
     private static final Logger logger = LogManager.getLogger();
 
@@ -76,20 +79,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
            createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
-        // remove cached history for entities that are not in current topology
-        // (the history component will keep storing data for them for retention period, in case they reappear)
-        cache.keySet().retainAll(new HashSet<>(commodityRefs));
-        // load only commodities that have no fields in the cache yet
-        List<EntityCommodityReference> uninitializedCommodities = commodityRefs.stream()
-                        .filter(ref -> {
-                            for (CommodityField field : CommodityField.values()) {
-                                if (cache.containsKey(new EntityCommodityFieldReference(ref, field))) {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        })
-                        .collect(Collectors.toList());
+        List<EntityCommodityReference> uninitializedCommodities =
+                        gatherUninitializedCommodities(commodityRefs);
         // chunk by configured size
         List<List<EntityCommodityReference>> partitions = Lists
                         .partition(uninitializedCommodities, getConfig().getLoadingChunkSize());
@@ -122,10 +113,40 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     }
 
     /**
+     * Gather the cache entries that have not been loaded from persistence store yet.
+     * Clean up the cache entities not present in current broadcast.
+     *
+     * @param commodityRefs references from the current broadcast
+     * @return commodities for which data are yet to be loaded
+     */
+    @Nonnull
+    protected List<EntityCommodityReference>
+              gatherUninitializedCommodities(@Nonnull List<EntityCommodityReference> commodityRefs) {
+        // remove cached history for entities that are not in current topology
+        // (the history component will keep storing data for them for retention period, in case they reappear)
+        Set<EntityCommodityReference> refSet = new HashSet<>(commodityRefs);
+        cache.keySet().removeIf(field -> !refSet
+                        .contains(new EntityCommodityReference(field.getEntityOid(),
+                                                               field.getCommodityType(),
+                                                               field.getProviderOid())));
+        // load only commodities that have no fields in the cache yet
+        return commodityRefs.stream()
+                        .filter(ref -> {
+                            for (CommodityField field : CommodityField.values()) {
+                                if (cache.containsKey(new EntityCommodityFieldReference(ref, field))) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        })
+                        .collect(Collectors.toList());
+    }
+
+    /**
      * Wrapper callable to load a chunk of historical data from the persistent store.
      * Upon success the values are stored into cache, with configured expiration on write.
      */
-    private class HistoryLoadingCallable implements Callable<List<EntityCommodityFieldReference>> {
+    protected class HistoryLoadingCallable implements Callable<List<EntityCommodityFieldReference>> {
         private final HistoryLoadingTask task;
         private final List<EntityCommodityReference> commodities;
 
@@ -135,8 +156,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
          * @param task task that will do the loading
          * @param commodities list of commodities
          */
-        HistoryLoadingCallable(@Nonnull HistoryLoadingTask task,
-                               @Nonnull List<EntityCommodityReference> commodities) {
+        public HistoryLoadingCallable(@Nonnull HistoryLoadingTask task,
+                                      @Nonnull List<EntityCommodityReference> commodities) {
             this.task = task;
             this.commodities = commodities;
         }

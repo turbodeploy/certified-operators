@@ -1,21 +1,28 @@
 package com.vmturbo.topology.processor.history;
 
+import java.time.Clock;
+
+import javax.annotation.Nonnull;
+
 /**
  * Base class for history editor configurations.
  */
 public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
     private final int loadingChunkSize;
     private final int calculationChunkSize;
+    private final Clock clock;
 
     /**
      * Construct the configuration for history editors.
      *
      * @param loadingChunkSize how to partition commodities for loading from db
      * @param calculationChunkSize how to partition commodities for aggregating values
+     * @param clock provides information about current time
      */
-    public CachingHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize) {
+    public CachingHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize, @Nonnull Clock clock) {
         this.loadingChunkSize = loadingChunkSize;
         this.calculationChunkSize = calculationChunkSize;
+        this.clock = clock;
     }
 
     /**
@@ -34,6 +41,16 @@ public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
      */
     public int getCalculationChunkSize() {
         return calculationChunkSize;
+    }
+
+    /**
+     * Returns {@link Clock} instance used across system to get current time.
+     *
+     * @return {@link Clock} instance used across system to get current time.
+     */
+    @Nonnull
+    public Clock getClock() {
+        return clock;
     }
 
 }

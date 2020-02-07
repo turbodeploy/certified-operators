@@ -30,9 +30,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
@@ -86,8 +83,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long BUSINESS_USER_OID = 10;
     private static final long DATABASE_SERVER_OID = 100;
     private static final long DESKTOP_POOL_PROVIDER_OID = 3;
-    private static final long DEFAULT_SETTING_POLICY_ID = 1;
-    private static final long SETTING_POLICY_ID = 1;
     private static final long PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD = 2;
     private static final long NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD = 4;
     private static final long PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD = 4;
@@ -130,24 +125,18 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         addEntityWithSetting(VIRTUAL_MACHINE_OID,
                              EntityType.VIRTUAL_MACHINE_VALUE,
                              EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
-                             PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD);
+                             PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD,
+                             topologyBuilderMap, entitySettings);
         addEntityWithSetting(BUSINESS_USER_OID,
                              EntityType.BUSINESS_USER_VALUE,
                              EntitySettingSpecs.MaxObservationPeriodBusinessUser,
-                             PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD);
+                             PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD,
+                             topologyBuilderMap, entitySettings);
         graphWithSettings = new GraphWithSettings(TopologyEntityTopologyGraphCreator
                                                                   .newGraph(topologyBuilderMap),
                                                   entitySettings,
                                                   Collections.emptyMap());
         commodityFieldAccessor = new CommodityFieldAccessor(graphWithSettings.getTopologyGraph());
-    }
-
-    private void addEntityWithSetting(long entityOid, int entityType,
-            EntitySettingSpecs entitySettingSpecs, long value) {
-        topologyBuilderMap.put(entityOid, TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder().setOid(entityOid).setEntityType(entityType)));
-        entitySettings.put(entityOid,
-                createPercentileObservationWindowSetting(entityOid, value, entitySettingSpecs));
     }
 
     /**
@@ -288,11 +277,11 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
 
         // Change observation periods.
         entitySettings.put(VIRTUAL_MACHINE_OID,
-                createPercentileObservationWindowSetting(VIRTUAL_MACHINE_OID,
+                createEntitySetting(VIRTUAL_MACHINE_OID,
                         NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD,
                         EntitySettingSpecs.MaxObservationPeriodVirtualMachine));
         entitySettings.put(BUSINESS_USER_OID,
-                createPercentileObservationWindowSetting(BUSINESS_USER_OID,
+                createEntitySetting(BUSINESS_USER_OID,
                         NEW_BUSINESS_USER_OBSERVATION_PERIOD,
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser));
 
@@ -553,22 +542,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         // Two periods * two maintenance window = exactly four invocations.
         Mockito.verify(percentilePersistenceTask, Mockito.times(4)).load(Mockito.any(),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
-    }
-
-    private static EntitySettings createPercentileObservationWindowSetting(long entityOid,
-            long value, EntitySettingSpecs entitySettingSpecs) {
-        return EntitySettings.newBuilder()
-                .setEntityOid(entityOid)
-                .setDefaultSettingPolicyId(DEFAULT_SETTING_POLICY_ID)
-                .addUserSettings(SettingToPolicyId.newBuilder()
-                        .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(entitySettingSpecs.getSettingName())
-                                .setNumericSettingValue(
-                                        NumericSettingValue.newBuilder().setValue(value))
-                                .build())
-                        .addSettingPolicyId(SETTING_POLICY_ID)
-                        .build())
-                .build();
     }
 
     /**

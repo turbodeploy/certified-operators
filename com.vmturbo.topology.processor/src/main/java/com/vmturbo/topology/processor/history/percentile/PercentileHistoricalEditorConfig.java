@@ -54,7 +54,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     private final int grpcStreamTimeoutSec;
     private final int blobReadWriteChunkSizeKb;
     private final KVConfig kvConfig;
-    private final Clock clock;
 
 
     /**
@@ -72,9 +71,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                     int maintenanceWindowHours, int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
                     @Nonnull Map<CommodityType, String> commType2Buckets,
                     @Nullable KVConfig kvConfig, @Nonnull Clock clock) {
-        super(0, calculationChunkSize);
+        super(0, calculationChunkSize, clock);
         this.unavailableDataPeriodInMins = allowableDataGapInMins;
-        this.clock = clock;
         // maintenance window cannot exceed minimum observation window
         final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
@@ -87,16 +85,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
         this.kvConfig = kvConfig;
-    }
-
-    /**
-     * Returns {@link Clock} instance used across system to get current time.
-     *
-     * @return {@link Clock} instance used across system to get current time.
-     */
-    @Nonnull
-    public Clock getClock() {
-        return clock;
     }
 
     /**

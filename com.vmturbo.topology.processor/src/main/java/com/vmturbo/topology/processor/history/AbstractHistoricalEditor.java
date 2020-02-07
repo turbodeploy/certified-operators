@@ -55,6 +55,6 @@ public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorCo
 
     @Override
     public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
-        // in most cases, nothing to do
+        config.deinit();
     }
 }

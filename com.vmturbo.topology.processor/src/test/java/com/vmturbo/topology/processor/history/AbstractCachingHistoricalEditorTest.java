@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.history;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,8 +41,10 @@ public class AbstractCachingHistoricalEditorTest {
     private static final float DB_VALUE = 10f;
     private static final float ABOVE_DB_VALUE = 15f;
     private static double DELTA = 0.00001;
-    private static final CachingHistoricalEditorConfig CONFIG1 = new CachingHistoricalEditorConfig(2, 3);
-    private static final CachingHistoricalEditorConfig CONFIG2 = new CachingHistoricalEditorConfig(10, 10);
+    private static final CachingHistoricalEditorConfig CONFIG1 =
+                    new CachingHistoricalEditorConfig(2, 3, Clock.systemUTC());
+    private static final CachingHistoricalEditorConfig CONFIG2 =
+                    new CachingHistoricalEditorConfig(10, 10, Clock.systemUTC());
 
     private EntityCommodityReference cref1;
     private EntityCommodityReference cref2;
@@ -207,7 +210,8 @@ public class AbstractCachingHistoricalEditorTest {
                                                     TestLoadingTask,
                                                     CachingHistoricalEditorConfig,
                                                     Float,
-                                                    StatsHistoryServiceBlockingStub> {
+                                                    StatsHistoryServiceBlockingStub,
+                                                    Void> {
 
         public TestCachingEditor(CachingHistoricalEditorConfig config) {
             super(config, null, TestLoadingTask::new, TestHistoryCommodityData::new);
@@ -246,7 +250,7 @@ public class AbstractCachingHistoricalEditorTest {
      * Set maximum of pre-loaded and current values.
      */
     private class TestHistoryCommodityData
-                    implements IHistoryCommodityData<CachingHistoricalEditorConfig, Float> {
+                    implements IHistoryCommodityData<CachingHistoricalEditorConfig, Float, Void> {
         private Float value;
 
         @Override
