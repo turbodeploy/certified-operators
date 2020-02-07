@@ -34,7 +34,7 @@ public class AppComponentConverterTest {
     @Test
     public void convertResponseTest() throws IOException {
         Discovery.DiscoveryResponse response = null;
-        try (final InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = AppComponentConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/apm_old_format_data.txt").openStream()) {
             final Discovery.DiscoveryResponse.Builder builder = Discovery.DiscoveryResponse.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
@@ -74,7 +74,7 @@ public class AppComponentConverterTest {
     @Test
     public void convertEntityFreeTest() throws IOException {
         Discovery.DiscoveryResponse response = null;
-        try (final InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = AppComponentConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/aws_cost_shrink_data.txt").openStream()) {
             final Discovery.DiscoveryResponse.Builder builder = Discovery.DiscoveryResponse.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
@@ -92,7 +92,7 @@ public class AppComponentConverterTest {
     @Test
     public void convertAppFreeTest() throws IOException {
         Discovery.DiscoveryResponse response = null;
-        try (final InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = AppComponentConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/app_free_data.txt").openStream()) {
             final Discovery.DiscoveryResponse.Builder builder = Discovery.DiscoveryResponse.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
