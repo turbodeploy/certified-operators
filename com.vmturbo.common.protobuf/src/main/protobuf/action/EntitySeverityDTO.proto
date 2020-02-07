@@ -15,6 +15,17 @@ message EntitySeverity {
 
     // The severity of the corresponding entity.
     optional Severity severity = 2;
+
+    // A map that counts the ordinal of the severities of the entities under this entity in the supply chain.
+    // - BusinessApplication combines the severity breakdown of the BusinessTransaction underneath
+    //   it.
+    // - BusinessTransaction combines the severity breakdown of the Services underneath it.
+    // - Service counts the Severity of the entities below it in the supply chain until it reaches
+    //   Host or Storage or a leaf node.
+    // The map is populated only for BusinessApplication, BusinessTransaction, and Service. For all
+    // other entity types, the map will be empty. The map cannot be null because protobuf does not
+    // allow it.
+    map<int32, int64> severityBreakdown = 3;
 }
 
 // How many entities map to a specific type of severity.

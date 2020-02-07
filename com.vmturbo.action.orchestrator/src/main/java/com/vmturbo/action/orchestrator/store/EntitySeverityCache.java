@@ -73,7 +73,7 @@ public class EntitySeverityCache {
     private final Logger logger = LogManager.getLogger();
 
     private final Map<Long, Severity> severities = Collections.synchronizedMap(new HashMap<>());
-    private final Map<Long, SeverityCount> riskPropagationBreakdown = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, SeverityCount> entitySeverityBreakdowns = Collections.synchronizedMap(new HashMap<>());
 
     private final SeverityComparator severityComparator = new SeverityComparator();
     private final SupplyChainServiceBlockingStub supplyChainService;
@@ -126,7 +126,7 @@ public class EntitySeverityCache {
             visibleReadyActionViews(actionStore)
                 .forEach(this::handleActionSeverity);
 
-            riskPropagationBreakdown.clear();
+            entitySeverityBreakdowns.clear();
             Iterator<PartialEntityBatch> batchedIterator = repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityType(Arrays.asList(EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE, EntityType.SERVICE_VALUE))
                 .setReturnType(Type.MINIMAL)
@@ -167,7 +167,7 @@ public class EntitySeverityCache {
                         }
                     }
                 }
-                riskPropagationBreakdown.put(oid, severityCount);
+                entitySeverityBreakdowns.put(oid, severityCount);
             });
         }
     }
@@ -175,7 +175,7 @@ public class EntitySeverityCache {
     /**
      * Class that holds the counts of severities.
      */
-    private static class SeverityCount {
+    public static class SeverityCount {
 
         private final Map<Severity, Long> severityCount = Collections.synchronizedMap(new HashMap<>());
 
@@ -230,6 +230,17 @@ public class EntitySeverityCache {
     }
 
     /**
+     * Get the severity breakdown for a given entity by that entity's OID.
+     *
+     * @param entityOid The OID of the entity whose severity breakdown should be retrieved.
+     * @return The severity breakdown of the entity. Optional.empty() if the severity breakdown of the entity is unknown.
+     */
+    @Nonnull
+    public Optional<SeverityCount> getSeverityBreakdown(long entityOid) {
+        return Optional.ofNullable(entitySeverityBreakdowns.get(entityOid));
+    }
+
+    /**
      * Get the severity counts for the entities in the stream.
      * Entities that are unknown to the cache are mapped to an {@link Optional#empty()} severity.
      *
@@ -256,7 +267,7 @@ public class EntitySeverityCache {
         Map<Optional<Severity>, Long> accumulatedCounts = new HashMap<>();
         synchronized (severities) {
             for (long oid : entityOids) {
-                SeverityCount countForOid = riskPropagationBreakdown.get(oid);
+                SeverityCount countForOid = entitySeverityBreakdowns.get(oid);
                 if (countForOid != null) {
                     for (Entry<Severity, Long> entry : countForOid.getSeverityCounts()) {
                         Optional<Severity> key = Optional.of(entry.getKey());

@@ -36,6 +36,12 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class SeverityPopulatorTest {
+
+    private static final long VM1_OID = 1L;
+    private static final String VM1_UUID = String.valueOf(VM1_OID);
+    private static final long VM2_OID = 2L;
+    private static final String VM2_UUID = String.valueOf(VM2_OID);
+
     private EntitySeverityHandler actionOrchestratorImpl = new EntitySeverityHandler();
     private EntitySeverityServiceBlockingStub entitySeverityRpc;
     private final int realtimeTopologyContextId = 0;
@@ -53,8 +59,8 @@ public class SeverityPopulatorTest {
         entitySeverityRpc = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         severityPopulator = new SeverityPopulator(entitySeverityRpc);
 
-        vm1.setUuid("1");
-        vm2.setUuid("2");
+        vm1.setUuid(VM1_UUID);
+        vm2.setUuid(VM2_UUID);
     }
 
     @Test
@@ -168,6 +174,94 @@ public class SeverityPopulatorTest {
                 severityMap.calculateSeverity(Arrays.asList(1L, 2L, 3L)));
     }
 
+    /**
+     * Should be null severity breakdown when EntitySeverityService does not return results for that
+     * oid.
+     */
+    @Test
+    public void testNotInMap() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of());
+
+        final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
+            VM1_OID, vm1
+        );
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+
+        Assert.assertNull(entityDTOs.get(VM1_OID).getSeverityBreakdown());
+    }
+
+    /**
+     * Should be empty severity breakdown when EntitySeverityService does not have severity breakdown,
+     * but has a Severity.
+     */
+    @Test
+    public void testEmptySeverityBreakdown() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+            severityBuilder(VM1_OID)
+                .setSeverity(Severity.MAJOR)
+                .build()
+        ));
+
+        final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
+            VM1_OID, vm1
+        );
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+
+        Assert.assertNotNull(entityDTOs.get(VM1_OID).getSeverityBreakdown());
+        Assert.assertTrue(entityDTOs.get(VM1_OID).getSeverityBreakdown().isEmpty());
+    }
+
+    /**
+     * Severity breakdown should be populated when EntitySeverityService returns it.
+     */
+    @Test
+    public void testHasSeverityAndSeverityBreakDown() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+            severityBuilder(VM1_OID)
+                .setSeverity(Severity.MAJOR)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 2L)
+                .putSeverityBreakdown(Severity.MINOR.getNumber(), 1L)
+                .build()
+        ));
+
+        final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
+            VM1_OID, vm1
+        );
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+
+        Map<String, Long> severityBreakdown = entityDTOs.get(VM1_OID).getSeverityBreakdown();
+        Assert.assertNotNull(severityBreakdown);
+        Assert.assertEquals(2, severityBreakdown.size());
+        Assert.assertEquals(Long.valueOf(2L), severityBreakdown.get(Severity.MAJOR.name()));
+        Assert.assertEquals(Long.valueOf(1L), severityBreakdown.get(Severity.MINOR.name()));
+        Assert.assertNull(severityBreakdown.get(Severity.NORMAL.name()));
+    }
+
+    /**
+     * Severity breakdown should still be populated when EntitySeverityService returns it but does not
+     * return the 'overall severity' for the entity.
+     */
+    @Test
+    public void testNullSeverityButHasSeverityBreakDown() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+            severityBuilder(VM1_OID)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 2L)
+                .putSeverityBreakdown(Severity.MINOR.getNumber(), 1L)
+                .build()
+        ));
+
+        final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
+            VM1_OID, vm1
+        );
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+
+        Map<String, Long> severityBreakdown = entityDTOs.get(VM1_OID).getSeverityBreakdown();
+        Assert.assertNotNull(severityBreakdown);
+        Assert.assertEquals(2, severityBreakdown.size());
+        Assert.assertEquals(Long.valueOf(2L), severityBreakdown.get(Severity.MAJOR.name()));
+        Assert.assertEquals(Long.valueOf(1L), severityBreakdown.get(Severity.MINOR.name()));
+        Assert.assertNull(severityBreakdown.get(Severity.NORMAL.name()));
+    }
 
     private EntitySeverity.Builder severityBuilder(final long id) {
         return EntitySeverity.newBuilder()

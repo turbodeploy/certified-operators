@@ -186,6 +186,14 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                 ? Optional.of(optionalCache.get().getSeverity(oid).get())
                 : Optional.empty();
         severityOptional.ifPresent(entitySeverityBuilder::setSeverity);
+
+        final Optional<EntitySeverityCache.SeverityCount> severityCountOptional = optionalCache.flatMap(entitySeverityCache -> entitySeverityCache.getSeverityBreakdown(oid));
+        if (severityCountOptional.isPresent()) {
+            for (Map.Entry<Severity, Long> entry : severityCountOptional.get().getSeverityCounts()) {
+                entitySeverityBuilder.putSeverityBreakdown(entry.getKey().getNumber(), entry.getValue());
+            }
+        }
+
         return entitySeverityBuilder.build();
     }
 

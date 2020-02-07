@@ -425,6 +425,7 @@ public class SearchService implements ISearchService {
                 .filter(entity -> EnvironmentTypeMapper.matches(environmentType,
                         entity.getEnvironmentType()))
                 .collect(Collectors.toList());
+
         return paginationRequest.allResultsResponse(result);
     }
 
