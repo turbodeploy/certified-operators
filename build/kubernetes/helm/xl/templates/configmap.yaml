@@ -489,6 +489,8 @@ data:
             historyAggregation.backgroundLoadingTimeoutMin: 60
             # How often to expire the timeslot cached data going out of observation window
             historyAggregation.timeslotMaintenanceWindowHours: 23
+            fullAzureEARIDiscovery: false
+
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}
