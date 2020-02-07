@@ -4,6 +4,8 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -40,6 +42,12 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBas
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.OsCommandProcessRunner;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
+import com.vmturbo.components.common.diagnostics.FileFolderZipper;
+import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
@@ -54,6 +62,7 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseExc
 import com.vmturbo.repository.listener.MarketTopologyListener;
 import com.vmturbo.repository.listener.TopologyEntitiesListener;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.migration.RepositoryMigrationsLibrary;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
@@ -344,6 +353,16 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new TopologyIDFactory(repositoryComponentConfig.getArangoDBNamespacePrefix());
     }
 
+    /**
+     * Manages all the migrations in the Repository.
+     *
+     * @return an instance of the RepositoryMigrationsLibrary
+     */
+    @Bean
+    public RepositoryMigrationsLibrary repositoryMigrationsLibrary() {
+        return new RepositoryMigrationsLibrary(arangoDatabaseFactory());
+    }
+
     @Nonnull
     @Override
     public List<BindableService> getGrpcServices() {
@@ -362,6 +381,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     public List<ServerInterceptor> getServerInterceptors() {
         final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
         return Collections.singletonList(jwtInterceptor);
+    }
+
+    @Nonnull
+    @Override
+    protected SortedMap<String, Migration> getMigrations() {
+        return repositoryMigrationsLibrary().getMigrations();
     }
 
     /**

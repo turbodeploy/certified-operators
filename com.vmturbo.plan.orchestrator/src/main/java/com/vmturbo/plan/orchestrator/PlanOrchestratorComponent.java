@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -22,6 +23,7 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.diagnostics.PlanOrchestratorDiagnosticsConfig;
@@ -30,6 +32,7 @@ import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
+import com.vmturbo.plan.orchestrator.scheduled.MigrationConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanDeletionSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
@@ -52,7 +55,8 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
         PlanOrchestratorDiagnosticsConfig.class,
         PlanDeletionSchedulerConfig.class,
         CpuCapacityConfig.class,
-        SpringSecurityConfig.class})
+        SpringSecurityConfig.class,
+        MigrationConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -100,6 +104,12 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
      */
     @Autowired
     private SpringSecurityConfig securityConfig;
+
+    /**
+     * Provides the migrations library for migrating old plans.
+     */
+    @Autowired
+    private MigrationConfig migrationConfig;
 
     @PostConstruct
     private void setup() {
@@ -152,5 +162,11 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
         diagnosticsConfig.diagnosticsHandler().dump(diagnosticZip);
+    }
+
+    @Nonnull
+    @Override
+    protected SortedMap<String, Migration> getMigrations() {
+        return migrationConfig.planOrchestratorMigrationsLibrary().getMigrations();
     }
 }

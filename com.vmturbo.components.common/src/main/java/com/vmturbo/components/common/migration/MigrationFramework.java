@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -89,6 +90,7 @@ public class MigrationFramework {
         // OR c) in FAILED state and forceStartFailedMigration is set to true
         String currentDataVersion = getCurrentDataVersion(migrations.keySet());
         logger.info("Starting all data migrations.");
+        AtomicInteger successfulMigrationCount = new AtomicInteger();
         migrations.forEach((migrationName, migration) -> {
             String migrationVersion = extractVersionNumberFromMigrationName(migrationName);
             if (migrationVersion.isEmpty()) {
@@ -131,11 +133,12 @@ public class MigrationFramework {
                     logger.error("Failed to persist migration info for {} in KV Store.",
                         migrationName, e);
                 }
+                successfulMigrationCount.incrementAndGet();
                 logger.info("Finished migration: {}", migrationName);
             }
             kvStore.put(DATA_VERSION_PATH, migrationVersion);
         });
-        logger.info("Finished all migrations.");
+        logger.info("Finished all {} migrations.", successfulMigrationCount.get());
     }
 
     /**
