@@ -84,11 +84,13 @@ public class SMAInputContext {
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
                     oldRI.getRiKeyOid(),
                     oldRI.getName(),
-                    oldRI.getBusinessAccount(),
+                    oldRI.getBusinessAccountId(),
                     oldRI.getTemplate(),
-                    oldRI.getZone(),
+                    oldRI.getZoneId(),
                     oldRI.getCount(),
-                    oldRI.isIsf());
+                    oldRI.isIsf(),
+                    oldRI.isShared(),
+                    oldRI.isPlatformFlexible());
                 newReservedInstances.add(newRI);
             }
         }
@@ -131,11 +133,13 @@ public class SMAInputContext {
                     oldRI.getOid(),
                     oldRI.getRiKeyOid(),
                     oldRI.getName(),
-                    oldRI.getBusinessAccount(),
+                    oldRI.getBusinessAccountId(),
                     oldRI.getTemplate(),
-                    oldRI.getZone(),
+                    oldRI.getZoneId(),
                     oldRI.getCount(),
-                    oldRI.isIsf());
+                    oldRI.isIsf(),
+                    oldRI.isShared(),
+                    oldRI.isPlatformFlexible());
             newReservedInstances.add(newRI);
         }
         this.reservedInstances = newReservedInstances;

@@ -82,10 +82,10 @@ public class StableMarriagePerContext {
 
     /**
      * Calculate the number of mismatch between the input VM and output VM. mismatch occurs if
-     * template or ri coverage change.
+     * template or RI coverage change.
      * @param outputContext the output context
      * @param inputContext the input context
-     * @return the number of VMs whose template or ricoverage changed during the SMA.
+     * @return the number of VMs whose template or RI coverage changed during the SMA.
      */
     public static long computeMismatch(SMAOutputContext outputContext, SMAInputContext inputContext) {
         long mismatch = 0;
@@ -190,8 +190,8 @@ public class StableMarriagePerContext {
         }
 
         /*
-         * build map from RI to list of VMs that can move to that RI. the couponToBestVM
-         * attribute is updated for each ri.
+         * build map from  to list of VMs that can move to that RI. the couponToBestVM
+         * attribute is updated for each RI.
         */
         createRIToVMsMap(virtualMachines,
                 remainingCoupons, virtualMachineGroupMap,
@@ -211,7 +211,7 @@ public class StableMarriagePerContext {
                 currentEngagements, virtualMachineGroupMap, statistics, false);
         freeRIs.clear();
 
-        /* Recompute the preference list of each ri
+        /* Recompute the preference list of each RI
          * based on the remaining coupons. The list will change because some of the
          * vms cannot be fully covered with the remaining coupons and hence might not be on
          * the top of the list as before when it had more coupons and was able to cover fully.
@@ -301,7 +301,7 @@ public class StableMarriagePerContext {
         int zonalRIs = 0;
         int regionalRIs = 0;
         for (SMAReservedInstance ri : reservedInstances) {
-            if (ri.getZone() != SMAUtils.NO_ZONE) {
+            if (ri.getZoneId() != SMAUtils.NO_ZONE) {
                 zonalRIs++;
             } else {
                 regionalRIs++;
@@ -481,13 +481,16 @@ public class StableMarriagePerContext {
         for (SMAReservedInstance ri : remainingCoupons.keySet()) {
             List<SMAVirtualMachine> virtualMachineList = new ArrayList<>();
             if (ri.isIsf()) {
-                // all vms that has a provider from the ri template family.
-                HashSet<SMAVirtualMachine> vmsWithProviderInFamily = new HashSet<>();
+                // all VMs that has a provider from the RI template family.
+                Set<SMAVirtualMachine> vmsWithProviderInFamily = new HashSet<>();
                 List<SMATemplate> familyTemplates = familyNameToTemplates.get(ri.getNormalizedTemplate().getFamily());
                 for (SMATemplate template : familyTemplates) {
                     List<SMAVirtualMachine> vmList = templateToVmsMap.get(template);
-                    if (vmList != null) {
-                        vmsWithProviderInFamily.addAll(templateToVmsMap.get(template));
+                   if (vmList != null) {
+                       vmsWithProviderInFamily.addAll(vmList.stream()
+                           // take into account scoping or RI
+                           .filter(x -> (ri.isShared() || (x.getBusinessAccountId() == ri.getBusinessAccountId())))
+                               .collect(Collectors.toSet()));
                     }
                 }
                 virtualMachineList.addAll(vmsWithProviderInFamily);
@@ -498,6 +501,8 @@ public class StableMarriagePerContext {
                 if (vmList != null) {
                     virtualMachineList.addAll(vmList
                             .stream().filter(vm -> vm.zoneCompatible(ri, virtualMachineGroupMap))
+                            // take into account scoping of RI.
+                            .filter(vm -> (ri.isShared() || (ri.getBusinessAccountId() == vm.getBusinessAccountId())))
                             .collect(Collectors.toList()));
                 }
             }
@@ -568,7 +573,7 @@ public class StableMarriagePerContext {
      * At this point we have made sure that both the SMAMatches have same coverage.
      * So no cost saving is involved.
      * Preferences
-     * 1) Zonal preference: if newRI is zonal and oldRI is regional, then true newRI
+     * 1) non-ISF preference: if newRI is non-ISF and oldRI is ISF, then true newRI
      * 2) Minimize moves:
      * a)  by profile: if profile(newRI) == consumptionProfile(VM) && profile(oldRI) != consumptionProfile(VM) then newRI
      * b)  by family: if family(newRI) == consumptionFamily(VM) && family(oldRI) != consumptionFamily(VM) then newRI
@@ -608,20 +613,26 @@ public class StableMarriagePerContext {
                 return false;
             }
 
-            // Zonal preference
+            // non-ISF preference
             // Beyond this point, both the RIs are Regional or both are Zonal.
-            final Boolean zonalPreference = zonalPreference(newRI, oldRI);
-            if (zonalPreference != null) {
-                return zonalPreference;
+            final Boolean nonISFPreference = nonISFPreference(newRI, oldRI);
+            if (nonISFPreference != null) {
+                return nonISFPreference;
             }
 
+            // Single scoping preference.  In Azure an RI can be shared, which is EA scope,
+            // or single, which is business account scope.
+            final Boolean scopePreference = scopePreference(newRI, oldRI);
+            if (scopePreference != null) {
+                return scopePreference;
+            }
 
             SMATemplate newTemplate = newEngagement.getTemplate();
             SMATemplate oldTemplate = oldEngagement.getTemplate();
 
-            int newAccountMoves = accountMoves(vm, newRI.getBusinessAccount(),
+            int newAccountMoves = accountMoves(vm, newRI.getBusinessAccountId(),
                     virtualMachineGroupMap);
-            int oldAccountMoves = accountMoves(vm, oldRI.getBusinessAccount(),
+            int oldAccountMoves = accountMoves(vm, oldRI.getBusinessAccountId(),
                     virtualMachineGroupMap);
             if (newAccountMoves < oldAccountMoves) {
                 return true;
@@ -678,22 +689,46 @@ public class StableMarriagePerContext {
     }
 
     /**
-     * this method is used to identify and prefer zonal ris as they are more restrictive.
+     * This method is used to identify and prefer non-ISF RIs over ISF RIs, because non-ISF RIs
+     * are more restrictive.
      *
      * @param newRI new RI
      * @param oldRI old RI
-     * @return true if newRI is zonal and oldRI is not, false if oldRI is zonal and newRI is not, null otherwise
+     * @return true if newRI is non-ISF and oldRI is ISF, false if oldRI is non-ISF and newRI is ISF, null otherwise
      */
-    private static Boolean zonalPreference(final SMAReservedInstance newRI,
-                                           final SMAReservedInstance oldRI) {
-        logger.debug("preference() zonal preference: newRI.isRegionScoped()={} " +
-                "oldRI.isRegionScoped()={}", newRI.isRegionScoped(), oldRI.isRegionScoped());
-        if (!newRI.isRegionScoped() && oldRI.isRegionScoped()) {
-            return true;
-        } else if (newRI.isRegionScoped() && !oldRI.isRegionScoped()) {
-            return false;
+    private static Boolean nonISFPreference(final SMAReservedInstance newRI,
+                                            final SMAReservedInstance oldRI) {
+        Boolean preference = null;
+        if (!newRI.isIsf() && oldRI.isIsf()) {
+            preference = true;
+        } else if (newRI.isIsf() && !oldRI.isIsf()) {
+            preference = false;
         }
-        return null;
+        logger.trace("nonISFPreference: newRI.isIsf()={} oldRI.isIsf()={} return={}",
+            newRI.isIsf(), oldRI.isIsf(), preference);
+        return preference;
+    }
+
+    /**
+     * This method is used to identify and prefer single scoped RIs over shared scope, because
+     * single scoped is more restrictive.
+     *
+     * @param newRI new RI
+     * @param oldRI old RI
+     * @return true if newRI is single scoped  and oldRI is not,
+     *         false if oldRI is single scoped and newRI is not, null otherwise
+     */
+    private static Boolean scopePreference(final SMAReservedInstance newRI,
+                                           final SMAReservedInstance oldRI) {
+        Boolean preference = null;
+        if (!newRI.isShared() && oldRI.isShared()) {
+            preference = true;
+        } else if (newRI.isShared() && !oldRI.isShared()) {
+            preference = false;
+        }
+        logger.trace("scopePreference: newRI.isShared={} oldRI.isShared()={}, return={}",
+            newRI.isShared(), oldRI.isShared(), preference);
+        return preference;
     }
 
     /**
@@ -993,9 +1028,9 @@ public class StableMarriagePerContext {
                 return 1;
             }
 
-            int vm1AccountMoves = accountMoves(vm1, reservedInstance.getBusinessAccount(),
+            int vm1AccountMoves = accountMoves(vm1, reservedInstance.getBusinessAccountId(),
                     virtualMachineGroupMap);
-            int vm2AccountMoves = accountMoves(vm2, reservedInstance.getBusinessAccount(),
+            int vm2AccountMoves = accountMoves(vm2, reservedInstance.getBusinessAccountId(),
                     virtualMachineGroupMap);
             if (vm1AccountMoves < vm2AccountMoves) {
                 return -1;

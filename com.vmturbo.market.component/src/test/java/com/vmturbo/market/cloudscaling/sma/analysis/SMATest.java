@@ -68,14 +68,18 @@ public class SMATest {
     public void testSMACount() {
         testSMACount("testStress.json", 30);
         testSMACount("realExample.json", 10);
-
     }
 
     /**
      * wrapper method to run the SMA for various scenarios.
      */
     @Test
-    public void testSMA() {
+    public void testAwsSMA() {
+        /*
+         * VM and RI are the same except zone, then no match.
+         */
+        testExactResult("1vm1riDifferentZoneNoMatch.json");
+
         /*
          * 2 vms and 2 ris and 2 templates. Each vm has only 1 provider which makes the matching
         straightforward.
@@ -133,6 +137,27 @@ public class SMATest {
 
     }
 
+    /**
+     * wrapper method to run the SMA for various scenarios.
+     */
+    @Test
+    public void testAzureSMA() {
+        testExactResult("Azure1vm2riLeastLicenseDiscountCost.json");
+        testExactResult("Azure1vm2riScoping.json");
+        testExactResult("Azure1vm2riOSTypeCost.json");
+        testExactResult("Azure3vm3riScoping.json");
+        testExactResult("Azure3vm6riScoping.json");
+        testExactResult("Azure2vm2riScoping.json");
+        testExactResult("Azure2vm2riSharedScoping.json");
+        testExactResult("Azure2vm2riISFSingle.json");
+        testExactResult("Azure1vm4riISFScoping.json");
+        testExactResult("Azure1vm4rIsISFAndScoping.json");
+        testExactResult("Azure3vms12risISFAndScoping.json");
+        testExactResult("Azure1vm1riMatch.json");
+        testExactResult("Azure1vm1riShareScopeMatch.json");
+        testExactResult("Azure1vm1riSingleScopeNoMatch.json");
+    }
+    
     /**
      * test ASG.
      */
