@@ -64,6 +64,7 @@ import org.jooq.SelectJoinStep;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.EntityDefinitionData;
@@ -507,6 +508,8 @@ public class GroupDAO implements IGroupStore {
         if (groupIds.isEmpty()) {
             return Collections.emptyMap();
         }
+        final StopWatch stopWatch = new StopWatch("Retrieving " + groupIds.size() + " groups");
+        stopWatch.start("grouping table");
         final Map<Long, Grouping> groupings = dslContext.selectFrom(GROUPING)
                 .where(GROUPING.ID.in(groupIds))
                 .fetchInto(Grouping.class)
@@ -515,11 +518,21 @@ public class GroupDAO implements IGroupStore {
         if (groupings.isEmpty()) {
             return Collections.emptyMap();
         }
+        stopWatch.stop();
+        stopWatch.start("expected member types");
         final Table<Long, MemberType, Boolean> expectedMembers = getExpectedMemberTypes(groupIds);
+        stopWatch.stop();
+        stopWatch.start("origins");
         final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings.values());
+        stopWatch.stop();
+        stopWatch.start("tags");
         final Map<Long, Tags> groupTags = getGroupTags(groupIds);
+        stopWatch.stop();
+        stopWatch.start("static members");
         final Map<Long, StaticMembers> staticMembers =
                 getStaticMembersMessage(groupIds, expectedMembers);
+        stopWatch.stop();
+        stopWatch.start("calculation");
         final Map<Long, GroupDTO.Grouping> result = new HashMap<>(groupIds.size());
         for (Entry<Long, Grouping> record: groupings.entrySet()) {
             final long groupId = record.getKey();
@@ -570,6 +583,8 @@ public class GroupDAO implements IGroupStore {
             builder.setDefinition(defBuilder);
             result.put(groupId, builder.build());
         }
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
         return result;
     }
 
@@ -736,9 +751,10 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Map<Long, Map<MemberType, Set<Long>>> getStaticMembers(
+    private Map<Long, Map<MemberType, Set<Long>>> getStaticMembers(@Nonnull StopWatch stopWatch,
             @Nonnull Collection<Long> groupIds,
             @Nonnull SetMultimap<Long, MemberType> expectedDirectTypes) {
+        stopWatch.start("fetch static members entities");
         final List<Record3<Long, Integer, Long>> staticMembersEntities =
                 dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID,
                         GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_TYPE,
@@ -746,6 +762,8 @@ public class GroupDAO implements IGroupStore {
                         .from(GROUP_STATIC_MEMBERS_ENTITIES)
                         .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.in(groupIds))
                         .fetch();
+        stopWatch.stop();
+        stopWatch.start("fetch static members groups");
         final List<Record3<Long, Long, GroupType>> staticMembersGroups =
                 dslContext.select(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID,
                         GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID, GROUPING.GROUP_TYPE)
@@ -754,10 +772,14 @@ public class GroupDAO implements IGroupStore {
                         .on(GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID.eq(GROUPING.ID))
                         .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.in(groupIds))
                         .fetch();
+        stopWatch.stop();
+        stopWatch.start("apply expected members");
         final Map<Long, Map<MemberType, Set<Long>>> staticMembers = new HashMap<>();
         expectedDirectTypes.entries()
                 .forEach(entry -> staticMembers.computeIfAbsent(entry.getKey(),
                         key -> new HashMap<>()).put(entry.getValue(), new HashSet<>()));
+        stopWatch.stop();
+        stopWatch.start("calculate static members entities");
         for (Record3<Long, Integer, Long> record : staticMembersEntities) {
             final MemberType type = MemberType.newBuilder().setEntity(record.value2()).build();
             final long member = record.value3();
@@ -765,6 +787,8 @@ public class GroupDAO implements IGroupStore {
                     staticMembers.computeIfAbsent(record.value1(), key -> new HashMap<>());
             members.computeIfAbsent(type, key -> new HashSet<>()).add(member);
         }
+        stopWatch.stop();
+        stopWatch.start("calculate static members groups");
         for (Record3<Long, Long, GroupType> record : staticMembersGroups) {
             final MemberType type = MemberType.newBuilder().setGroup(record.value3()).build();
             final long member = record.value2();
@@ -772,19 +796,25 @@ public class GroupDAO implements IGroupStore {
                     staticMembers.computeIfAbsent(record.value1(), key -> new HashMap<>());
             members.computeIfAbsent(type, key -> new HashSet<>()).add(member);
         }
+        stopWatch.stop();
         return staticMembers;
     }
 
     @Nonnull
     private Map<Long, StaticMembers> getStaticMembersMessage(@Nonnull Collection<Long> groupIds,
             @Nonnull Table<Long, MemberType, Boolean> membersTypes) {
+        final StopWatch stopWatch =
+                new StopWatch("Get static members for " + groupIds.size() + " groups");
+        stopWatch.start("calc expected types");
         final SetMultimap<Long, MemberType> expectedDirectTypes = HashMultimap.create();
         membersTypes.cellSet()
                 .stream()
                 .filter(Cell::getValue)
                 .forEach(cell -> expectedDirectTypes.put(cell.getRowKey(), cell.getColumnKey()));
+        stopWatch.stop();
         final Map<Long, Map<MemberType, Set<Long>>> staticMembers =
-                getStaticMembers(groupIds, expectedDirectTypes);
+                getStaticMembers(stopWatch, groupIds, expectedDirectTypes);
+        stopWatch.start("fill static members");
         final Map<Long, StaticMembers> result = new HashMap<>(groupIds.size());
         for (long groupId : groupIds) {
             // We fill in the empty collections to create a StaticMembersByType record for every
@@ -800,6 +830,8 @@ public class GroupDAO implements IGroupStore {
             }
             result.put(groupId, resultBuilder.build());
         }
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
         return result;
     }
 

@@ -158,8 +158,8 @@ message UpdateReservationsRequest {
     repeated Reservation reservation = 1;
 }
 
-// Request for update future reservations.
-message UpdateFutureReservationRequest {
+// Request for update future and expired reservations.
+message UpdateFutureAndExpiredReservationsRequest {
     // A list of reservations need to update.
 }
 
@@ -178,8 +178,8 @@ service ReservationService {
     // Create a new reservation.
     rpc CreateReservation(CreateReservationRequest) returns (Reservation);
 
-    // Update future reservation.
-    rpc UpdateFutureReservation(UpdateFutureReservationRequest) returns (stream Reservation);
+    // Update future and expired reservation.
+    rpc UpdateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest) returns (stream Reservation);
 
     // Delete a existing reservation.
     rpc DeleteReservationById(DeleteReservationByIdRequest) returns (Reservation);

@@ -49,6 +49,9 @@ public class DefaultSettingPolicyCreatorTest {
     private SettingStore settingStore;
     private SettingSpecStore settingSpecStore;
     private DefaultSettingPolicyCreator settingPolicyCreator;
+    private static final BooleanSettingValueType TRUE =
+            BooleanSettingValueType.newBuilder().setDefault(true).build();
+    private static final String SPEC_NAME = "specNameFoo";
     private SettingSpec defaultSetting;
 
     @Before
@@ -57,8 +60,8 @@ public class DefaultSettingPolicyCreatorTest {
         Mockito.when(settingStore.getSettingPolicies(Mockito.any())).thenReturn(Stream.empty());
         settingSpecStore = Mockito.mock(SettingSpecStore.class);
         defaultSetting = SettingSpec.newBuilder()
-                .setName("foo")
-                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder().setDefault(true))
+                .setName(SPEC_NAME)
+                .setBooleanSettingValueType(TRUE)
                 .setEntitySettingSpec(entitySettingSpec(11))
                 .build();
     }
@@ -71,7 +74,7 @@ public class DefaultSettingPolicyCreatorTest {
     @Test
     public void testDefSettingFromSpecBoolean() throws Exception {
         final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
-                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder().setDefault(true))
+                .setBooleanSettingValueType(TRUE)
                 .build();
         final SettingPolicyInfo info = getPolicyInfo(spec);
         Assert.assertEquals(1, info.getSettingsCount());
@@ -217,14 +220,14 @@ public class DefaultSettingPolicyCreatorTest {
     public void testDefSettingPoliciesFromSpec() throws Exception {
         final SettingSpec spec1 = SettingSpec.newBuilder()
                 .setName("foo")
-                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder().setDefault(true))
+                .setBooleanSettingValueType(TRUE)
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(10))))
                 .build();
         final SettingSpec spec2 = SettingSpec.newBuilder()
                 .setName("bar")
-                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder().setDefault(true))
+                .setBooleanSettingValueType(TRUE)
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(10))))
@@ -259,14 +262,17 @@ public class DefaultSettingPolicyCreatorTest {
     }
 
     /**
-     * Tests when the setting already has associated default setting policy created.
+     * Tests when the setting already has associated default setting policy created
+     * with the same spec name.
      *
      * @throws Exception if exceptions occurred
      */
     @Test
     public void testDefaultSettingPolicyExist() throws Exception {
         final SettingPolicyInfo info =
-                SettingPolicyInfo.newBuilder().setName("test").setEntityType(10).build();
+                SettingPolicyInfo.newBuilder().setName("test").setEntityType(10)
+                        .addSettings(Setting.newBuilder().setSettingSpecName(SPEC_NAME))
+                        .build();
 
         final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
@@ -280,6 +286,28 @@ public class DefaultSettingPolicyCreatorTest {
     }
 
     /**
+     * Tests when the setting already has associated default setting policy created,
+     * but a new policy spec is added.
+     *
+     * @throws Exception if exceptions occurred
+     */
+    @Test
+    public void testDefaultSettingPolicyExistButNewSpec() throws Exception {
+        final SettingPolicyInfo info =
+                SettingPolicyInfo.newBuilder().setName("test").setEntityType(10).build();
+
+        final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
+                .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                        .setEntitySettingScope(EntitySettingScope.newBuilder()
+                                .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(10))))
+                .build();
+        Mockito.when(settingStore.getSettingPolicies(
+                eq(SettingPolicyFilter.newBuilder().withType(Type.DEFAULT).build())))
+                .thenReturn(Stream.of(SettingPolicy.newBuilder().setInfo(info).build()));
+        getPolicyInfo(1, spec);
+    }
+
+    /**
      * Tests default setting creation for setting spec with multiple entity types. Separate setting
      * policy is expected for each entity type.
      *
@@ -289,7 +317,7 @@ public class DefaultSettingPolicyCreatorTest {
     public void testDefSettingPoliciesFromSpecWithMultipleEntityTypes() throws Exception {
         final SettingSpec spec1 = SettingSpec.newBuilder()
                 .setName("foo")
-                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder().setDefault(true))
+                .setBooleanSettingValueType(TRUE)
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setEntityTypeSet(EntityTypeSet.newBuilder()
@@ -345,8 +373,8 @@ public class DefaultSettingPolicyCreatorTest {
     public void testDefaultSettingPolicyInvalid() throws Exception {
 
         final SettingSpec spec = defaultSetting = SettingSpec.newBuilder()
-                .setName("foo")
-                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder().setDefault(true))
+                .setName(SPEC_NAME)
+                .setBooleanSettingValueType(TRUE)
                 .build();
 
         getPolicyInfo(0, spec);
@@ -404,7 +432,7 @@ public class DefaultSettingPolicyCreatorTest {
         return getPolicyInfo(1, specs).iterator().next();
     }
 
-    private EntitySettingSpec entitySettingSpec(Integer... entityTypes) {
+    private static EntitySettingSpec entitySettingSpec(Integer... entityTypes) {
         final List<Integer> entityTypesList = Arrays.asList(entityTypes);
         return EntitySettingSpec.newBuilder()
                 .setEntitySettingScope(EntitySettingScope.newBuilder()

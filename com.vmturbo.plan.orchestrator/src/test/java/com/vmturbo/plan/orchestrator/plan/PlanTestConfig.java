@@ -31,6 +31,8 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -101,6 +103,17 @@ public class PlanTestConfig {
         return BuyRIAnalysisServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
     }
 
+    /**
+     * Bean for the bought (existng) RI service.
+     *
+     * @return ReservedInstanceBoughtServiceBlockingStub.
+     * @throws IOException if there's an error.
+     */
+    @Bean
+    protected ReservedInstanceBoughtServiceBlockingStub boughtRIService() throws IOException {
+        return ReservedInstanceBoughtServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
+    }
+
     @Bean
     protected PlanReservedInstanceServiceBlockingStub planRIService() throws IOException {
         return PlanReservedInstanceServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
@@ -161,7 +174,8 @@ public class PlanTestConfig {
         return new PlanRpcService(planDao(),
             analysisClient(), planNotificationSender(), startAnalysisThreadPool(),
             userSessionContext(), buyRIService(), groupServiceBlockingStub(),
-            repositoryServiceBlockingStub(), 1, TimeUnit.SECONDS);
+            repositoryServiceBlockingStub(), planRIService(), boughtRIService(), 1,
+            TimeUnit.SECONDS, REALTIME_TOPOLOGY_ID);
     }
 
     @Bean

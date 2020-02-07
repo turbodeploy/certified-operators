@@ -2,25 +2,25 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Supplier;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
+import io.grpc.stub.StreamObserver;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
-import io.grpc.stub.StreamObserver;
-
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMap;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
@@ -134,33 +134,26 @@ public class SeverityPopulatorTest {
                 severityBuilder(3L).setSeverity(Severity.NORMAL).build(),
                 severityBuilder(9999L).setSeverity(Severity.CRITICAL).build()
         ));
-        Optional<Severity> severity = severityPopulator
-                .calculateSeverity(realtimeTopologyContextId,
+        final SeverityMap severity = severityPopulator
+                .getSeverityMap(realtimeTopologyContextId,
                         Sets.newHashSet(1L, 2L, 3L, 9999L));
-        Assert.assertEquals("CRITICAL", severity.get().name());
-    }
-
-    @Test
-    public void testCalculateSeverityWithMixedSeverities2() {
-        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
-                severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
-                severityBuilder(2L).build(),
-                severityBuilder(3L).setSeverity(Severity.NORMAL).build(),
-                severityBuilder(9999L).setSeverity(Severity.MINOR).build()
-        ));
-        Optional<Severity> severity = severityPopulator
-                .calculateSeverity(realtimeTopologyContextId,
-                        Sets.newHashSet(1L, 2L, 3L, 9999L));
-        Assert.assertEquals("MAJOR", severity.get().name());
+        Assert.assertEquals(Severity.CRITICAL,
+                severity.calculateSeverity(Arrays.asList(1L, 2L, 3L, 9999L)));
+        Assert.assertEquals(Severity.MAJOR,
+                severity.calculateSeverity(Arrays.asList(1L, 2L, 3L)));
+        Assert.assertEquals(Severity.NORMAL,
+                severity.calculateSeverity(Arrays.asList(2L, 3L)));
+        Assert.assertEquals(Severity.NORMAL,
+                severity.calculateSeverity(Collections.singletonList(2L)));
     }
 
     @Test
     public void testCalculateSeverityWithoutOid() {
-        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of());
-        Optional<Severity> severity = severityPopulator
-                .calculateSeverity(realtimeTopologyContextId,
-                        ImmutableSet.of());
-        Assert.assertEquals("NORMAL", severity.get().name());
+        actionOrchestratorImpl.setSeveritySupplier(Collections::emptyList);
+        final SeverityMap severityMap =
+                severityPopulator.getSeverityMap(realtimeTopologyContextId, Collections.emptySet());
+        Assert.assertEquals(Severity.NORMAL,
+                severityMap.calculateSeverity(Collections.emptyList()));
     }
 
     @Test
@@ -168,12 +161,11 @@ public class SeverityPopulatorTest {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
                 severityBuilder(1L).setSeverity(Severity.NORMAL).build(),
                 severityBuilder(2L).build(),
-                severityBuilder(3L).setSeverity(Severity.NORMAL).build()
-        ));
-        Optional<Severity> severity = severityPopulator
-                .calculateSeverity(realtimeTopologyContextId,
-                        Sets.newHashSet(1L, 2L, 3L));
-        Assert.assertEquals("NORMAL", severity.get().name());
+                severityBuilder(3L).setSeverity(Severity.NORMAL).build()));
+        final SeverityMap severityMap = severityPopulator.getSeverityMap(realtimeTopologyContextId,
+                Sets.newHashSet(1L, 2L, 3L));
+        Assert.assertEquals(Severity.NORMAL,
+                severityMap.calculateSeverity(Arrays.asList(1L, 2L, 3L)));
     }
 
 

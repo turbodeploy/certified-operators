@@ -61,7 +61,8 @@ public class PercentileEditor extends
                     PercentilePersistenceTask,
                     PercentileHistoricalEditorConfig,
                     PercentileRecord,
-                    StatsHistoryServiceStub> {
+                    StatsHistoryServiceStub,
+                    PercentileRecord.Builder> {
     private static final Logger logger = LogManager.getLogger();
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
@@ -218,17 +219,21 @@ public class PercentileEditor extends
 
     @Override
     public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
-        if (getConfig().isPlan()) {
-            return;
+        try {
+            if (!getConfig().isPlan()) {
+                // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
+                maintenance();
+                // persist the daily blob
+                persistBlob(getCheckpoint(), getMaintenanceWindowInMs(),
+                                UtilizationCountStore::getLatestCountsRecord);
+                // print the utilization counts from cache for the configured OID in logs
+                // if debug is enabled.
+                debugLogPercentileValues();
+            }
+        } finally {
+            super.completeBroadcast();
+            this.graph = null;
         }
-        // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
-        maintenance();
-        // persist the daily blob
-        persistBlob(getCheckpoint(), getMaintenanceWindowInMs(),
-                        UtilizationCountStore::getLatestCountsRecord);
-        // print the utilization counts from cache for the configured OID in logs
-        // if debug is enabled.
-        debugLogPercentileValues();
     }
 
     private void persistBlob(long taskTimestamp, long periodMs,
@@ -472,8 +477,7 @@ public class PercentileEditor extends
                 final PercentileCounts.Builder total = PercentileCounts.newBuilder();
                 for (Map.Entry<PercentileCommodityData, List<PercentileRecord>> entry : dataRef2outdatedRecords.entrySet()) {
                     final PercentileRecord.Builder checkpoint =
-                                    entry.getKey().getUtilizationCountStore()
-                                                    .checkpoint(entry.getValue());
+                                    entry.getKey().checkpoint(entry.getValue());
                     total.addPercentileRecords(checkpoint);
                 }
                 writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);

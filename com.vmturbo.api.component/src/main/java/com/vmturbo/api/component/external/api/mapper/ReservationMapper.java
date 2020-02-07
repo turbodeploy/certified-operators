@@ -34,6 +34,7 @@ import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
+import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -52,6 +53,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
@@ -160,6 +162,19 @@ public class ReservationMapper {
         reservationApiDTO.setReserveDateTime(convertProtoDateToString(reservation.getStartDate()));
         reservationApiDTO.setExpireDateTime(convertProtoDateToString(reservation.getExpirationDate()));
         reservationApiDTO.setStatus(reservation.getStatus().toString());
+        List<ReservationConstraintApiDTO> constraintInfos = new ArrayList<>();
+        if (reservation.hasConstraintInfoCollection() &&
+                reservation.getConstraintInfoCollection()
+                        .getReservationConstraintInfoList() != null) {
+            for (ScenarioOuterClass.ReservationConstraintInfo reservationConstraintInfo :
+                    reservation.getConstraintInfoCollection().getReservationConstraintInfoList()) {
+                constraintInfos.add(
+                        new ReservationConstraintApiDTO(String.valueOf(reservationConstraintInfo
+                                .getConstraintId()),
+                                reservationConstraintInfo.getType().name()));
+            }
+        }
+        reservationApiDTO.setConstraintInfos(constraintInfos);
         final List<ReservationTemplate> reservationTemplates =
                 reservation.getReservationTemplateCollection().getReservationTemplateList();
         // Because right now, DemandReservationApiDTO support only one type of template for each

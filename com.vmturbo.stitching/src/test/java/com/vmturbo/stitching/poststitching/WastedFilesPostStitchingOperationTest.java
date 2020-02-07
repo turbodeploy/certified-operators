@@ -101,7 +101,8 @@ public class WastedFilesPostStitchingOperationTest {
         connect(virtualVolumeWasted1, storage1);
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume1, vm1Files);
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume2, vm2Files);
-        PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted1, allFiles);
+        PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted1,
+            new String[] {wastedFile, ignoreFile, ignoreDirFile});
 
         storageEntity1 = storage1.build();
         virtVol1 = virtualVolume1.build();
@@ -118,7 +119,7 @@ public class WastedFilesPostStitchingOperationTest {
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
         assertEquals(vm2Files.length, virtVol2.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-        assertEquals(allFiles.length, virtVolWasted1.getTopologyEntityDtoBuilder()
+        assertEquals(3, virtVolWasted1.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
 

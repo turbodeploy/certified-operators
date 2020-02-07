@@ -60,6 +60,8 @@ public class RepositoryClient {
 
     private final RepositoryServiceBlockingStub repositoryService;
 
+    private Long realtimeTopologyContextId;
+
     /**
      * nonSupplyChainEntityTypesToInclude Set of non-supplychain entities to include by querying
      * repository for instance, each would require its implementation to retrieve.
@@ -67,8 +69,15 @@ public class RepositoryClient {
     protected static final Set<EntityType> supportedNonSupplyChainEntitiesByType =
                     ImmutableSet.of(EntityType.BUSINESS_ACCOUNT);
 
-    public RepositoryClient(@Nonnull Channel repositoryChannel) {
+    /**
+     * RepositoryClient constructor.
+     *
+     * @param repositoryChannel Repository channel.
+     * @param realtimeTopologyContextId Real-time context id.
+     */
+    public RepositoryClient(@Nonnull Channel repositoryChannel, final Long realtimeTopologyContextId) {
         repositoryService = RepositoryServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     public Iterator<RetrieveTopologyResponse> retrieveTopology(long topologyId) {
@@ -245,14 +254,14 @@ public class RepositoryClient {
      * Get the entities map associated with a scoped or global topology (cloud plans or real-time).
      *
      * @param scopeIds  The topology scope seed IDs.
-     * @param realtimeTopologyContextId The real-time context id.
+     * @param topologyContextId The topology context id.
      * @param supplyChainServiceBlockingStub the Supply Chain Service to make calls to to get the topology
      * nodes associated with the scopeIds.
      * @return A Map containing the relevant cloud scopes, keyed by scope type and mapped to scope OIDs.
      */
     @Nonnull
     public Map<EntityType, Set<Long>> getEntityOidsByType(@Nonnull final List<Long> scopeIds,
-                          final Long realtimeTopologyContextId,
+                          final Long topologyContextId,
                           @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub) {
         try {
             final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
@@ -279,11 +288,13 @@ public class RepositoryClient {
                     case BUSINESS_ACCOUNT:
                         // Make adjustment for Business Accounts/Subscriptions.  Get all related
                         // accounts in the family.
-                        List<Long> allRelatedBaOids = getRelatedBusinessAccountOrSubscriptionOids(
-                                new ArrayList<>(scopeIds),
-                            realtimeTopologyContextId);
-                        topologyMap.put(EntityType.BUSINESS_ACCOUNT,
-                                new HashSet<>(allRelatedBaOids));
+                        if (topologyContextId != realtimeTopologyContextId) {
+                            List<Long> allRelatedBaOids = getRelatedBusinessAccountOrSubscriptionOids(
+                                    new ArrayList<>(scopeIds),
+                                realtimeTopologyContextId);
+                            topologyMap.put(EntityType.BUSINESS_ACCOUNT,
+                                    new HashSet<>(allRelatedBaOids));
+                        }
                         break;
                     default:
                         break;

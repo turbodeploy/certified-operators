@@ -640,14 +640,14 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     final Optional<Set<UIEntityType>> scopeTypesOpt =
                             context.getInputScope().getScopeTypes();
                     // filter out entityTypes which don't exist in scope
-                    if (scopeTypesOpt.isPresent()) {
+                    if (scopeTypesOpt.isPresent() && isResourceGroup(context.getInputScope())) {
                         final Set<String> entityTypesFromScope = scopeTypesOpt.get()
                                 .stream()
                                 .map(UIEntityType::apiStr)
                                 .collect(Collectors.toSet());
                         entityTypes = entityTypes.stream()
-                                .filter(entityTypesFromScope::contains)
-                                .collect(Collectors.toList());
+                                        .filter(entityTypesFromScope::contains)
+                                        .collect(Collectors.toList());
                     }
                 }
                 if (entityTypes != null && !entityTypes.isEmpty()) {

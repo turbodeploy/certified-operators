@@ -1,6 +1,8 @@
 package com.vmturbo.group.api;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -38,12 +40,14 @@ public class GroupMemberRetriever {
      * @return A stream of {@link GroupAndMembers} describing the groups that matched the request
      *         and the members of those groups.
      */
-    public Stream<GroupAndMembers> getGroupsWithMembers(
+    public List<GroupAndMembers> getGroupsWithMembers(
             @Nonnull final GetGroupsRequest getGroupsRequest) {
-        final Iterable<Grouping> retIt = () -> groupServiceGrpc.getGroups(getGroupsRequest);
-        return StreamSupport.stream(retIt.spliterator(), false)
-                // In the future we could support a group API call here.
-                .map(this::getMembersForGroup);
+        final Iterator<Grouping> retIt = groupServiceGrpc.getGroups(getGroupsRequest);
+        final List<GroupAndMembers> result = new ArrayList<>();
+        while (retIt.hasNext()) {
+            result.add(getMembersForGroup(retIt.next()));
+        }
+        return result;
     }
 
     /**

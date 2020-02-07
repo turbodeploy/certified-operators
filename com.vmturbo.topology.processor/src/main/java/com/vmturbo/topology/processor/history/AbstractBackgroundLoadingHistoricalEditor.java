@@ -21,13 +21,15 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
  * @param <HistoryLoadingTask> loader of DbValue's from the persistent store
  * @param <Config> per-editor type configuration values holder
  * @param <Stub> type of history component stub
+ * @param <CheckpointResult> the result of checkpoint, if applicable
  */
-public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData extends IHistoryCommodityData<Config, DbValue>,
+public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData extends IHistoryCommodityData<Config, DbValue, CheckpointResult>,
             HistoryLoadingTask extends IHistoryLoadingTask<Config, DbValue>,
             Config extends BackgroundLoadingHistoricalEditorConfig,
             DbValue,
-            Stub extends io.grpc.stub.AbstractStub<Stub>>
-        extends AbstractCachingHistoricalEditor<HistoryData, HistoryLoadingTask, Config, DbValue, Stub> {
+            Stub extends io.grpc.stub.AbstractStub<Stub>,
+            CheckpointResult>
+        extends AbstractCachingHistoricalEditor<HistoryData, HistoryLoadingTask, Config, DbValue, Stub, CheckpointResult> {
     boolean isRunning = false;
 
     /**
@@ -56,7 +58,7 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
         isRunning = isRunning();
 
         if (isRunning || eligibleComms.size() > getConfig().getBackgroundLoadThreshold()) {
-            // TODO call super.createPreparationTasks() and submit to local executor
+            // TODO call createPreparationTasks() and submit to local executor
             // TODO submit only those that have not been submitted yet by previous broadcasts
             isRunning = true;
         }

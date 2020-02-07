@@ -29,8 +29,13 @@ public class AddVirtualVolumeDiscoveryConverterTest {
     private static final String VM_ONLY_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
         .getClassLoader().getResource("data/OneVM").getPath();
 
+    private static final String STORAGE_NO_FILES_TEST_CASE =
+        AddVirtualVolumeDiscoveryConverterTest.class
+        .getClassLoader().getResource("data/OneEmptyStorage").getPath();
+
     @Test
     public void testNormalCase() {
+        final String wastedFilePath = "/File1.log";
         DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(SIMPLE_TEST_CASE);
         AddVirtualVolumeDiscoveryConverter vimConverter =
                 new AddVirtualVolumeDiscoveryConverter(discoveryResponse, true);
@@ -42,14 +47,16 @@ public class AddVirtualVolumeDiscoveryConverterTest {
         assertEquals(1, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.STORAGE).size());
         // check that there is only 1 wasted file in the wasted file volume
-        Optional<EntityDTO> wastedVolume = entitiesByType.get(EntityType.VIRTUAL_VOLUME).stream()
+        List<EntityDTO> wastedVolumes = entitiesByType.get(EntityType.VIRTUAL_VOLUME).stream()
                 .filter(vVol -> vVol.getId()
                         .endsWith(AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX))
-                .findFirst();
-        assertTrue(wastedVolume.isPresent());
-        assertEquals(3, wastedVolume.get().getVirtualVolumeData().getFileCount());
-        assertEquals(1, wastedVolume.get().getLayeredOverList().size());
-        assertEquals(wastedVolume.get().getLayeredOver(0),
+                .collect(Collectors.toList());
+        assertEquals(1, wastedVolumes.size());
+        assertEquals(1, wastedVolumes.get(0).getVirtualVolumeData().getFileCount());
+        assertEquals(wastedFilePath,
+            wastedVolumes.get(0).getVirtualVolumeData().getFile(0).getPath());
+        assertEquals(1, wastedVolumes.get(0).getLayeredOverList().size());
+        assertEquals(wastedVolumes.get(0).getLayeredOver(0),
             entitiesByType.get(EntityType.STORAGE).get(0).getId());
     }
 
@@ -95,6 +102,31 @@ public class AddVirtualVolumeDiscoveryConverterTest {
         EntityDTO virtualMachine = entitiesByType.get(EntityType.VIRTUAL_MACHINE).get(0);
         assertEquals(1, virtualMachine.getLayeredOverList().size());
         assertEquals(virtualMachine.getLayeredOver(0), virtualVolume.getId());
+    }
+
+    /**
+     * Test that an empty storage (one with no files) still generates a wasted storage volume.
+     */
+    @Test
+    public void testEmptyStorage() {
+        DiscoveryResponse discoveryResponse =
+            TestUtils.readResponseFromFile(STORAGE_NO_FILES_TEST_CASE);
+        AddVirtualVolumeDiscoveryConverter vimConverter =
+            new AddVirtualVolumeDiscoveryConverter(discoveryResponse, true);
+        DiscoveryResponse convertedResponse = vimConverter.convert();
+        Map<EntityType, List<EntityDTO>> entitiesByType = convertedResponse.getEntityDTOList()
+            .stream()
+            .collect(Collectors.groupingBy(EntityDTO::getEntityType));
+        assertEquals(1, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertNull(entitiesByType.get(EntityType.VIRTUAL_MACHINE));
+        assertEquals(1, entitiesByType.get(EntityType.STORAGE).size());
+        // check that there are 0 wasted files in the volume
+        EntityDTO wastedVolume = entitiesByType.get(EntityType.VIRTUAL_VOLUME).get(0);
+        assertTrue(wastedVolume.getId()
+            .endsWith(AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX));
+        assertEquals(0, wastedVolume.getVirtualVolumeData().getFileCount());
+        assertEquals(1, wastedVolume.getLayeredOverList().size());
+        assertEquals(wastedVolume.getLayeredOver(0), entitiesByType.get(EntityType.STORAGE).get(0).getId());
     }
 
     /**

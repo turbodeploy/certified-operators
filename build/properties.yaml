@@ -489,3 +489,11 @@ defaultProperties:
         historyAggregation.blobReadWriteChunkSizeKb: 128
         consistentScalingEnabled: true
         enableInternalProbes: false
+        # How many timeslot-related commodities trigger background history loading vs synchronous
+        historyAggregation.backgroundLoadingThreshold: 5000
+        # How many background history loading retries are tolerated before stopping and sending up a notification
+        historyAggregation.backgroundLoadingRetries: 3
+        # How long a single background loading attempt is allowed to take before failing
+        historyAggregation.backgroundLoadingTimeoutMin: 60
+        # How often to expire the timeslot cached data going out of observation window
+        historyAggregation.timeslotMaintenanceWindowHours: 23

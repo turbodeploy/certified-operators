@@ -9,6 +9,9 @@ import java.util.Random;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
@@ -17,10 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
-
 import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -30,7 +29,7 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.discount.CostConfig;
-import com.vmturbo.cost.component.flyway.V1_26__Callback;
+import com.vmturbo.cost.component.flyway.CostFlywayCallback;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
@@ -140,7 +139,7 @@ public class CostComponent extends BaseVmtComponent {
     @Primary
     public FlywayCallback[] flywayCallbacks() {
         return new FlywayCallback[] {
-            new V1_26__Callback()
+            new CostFlywayCallback()
         };
     }
 

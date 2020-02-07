@@ -134,34 +134,6 @@ spec:
     resources:
       limits:
         memory: 1Gi
-  mediation-aws:
-    resources:
-      limits:
-        memory: 1Gi
-  mediation-awsbilling:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-awscost:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-awslambda:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-azure:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-azurecost:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-azurevolumes:
-    resources:
-      limits:
-        memory: 512Mi
   mediation-dynatrace:
     resources:
       limits:

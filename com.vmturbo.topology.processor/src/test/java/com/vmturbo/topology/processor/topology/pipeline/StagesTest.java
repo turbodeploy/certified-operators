@@ -14,8 +14,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableMap;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +21,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,8 +40,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.commons.analysis.InvertedIndex;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.TheMatrix;
@@ -78,6 +78,8 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.Stitchi
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
+import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.DummySettingsResolutionStage;
@@ -98,8 +100,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
-import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 public class StagesTest {
@@ -403,9 +403,9 @@ public class StagesTest {
         policyStage.setContext(context);
 
         final PolicyApplicator.Results results = mock(PolicyApplicator.Results.class);
-        when(results.errors()).thenReturn(Collections.emptyMap());
-        when(results.appliedCounts()).thenReturn(Collections.emptyMap());
-        when(results.addedCommodityCounts()).thenReturn(Collections.emptyMap());
+        when(results.getErrors()).thenReturn(Collections.emptyMap());
+        when(results.getAppliedCounts()).thenReturn(Collections.emptyMap());
+        when(results.getAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
         when(policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList()))
             .thenReturn(results);

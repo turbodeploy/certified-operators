@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -34,6 +35,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
@@ -108,6 +110,7 @@ public class CloudCostsStatsSubQueryTest {
     private static final long CLOUD_SERVICE_ID_2 = 2L;
     private static final String CLOUD_SERVICE_NAME_1 = "CLOUD_SERVICE_1";
     private static final String CLOUD_SERVICE_NAME_2 = "CLOUD_SERVICE_2";
+    private static final Set<Long> billingFamilyEntityIds = ImmutableSet.of(5L, 6L);
 
     private final MinimalEntity businessAccount1 = MinimalEntity.newBuilder()
             .setDisplayName(ACCOUNT_NAME_1)
@@ -156,13 +159,27 @@ public class CloudCostsStatsSubQueryTest {
             .build();
 
     @Before
-    public void setup() {
+    public void setup() throws OperationFailedException {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         when(thinTargetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo1));
         when(thinTargetCache.getTargetInfo(TARGET_ID_2)).thenReturn(Optional.of(targetInfo2));
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder();
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
         query = spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
                 supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler(), storageStatsSubQuery));
+    }
+
+    private SupplyChainNodeFetcherBuilder mockSupplyChainNodeFetcherBuilder()
+            throws OperationFailedException {
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mock(SupplyChainNodeFetcherBuilder.class);
+        when(nodeFetcherBuilder.addSeedOids(any())).thenReturn(nodeFetcherBuilder);
+        when(nodeFetcherBuilder.environmentType(any())).thenReturn(nodeFetcherBuilder);
+        when(nodeFetcherBuilder.entityTypes(any())).thenReturn(nodeFetcherBuilder);
+        when(nodeFetcherBuilder.fetchEntityIds()).thenReturn(billingFamilyEntityIds);
+        return nodeFetcherBuilder;
     }
 
     @Test
@@ -409,6 +426,64 @@ public class CloudCostsStatsSubQueryTest {
         Assert.assertEquals(entityTypeIds.size(), 1);
         Assert.assertEquals(EntityType.VIRTUAL_VOLUME.getNumber(), entityTypeIds.get(0).intValue());
     }
+
+    /**
+     * Test that for billing family scope the correct numWorkloads value is set in the StatApiDto
+     * response.
+     *
+     * @throws OperationFailedException if getAggregateStats() throws OperationFailedException
+     */
+    @Test
+    public void testGetNumWorkloadsForBillingFamilyScope() throws OperationFailedException {
+        // given
+        final Set<StatApiInputDTO> requestedStats =
+                Collections.singleton(createNumWorkloadsInputDto());
+        final ApiId apiId = createApiIdMock(GroupType.BILLING_FAMILY,
+                Collections.singleton(UIEntityType.BUSINESS_ACCOUNT));
+        final StatsQueryContext context = createStatsQueryContextMock(apiId);
+
+        // when
+        final List<StatSnapshotApiDTO> result = query.getAggregateStats(requestedStats, context);
+
+        // then
+        Assert.assertFalse(result.isEmpty());
+        final StatSnapshotApiDTO apiDTO = result.iterator().next();
+        Assert.assertFalse(apiDTO.getStatistics().isEmpty());
+        final StatApiDTO statApiDTO = apiDTO.getStatistics().iterator().next();
+        Assert.assertEquals(billingFamilyEntityIds.size(), statApiDTO.getValue(), 0);
+    }
+
+    private ApiId createApiIdMock(final GroupType groupType, final Set<UIEntityType> scopeTypes) {
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getGroupType()).thenReturn(groupType);
+        final ApiId apiId = mock(ApiId.class);
+        when(apiId.getScopeTypes()).thenReturn(Optional.of(scopeTypes));
+        when(apiId.isCloud()).thenReturn(true);
+        when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        return apiId;
+    }
+
+    private StatsQueryContext createStatsQueryContextMock(ApiId apiId) {
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getInputScope()).thenReturn(apiId);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
+        return context;
+    }
+
+    private StatApiInputDTO createNumWorkloadsInputDto() {
+        final StatFilterApiDTO filterApiDTO = new StatFilterApiDTO();
+        filterApiDTO.setType("environmentType");
+        filterApiDTO.setValue("CLOUD");
+        final StatApiInputDTO inputDTO = new StatApiInputDTO();
+        inputDTO.setName("numWorkloads");
+        inputDTO.setFilters(Collections.singletonList(filterApiDTO));
+        return inputDTO;
+    }
+
 
     /**
      * Tests the case where we are getting the stats grouped by cloud provider.

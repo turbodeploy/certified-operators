@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -32,13 +33,15 @@ public abstract class AbstractStatsLoadingTask<Config, T> implements IHistoryLoa
      * @param commodities commodities to query from history component
      * @param startMs starting timestamp
      * @param endMs ending timestamp
+     * @param rollup optional enforced rollup period to request
      * @return request for the history rpc service
      */
     @Nonnull
     protected static GetEntityStatsRequest
               createStatsRequest(@Nonnull Collection<EntityCommodityReference> commodities,
                                  long startMs,
-                                 long endMs) {
+                                 long endMs,
+                                 @Nullable Long rollup) {
         // scope of entities
         EntityStatsScope.Builder scope = EntityStatsScope.newBuilder();
         Set<Long> entities = new HashSet<>();
@@ -57,6 +60,9 @@ public abstract class AbstractStatsLoadingTask<Config, T> implements IHistoryLoa
 
         statsFilter.setStartDate((long)(startMs * Units.MILLISECOND));
         statsFilter.setEndDate((long)(endMs * Units.MILLISECOND));
+        if (rollup != null) {
+            statsFilter.setRollupPeriod(rollup);
+        }
 
         return GetEntityStatsRequest.newBuilder()
                         .setScope(scope)

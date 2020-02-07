@@ -1492,10 +1492,16 @@ public class ActionSpecMapper {
             }
             if (actionType == RESIZE || actionType == SCALE || actionType == ALLOCATE) {
                 long entityUuid;
+                ActionEntity entity;
                 try {
-                    entityUuid = ActionDTOUtil.getPrimaryEntityId(action.getActionSpec().getRecommendation());
+                    entity = ActionDTOUtil.getPrimaryEntity(action.getActionSpec().getRecommendation());
+                    entityUuid = entity.getId();
                 } catch (UnsupportedActionException e) {
                     logger.warn("Cannot create action details due to unsupported action type", e);
+                    return null;
+                }
+                if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+                    logger.warn("Cannot create action details for on-prem actions");
                     return null;
                 }
                 return createCloudResizeActionDetailsDTO(entityUuid);

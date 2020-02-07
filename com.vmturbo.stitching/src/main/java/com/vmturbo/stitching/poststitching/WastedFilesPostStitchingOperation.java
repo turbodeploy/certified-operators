@@ -30,13 +30,10 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 
 /**
- * Find all virtual volumes associated with each storage via the connectedFrom relationship.
- * Identify the wasted files virtual volume by the fact that it is not associated with any virtual
- * machines via connectedFrom.  Generate a list of used files by collecting the files from all
- * virtual volumes that are associated with virtual machines.  Remove the used files from the list
- * of files associated with the wasted files virtual volume so that all the files remaining represent
- * actual wasted files.  Finally, remove files that match the ignoreFiles or ignoreDirectories
- * settings from the list of wasted files.
+ * Get all VC Storages and identify the wasted files virtual volume for each by the fact that
+ * it is not associated with any virtual machines via connectedFrom.  Files in this volume represent
+ * actual wasted files.  Remove files that match the ignoreFiles or ignoreDirectories
+ * settings from the list of wasted files.  All files that remain represent wasted files.
  */
 public class WastedFilesPostStitchingOperation implements PostStitchingOperation {
 
@@ -56,9 +53,8 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
         @Nonnull final EntitySettingsCollection settingsCollection,
         @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         // iterate over storages and update the related wasted files volume for each by removing
-        // any file that is used by a VirtualVolume associated with a VirtualMachine.
-        // Skip storages that are marked as ignoreWastedFiles==true as those will be skipped when
-        // generating actions anyway.
+        // any file that is marked as ignoreWastedFiles==true as we don't want to
+        // generate wasted files actions for these.
         entities.filter(storage -> storage.getTypeSpecificInfo() == null
             || !storage.getTypeSpecificInfo().hasStorage()
             || !storage.getTypeSpecificInfo().getStorage().getIgnoreWastedFiles())
@@ -81,12 +77,6 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
                     : Optional.empty();
 
                 getWastedFilesVirtualVolume(storage).ifPresent(wastedFilesVolume -> {
-                    Set<String> filesUsedByVms = getAllVmVirtualVolumes(storage)
-                        .stream()
-                        .flatMap(vmVolume -> vmVolume.getTopologyEntityDtoBuilder()
-                            .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream())
-                        .map(VirtualVolumeFileDescriptor::getPath)
-                        .collect(Collectors.toSet());
 
                     resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate -> {
                         Set<VirtualVolumeFileDescriptor> keepFiles =
@@ -95,7 +85,6 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
                                 .getVirtualVolume()
                                 .getFilesList()
                                 .stream()
-                                .filter(file -> !filesUsedByVms.contains(file.getPath()))
                                 .filter(file -> !isIgnored(file.getPath(), ignoreFilesPattern,
                                     ignoreDirsPattern))
                                 .filter(file -> file.getLinkedPathsList().stream().noneMatch(link ->
@@ -182,20 +171,5 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
                     storage.getOid(), wastedFilesVolumes.get(0).getOid());
         }
         return Optional.of(wastedFilesVolumes.get(0));
-    }
-
-    /**
-     * Find all VirtualVolumes related to the Storage that are also related to VirtualMachines.
-     *
-     * @param storage {@link TopologyEntity} representing a Storage
-     * @return Set of VirtualVolumes associated with that Storage as well as at least one VM
-     */
-    private Set<TopologyEntity> getAllVmVirtualVolumes(TopologyEntity storage) {
-        return storage.getInboundAssociatedEntities().stream()
-                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                .filter(virtualVolume -> virtualVolume.getInboundAssociatedEntities().stream()
-                        .anyMatch(topoEntity -> topoEntity.getEntityType() ==
-                                EntityType.VIRTUAL_MACHINE.getNumber()))
-                .collect(Collectors.toSet());
     }
 }

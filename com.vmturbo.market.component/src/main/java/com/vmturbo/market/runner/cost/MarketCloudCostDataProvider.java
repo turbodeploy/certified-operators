@@ -101,6 +101,7 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                 riBoughtServiceClient.getReservedInstanceBoughtByTopology(
                         GetReservedInstanceBoughtByTopologyRequest.newBuilder()
                                 .setTopologyType(topoInfo.getTopologyType())
+                                .setTopologyContextId(topoInfo.getTopologyContextId())
                                 .setScopeEntityType(topoInfo.getScopeEntityType())
                                 .addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
                                 .build());

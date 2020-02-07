@@ -24,6 +24,9 @@ public class RepositoryConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     @Bean
     public Channel repositoryChannel() {
         return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
@@ -36,8 +39,13 @@ public class RepositoryConfig {
         return RepositoryServiceGrpc.newStub(repositoryChannel());
     }
 
+    /**
+     * Bean for Repository Client.
+     *
+     * @return RepositoryClient.
+     */
     @Bean
     public RepositoryClient repository() {
-        return new RepositoryClient(repositoryChannel());
+        return new RepositoryClient(repositoryChannel(), realtimeTopologyContextId);
     }
 }

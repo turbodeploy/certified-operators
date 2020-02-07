@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.protobuf.ProtocolStringList;
 
 import org.apache.logging.log4j.LogManager;
@@ -117,6 +118,18 @@ public class SettingStoreTest {
     public void testCreateDuplicatePolicy() throws Exception {
         settingStore.createUserSettingPolicy(info);
         settingStore.createUserSettingPolicy(info);
+    }
+
+    /**
+     * Verify that last DEFAULT policy info overrides, and id is preserved.
+     */
+    @Test
+    public void testCreateDuplicateDefaultPolicy() throws Exception {
+        SettingPolicy policy1 = settingStore.createDefaultSettingPolicy(info);
+        SettingPolicyInfo info2 = SettingPolicyInfo.newBuilder(info).setDisplayName("info2").build();
+        SettingPolicy policy2 = settingStore.createDefaultSettingPolicy(info2);
+        assertEquals(policy2.getInfo(), info2);
+        assertEquals(policy1.getId(), policy2.getId());
     }
 
     @Test(expected = InvalidItemException.class)
@@ -724,6 +737,43 @@ public class SettingStoreTest {
             savedSchedule.getId()).collect(Collectors.toList());
         assertEquals(2, settingPolicies.size());
         settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
+    }
 
+    private static final String NAME = "foo";
+    private static final String WRONG_NAME = "bar";
+    private static final String STR_VALUE = "bbb";
+
+    /**
+     * Test global settings handling.
+     *
+     * @throws Exception If any exceptions thrown during test execution.
+     */
+    @Test
+    public void testGlobalSettings() throws Exception {
+        settingStore.insertGlobalSettings(Lists.newArrayList(settingWithStringValue(NAME, "aaa")));
+        assertEquals(1, settingStore.getAllGlobalSettings().size());
+
+        // Verify that update works
+        settingStore.updateGlobalSetting(settingWithStringValue(NAME, STR_VALUE));
+        assertEquals(1, settingStore.getAllGlobalSettings().size());
+        String value = settingStore.getGlobalSetting(NAME)
+                .map(Setting::getStringSettingValue)
+                .map(SettingProto.StringSettingValue::getValue)
+                .get();
+        assertEquals(STR_VALUE, value);
+
+        // Update of a missing name should not insert
+        settingStore.updateGlobalSetting(settingWithStringValue(WRONG_NAME, STR_VALUE));
+        assertFalse(settingStore.getGlobalSetting(WRONG_NAME).isPresent());
+    }
+
+    private static Setting settingWithStringValue(String name, String value) {
+        return Setting.newBuilder()
+                .setSettingSpecName(name)
+                .setStringSettingValue(
+                        SettingProto.StringSettingValue.newBuilder()
+                                .setValue(value)
+                                .build())
+                .build();
     }
 }

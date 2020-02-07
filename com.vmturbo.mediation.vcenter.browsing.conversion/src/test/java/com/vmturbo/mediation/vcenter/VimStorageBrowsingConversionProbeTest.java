@@ -54,7 +54,7 @@ public class VimStorageBrowsingConversionProbeTest {
 
         // check each entity type count
         assertEquals(62, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
-        assertEquals(85, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(89, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(24, entitiesByType.get(EntityType.STORAGE).size());
 
         // ensure other fields are consistent with original discovery response
@@ -95,14 +95,10 @@ public class VimStorageBrowsingConversionProbeTest {
                         vm.getId(), storage.getId()))));
         });
 
-        // check that each storage that has files on it has an associated volume for wasted files
-        storages.forEach(storage -> {
-            if (!storage.getStorageData().getFileList().isEmpty()) {
-                checkWastedFilesVolume(storage, volumeMap.get(
+        // check that each storage has an associated volume for wasted files
+        storages.forEach(storage -> checkWastedFilesVolume(storage, volumeMap.get(
                     AddVirtualVolumeDiscoveryConverter.combineStringsForVolumeNaming(
-                        storage.getId(), AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX)));
-            }
-        });
+                        storage.getId(), AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX))));
     }
 
     private void checkVolume(final EntityDTO vm, final EntityDTO storage, final EntityDTO volume) {
@@ -124,7 +120,5 @@ public class VimStorageBrowsingConversionProbeTest {
         assertNotNull(storage);
         assertNotNull(volume);
         assertTrue(volume.getLayeredOverList().contains(storage.getId()));
-        assertEquals(volume.getVirtualVolumeData().getFileCount(),
-                storage.getStorageData().getFileCount());
     }
 }

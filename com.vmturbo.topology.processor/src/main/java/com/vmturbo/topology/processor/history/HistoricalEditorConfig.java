@@ -90,4 +90,12 @@ public class HistoricalEditorConfig {
         return entity.map(TopologyEntity::getEntityType).map(EntityType::forNumber)
                         .orElseThrow(() -> new HistoryCalculationException("Entity type calculation failed for entity with oid " + oid));
     }
+
+    /**
+     * Release the references.
+     */
+    public void deinit() {
+        graph = null;
+        entitySettings = null;
+    }
 }

@@ -1,11 +1,9 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,9 +16,10 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -32,15 +31,13 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
@@ -114,6 +111,31 @@ public class PolicyManager {
     }
 
     /**
+     * Handler for policies that reference invalid groups.
+     */
+    @FunctionalInterface
+    private interface InvalidGroupHandler {
+        void policyWithMissingGroups(@Nonnull Policy policy, @Nonnull Set<Long> missingGroups);
+    }
+
+    private int clearPoliciesWithMissingGroups(@Nonnull final List<Policy> policies,
+                                               @Nonnull final Map<Long, Grouping> existingGroupsById,
+                                               @Nonnull final InvalidGroupHandler invalidGroupHandler) {
+        final MutableInt numRemoved = new MutableInt(0);
+        policies.removeIf(policy -> {
+            final Set<Long> policyGroups = GroupProtoUtil.getPolicyGroupIds(policy);
+            if (!existingGroupsById.keySet().containsAll(policyGroups)) {
+                final Set<Long> missingGroups = Sets.difference(policyGroups, existingGroupsById.keySet());
+                invalidGroupHandler.policyWithMissingGroups(policy, missingGroups);
+                numRemoved.increment();
+                return true;
+            }
+            return false;
+        });
+        return numRemoved.intValue();
+    }
+
+    /**
      * Apply policies from the policy service, possibly modified by plan changes,
      * to the entities in the topology graph.
      *
@@ -127,11 +149,34 @@ public class PolicyManager {
                                                   @Nonnull final List<ScenarioChange> changes) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
-            final Iterator<PolicyResponse> policyIter =
-                    policyService.getAllPolicies(PolicyRequest.newBuilder().build());
-            final ImmutableList<PolicyResponse> policyResponses = ImmutableList.copyOf(policyIter);
-            List<Policy> planOnlyPolicies = planOnlyPolicies(changes);
-            final Map<Long, Grouping> groupsById = groupsById(policyResponses, planOnlyPolicies);
+            final List<Policy> livePolicies = new ArrayList<>();
+            policyService.getAllPolicies(PolicyRequest.getDefaultInstance())
+                .forEachRemaining(policyResp -> {
+                    if (policyResp.hasPolicy()) {
+                        livePolicies.add(policyResp.getPolicy());
+                    }
+                });
+            final List<Policy> planOnlyPolicies = planOnlyPolicies(changes);
+            final Map<Long, Grouping> groupsById = policyGroupsById(Stream.concat(livePolicies.stream(), planOnlyPolicies.stream()));
+
+            int invalidPolicyCount = 0;
+            invalidPolicyCount += clearPoliciesWithMissingGroups(livePolicies, groupsById, (policy, missingGroups) -> {
+                if (policy.hasTargetId()) {
+                    // TODO (roman, Feb 3 2020) OM-55089: Mark entities discovered by the target non-controllable.
+                    throw new IllegalStateException(String.format(
+                        "Policy %d (%s) discovered by target %d refers to non-existent groups %s.",
+                        policy.getId(), policy.getPolicyInfo().getName(), policy.getTargetId(), missingGroups));
+                } else {
+                    logger.warn("User policy {} ({}) refers to non-existent groups {}." +
+                        " Not applying the policy.", policy.getId(), policy.getPolicyInfo().getName(), missingGroups);
+                }
+            });
+
+            invalidPolicyCount += clearPoliciesWithMissingGroups(planOnlyPolicies, groupsById, (policy, missingGroups) -> {
+                logger.warn("Plan-only policy {} ({}) refers to non-existent groups {}." +
+                    " Not applying the policy.", policy.getId(), policy.getPolicyInfo().getName(), missingGroups);
+            });
+
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
 
             final List<PlacementPolicy> policiesToApply = new ArrayList<>();
@@ -139,7 +184,7 @@ public class PolicyManager {
             final Map<Long, Set<Long>> policyConstraintMap =
                 handleReservationConstraints(graph, changes, policiesToApply);
 
-            getServerPolicies(changes, policyResponses, groupsById, policyConstraintMap)
+            getServerPolicies(changes, livePolicies, groupsById, policyConstraintMap)
                 .forEach(policiesToApply::add);
 
             getPlanOnlyPolicies(planOnlyPolicies, groupsById)
@@ -151,13 +196,15 @@ public class PolicyManager {
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts.size(), durationMs);
 
-            if (!results.errors().isEmpty()) {
-                logger.error(results.errors().size() + " policies could not be applied " +
+            if (!results.getErrors().isEmpty()) {
+                logger.error(results.getErrors().size() + " policies could not be applied " +
                     "(error messages printed at debug level).");
-                logger.debug(() -> results.errors().entrySet().stream()
+                logger.debug(() -> results.getErrors().entrySet().stream()
                     .map(entry -> entry.getKey().getPolicyDefinition().getId() + " : " + entry.getValue().getMessage())
                     .collect(Collectors.joining("\n")));
             }
+
+            results.addInvalidPolicyCount(invalidPolicyCount);
 
             return results;
         }
@@ -256,11 +303,10 @@ public class PolicyManager {
                 .collect(Collectors.toSet());
     }
 
-    private Map<Long, Grouping> policyGroupsById(Collection<Policy> policies) {
-        Set<Long> groupIds = policies.stream()
-                        .map(GroupProtoUtil::getPolicyGroupIds)
-                        .flatMap(Set::stream)
-                        .collect(Collectors.toSet());
+    private Map<Long, Grouping> policyGroupsById(@Nonnull final Stream<Policy> policies) {
+        final Set<Long> groupIds = policies.map(GroupProtoUtil::getPolicyGroupIds)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
 
         final Map<Long, Grouping> groupsById = new HashMap<>(groupIds.size());
         if (!groupIds.isEmpty()) {
@@ -271,36 +317,16 @@ public class PolicyManager {
                     .build()).forEachRemaining(group -> groupsById.put(group.getId(), group));
 
             if (groupsById.size() != groupIds.size()) {
-                // Some desired groups are not found.
-                // Throw an exception for now.
-                // TODO (roman, Oct 20 2017): We can just not apply the policies that
-                // are missing groups.
-                throw new IllegalStateException("Policies have non-existing groups.");
+                logger.warn("The following groups are missing from the groups service. " +
+                    "Policies involving those groups will not apply: {}", Sets.difference(groupIds, groupsById.keySet()));
             }
         }
         return groupsById;
     }
 
-    /**
-     * Obtain all {@link Group}s referenced by policies.
-     *
-     * @param policyResponses policies persisted in the policy service.
-     * @param otherPolicies other policies, such as plan-only policies, that are not
-     * persisted in the policy service.
-     * @return mapping from group oid to group
-     */
-    private Map<Long, Grouping> groupsById(List<PolicyResponse> policyResponses, List<Policy> otherPolicies) {
-        Set<Policy> policies = policyResponses.stream()
-                        .filter(PolicyResponse::hasPolicy)
-                        .map(PolicyResponse::getPolicy)
-                        .collect(Collectors.toSet());
-        policies.addAll(otherPolicies);
-        return policyGroupsById(policies);
-    }
-
     private Stream<PlacementPolicy> getServerPolicies(
                     @Nonnull List<ScenarioChange> changes,
-                    @Nonnull List<PolicyResponse> policyResponses,
+                    @Nonnull List<Policy> livePolicies,
                     @Nonnull Map<Long, Grouping> groupsById,
                     @Nonnull Map<Long, Set<Long>> policyConstraintMap) {
         // Map from policy ID to whether it is enabled or disabled in the plan
@@ -312,10 +338,10 @@ public class PolicyManager {
                 .collect(Collectors.toMap(
                         PolicyChange::getPolicyId, PolicyChange::getEnabled));
 
-        return policyResponses.stream()
-            .map(response -> {
-                PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById,
-                    policyConstraintMap.getOrDefault(response.getPolicy().getId(),
+        return livePolicies.stream()
+            .map(policyProto -> {
+                PlacementPolicy policy = policyFactory.newPolicy(policyProto, groupsById,
+                    policyConstraintMap.getOrDefault(policyProto.getId(),
                         Collections.emptySet()), Collections.emptySet());
                 final Policy policyDef = policy.getPolicyDefinition();
                 final long policyId = policyDef.getId();
@@ -349,14 +375,14 @@ public class PolicyManager {
             });
     }
 
-    private List<Policy> planOnlyPolicies(List<ScenarioChange> changes) {
+    private List<Policy> planOnlyPolicies(@Nonnull final List<ScenarioChange> changes) {
         return changes.stream()
-                        .filter(ScenarioChange::hasPlanChanges)
-                        .filter(change -> change.getPlanChanges().hasPolicyChange())
-                        .map(change -> change.getPlanChanges().getPolicyChange())
-                        .filter(PolicyChange::hasPlanOnlyPolicy)
-                        .map(PolicyChange::getPlanOnlyPolicy)
-                        .collect(Collectors.toList());
+            .filter(ScenarioChange::hasPlanChanges)
+            .filter(change -> change.getPlanChanges().hasPolicyChange())
+            .map(change -> change.getPlanChanges().getPolicyChange())
+            .filter(PolicyChange::hasPlanOnlyPolicy)
+            .map(PolicyChange::getPlanOnlyPolicy)
+            .collect(Collectors.toList());
     }
 
     /**

@@ -4,10 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,7 +20,9 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StorageFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
@@ -39,8 +43,12 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
  * If it's vc storage browsing probe, it also performs following operations:
  * We keep the file information that is originally in the virtual_machine_data in a VirtualVolume
  * that is connected to the VM and the Storage.  We also create a VirtualVolume associated with
- * each Storage to hold all the files in the storage_data.  This VirtualVolume will eventually only
- * hold the wasted files after a poststitching operation removes any files associated with a VM.
+ * each Storage to hold all the files in the storage_data.  We then remove all the files associated
+ * with VMs from this "wasted storage" volume.  Note that in the case of shared storage, some of
+ * these wasted files are not really wasted (since VMs on another target consume them).  This is
+ * handled in a pre stitching operation which will merge the wasted storage volumes common to
+ * multiple targets by taking the intersection of all the files on the various wasted storage
+ * volumes.
  */
 public class AddVirtualVolumeDiscoveryConverter {
 
@@ -61,6 +69,11 @@ public class AddVirtualVolumeDiscoveryConverter {
      * A map from storage ID to the list of files on that storage.
      */
     private final Map<String, List<StorageFileDescriptor>> storageIdToFiles = Maps.newHashMap();
+
+    /**
+     * A map from storage ID to a set of file paths on that storage that are consumed by a VM.
+     */
+    private final Map<String, Set<String>> storageIdToUsedFilePaths = Maps.newHashMap();
 
     /**
      * A map from VM id to its EntityDTO.
@@ -159,11 +172,16 @@ public class AddVirtualVolumeDiscoveryConverter {
                     // for storage browsing, go through all files list since it contains storage id
                     entityBuilder.getVirtualMachineData().getFileList().stream()
                         .filter(VirtualMachineFileDescriptor::hasStorageId)
-                        .forEach(fileDescriptor ->
+                        .forEach(fileDescriptor -> {
+                            final String storageId = STORAGE_BROWSING_ID_PREFIX
+                                + fileDescriptor.getStorageId();
                             vmToStorageFiles.row(entityId)
-                                .computeIfAbsent(STORAGE_BROWSING_ID_PREFIX
-                                    + fileDescriptor.getStorageId(), s -> Lists.newArrayList())
-                                .add(fileDescriptor));
+                                .computeIfAbsent(storageId, s -> Lists.newArrayList())
+                                .add(fileDescriptor);
+                            storageIdToUsedFilePaths.computeIfAbsent(storageId,
+                                s -> Sets.newHashSet())
+                                .add(fileDescriptor.getPath());
+                        });
                     // convert all provider id in commodity bought to be prefixed with dsb
                     convertCommodityBoughtProviderId(entityBuilder);
 
@@ -187,18 +205,6 @@ public class AddVirtualVolumeDiscoveryConverter {
                 }
             } else if (entityBuilder.getEntityType() == EntityType.STORAGE) {
                 storageDtoById.put(entityId, entityBuilder);
-                // if it's storage browsing probe, we should also populate the map of storage ID
-                // to the files that exist on that storage
-                if (this.isStorageBrowsing && entityBuilder.hasStorageData()
-                        && entityBuilder.getStorageData().getFileCount() > 0) {
-                    storageIdToFiles.put(entityId, entityBuilder.getStorageData().getFileList());
-
-                    // Remove the files from the storage, because some storages can have huge numbers
-                    // of files which blows up the size of the entity. We don't need to know the
-                    // storage's files from the storage, because we will create volumes for each
-                    // file.
-                    entityBuilder.getStorageDataBuilder().clearFile();
-                }
             } else if (entityBuilder.getEntityType() == EntityType.NETWORK) {
                 networkIds.put(entityBuilder.getId(), entityBuilder.getDisplayName());
             }
@@ -208,6 +214,25 @@ public class AddVirtualVolumeDiscoveryConverter {
                 entityBuilder.clearLayeredOver();
             }
         });
+
+        // if it's storage browsing probe, we should also populate the map of storage ID
+        // to the files that exist on that storage but not on any VMs
+        if (this.isStorageBrowsing) {
+            storageDtoById.values()
+                .stream()
+                .filter(Builder::hasStorageData)
+                .filter(builder -> builder.getStorageData().getFileCount() > 0)
+                .forEach(builder -> {
+                    storageIdToFiles.put(builder.getId(),
+                        builder.getStorageData().getFileList()
+                            .stream()
+                            .filter(file -> !storageIdToUsedFilePaths
+                                .getOrDefault(builder.getId(), Collections.emptySet())
+                                .contains(file.getPath()))
+                            .collect(Collectors.toList()));
+                    builder.getStorageDataBuilder().clearFile();
+                });
+        }
 
         // populate connected networks for VMs and then clear their layeredOver relations
         vmDtoById.values().forEach(vm -> {
@@ -283,7 +308,7 @@ public class AddVirtualVolumeDiscoveryConverter {
             logger.warn("No storage found with ID {} for VM with ID {}", storageId, vmId);
         }
 
-        return EntityDTO.newBuilder()
+        EntityDTO.Builder entityBuilder = EntityDTO.newBuilder()
             .setId(combineStringsForVolumeNaming(addPrefix(vmId), addPrefix(storageId)))
             .setDisplayName(combineStringsForVolumeNaming(vmDtoById.get(vmId).getDisplayName(),
                 //todo: when will this be null? ask Ron?
@@ -292,8 +317,14 @@ public class AddVirtualVolumeDiscoveryConverter {
             .setEntityType(EntityType.VIRTUAL_VOLUME)
             .addLayeredOver(storageId)
             .setVirtualVolumeData(VirtualVolumeData.newBuilder()
-                .addAllFile(getVmFileList(vmId, storageId)))
-            .build();
+                .addAllFile(getVmFileList(vmId, storageId)));
+        // Storage browsing data may be out of date.  Discard volumes that don't get stitched with
+        // a volume from the main probe.
+        if (isStorageBrowsing) {
+            entityBuilder.setOrigin(EntityOrigin.PROXY);
+            entityBuilder.setKeepStandalone(false);
+        }
+        return entityBuilder.build();
     }
 
     /**
@@ -302,7 +333,7 @@ public class AddVirtualVolumeDiscoveryConverter {
      * @return List of EntityDTOs of the virtual volumes that were created.
      */
     private List<EntityDTO> createVirtualVolumesFromStorages() {
-        return storageIdToFiles.keySet().stream()
+        return storageDtoById.keySet().stream()
                 .map(this::createWastedFilesVirtualVolume)
                 .collect(Collectors.toList());
     }
@@ -339,7 +370,7 @@ public class AddVirtualVolumeDiscoveryConverter {
      */
     private List<VirtualVolumeFileDescriptor> getStorageFileList(String storageId) {
         // Set of file paths on this Storage used by VMs
-        return storageIdToFiles.get(storageId).stream()
+        return storageIdToFiles.getOrDefault(storageId, Collections.emptyList()).stream()
             .map(storageFileDescriptor ->
                 VirtualVolumeFileDescriptor.newBuilder()
                     .setPath(storageFileDescriptor.getPath())

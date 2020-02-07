@@ -93,4 +93,10 @@ public interface ReservationDao extends DiagsRestorable {
      */
     public Set<Reservation> getReservationsByTemplates(@Nonnull final Set<Long> templateIds);
 
+    /**
+     * Add a reservation status listener.
+     * @param listener the listener to be added.
+     */
+    void addListener(@Nonnull ReservationStatusListener listener);
+
 }

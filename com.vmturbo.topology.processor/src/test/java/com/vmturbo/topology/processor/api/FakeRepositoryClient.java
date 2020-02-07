@@ -26,9 +26,13 @@ public class FakeRepositoryClient extends RepositoryClient {
 
     private final Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
 
-    // Create a fake repository client, using a mock repository channel
+    // The  realtime topology context Id.
+    private static final Long realtimeTopologyContextId = 777777L;
+
+    // Create a fake repository client, using a mock repository channel.
+    // Pass in the real-time context id.
     public FakeRepositoryClient() {
-        super(Mockito.mock(Channel.class));
+        super(Mockito.mock(Channel.class), realtimeTopologyContextId);
     }
 
     @Override

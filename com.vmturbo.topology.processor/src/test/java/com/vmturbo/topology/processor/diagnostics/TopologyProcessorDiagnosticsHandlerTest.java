@@ -530,6 +530,28 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         zis.close();
     }
 
+    /**
+     * Test the dump diags for a target that has NO discovered groups, policies, settings, templates.
+     * If this test is throwing Exception, then there is an issue in how we deal with the fact that those
+     * objects are not present.
+     *
+     * @throws IOException in case of IO error reading/writing
+     */
+    @Test
+    public void testTargetWithNoExtraDataDiscovered() throws IOException {
+
+        TestTopology[] testTopologies = new TestTopology[]{
+            new TestTopology("123456789").withTargetId(100001).withProbeId(101).withProbeInfo()
+                .withTime(12345).withEntity(IDENTIFIED_ENTITY).withDiscoveredClusterGroup()
+                .withSettingPolicy().withTemplate().withProfile().withTarget(mock(Target.class))
+                .withTargetInfo().setUpMocksWithNoExtraDiscoveredData(),
+        };
+
+        // this method should not throw exception, otherwise we are not dealing correctly with targets
+        // missing those extra data
+        final ZipInputStream zis = dumpDiags();
+    }
+
     @Test
     public void testRestore() throws Exception {
         TargetStore simpleTargetStore = new KVBackedTargetStore(new MapKeyValueStore(), probeStore,
@@ -621,6 +643,25 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             when(targetDiscoveredData.getDiscoveredGroups()).thenReturn(Stream.of(group));
             discoveredGroupMap.put(targetId, targetDiscoveredData);
             discoveredProfileMap.put(targetId, ImmutableMap.of(profile, Collections.singleton(template)));
+
+            return this;
+        }
+
+        /**
+         * Set up a mocked topology with all the needed fields and relationship between them.
+         * This mock is creating a topology with NO discovered groups, settings, policies and templates.
+         *
+         * @return mocked topology with NO discovered groups, settings, policies and templates.
+         */
+        TestTopology setUpMocksWithNoExtraDiscoveredData() {
+            probeMap.put(probeId, probeInfo);
+            targets.add(target);
+            when(target.getId()).thenReturn(targetId);
+            when(target.getNoSecretDto()).thenReturn(targetInfo);
+
+            when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
+            doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
 
             return this;
         }

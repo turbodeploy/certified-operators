@@ -35,6 +35,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
@@ -52,6 +54,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -72,6 +75,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private SupplyChainServiceBlockingStub supplyChainService;
 
+    private PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
+
     private final Long realtimeTopologyContextId = 777777L;
 
     private ReservedInstanceSpecStore reservedInstanceSpecStore =
@@ -81,8 +86,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
                 reservedInstanceBoughtStore,
-               reservedInstanceMappingStore, repositoryClient, supplyChainService,
-               realtimeTopologyContextId, priceTableStore, reservedInstanceSpecStore);
+                   reservedInstanceMappingStore, repositoryClient, supplyChainService,
+                   planReservedInstanceService, realtimeTopologyContextId, priceTableStore,
+                   reservedInstanceSpecStore);
 
     /**
      * Set up a test GRPC server.
@@ -92,17 +98,6 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private ReservedInstanceBoughtServiceBlockingStub client;
 
-    // Constants as defined in EntityType
-    //private static final int REGION_VALUE = 54;
-    //private static final int AVAILABILITY_ZONE_VALUE = 55;
-    //private static final int BUSINESS_ACCOUNT_VALUE = 28;
-
-    //private static final String REGION = "Region";
-    //private static final String AVAILABILITY_ZONE = "AvailabilityZone";
-    //private static final String BUSINESS_ACCOUNT = "BusinessAccount";
-
-    private static final Long VM1_OID = 123L;
-    private static final Long VM2_OID = 456L;
     private static final Long AZ1_OID = 789L;
     private static final Long AZ2_OID = 123456L;
     private static final Long REGION1_OID = 789456L;
@@ -111,9 +106,12 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final Long BA2_OID = 77L;
     private static final Long BAMASTER_OID = 777L;
     private static final long RI_SPEC_ID = 2222L;
+    private static final long RI_SPEC_WINDOWS = 3333L;
     private static final long TIER_ID = 3333L;
     private static final long RI_BOUGHT_COUNT = 4L;
     private static final double TIER_PRICE = 0.41;
+    private static final double LICENSE_PRICE = 0.21;
+    private static final OSType WINDOWS_OS_TYPE = OSType.WINDOWS;
     private static final double delta = 0.01;
     private static final long RI_BOUGHT_ID_3 = 8002L;
     private static final long RI_SPEC_ID_3 = 2224L;
@@ -125,11 +123,11 @@ public class ReservedInstanceBoughtRpcServiceTest {
     public void setup() {
         client = ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        repositoryClient = new RepositoryClient(grpcServer.getChannel());
-        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
-                .thenReturn(Collections.singletonList(createRiBought()));
+        planReservedInstanceService = PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        repositoryClient = new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId);
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
-                .thenReturn(Collections.singletonList(createRiSpec()));
+                .thenReturn(ImmutableList.of(createRiSpec(OSType.LINUX, RI_SPEC_ID),
+                        createRiSpec(WINDOWS_OS_TYPE, RI_SPEC_WINDOWS)));
         when(reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap(any()))
                 .thenReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
         mockPricedTableStore(priceTableStore);
@@ -141,32 +139,37 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         OnDemandPriceTable.newBuilder().putComputePricesByTierId(TIER_ID,
                                 ComputeTierPriceList.newBuilder()
                                         .setBasePrice(ComputeTierConfigPrice.newBuilder()
+                                                .setGuestOsType(OSType.LINUX)
                                                 .addPrices(Price.newBuilder()
                                                         .setPriceAmount(CurrencyAmount.newBuilder()
-                                                                .setAmount(TIER_PRICE)
-                                                                .build()))
-                                                .build())
+                                                                .setAmount(TIER_PRICE))))
+                                        .addPerConfigurationPriceAdjustments(ComputeTierConfigPrice
+                                                .newBuilder()
+                                                .setGuestOsType(WINDOWS_OS_TYPE)
+                                                .addPrices(Price.newBuilder()
+                                                        .setPriceAmount(CurrencyAmount.newBuilder()
+                                                                .setAmount(LICENSE_PRICE))))
                                         .build())
                                 .build())
                 .build();
         when(priceTableStore.getMergedPriceTable()).thenReturn(priceTable);
     }
 
-    private ReservedInstanceSpec createRiSpec() {
+    private ReservedInstanceSpec createRiSpec(final OSType osType, final long riSpecId) {
         return ReservedInstanceSpec.newBuilder()
-                .setId(RI_SPEC_ID)
+                .setId(riSpecId)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                         .setRegionId(REGION1_OID)
+                        .setOs(osType)
                         .setTierId(TIER_ID)
                         .build())
                 .build();
     }
 
-    private ReservedInstanceBought createRiBought() {
+    private ReservedInstanceBought createRiBought(final long riSpecId) {
         return ReservedInstanceBought.newBuilder()
                 .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                        .setReservedInstanceSpec(RI_SPEC_ID)
-                        .build())
+                        .setReservedInstanceSpec(riSpecId))
                 .build();
     }
 
@@ -293,6 +296,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
      */
     @Test
     public void testOnDemandCostSetRIBought() {
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(Collections.singletonList(createRiBought(RI_SPEC_ID)));
         final GetReservedInstanceBoughtByFilterRequest request =
                 GetReservedInstanceBoughtByFilterRequest.newBuilder().build();
         final GetReservedInstanceBoughtByFilterResponse response =
@@ -302,11 +307,38 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 response.getReservedInstanceBoughtsList();
         Assert.assertFalse(reservedInstancesBought.isEmpty());
         final ReservedInstanceBought riBought = reservedInstancesBought.iterator().next();
-        Assert.assertTrue(riBought.getReservedInstanceBoughtInfo().getReservedInstanceDerivedCost().hasOnDemandRatePerHour());
+        Assert.assertTrue(riBought.getReservedInstanceBoughtInfo().getReservedInstanceDerivedCost()
+                .hasOnDemandRatePerHour());
         final double onDemandCost = riBought.getReservedInstanceBoughtInfo()
                 .getReservedInstanceDerivedCost().getOnDemandRatePerHour()
                 .getAmount();
         Assert.assertEquals(TIER_PRICE, onDemandCost, delta);
+    }
+
+    /**
+     * Test that ReservedInstanceBought instance has onDemandCost set which includes the License
+     * cost.
+     */
+    @Test
+    public void testOnDemandCostWithLicenseSetRIBought() {
+        // given
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+               .thenReturn(Collections.singletonList(createRiBought(RI_SPEC_WINDOWS)));
+        final GetReservedInstanceBoughtByFilterRequest request =
+                GetReservedInstanceBoughtByFilterRequest.newBuilder().build();
+
+        // when
+        final GetReservedInstanceBoughtByFilterResponse response =
+                client.getReservedInstanceBoughtByFilter(request);
+
+        // then
+        final List<ReservedInstanceBought> reservedInstancesBought =
+                response.getReservedInstanceBoughtsList();
+        final ReservedInstanceBought riBought = reservedInstancesBought.iterator().next();
+        final double onDemandCost = riBought.getReservedInstanceBoughtInfo()
+                .getReservedInstanceDerivedCost().getOnDemandRatePerHour()
+                .getAmount();
+        Assert.assertEquals(TIER_PRICE + LICENSE_PRICE, onDemandCost, delta);
     }
 
     /**

@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
@@ -128,7 +129,8 @@ public class WidgetsetMapperTest {
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
 
         final GroupApiDTO mappedGroup = new GroupApiDTO();
-        when(groupMapper.toGroupApiDto(group)).thenReturn(mappedGroup);
+        when(groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)).thenReturn(
+                Collections.singletonMap(group.getId(), mappedGroup));
 
         // Two widgets, both scoped to the one group.
         final WidgetApiDTO widget1 = new WidgetApiDTO();
@@ -177,10 +179,9 @@ public class WidgetsetMapperTest {
             .build();
 
         final GroupApiDTO mappedGroup1 = new GroupApiDTO();
-        when(groupMapper.toGroupApiDto(group1)).thenReturn(mappedGroup1);
-
         final GroupApiDTO mappedGroup2 = new GroupApiDTO();
-        when(groupMapper.toGroupApiDto(group2)).thenReturn(mappedGroup2);
+        when(groupMapper.groupsToGroupApiDto(Arrays.asList(group1, group2), false)).thenReturn(
+                ImmutableMap.of(group1.getId(), mappedGroup1, group2.getId(), mappedGroup2));
 
         when(groupServiceBackend.getGroups(any())).thenReturn(Arrays.asList(group1, group2));
 
@@ -242,7 +243,8 @@ public class WidgetsetMapperTest {
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
 
         final GroupApiDTO mappedGroup = new GroupApiDTO();
-        when(groupMapper.toGroupApiDto(group)).thenReturn(mappedGroup);
+        when(groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)).thenReturn(
+                Collections.singletonMap(group.getId(), mappedGroup));
 
         final WidgetApiDTO widget1 = new WidgetApiDTO();
         widget1.setScope(groupScope);
@@ -274,7 +276,8 @@ public class WidgetsetMapperTest {
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
 
         final GroupApiDTO mappedGroup = new GroupApiDTO();
-        when(groupMapper.toGroupApiDto(group)).thenReturn(mappedGroup);
+        when(groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)).thenReturn(
+                Collections.singletonMap(group.getId(), mappedGroup));
 
         final WidgetApiDTO widget1 = new WidgetApiDTO();
         widget1.setScope(groupScope);
@@ -307,8 +310,8 @@ public class WidgetsetMapperTest {
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
 
         final GroupApiDTO mappedGroup = new GroupApiDTO();
-        when(groupMapper.toGroupApiDto(group)).thenReturn(mappedGroup);
-
+        when(groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)).thenReturn(
+                Collections.singletonMap(group.getId(), mappedGroup));
         // entity scope
         final BaseApiDTO entityScope = new BaseApiDTO();
         entityScope.setUuid("77");

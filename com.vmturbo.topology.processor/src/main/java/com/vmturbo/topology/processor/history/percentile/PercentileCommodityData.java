@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.history.percentile;
 
 import java.util.Collections;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -19,7 +20,7 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
  * Pre-calculated per-commodity field cache for percentile data.
  */
 public class PercentileCommodityData
-                implements IHistoryCommodityData<PercentileHistoricalEditorConfig, PercentileRecord> {
+                implements IHistoryCommodityData<PercentileHistoricalEditorConfig, PercentileRecord, PercentileRecord.Builder> {
     private static final Logger logger = LogManager.getLogger();
 
     private UtilizationCountStore utilizationCounts;
@@ -59,6 +60,12 @@ public class PercentileCommodityData
         } catch (HistoryCalculationException e) {
             logger.error("Failed to initialize percentile utilization storage for " + field, e);
         }
+    }
+
+    @Override
+    public PercentileRecord.Builder checkpoint(@Nonnull List<PercentileRecord> outdated)
+                    throws HistoryCalculationException {
+        return utilizationCounts.checkpoint(outdated);
     }
 
     @Override

@@ -26,6 +26,8 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessExcep
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -73,6 +75,12 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final long startAnalysisRetryMs;
 
+    private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService;
+
+    private final PlanReservedInstanceServiceBlockingStub planRIService;
+
+    private Long realtimeTopologyContextId;
+
     public PlanRpcService(@Nonnull final PlanDao planDao,
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
@@ -81,8 +89,11 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService,
                           @Nonnull final GroupServiceBlockingStub groupServiceClient,
                           @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient,
+                          @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
+                          @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
                           final long startAnalysisRetryTimeout,
-                          @Nonnull final TimeUnit startAnalysisRetryTimeUnit) {
+                          @Nonnull final TimeUnit startAnalysisRetryTimeUnit,
+                          final Long realtimeTopologyContextId) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
@@ -91,7 +102,10 @@ public class PlanRpcService extends PlanServiceImplBase {
         this.buyRIService = buyRIService;
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.repositoryServiceClient = Objects.requireNonNull(repositoryServiceClient);
+        this.planRIService = planRIService;
+        this.reservedInstanceBoughtService = reservedInstanceBoughtService;
         this.startAnalysisRetryMs = startAnalysisRetryTimeUnit.toMillis(startAnalysisRetryTimeout);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -101,6 +115,10 @@ public class PlanRpcService extends PlanServiceImplBase {
             final PlanInstance plan = planDao.createPlanInstance(request);
             responseObserver.onNext(plan);
             responseObserver.onCompleted();
+            // save the user selected RI/Coupons included in the plan.
+            PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
+                         planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
+            planRIClient.savePlanIncludedCoupons(plan);
             logger.info("Plan {} successfully created", plan.getPlanId());
         } catch (IntegrityException e) {
             logger.warn("Error creating a plan " + request, e);

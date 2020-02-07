@@ -13,7 +13,7 @@ import com.vmturbo.topology.processor.history.IHistoryCommodityData;
  * TODO dmitry provide weights from config
  */
 public class HistUtilizationCommodityData
-                implements IHistoryCommodityData<CachingHistoricalEditorConfig, Float> {
+                implements IHistoryCommodityData<CachingHistoricalEditorConfig, Float, Void> {
     private Float lastUsed;
 
     @Override

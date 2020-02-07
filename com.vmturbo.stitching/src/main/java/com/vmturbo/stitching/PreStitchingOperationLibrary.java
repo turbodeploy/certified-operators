@@ -20,6 +20,7 @@ import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOpe
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
+import com.vmturbo.stitching.prestitching.SharedVirtualVolumePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.StorageVolumePreStitchingOperation;
 
 /**
@@ -67,12 +68,7 @@ public class PreStitchingOperationLibrary {
                         stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
                                 SDKProbeType.HYPERV.getProbeType(), EntityType.DATACENTER)),
                 new StorageVolumePreStitchingOperation(),
-                new SharedEntityDefaultPreStitchingOperation(
-                        stitchingScopeFactory -> stitchingScopeFactory.probeCategoryEntityTypeScope(
-                                ProbeCategory.STORAGE_BROWSING, EntityType.VIRTUAL_VOLUME),
-                        Collections.singletonMap("common_dto.EntityDTO.VirtualVolumeData.file",
-                                Comparator.comparing(
-                                        lhs -> ((VirtualVolumeFileDescriptor)lhs).getPath()))),
+                new SharedVirtualVolumePreStitchingOperation(),
                 new ConnectedNetworkPreStitchingOperation(),
                 new SharedEntityDefaultPreStitchingOperation(
                         stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(

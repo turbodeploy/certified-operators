@@ -1,26 +1,20 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
@@ -29,16 +23,15 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -52,16 +45,12 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -70,20 +59,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -132,16 +111,6 @@ public class StatsService implements IStatsService {
 
     private final PlanServiceBlockingStub planRpcService;
 
-    private final Clock clock;
-
-    private final RepositoryApi repositoryApi;
-
-    private final RepositoryServiceBlockingStub repositoryRpcService;
-
-    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
-
-    private final GroupExpander groupExpander;
-
     private final StatsMapper statsMapper;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -149,8 +118,6 @@ public class StatsService implements IStatsService {
     private final MagicScopeGateway magicScopeGateway;
 
     private final UserSessionContext userSessionContext;
-
-    private final ServiceEntityMapper serviceEntityMapper;
 
     private final UuidMapper uuidMapper;
 
@@ -160,6 +127,8 @@ public class StatsService implements IStatsService {
      * For fetching plan entities and their related stats.
      */
     private final PlanEntityStatsFetcher planEntityStatsFetcher;
+
+    private final PaginatedStatsExecutor paginatedStatsExecutor;
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // TODO: we should share the enum instead of keeping a separate copy.
@@ -198,34 +167,24 @@ public class StatsService implements IStatsService {
 
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
-                 @Nonnull final RepositoryApi repositoryApi,
-                 @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
-                 @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                  @Nonnull final StatsMapper statsMapper,
-                 @Nonnull final GroupExpander groupExpander,
-                 @Nonnull final Clock clock,
                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                  @Nonnull final MagicScopeGateway magicScopeGateway,
                  @Nonnull final UserSessionContext userSessionContext,
-                 @Nonnull final ServiceEntityMapper serviceEntityMapper,
                  @Nonnull final UuidMapper uuidMapper,
                  @Nonnull final StatsQueryExecutor statsQueryExecutor,
-                 @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher) {
+                 @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
+                 @Nonnull final PaginatedStatsExecutor paginatedStatsExecutor) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
-        this.repositoryApi = Objects.requireNonNull(repositoryApi);
-        this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
-        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
-        this.clock = Objects.requireNonNull(clock);
-        this.groupExpander = groupExpander;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.magicScopeGateway = Objects.requireNonNull(magicScopeGateway);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
-        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.planEntityStatsFetcher = Objects.requireNonNull(planEntityStatsFetcher);
+        this.paginatedStatsExecutor = Objects.requireNonNull(paginatedStatsExecutor);
     }
 
     /**
@@ -331,27 +290,6 @@ public class StatsService implements IStatsService {
         }
 
         return statsQueryExecutor.getAggregateStats(apiId, inputDto);
-    }
-
-    /**
-     * When a stats query contains related entity types and a non-empty scope, then
-     * a supply chain traversal should bring all entities of the related entity types
-     * that are transitively connected to the scope.  This is the role of this method.
-     * If the list of related entity types is empty, then the method will return
-     * without traversing the supply chain.
-     *
-     * @param entityIds scope of the stats query.
-     * @param relatedEntityTypes a list of related entity types.
-     * @return the set of all entity ids after the supply chain traversal
-     * @throws OperationFailedException supply chain traversal failed
-     */
-    @Nonnull
-    private Set<Long> performSupplyChainTraversal(
-            @Nonnull Set<Long> entityIds,
-            @Nonnull List<String> relatedEntityTypes
-    ) throws OperationFailedException {
-        return relatedEntityTypes.isEmpty() ? entityIds
-                    : supplyChainFetcherFactory.expandScope(entityIds, relatedEntityTypes);
     }
 
     private Optional<PlanInstance> getRequestedPlanInstance(@Nonnull final StatScopesApiInputDTO inputDto) {
@@ -514,368 +452,6 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     * Get the scope that a {@link StatScopesApiInputDTO} is trying to select. This includes,
-     * for example, expanding groups, or getting the IDs of related entities. Calling this method
-     * may result in one or more remote calls to other components.
-     * m
-     * @param inputDto The {@link StatScopesApiInputDTO}.
-     * @return A set of entity OIDs of entities in the scope.
-     * @throws OperationFailedException If any part of the operation failed.
-     */
-    @Nonnull
-    private Set<Long> getExpandedScope(@Nonnull final StatScopesApiInputDTO inputDto)
-                throws OperationFailedException {
-        final Set<Long> expandedUuids;
-        final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
-                // Treat unknown type as non-existent.
-                .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
-        // Market stats request must be the only uuid in the scopes list
-        if (isMarketScoped(inputDto)) {
-            // 'relatedType' is required for full market entity stats
-            if (!relatedType.isPresent()) {
-                throw new IllegalArgumentException("Cannot request individual stats for full " +
-                        "Market without specifying 'relatedType'");
-            }
-
-            // if the user is scoped, we will request the subset of entity oids in the user scope
-            // that match the related type.
-            if (userSessionContext.isUserScoped()) {
-                expandedUuids = userSessionContext.getUserAccessScope()
-                        .getAccessibleOidsByEntityType(relatedType.get())
-                        .toSet();
-                logger.debug("getExpandedScope() using cached oids for scoped user. found {} oids for related entity type {}",
-                        expandedUuids.size(), relatedType.get());
-            } else {
-                // otherwise, use a supply chain query to get them
-                final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
-                        .entityTypes(Collections.singletonList(relatedType.get()))
-                        .fetch();
-                final SupplyChainNode relatedTypeNode = result.get(relatedType.get());
-                expandedUuids = relatedTypeNode == null ?
-                        Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
-            }
-        } else {
-            // Expand scopes list to determine the list of entity OIDs to query for this operation
-            final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
-
-            // This shouldn't happen, because we handle the full market case earlier on.
-            Preconditions.checkArgument(UuidMapper.hasLimitedScope(seedUuids));
-
-            // Collect related entity types: if there are any we must perform supply chain traversal
-            final List<String> relatedEntityTypes = new ArrayList<>();
-            relatedType.ifPresent(relatedEntityTypes::add);
-            if (inputDto.getPeriod() != null && inputDto.getPeriod().getStatistics() != null) {
-                relatedEntityTypes.addAll(
-                    inputDto.getPeriod().getStatistics().stream()
-                        .map(StatApiInputDTO::getRelatedEntityType)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList()));
-            }
-
-            // Expand groups and perform supply chain traversal with the resulting seed
-            // Note that supply chain traversal will not happen if the list of related entity
-            // types is empty
-
-            Set<Long> uuids = groupExpander.expandUuids(seedUuids);
-            if (uuids.isEmpty()) {
-                return Collections.emptySet();
-            }
-            expandedUuids =
-                performSupplyChainTraversal(uuids, relatedEntityTypes);
-
-            // if the user is scoped, we will filter the entities according to their scope
-            if (userSessionContext.isUserScoped()) {
-                return userSessionContext.getUserAccessScope().filter(expandedUuids);
-            }
-        }
-        return expandedUuids;
-    }
-
-    /**
-     * Get the {@link EntityStatsScope} scope that a {@link StatScopesApiInputDTO} is trying to
-     * select. This includes everything implied by {@link StatsService#getExpandedScope(StatScopesApiInputDTO)}
-     * as well as optimizations to handle requesting stats for all entities from the global
-     * market or a global temp group.
-     *
-     * @param inputDto The {@link StatScopesApiInputDTO}.
-     * @return A {@link EntityStatsScope} object to use for the query.
-     * @throws OperationFailedException If any part of the operation failed.
-     */
-    @Nonnull
-    @VisibleForTesting
-    protected EntityStatsScope createEntityStatsScope(@Nonnull final StatScopesApiInputDTO inputDto)
-            throws OperationFailedException {
-        final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
-        final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
-                // Treat unknown type as non-existent.
-                .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
-        // Market stats request must be the only uuid in the scopes list
-        if (isMarketScoped(inputDto)) {
-            // 'relatedType' is required for full market entity stats
-            if (!relatedType.isPresent()) {
-                throw new IllegalArgumentException("Cannot request individual stats for full " +
-                        "Market without specifying 'relatedType'");
-            }
-
-            // if the user is scoped, set this request to the set of in-scope entities of the
-            // requested 'relatedType'
-            if (userSessionContext.isUserScoped()) {
-                entityStatsScope.setEntityList(EntityList.newBuilder()
-                        .addAllEntities(userSessionContext.getUserAccessScope()
-                                .getAccessibleOidsByEntityType(relatedType.get()))
-                        .build());
-            } else {
-                // Otherwise, just set the entityType field on the stats scope.
-                entityStatsScope.setEntityType(UIEntityType.fromString(relatedType.get()).typeNumber());
-            }
-        } else if (inputDto.getScopes().size() == 1) {
-            // Check if we can do the global entity type optimization.
-            final Optional<Integer> globalEntityType =
-                    getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
-            final Optional<Integer> relatedTypeInt = relatedType
-                .map(UIEntityType::fromString)
-                .map(UIEntityType::typeNumber);
-            if (globalEntityType.isPresent()
-                    // We can only do the global entity type optimization if the related type
-                    // is unset, or is the same as the global entity type. Why? Because the
-                    // topology graph may not be connected. For example, suppose global entity type
-                    // is PM and related type is VM. We can't just set the entity stats scope to
-                    // VM, because there may be VMs not connected to PMs (e.g. in the cloud).
-                    && (!relatedTypeInt.isPresent() || relatedTypeInt.equals(globalEntityType))
-            ) {
-                // if the user is scoped, set this request to the set of in-scope entities of the
-                // requested 'relatedType'. Note that this is different than classic, which applies
-                // the regular scope check to the global temp group, resulting in "no access".
-                // TODO: Perhaps we should do the same, but it feels like a bug.
-                if (userSessionContext.isUserScoped()) {
-                    entityStatsScope.setEntityList(EntityList.newBuilder()
-                        .addAllEntities(userSessionContext.getUserAccessScope()
-                            .getAccessibleOidsByEntityType(
-                                UIEntityType.fromType(globalEntityType.get()).apiStr()))
-                        .build());
-                } else {
-                    entityStatsScope.setEntityType(globalEntityType.get());
-                }
-            } else {
-                entityStatsScope.setEntityList(EntityList.newBuilder()
-                        .addAllEntities(getExpandedScope(inputDto)));
-            }
-        } else {
-            entityStatsScope.setEntityList(EntityList.newBuilder()
-                    .addAllEntities(getExpandedScope(inputDto)));
-        }
-        Preconditions.checkArgument(entityStatsScope.hasEntityList() || entityStatsScope.hasEntityType());
-        return entityStatsScope.build();
-    }
-
-    /**
-     * Get per-entity stats of live entities (i.e. entities in the real topology, as opposed
-     * to plan entities).
-     *
-     * @param inputDto contains the query arguments; the 'scopes' property indicates a list of
-     *                 items to query - might be Group, Cluster, or ServiceEntity.
-     * @param paginationRequest parameters related to pagination
-     * @throws OperationFailedException exception thrown if the scope can not be recognized
-     */
-    @Nonnull
-    @VisibleForTesting
-    protected EntityStatsPaginationResponse getLiveEntityStats(
-                    @Nonnull final StatScopesApiInputDTO inputDto,
-                    @Nonnull final EntityStatsPaginationRequest paginationRequest)
-                throws OperationFailedException {
-        // 1. Request the next page of entity stats from the proper service.
-
-        // This variable will be set to the next page of per-entity stats.
-        final List<EntityStats> nextStatsPage;
-        // This variable will be set to the pagination response.
-        final Optional<Pagination.PaginationResponse> paginationResponseOpt;
-
-        final long clockTimeNow = clock.millis();
-
-        // Is the startDate in the past?
-        // If so (or if no startDate is provided), historical stats will be retrieved
-        final Optional<StatPeriodApiInputDTO> period = Optional.ofNullable(inputDto.getPeriod());
-        final boolean historicalStatsRequest = period
-                .map(StatPeriodApiInputDTO::getStartDate)
-                .map(startDate -> DateTimeUtil.parseTime(startDate) < clockTimeNow)
-                .orElse(true);
-
-        // Is the endDate in the future?
-        // If so (and if historical stats are not being retrieved), projections will be retrieved
-        // If no end date is provided, projections will not be retrieved under any circumstances
-        final boolean projectedStatsRequest = period
-                .map(StatPeriodApiInputDTO::getEndDate)
-                .map(endDate -> DateTimeUtil.parseTime(endDate) > clockTimeNow)
-                .orElse(false);
-
-        // if the relatedType is a grouping entity like DataCenter, we should first expand
-        // original scopes to DataCenters, then for each DataCenter, expand to PMs, then
-        // aggregated stats on them and use that as the stats for the DataCenter
-        final boolean containsEntityGroupScope = containsEntityGroupScope(inputDto);
-
-        if (historicalStatsRequest) {
-            // For historical requests, we use the EntityStatsScope object
-            // which has some optimizations to deal with global requests.
-            final EntityStatsScope entityStatsScope;
-            if (containsEntityGroupScope) {
-                // create stats scope which will be used to get aggregated stats for each
-                // seedEntity (based on derived members)
-                entityStatsScope = createEntityGroupsStatsScope(inputDto);
-            } else {
-                entityStatsScope = createEntityStatsScope(inputDto);
-            }
-            // fetch the historical stats for the given entities using the given search spec
-            final GetEntityStatsResponse statsResponse = statsServiceRpc.getEntityStats(
-                statsMapper.toEntityStatsRequest(entityStatsScope, inputDto.getPeriod(),
-                    paginationRequest));
-            nextStatsPage = statsResponse.getEntityStatsList();
-            paginationResponseOpt = statsResponse.hasPaginationResponse() ?
-                Optional.of(statsResponse.getPaginationResponse()) : Optional.empty();
-        } else if (projectedStatsRequest) {
-            // The projected stats service doesn't support the global entity type optimization,
-            // because at the time of this writing there are no requests for projected
-            // per-entity stats on the global scope, and it would require modifications
-            // to the way we store projected stats.
-            final EntityStatsScope entityStatsScope;
-            if (containsEntityGroupScope) {
-                entityStatsScope = createEntityGroupsStatsScope(inputDto);
-            } else {
-                entityStatsScope = EntityStatsScope.newBuilder()
-                    .setEntityList(EntityList.newBuilder()
-                        .addAllEntities(getExpandedScope(inputDto)))
-                    .build();
-            }
-            final ProjectedEntityStatsResponse projectedStatsResponse =
-                statsServiceRpc.getProjectedEntityStats(statsMapper.toProjectedEntityStatsRequest(
-                    entityStatsScope, inputDto.getPeriod(), paginationRequest));
-
-            nextStatsPage = projectedStatsResponse.getEntityStatsList();
-            paginationResponseOpt = projectedStatsResponse.hasPaginationResponse() ?
-                    Optional.of(projectedStatsResponse.getPaginationResponse()) : Optional.empty();
-        } else {
-            throw new OperationFailedException("Invalid start and end date combination.");
-        }
-
-        // 2. Get additional display info for all entities in the page from the repository.
-        final Set<Long> entitiesWithStats = nextStatsPage.stream()
-                .map(EntityStats::getOid)
-                .collect(Collectors.toSet());
-
-        final Map<Long, MinimalEntity> entities = repositoryApi.entitiesRequest(entitiesWithStats)
-            .getMinimalEntities()
-            .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
-
-        // 3. Combine the results of 1. and 2. and return.
-        final List<EntityStatsApiDTO> dto = nextStatsPage.stream()
-            .map(entityStats -> {
-                final Optional<MinimalEntity> apiDto = Optional.ofNullable(entities.get(entityStats.getOid()));
-                return apiDto.map(seApiDto -> constructEntityStatsDto(seApiDto,
-                        projectedStatsRequest, entityStats, inputDto));
-            })
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
-
-        return paginationResponseOpt
-            .map(paginationResponse ->
-                PaginationProtoUtil.getNextCursor(paginationResponse)
-                    .map(nextCursor -> paginationRequest.nextPageResponse(dto, nextCursor, paginationResponse.getTotalRecordCount()))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(dto, paginationResponse.getTotalRecordCount())))
-            .orElseGet(() -> paginationRequest.allResultsResponse(dto));
-    }
-
-    /**
-     * Check if the given scope uuids contains any scope whose stats should be aggregated on a
-     * group of entities, meaning derived entities from the scope, like from DC to PMs.
-     *
-     * @param inputDto contains the query arguments; the 'scopes' property indicates a list of
-     *                 items to query - might be Group, Cluster, or ServiceEntity.
-     * @return true of the inputDto contains any scope which should be treated as aggregated scope
-     * @throws OperationFailedException exception thrown if the scope can not be recognized
-     */
-    private boolean containsEntityGroupScope(@Nonnull StatScopesApiInputDTO inputDto)
-            throws OperationFailedException {
-        // if scope is empty, then it doesn't contain aggregated scope, returning false so
-        // it will create normal EntityStatsScope in the request
-        final List<String> scopes = inputDto.getScopes();
-        if (CollectionUtils.isEmpty(scopes)) {
-            return false;
-        }
-
-        // if relatedType is a type (like DataCenter) whose stats should be aggregated on its
-        // derived entities (like PMs), then it's aggregated scope, otherwise not
-        final String relatedType = inputDto.getRelatedType();
-        if (relatedType != null) {
-            return statsMapper.shouldNormalize(relatedType);
-        }
-
-        // if relatedType is not set, it should return one aggregated stats for each scope,
-        // if any of the given scope is a type of scope whose stats should be aggregated on
-        // derived entities, then we should use getAggregatedEntityStats for all; if not, then
-        // we should use getEntityStats for better performance
-        for (String scope : scopes) {
-            final ApiId apiId = uuidMapper.fromUuid(scope);
-            // return one aggregated stats for the group, since relatedType is not set
-            if (apiId.isGroup()) {
-                return true;
-            }
-            // this is not a group, but an entity (or market, which doesn't have entity type).
-            // if the entity is a grouping entity, it should be handled by getAggregatedEntityStats
-            Optional<Set<UIEntityType>> scopeTypes = apiId.getScopeTypes();
-
-            if (scopeTypes.isPresent() && scopeTypes.get().stream()
-                            .map(UIEntityType::apiStr)
-                            .anyMatch(statsMapper::shouldNormalize)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Create list of EntityGroups and wrap it in a EntityStatsScope, which will be used in the
-     * request to history component. It first tries to expand given scopes to entities of related
-     * types, and then for each related entity, expands to derived entities if necessary.
-     *
-     * @param inputDto contains the query arguments for the stats, like scopes, commodities,
-     *                 relatedType, etc.
-     * @return list of aggregated entities
-     * @throws OperationFailedException exception thrown if expanding scope failed
-     */
-    private EntityStatsScope createEntityGroupsStatsScope(@Nonnull StatScopesApiInputDTO inputDto)
-            throws OperationFailedException {
-        // first try to expand to related types if defined, these are the entities which
-        // will be returned one by one in stats response
-        final Set<Long> seedEntities = getExpandedScope(inputDto);
-
-        // for each seedEntity, find derived entities which will be used to aggregate stats on
-        final List<EntityGroup> entityGroups = new ArrayList<>();
-        final String relatedType = inputDto.getRelatedType();
-        for (Long seedEntity : seedEntities) {
-            final Set<Long> derivedEntities;
-            if (relatedType != null && statsMapper.shouldNormalize(relatedType)) {
-                // expand seedEntity to 'member' entities, like: from DC to PMs
-                derivedEntities = supplyChainFetcherFactory.expandScope(
-                    Sets.newHashSet(seedEntity), Lists.newArrayList(
-                        statsMapper.normalizeRelatedType(relatedType)));
-            } else {
-                // try to expand grouping entity, since seedEntity can be DataCenter
-                derivedEntities = supplyChainFetcherFactory.expandAggregatedEntities(
-                    Collections.singleton(seedEntity));
-            }
-            entityGroups.add(EntityGroup.newBuilder()
-                .setSeedEntity(seedEntity)
-                .addAllEntities(derivedEntities)
-                .build());
-        }
-
-        return EntityStatsScope.newBuilder()
-            .setEntityGroupList(EntityGroupList.newBuilder()
-                .addAllGroups(entityGroups))
-            .build();
-    }
-
-    /**
      * Return stats for multiple entities by expanding the scopes field
      * of the {@link StatScopesApiInputDTO}.
      *
@@ -928,7 +504,7 @@ public class StatsService implements IStatsService {
         } else if (isClusterStatsRequest(inputDto)) {
             return getClusterEntityStats(inputDto, paginationRequest);
         } else {
-            return getLiveEntityStats(inputDto, paginationRequest);
+            return paginatedStatsExecutor.getLiveEntityStats(inputDto, paginationRequest);
         }
     }
 
@@ -1022,59 +598,9 @@ public class StatsService implements IStatsService {
      * @param inputDto the request object ot check
      * @return true, if the request is found to be a market-scoped rqeuest. false otherwise.
      */
-    public boolean isMarketScoped(StatScopesApiInputDTO inputDto) {
+    public static boolean isMarketScoped(StatScopesApiInputDTO inputDto) {
         return (inputDto.getScopes().isEmpty() || inputDto.getScopes().stream()
                 .anyMatch(scope -> scope.equals(MarketMapper.MARKET)));
-    }
-
-    /**
-     * Create a {@link EntityStatsApiDTO} that can be returned to the client, given all the
-     * necessary information retrieved from history/repository.
-     *
-     * @param serviceEntity The {@link ServiceEntityApiDTO} from which to get the entity-based fields.
-     * @param projectedStatsRequest Whether or not the request was for projected stats. Note - we
-     *                              pass this in instead of re-determining it from the inputDto
-     *                              because time will have passed from the start of the API call
-     *                              to the point at which we construct {@link EntityStatsApiDTO}s.
-     * @param entityStats The {@link EntityStats} from which to get stats values.
-     * @param inputDto The {@link StatScopesApiInputDTO} for the stats query.
-     * @return A fully configured {@link EntityStatsApiDTO}.
-     */
-    @Nonnull
-    private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity,
-                                                      final boolean projectedStatsRequest,
-                                                      final EntityStats entityStats,
-                                                      @Nonnull final StatScopesApiInputDTO inputDto) {
-        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-        entityStatsApiDTO.setUuid(Long.toString(serviceEntity.getOid()));
-        entityStatsApiDTO.setClassName(UIEntityType.fromType(serviceEntity.getEntityType()).apiStr());
-        entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
-        entityStatsApiDTO.setStats(new ArrayList<>());
-        if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
-            // we expect either zero or one snapshot for each entity
-            if (entityStats.getStatSnapshotsCount() > 1) {
-                // this indicates a bug in History Component
-                logger.error("Too many entity stats ({}) for: {} -> {}; taking the first.",
-                        entityStats.getStatSnapshotsCount(),
-                        entityStats.getOid(),
-                        entityStats.getStatSnapshotsList());
-            }
-            entityStats.getStatSnapshotsList().stream()
-                    .findFirst()
-                    .map(statsMapper::toStatSnapshotApiDTO)
-                    .map(statApiDto -> {
-                        // set the time of the snapshot to "future" using the "endDate" of the request
-                        // in the
-                        Optional.ofNullable(inputDto.getPeriod())
-                                .map(StatPeriodApiInputDTO::getEndDate)
-                                .ifPresent(statApiDto::setDate);
-                        return statApiDto;
-                    })
-                    .ifPresent(statApiDto -> entityStatsApiDTO.getStats().add(statApiDto));
-        } else {
-            entityStatsApiDTO.getStats().addAll(statsMapper.toStatsSnapshotApiDtoList(entityStats));
-        }
-        return entityStatsApiDTO;
     }
 
     /**

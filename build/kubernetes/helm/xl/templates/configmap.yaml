@@ -477,9 +477,19 @@ data:
             # How often to checkpoint the percentile cache in the persistence store
             historyAggregation.percentileMaintenanceWindowHours: 24
             # The maximum message size for serializing percentile blobs
+            # Typical size for 10 millions of commodities is 120mb
+            historyAggregation.grpcChannelMaxMessageSizeKb: 204800
             # Whether to enable consistent scaling
             consistentScalingEnabled: true
             enableInternalProbes: false
+            # How many timeslot-related commodities trigger background history loading vs synchronous
+            historyAggregation.backgroundLoadingThreshold: 5000
+            # How many background history loading retries are tolerated before stopping and sending up a notification
+            historyAggregation.backgroundLoadingRetries: 3
+            # How long a single background loading attempt is allowed to take before failing
+            historyAggregation.backgroundLoadingTimeoutMin: 60
+            # How often to expire the timeslot cached data going out of observation window
+            historyAggregation.timeslotMaintenanceWindowHours: 23
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

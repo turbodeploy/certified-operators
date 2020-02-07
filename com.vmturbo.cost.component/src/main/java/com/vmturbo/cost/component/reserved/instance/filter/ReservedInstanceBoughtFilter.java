@@ -20,7 +20,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
 
     public static final ReservedInstanceBoughtFilter SELECT_ALL_FILTER = newBuilder().build();
 
-    private ReservedInstanceBoughtFilter(@Nonnull Builder builder) {
+    protected ReservedInstanceBoughtFilter(@Nonnull Builder builder) {
         super(builder);
      }
 

@@ -159,36 +159,49 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     @Nullable
     @Override
     public Map<String, EntityAspect> mapOneToManyAspects(@Nullable List<TopologyEntityDTO> entities, @Nullable EntityAspect entityAspect) {
-        if (Objects.isNull(entityAspect) || !entityAspect.getType().equals("VirtualDisksAspectApiDTO")) {
+        if (Objects.isNull(entityAspect)
+            || !(entityAspect instanceof VirtualDisksAspectApiDTO)) {
+            return null;
+        }
+        final VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = (VirtualDisksAspectApiDTO)entityAspect;
+        if (virtualDisksAspectApiDTO.getVirtualDisks() == null) {
+            return null;
+        }
+        if (CollectionUtils.isEmpty(entities)) {
             return null;
         }
         Function<VirtualDiskApiDTO, String> getIdentifier;
         final int entityType = entities.get(0).getEntityType();
         switch (entityType) {
             case EntityType.VIRTUAL_VOLUME_VALUE:
-                getIdentifier = (entity) -> entity.getUuid();
+                getIdentifier = (entity) -> entity.getUuid() != null
+                    ? entity.getUuid() : "";
                 break;
             case EntityType.STORAGE_TIER_VALUE:
-                getIdentifier = (entity) -> entity.getTier();
+                getIdentifier = (entity) -> entity.getTier() != null
+                    ? entity.getTier() : "";
                 break;
             case EntityType.VIRTUAL_MACHINE_VALUE:
                 getIdentifier = (entity) -> entity.getAttachedVirtualMachine() != null
-                    ? entity.getAttachedVirtualMachine().getUuid() : null;
+                    ? entity.getAttachedVirtualMachine().getUuid() : "";
                 break;
             case EntityType.STORAGE_VALUE:
-                getIdentifier = (entity) -> entity.getUuid();
+                getIdentifier = (entity) -> entity.getProvider() != null
+                    ? entity.getProvider().getUuid() : "";
                 break;
             default:
                 return null;
         }
 
         Map<String, EntityAspect> uuidToMergedAspect = new HashMap<>();
-        ((VirtualDisksAspectApiDTO)entityAspect).getVirtualDisks().stream()
+        virtualDisksAspectApiDTO.getVirtualDisks().stream()
                 .collect(Collectors.groupingBy(getIdentifier))
                 .forEach((identifier, virtualDiskApiDTOList) -> {
-                    final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
-                    aspect.setVirtualDisks(virtualDiskApiDTOList);
-                    uuidToMergedAspect.put(identifier, aspect);
+                    if (!identifier.isEmpty()) {
+                        final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
+                        aspect.setVirtualDisks(virtualDiskApiDTOList);
+                        uuidToMergedAspect.put(identifier, aspect);
+                    }
                 });
         return uuidToMergedAspect;
     }
@@ -595,6 +608,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     private VirtualDiskApiDTO fileToDiskApiDto(TopologyEntityDTO storage,
                                                VirtualVolumeFileDescriptor file) {
         VirtualDiskApiDTO retVal = new VirtualDiskApiDTO();
+        retVal.setUuid(storage.getOid() + file.getPath());
         retVal.setDisplayName(file.getPath());
         retVal.setEnvironmentType(EnvironmentType.ONPREM);
         retVal.setProvider(ServiceEntityMapper.toBasicEntity(storage));
