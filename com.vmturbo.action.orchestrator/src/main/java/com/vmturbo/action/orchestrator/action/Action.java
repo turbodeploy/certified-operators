@@ -486,7 +486,7 @@ public class Action implements ActionView {
     }
 
     private boolean hasNonEmptyStringSetting(Optional<SettingProto.Setting> settingOpt) {
-        return settingOpt.map(setting -> hasNonEmptyStringValue(setting)).orElse(false);
+        return settingOpt.map(this::hasNonEmptyStringValue).orElse(false);
     }
 
     private boolean hasNonEmptyStringValue(Setting setting) {
@@ -692,7 +692,7 @@ public class Action implements ActionView {
 
     @Override
     public boolean hasPendingExecution() {
-        return currentExecutableStep.map(step -> hasPendingExecution(step)).orElse(false);
+        return currentExecutableStep.map(this::hasPendingExecution).orElse(false);
     }
 
     private boolean hasPendingExecution(@Nonnull ExecutableStep step) {
@@ -766,10 +766,7 @@ public class Action implements ActionView {
         // Add the current executable step to the map of all steps with the IN_PROGRESS key
         executableSteps.put(getState(), currentExecutableStep.get());
         // Mark the main execution step of this action as in-progress
-        updateExecutionStatus(step -> {
-                step.execute();
-            }, event.getEventName()
-        );
+        updateExecutionStatus(ExecutableStep::execute, event.getEventName());
     }
 
     /**
@@ -782,10 +779,7 @@ public class Action implements ActionView {
         // tracking the primary action execution
         replaceExecutionStep(event.getEventName());
         // Mark the main execution step of this action as in-progress
-        updateExecutionStatus(step -> {
-                step.execute();
-            }, event.getEventName()
-        );
+        updateExecutionStatus(ExecutableStep::execute, event.getEventName());
     }
 
     void onActionProgress(@Nonnull final ProgressEvent event) {
@@ -851,10 +845,7 @@ public class Action implements ActionView {
             // tracking the POST action execution
             replaceExecutionStep(event.getEventName());
             // Mark the main execution step of this action as in-progress
-            updateExecutionStatus(step -> {
-                    step.execute();
-                }, event.getEventName()
-            );
+            updateExecutionStatus(ExecutableStep::execute, event.getEventName());
             // ActionStateUpdater will kick off the actual execution of the POST workflow
         }
     }
@@ -1098,8 +1089,7 @@ public class Action implements ActionView {
             this.actionCategory = action.getActionCategory();
             this.associatedAccountId = action.getAssociatedAccount().orElse(null);
             this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
-            this.actionDetailData = action.getDescription() == null
-                ? null : action.getDescription().getBytes();
+            this.actionDetailData = action.getDescription().getBytes();
         }
 
         public SerializationState(final long actionPlanId,
