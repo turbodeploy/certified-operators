@@ -5,15 +5,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-import com.arangodb.Protocol;
-
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +18,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
@@ -42,13 +39,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBas
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.OsCommandProcessRunner;
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
-import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
-import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.migration.Migration;
-import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -360,7 +351,7 @@ public class RepositoryComponent extends BaseVmtComponent {
      */
     @Bean
     public RepositoryMigrationsLibrary repositoryMigrationsLibrary() {
-        return new RepositoryMigrationsLibrary(arangoDatabaseFactory());
+        return new RepositoryMigrationsLibrary(repositoryComponentConfig.arangoDatabaseFactory());
     }
 
     @Nonnull
