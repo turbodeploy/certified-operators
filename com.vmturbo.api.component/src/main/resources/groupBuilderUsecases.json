@@ -88,7 +88,12 @@
     },
 
     "ApplicationComponent" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"}]
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByService"}
+        ]
     },
 
     "BusinessApplication" : {
