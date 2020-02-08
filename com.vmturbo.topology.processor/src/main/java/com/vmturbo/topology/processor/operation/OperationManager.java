@@ -994,19 +994,19 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
-                                          @Nonnull final DiscoveryResponse response) {
-        final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
-        final DiscoveryResponse newFormatResponse = new AppComponentConverter().convertResponse(response);
+                                          @Nonnull final DiscoveryResponse oldFormatResponse) {
+        final boolean success = !hasGeneralCriticalError(oldFormatResponse.getErrorDTOList());
+        final DiscoveryResponse response = new AppComponentConverter().convertResponse(oldFormatResponse);
         // Discovery response changed since last discovery
-        final boolean change = !newFormatResponse.hasNoChange();
+        final boolean change = !response.hasNoChange();
         final long targetId = discovery.getTargetId();
         // pjs: these discovery results can be pretty huge, (i.e. the cloud price discovery is over
         // 100 mb of json), so I'm splitting this into two messages, a debug and trace version so
         // you don't get large response dumps by accident. Maybe we should have a toggle that
         // controls whether the actual response is logged instead.
         logger.debug("Received discovery result from target {}: {} bytes",
-                targetId, newFormatResponse.getSerializedSize());
-        logger.trace("Discovery result from target {}: {}", targetId, newFormatResponse);
+                targetId, response.getSerializedSize());
+        logger.trace("Discovery result from target {}: {}", targetId, response);
         if (!change) {
             logger.info("No change since last discovery of target {}", targetId);
         }
@@ -1034,23 +1034,23 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         // the topological information will be inconsistent. (ie if the entities are placed in the
                         // entityStore but the discoveredGroupUploader throws an exception, the entity and group
                         // information will be inconsistent with each other because we do not roll back on failure.
-                        entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, newFormatResponse.getEntityDTOList());
-                        discoveredGroupUploader.setTargetDiscoveredGroups(targetId, newFormatResponse.getDiscoveredGroupList());
+                        entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, response.getEntityDTOList());
+                        discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                         discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(targetId,
-                            newFormatResponse.getEntityProfileList(), newFormatResponse.getDeploymentProfileList(),
-                            newFormatResponse.getEntityDTOList());
+                            response.getEntityProfileList(), response.getDeploymentProfileList(),
+                            response.getEntityDTOList());
                         discoveredWorkflowUploader.setTargetWorkflows(targetId,
-                            newFormatResponse.getWorkflowList());
-                        DISCOVERY_SIZE_SUMMARY.observe((double)newFormatResponse.getEntityDTOCount());
-                        derivedTargetParser.instantiateDerivedTargets(targetId, newFormatResponse.getDerivedTargetList());
+                            response.getWorkflowList());
+                        DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
+                        derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                         discoveredCloudCostUploader.recordTargetCostData(targetId,
                                 targetStore.getProbeTypeForTarget(targetId), discovery,
-                            newFormatResponse.getNonMarketEntityDTOList(), newFormatResponse.getCostDTOList(),
-                            newFormatResponse.getPriceTable());
-                        if (newFormatResponse.hasDiscoveryContext()) {
-                            currentTargetDiscoveryContext.put(targetId, newFormatResponse.getDiscoveryContext());
+                            response.getNonMarketEntityDTOList(), response.getCostDTOList(),
+                            response.getPriceTable());
+                        if (response.hasDiscoveryContext()) {
+                            currentTargetDiscoveryContext.put(targetId, response.getDiscoveryContext());
                         }
-                        systemNotificationProducer.sendSystemNotification(newFormatResponse.getNotificationList(), target.get());
+                        systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
                         if (discoveryDumper != null) {
                             final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
                             String displayName = target.isPresent()
@@ -1061,10 +1061,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 // make sure we have up-to-date settings if this is a user-initiated discovery
                                 targetDumpingSettings.refreshSettings();
                             }
-                            discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, newFormatResponse, new ArrayList<>());
+                            discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
                         }
                         // Flows
-                        matrix.update(newFormatResponse.getFlowDTOList());
+                        matrix.update(response.getFlowDTOList());
                     } catch (TargetNotFoundException e) {
                         final String message = "Failed to process discovery for target "
                                 + targetId
@@ -1084,7 +1084,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     return;
                 }
             }
-            operationComplete(discovery, success, newFormatResponse.getErrorDTOList());
+            operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |
                 IdentityProviderException | RuntimeException e) {
             final String messageDetail = e.getLocalizedMessage() != null

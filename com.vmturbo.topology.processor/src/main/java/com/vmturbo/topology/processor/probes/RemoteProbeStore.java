@@ -15,14 +15,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -30,6 +30,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.conversions.AppComponentConverter;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -92,7 +93,7 @@ public class RemoteProbeStore implements ProbeStore {
                 try {
                     final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
                     JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
-                    return probeInfoBuilder.build();
+                    return new AppComponentConverter().convertProbeInfo(probeInfoBuilder.build());
                 } catch (InvalidProtocolBufferException e){
                     logger.error("Failed to load probe info from Consul.");
                     return null;
@@ -120,11 +121,12 @@ public class RemoteProbeStore implements ProbeStore {
      * {@inheritDoc}
      */
     @Override
-    public boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
+    public boolean registerNewProbe(@Nonnull ProbeInfo oldProbeInfo,
                     @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport)
                     throws ProbeException {
-        Objects.requireNonNull(probeInfo, "Probe info should not be null");
+        Objects.requireNonNull(oldProbeInfo, "Probe info should not be null");
         Objects.requireNonNull(transport, "Transport should not be null");
+        final ProbeInfo probeInfo = new AppComponentConverter().convertProbeInfo(oldProbeInfo);
 
         synchronized (dataLock) {
             final long probeId;
