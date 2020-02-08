@@ -5,8 +5,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -15,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -73,7 +75,7 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
- *
+ * Unit tests for {@link PriceTableUploader}.
  */
 public class PriceTableUploaderTest {
 
@@ -110,7 +112,9 @@ public class PriceTableUploaderTest {
 
     private TargetStore targetStore = mock(TargetStore.class);
 
-    Map<String,Long> cloudOidByLocalId;
+    private Map<String, Long> cloudOidByLocalId;
+
+    private SpotPriceTableConverter spotPriceTableConverter;
 
     private PriceTableUploader priceTableUploader;
 
@@ -121,8 +125,9 @@ public class PriceTableUploaderTest {
         cloudOidByLocalId.put(COMPUTE_TIER_ONE, 10L);
         cloudOidByLocalId.put(DB_TIER_ONE, 20L);
         cloudOidByLocalId.put(AWS_STORAGE_TIER_ONE, 30L);
+        spotPriceTableConverter = spy(SpotPriceTableConverter.class);
         priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
-                100, targetStore);
+                100, targetStore, spotPriceTableConverter);
         when(targetStore.getProbeTypeForTarget(TARGET_ID)).thenReturn(Optional.of(SDKProbeType.AWS));
     }
 
@@ -149,6 +154,7 @@ public class PriceTableUploaderTest {
                                                             .setAmount(1.0)))))))
                 .build();
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
+        verify(spotPriceTableConverter, times(1)).convertSpotPrices(any(), any());
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
@@ -320,7 +326,7 @@ public class PriceTableUploaderTest {
             .addReservedInstancePriceTable(createReservedInstancePriceTableNoTier(REGION_ENTITY_BUILDER))
             .build();
         final List<ReservedInstanceSpecPrice> riSpecPrices =
-            priceTableUploader.getRISpecPrices(sourcePriceTable, cloudOidByLocalId);
+            PriceTableUploader.getRISpecPrices(sourcePriceTable, cloudOidByLocalId);
         Assert.assertEquals(1, riSpecPrices.size());
         Assert.assertEquals((long)cloudOidByLocalId.get(COMPUTE_TIER_ONE),
             riSpecPrices.get(0).getRiSpecInfo().getTierId());
@@ -351,7 +357,7 @@ public class PriceTableUploaderTest {
         Mockito.verify(appender, Mockito.atLeastOnce()).appendString(argumentCaptor.capture());
 
         PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
-                100, targetStore);
+                100, targetStore, spotPriceTableConverter);
         newUploader.restoreDiags(argumentCaptor.getAllValues());
         final Map<Long, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
 
@@ -505,6 +511,6 @@ public class PriceTableUploaderTest {
                 .build());
     }
 
-    public static class TestPriceService extends PricingServiceImplBase {
+    private static class TestPriceService extends PricingServiceImplBase {
     }
 }

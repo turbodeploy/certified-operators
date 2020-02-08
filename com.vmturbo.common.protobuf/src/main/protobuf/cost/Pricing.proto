@@ -3,6 +3,7 @@ package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
+import "CloudCostDTO.proto";
 import "PricingDTO.proto";
 import "cost/Cost.proto";
 
@@ -33,9 +34,10 @@ message PriceTable {
     // See OnDemandPriceTable for more details.
     map<int64, OnDemandPriceTable> on_demand_price_by_region_id = 1;
 
-    // The spot instance prices, arranged by region ID.
+    // The spot instance prices, arranged by zone or region ID. If prices are provided per zone
+    // the key is zone ID, otherwise the key is region ID.
     // See SpotInstancePriceTable for more details.
-    map<int64, SpotInstancePriceTable> spot_price_by_region_id = 10;
+    map<int64, SpotInstancePriceTable> spot_price_by_zone_or_region_id = 10;
 
     // A list of on-demand license prices grouped by OS type.
     repeated common_dto.LicensePriceEntry on_demand_license_prices = 20;
@@ -129,9 +131,22 @@ message DbTierOnDemandPriceTable {
 // Note: Spot instances are called Low-Priority VMs in Azure, and Preemptible VMs in
 //       Google Cloud.
 message SpotInstancePriceTable {
-    // At the time of this writing the spot price is always hourly, and
-    // is set per-region-per-instance.
-    map<int64, common_dto.Price> spot_price_by_instance_id = 1;
+    // Spot prices by compute tier ID
+    map<int64, SpotPricesForTier> spot_prices_by_tier_oid = 1;
+
+    // Spot prices for all Operating Systems in a given Compute Tier
+    message SpotPricesForTier {
+        repeated PriceForGuestOsType price_for_guest_os_type = 1;
+    }
+
+    // Spot instance price for given guest OS type
+    message PriceForGuestOsType {
+        // OS type
+        required common_dto.OSType guest_os_type = 1;
+
+        // Spot instance hourly price
+        required common_dto.Price price = 2;
+    }
 }
 
 message GetPriceTableRequest {

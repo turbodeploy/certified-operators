@@ -112,6 +112,8 @@ public class PriceTableUploader implements DiagsRestorable {
 
     private final TargetStore targetStore;
 
+    private final SpotPriceTableConverter spotPriceTableConverter;
+
     /**
      * a cache of last price table received per probe type. We assume any price tables returned by
      * any target of the same probe type will be equivalent, so we will keep one table per probe
@@ -128,11 +130,13 @@ public class PriceTableUploader implements DiagsRestorable {
     public PriceTableUploader(@Nonnull final PricingServiceStub priceServiceClient,
                               @Nonnull final Clock clock,
                               final int riSpecPriceChunkSize,
-                              @Nonnull TargetStore targetStore) {
+                              @Nonnull TargetStore targetStore,
+                              @Nonnull final SpotPriceTableConverter spotPriceTableConverter) {
         this.priceServiceClient = priceServiceClient;
         this.clock = clock;
         this.riSpecPriceChunkSize = riSpecPriceChunkSize;
         this.targetStore = targetStore;
+        this.spotPriceTableConverter = spotPriceTableConverter;
     }
 
     /**
@@ -366,6 +370,7 @@ public class PriceTableUploader implements DiagsRestorable {
         logger.info("Upload of {} price tables took {} secs",
             sourcePriceTableByTargetId.size(), uploadTimer.getTimeElapsedSecs() );
     }
+
     /**
      * Build an XL protobuf price table based on the price table received from a probe.
      * Note that we are modifying the price table that is passed in, and if an
@@ -380,16 +385,14 @@ public class PriceTableUploader implements DiagsRestorable {
      * @param probeType the probe type that discovered this price table
      * @return the resulted protobuf price table
      */
-
     @VisibleForTesting
     PriceTable priceTableToCostPriceTable(@Nonnull PricingDTO.PriceTable sourcePriceTable,
-                                          @Nonnull final Map<String, Long>  cloudEntitiesMap,
+                                          @Nonnull final Map<String, Long> cloudEntitiesMap,
                                           SDKProbeType probeType) {
         logger.debug("Processing price table for probe type {}", probeType);
 
         PriceTable.Builder priceTableBuilder = PriceTable.newBuilder();
         // we only know on-demand and license prices for now.
-        // TODO: reckon the spot instance prices
         // structure to track missing tiers - we want to log about this but not spam the log.
         Multimap<String, String> missingTiers = ArrayListMultimap.create();
 
@@ -417,7 +420,7 @@ public class PriceTableUploader implements DiagsRestorable {
             addPriceEntries(onDemandPriceTableForRegion.getComputePriceTableList(),
                     cloudEntitiesMap,
                     entry -> entry.getRelatedComputeTier().getId(),
-                    oid -> onDemandPricesBuilder.containsComputePricesByTierId(oid),
+                    onDemandPricesBuilder::containsComputePricesByTierId,
                     (oid, entry) -> onDemandPricesBuilder.putComputePricesByTierId(oid,
                                     entry.getComputeTierPriceList()),
                     missingTiers);
@@ -426,7 +429,7 @@ public class PriceTableUploader implements DiagsRestorable {
             addPriceEntries(onDemandPriceTableForRegion.getDatabasePriceTableList(),
                     cloudEntitiesMap,
                     entry -> entry.getRelatedDatabaseTier().getId(),
-                    oid -> onDemandPricesBuilder.containsDbPricesByInstanceId(oid),
+                    onDemandPricesBuilder::containsDbPricesByInstanceId,
                     (oid, pricesForTier) -> dbOnDemandPriceTableAdder(oid, pricesForTier, onDemandPricesBuilder),
                     missingTiers);
 
@@ -441,8 +444,7 @@ public class PriceTableUploader implements DiagsRestorable {
                         // looking up the entity oid in our cloudEntitiesMap.
                         return CloudCostUtils.storageTierLocalNameToId(
                                 entry.getRelatedStorageTier().getId(), probeType);
-                    },
-                    oid -> onDemandPricesBuilder.containsCloudStoragePricesByTierId(oid),
+                    }, onDemandPricesBuilder::containsCloudStoragePricesByTierId,
                     (oid, entry) -> onDemandPricesBuilder.putCloudStoragePricesByTierId(oid,
                             entry.getStorageTierPriceList()),
                     missingTiers);
@@ -453,12 +455,16 @@ public class PriceTableUploader implements DiagsRestorable {
             priceTableBuilder.putOnDemandPriceByRegionId(regionOid, onDemandPricesBuilder.build());
         }
         if (missingTiers.size() > 0) {
-            logger.warn("Couldnt find oids for: {}", missingTiers);
+            logger.warn("Couldn't find oids for: {}", missingTiers);
         }
 
         // Populate the new Price table with license costs
         priceTableBuilder.addAllOnDemandLicensePrices(sourcePriceTable.getOnDemandLicensePriceTableList());
         priceTableBuilder.addAllReservedLicensePrices(sourcePriceTable.getReservedLicensePriceTableList());
+
+        // Populate Spot prices
+        priceTableBuilder.putAllSpotPriceByZoneOrRegionId(spotPriceTableConverter
+                .convertSpotPrices(sourcePriceTable, cloudEntitiesMap));
 
         return priceTableBuilder.build();
     }
@@ -492,13 +498,13 @@ public class PriceTableUploader implements DiagsRestorable {
      * @param putMethod The method that adds the new prices to the map using the oid.
      * @param <PricesForTier> The type of objects contained in priceEntries
      * @param missingTiers used for logging
-     * @return
      */
     private static <PricesForTier> void addPriceEntries(@Nonnull List<PricesForTier> priceEntries,
                       @Nonnull final Map<String, Long> cloudEntityOidByLocalId,
                       Function<PricesForTier, String> localIdGetter,
                       Function<Long, Boolean> duplicateChecker,
-                      BiConsumer<Long, PricesForTier> putMethod, Multimap missingTiers) {
+                      BiConsumer<Long, PricesForTier> putMethod,
+                      Multimap<String, String> missingTiers) {
         for (PricesForTier priceEntry : priceEntries) {
             // find the cloud tier oid this set of prices is associated to.
             String localID = localIdGetter.apply(priceEntry);

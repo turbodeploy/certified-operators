@@ -56,7 +56,7 @@ public class CloudCostConfig {
     @Bean
     public PriceTableUploader priceTableUploader() {
         return new PriceTableUploader(priceServiceClient(), clockConfig.clock(), riSpecPriceChunkSize,
-                targetConfig.targetStore());
+                targetConfig.targetStore(), spotPriceTableConverter());
     }
 
     @Bean
@@ -84,5 +84,10 @@ public class CloudCostConfig {
                 .newBlockingStub(costClientConfig.costChannel());
         return new BusinessAccountPriceTableKeyUploader(pricingServiceBlockingStub,
                 targetConfig.targetStore());
+    }
+
+    @Bean
+    public SpotPriceTableConverter spotPriceTableConverter() {
+        return new SpotPriceTableConverter();
     }
 }
