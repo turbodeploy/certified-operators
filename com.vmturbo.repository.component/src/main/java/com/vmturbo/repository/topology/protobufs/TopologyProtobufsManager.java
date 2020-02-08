@@ -23,19 +23,18 @@ public class TopologyProtobufsManager {
     private static final int ERROR_ARANGO_COLLECTION_NOT_FOUND = 1203;
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
-    private final String arangoDBNamespacePrefix;
+    private final String arangoDatabaseName;
 
     /**
      * TopologyProtobufsManager to create raw topology readers and writers.
      *
      * @param arangoDatabaseFactory   Functional interface to create ArangoDB driver.
-     * @param arangoDBNamespacePrefix ArangoDB namespace prefix to be prepended to database names,
-     *                                e.g. "turbonomic-".
+     * @param arangoDatabaseName ArangoDB database name.
      */
     public TopologyProtobufsManager(ArangoDatabaseFactory arangoDatabaseFactory,
-                                    String arangoDBNamespacePrefix) {
+                                    String arangoDatabaseName) {
         this.arangoDatabaseFactory = arangoDatabaseFactory;
-        this.arangoDBNamespacePrefix = arangoDBNamespacePrefix;
+        this.arangoDatabaseName = arangoDatabaseName;
     }
 
     /**
@@ -48,7 +47,7 @@ public class TopologyProtobufsManager {
     public TopologyProtobufWriter<ProjectedTopologyEntity> createProjectedTopologyProtobufWriter(
         long topologyId) {
         return new TopologyProtobufWriter<ProjectedTopologyEntity>(arangoDatabaseFactory, topologyId,
-            dto -> String.valueOf(dto.getEntity().getOid()), arangoDBNamespacePrefix);
+            dto -> String.valueOf(dto.getEntity().getOid()), arangoDatabaseName);
     }
 
     /**
@@ -61,7 +60,7 @@ public class TopologyProtobufsManager {
     public TopologyProtobufWriter<TopologyEntityDTO> createSourceTopologyProtobufWriter(
         long topologyId) {
         return new TopologyProtobufWriter<TopologyEntityDTO>(arangoDatabaseFactory, topologyId,
-            dto -> String.valueOf(dto.getOid()), arangoDBNamespacePrefix);
+            dto -> String.valueOf(dto.getOid()), arangoDatabaseName);
     }
 
     /**
@@ -77,7 +76,7 @@ public class TopologyProtobufsManager {
             throws NoSuchElementException {
         try {
             return new TopologyProtobufReader(arangoDatabaseFactory, topologyId, entityFilter,
-                arangoDBNamespacePrefix);
+                arangoDatabaseName);
         } catch (ArangoDBException e) {
             if (e.getResponseCode() == HttpStatus.SC_NOT_FOUND
                             && e.getErrorNum() == ERROR_ARANGO_COLLECTION_NOT_FOUND) {

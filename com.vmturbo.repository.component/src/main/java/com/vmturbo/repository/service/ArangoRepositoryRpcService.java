@@ -16,7 +16,6 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -48,7 +47,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyDeletionException;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
@@ -80,22 +78,18 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
     private final int maxEntitiesPerChunk; // the max number of entities to send in a single message
 
-    private final TopologyIDFactory topologyIDFactory;
-
     public ArangoRepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
                                       @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                       @Nonnull final GraphDBService graphDBService,
                                       @Nonnull final PlanStatsService planStatsService,
                                       @Nonnull final PartialEntityConverter partialEntityConverter,
-                                      final int maxEntitiesPerChunk,
-                                      @Nonnull final TopologyIDFactory topologyIDFactory) {
+                                      final int maxEntitiesPerChunk) {
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.topologyProtobufsManager = Objects.requireNonNull(topologyProtobufsManager);
         this.graphDBService = Objects.requireNonNull(graphDBService);
         this.planStatsService = Objects.requireNonNull(planStatsService);
         this.partialEntityConverter = partialEntityConverter;
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
-        this.topologyIDFactory = topologyIDFactory;
     }
 
     private boolean validateDeleteTopologyRequest(DeleteTopologyRequest request,
@@ -138,7 +132,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                 request.getTopologyId(), request.getTopologyContextId(), topologyType);
         try {
             topologyLifecycleManager.deleteTopology(
-                topologyIDFactory.createTopologyID(request.getTopologyContextId(),
+                new TopologyID(request.getTopologyContextId(),
                             request.getTopologyId(),
                             topologyType));
             final RepositoryOperationResponse responseBuilder =

@@ -64,8 +64,6 @@ import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
-import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
@@ -183,8 +181,7 @@ public class RepositoryComponent extends BaseVmtComponent {
                         repositoryComponentConfig.graphDBService(),
             planStatsService(),
             partialEntityConverter(),
-            maxEntitiesPerChunk,
-            topologyIDFactory());
+            maxEntitiesPerChunk);
 
         // Return a topology-graph backed rpc service, which will fall back to arango for
         // non-realtime queries.
@@ -280,14 +277,14 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(repositoryComponentConfig.topologyManager(),
-                                            apiConfig.repositoryNotificationSender(), topologyIDFactory());
+                                            apiConfig.repositoryNotificationSender());
     }
 
     @Bean
     public MarketTopologyListener marketTopologyListener() {
         return new MarketTopologyListener(
                 apiConfig.repositoryNotificationSender(),
-                repositoryComponentConfig.topologyManager(), topologyIDFactory());
+                repositoryComponentConfig.topologyManager());
     }
 
     @Bean
@@ -308,10 +305,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public MarketComponent marketComponent() {
         final MarketComponent market = marketClientConfig.marketComponent(
-            // If using the in-memory graph, we want to read from the beginning on restart
-            // so that we can populate the graph without waiting for the next broadcast.
-            MarketSubscription.forTopicWithStartFrom(
-                MarketSubscription.Topic.ProjectedTopologies, StartFrom.BEGINNING),
+            // Read the most recent projected topologies instead of reading from the beginning
+            // on restart to avoid writing stale plan data to ArangoDB.
+            MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),
             MarketSubscription.forTopicWithStartFrom(
                 MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING),
             // Plan analysis (source) topologies are always persisted, so there is no need to
@@ -332,16 +328,6 @@ public class RepositoryComponent extends BaseVmtComponent {
                 .build();
 
         return CircuitBreakerRegistry.of(circuitBreakerConfig);
-    }
-
-    /**
-     * The {@link TopologyIDFactory} used to create {@link TopologyID}.
-     *
-     * @return {@link TopologyIDFactory}.
-     */
-    @Bean
-    public TopologyIDFactory topologyIDFactory() {
-        return new TopologyIDFactory(repositoryComponentConfig.getArangoDBNamespacePrefix());
     }
 
     /**

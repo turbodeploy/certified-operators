@@ -28,21 +28,18 @@ public abstract class TopologyProtobufHandler {
     protected final ArangoCollection topologyCollection;
     protected int sequenceNumber = 0;
 
-    private static String RAW_TOPOLOGIES_DATABASE_NAME = "topology-protobufs";
-
     /**
      * Create a collection for the given topology ID.
      *
      * @param arangoDatabaseFactory the database factory.
      * @param topologyId topology id of the raw topology.
-     * @param arangoDBNamespacePrefix ArangoDB namespace prefix to be prepended to database names,
-     *                                e.g. "turbonomic-".
+     * @param arangoDatabaseName ArangoDB database name.
      */
     protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
-                                      final String arangoDBNamespacePrefix) {
+                                      final String arangoDatabaseName) {
         this.topologyId = topologyId;
         this.arangoFactory = arangoDatabaseFactory;
-        database = database(arangoDBNamespacePrefix);
+        database = database(arangoDatabaseName);
         topologyCollection = collection(getTopologyCollectionName(topologyId));
     }
 
@@ -64,28 +61,11 @@ public abstract class TopologyProtobufHandler {
     /**
      * Verify that the raw topologies database exists, and if not then create it.
      *
-     * @param arangoDBNamespacePrefix ArangoDB namespace prefix to be prepended to database names,
-     *                                e.g. "turbonomic-".
+     * @param arangoDatabaseName ArangoDB database name.
      * @return the raw topologies database
      */
-    private synchronized ArangoDatabase database(final String arangoDBNamespacePrefix) {
-        String arangoDBName = arangoDBNamespacePrefix + RAW_TOPOLOGIES_DATABASE_NAME;
-        if (!arangoFactory.getArangoDriver().getDatabases().contains(arangoDBName)) {
-            logger.info("Creating database {}", arangoDBName);
-            try {
-                arangoFactory.getArangoDriver().createDatabase(arangoDBName);
-            } catch (ArangoDBException adbe) {
-                // we will treat "duplicate name" errors as harmless -- this means someone else may
-                // have already created our database.
-                if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
-                    logger.info("Database {} already created.", arangoDBName);
-                } else {
-                    // we'll re-throw the other errors.
-                    throw adbe;
-                }
-            }
-        }
-        return arangoFactory.getArangoDriver().db(arangoDBName);
+    private ArangoDatabase database(final String arangoDatabaseName) {
+        return arangoFactory.getArangoDriver().db(arangoDatabaseName);
     }
 
     /**

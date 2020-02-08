@@ -58,8 +58,6 @@ import com.vmturbo.repository.graph.result.ResultsFixture;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
 import com.vmturbo.repository.topology.GlobalSupplyChainRelationships;
-import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyDatabases;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ArangoDBExecutorTest {
@@ -81,14 +79,14 @@ public class ArangoDBExecutorTest {
 
     @Before
     public void setUp() {
-        arangoDBExecutor = new ArangoDBExecutor(databaseFactory);
+        arangoDBExecutor = new ArangoDBExecutor(databaseFactory, "db");
 
         given(databaseFactory.getArangoDriver()).willReturn(arangoDriver);
     }
 
     @Test
     public void testExecuteSupplyChainCmdWithException() throws Exception {
-        givenASupplyChainCmd("db", "start", "graph", Optional.empty(), "vertex");
+        givenASupplyChainCmd("start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
 
         whenExecuteSupplyChainCmd();
@@ -113,7 +111,7 @@ public class ArangoDBExecutorTest {
                 ImmutableList.of(host1a, host1b, host1c, host1d,
                         vm1, vm2, vm3, vm4);
 
-        givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
+        givenASupplyChainCmd("start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
         givenSupplyChainSubgraphResults(vertices, vertices);
         whenExecuteSupplyChainCmd();
@@ -156,7 +154,7 @@ public class ArangoDBExecutorTest {
                 ImmutableList.of(host1a, host1b, host1c, host1d, host2a,
                         vm1, vm2, vm3, vm4, vm5, dc1a, dc1b);
 
-        givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
+        givenASupplyChainCmd("start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
         givenSupplyChainSubgraphResults(vertices, vertices);
         whenExecuteSupplyChainCmd();
@@ -208,7 +206,6 @@ public class ArangoDBExecutorTest {
         final Multimap<String, String> providerRels = HashMultimap.create();
         providerRels.putAll(key1,key2);
         final ArangoDatabase mockDatabase = Mockito.mock(ArangoDatabase.class);
-        final TopologyDatabase db = mock(TopologyDatabase.class);
         GlobalSupplyChainRelationships mockResult = new GlobalSupplyChainRelationships(documents);
 
         when(mockDatabase.collection(anyString())).thenReturn(mock(ArangoCollection.class));
@@ -218,9 +215,8 @@ public class ArangoDBExecutorTest {
             .thenReturn(searchResultCursor);
         when(searchResultCursor.asListRemaining()).thenReturn(documents);
         mockDatabase.collection(arangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION).insertDocument(document);
-        when(TopologyDatabases.getDbName(db)).thenReturn("topology-id");
 
-        assertThat(arangoDBExecutor.getSupplyChainRels(db)).isEqualToComparingFieldByField(mockResult);
+        assertThat(arangoDBExecutor.getSupplyChainRels()).isEqualToComparingFieldByField(mockResult);
     }
 
     @Test
@@ -239,9 +235,7 @@ public class ArangoDBExecutorTest {
                                        final String field,
                                        final String query,
                                        final GraphCmd.SearchType searchType) {
-        final TopologyDatabase topologyDatabase = TopologyDatabase.from("db-foo");
-        graphCmd = new GraphCmd.SearchServiceEntity(collection, field, query, searchType,
-                                                    topologyDatabase);
+        graphCmd = new GraphCmd.SearchServiceEntity(collection, field, query, searchType);
     }
 
     private void givenSearchServiceEntityResults(final List<ServiceEntityRepoDTO> searchResults) throws ArangoDBException {
@@ -257,13 +251,12 @@ public class ArangoDBExecutorTest {
                 .thenReturn(searchResultCursor);
     }
 
-    private void givenASupplyChainCmd(final String databaseName,
-                                      final String starting,
+    private void givenASupplyChainCmd(final String starting,
                                       final String graphName,
                                       final Optional<UIEnvironmentType> environmentType,
                                       final String vertexColl) {
         graphCmd = new GraphCmd.GetSupplyChain(starting, environmentType,
-                TopologyDatabase.from(databaseName),graphName, vertexColl, Optional.empty(),
+            graphName, vertexColl, Optional.empty(),
                 Collections.emptySet(), Collections.emptySet());
     }
 

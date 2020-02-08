@@ -80,7 +80,7 @@ public class RepositoryDiagnosticsConfig {
     public TopologyDiagnostics srcTopologyDiagnostics() {
         return new TopologyDiagnostics(arangoDump(), arangoRestore(),
                 repositoryComponentConfig.topologyManager(), restTemplate(), TopologyType.SOURCE,
-                "source_topology_dump");
+                "source_topology_dump", repositoryComponentConfig.getArangoDatabaseName());
     }
 
     /**
@@ -92,7 +92,7 @@ public class RepositoryDiagnosticsConfig {
     public TopologyDiagnostics projectedTopologyDiagnostics() {
         return new TopologyDiagnostics(arangoDump(), arangoRestore(),
                 repositoryComponentConfig.topologyManager(), restTemplate(), TopologyType.PROJECTED,
-                "projected_topology_dump");
+                "projected_topology_dump", repositoryComponentConfig.getArangoDatabaseName());
     }
 
     /**

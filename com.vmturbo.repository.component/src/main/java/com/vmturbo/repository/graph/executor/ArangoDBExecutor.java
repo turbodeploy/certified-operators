@@ -49,21 +49,24 @@ import com.vmturbo.repository.graph.parameter.GraphCmd.SupplyChainDirection;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
 import com.vmturbo.repository.topology.GlobalSupplyChainRelationships;
-import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyDatabases;
 
 public class ArangoDBExecutor implements GraphDBExecutor {
 
-    // TODO: Temporary place holder for topology database name.
-    public static final String DEFAULT_PLACEHOLDER_DATABASE = "";
+    /**
+     * Collection name of global supply chain provider relationships.
+     */
+    public static final String GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION = "globalSCProviderRels";
 
-    public static final String GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION = "globalSupplyChainProviderRels";
-
-    public static final String GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION = "globalSupplyChainEntitiesInfo";
+    /**
+     * Collection name of global supply chain entities info.
+     */
+    public static final String GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION = "globalSCEntitiesInfo";
 
     private static final Logger logger = LoggerFactory.getLogger(ArangoDBExecutor.class);
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
+
+    private final String arangoDatabaseName;
 
     private static final DataMetricSummary SINGLE_SOURCE_SUPPLY_CHAIN_QUERY_DURATION_SUMMARY = DataMetricSummary.builder()
         .withName("repo_single_source_supply_chain_query_duration_seconds")
@@ -81,8 +84,17 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         .build()
         .register();
 
-    public ArangoDBExecutor(final ArangoDatabaseFactory arangoDatabaseFactoryArg) {
+    /**
+     * Constructor of ArangoDBExecutor.
+     *
+     * @param arangoDatabaseFactoryArg Given {@link ArangoDatabaseFactory} where we can get the driver
+     *                                 to connection to db.
+     * @param arangoDatabaseName       Given Arango database name.
+     */
+    public ArangoDBExecutor(final ArangoDatabaseFactory arangoDatabaseFactoryArg,
+                            final String arangoDatabaseName) {
         arangoDatabaseFactory = checkNotNull(arangoDatabaseFactoryArg);
+        this.arangoDatabaseName = checkNotNull(arangoDatabaseName);
     }
 
     /**
@@ -200,15 +212,14 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
             final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
 
-            final TopologyDatabase database = supplyChainCmd.getTopologyDatabase();
             final DataMetricTimer timer = SINGLE_SOURCE_SUPPLY_CHAIN_QUERY_DURATION_SUMMARY.startTimer();
 
             logger.debug("Supply chain provider query {}", providerQuery);
             logger.debug("Supply chain consumer query {}", consumerQuery);
 
             final Try<Seq<ArangoCursor<ResultVertex>>> combinedResults = Try.sequence(ImmutableList.of(
-                Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(providerQuery, null, null, ResultVertex.class))
-                , Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(consumerQuery, null, null, ResultVertex.class))));
+                Try.of(() -> driver.db(arangoDatabaseName).query(providerQuery, null, null, ResultVertex.class)),
+                Try.of(() -> driver.db(arangoDatabaseName).query(consumerQuery, null, null, ResultVertex.class))));
             timer.observe();
 
             combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));
@@ -229,42 +240,37 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     public  void insertNewDocument(final @Nonnull BaseDocument newDocument,
                                    String collection,
-                                   String database,
                                    DocumentCreateOptions documentCreateOptions)
             throws ArangoDBException {
 
         final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        driver.db(database).collection(collection).insertDocument(newDocument, documentCreateOptions);
+        driver.db(arangoDatabaseName).collection(collection).insertDocument(newDocument, documentCreateOptions);
     }
 
     public <T> void insertNewDocument(final T doc,
                                       String collection,
-                                      String database,
                                       DocumentCreateOptions documentCreateOptions)
             throws ArangoDBException {
 
         final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        driver.db(database).collection(collection).insertDocument(doc,
+        driver.db(arangoDatabaseName).collection(collection).insertDocument(doc,
                 documentCreateOptions);
     }
 
     public BaseDocument getDocument(final String key,
-                                    String collection,
-                                    String database)
+                                    String collection)
             throws ArangoDBException {
 
         final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        return driver.db(database).collection(collection).getDocument(key, BaseDocument.class);
+        return driver.db(arangoDatabaseName).collection(collection).getDocument(key, BaseDocument.class);
     }
 
     @Override
-    public GlobalSupplyChainRelationships getSupplyChainRels(TopologyDatabase database) {
-        final String databaseName = TopologyDatabases.getDbName(database);
-
+    public GlobalSupplyChainRelationships getSupplyChainRels() {
         logger.debug("Get supply chain relationship query {} for database {}", ArangoDBQueries.GET_SUPPLY_CHAIN_RELS,
-            databaseName);
+            arangoDatabaseName);
         final List<BaseDocument> results =
-            arangoDatabaseFactory.getArangoDriver().db(databaseName).query(ArangoDBQueries.GET_SUPPLY_CHAIN_RELS, null, null,
+            arangoDatabaseFactory.getArangoDriver().db(arangoDatabaseName).query(ArangoDBQueries.GET_SUPPLY_CHAIN_RELS, null, null,
                 BaseDocument.class).asListRemaining();
         return new GlobalSupplyChainRelationships(results);
     }
@@ -274,13 +280,12 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         try (OptScope scope = Tracing.addOpToTrace("executeSearchServiceEntityCmd")) {
             final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
             final String searchQuery = searchServiceEntitytQuery(searchServiceEntity);
-            final String databaseName = TopologyDatabases.getDbName(searchServiceEntity.getTopologyDatabase());
             final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
 
             logger.debug("Service entity search query {}", searchQuery);
 
             final Try<ArangoCursor<ServiceEntityRepoDTO>> results =
-                Try.of(() -> driver.db(databaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
+                Try.of(() -> driver.db(arangoDatabaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
             timer.observe();
 
             results.onFailure(logAQLException(searchQuery));
@@ -302,26 +307,25 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             if (serviceEntityMultiGet.getEntityIds().size() == 0) {
                 querySubstitutor = new StrSubstitutor(ImmutableMap.of(
                     "collection",
-                    serviceEntityMultiGet.getCollection()));
+                    "`" + serviceEntityMultiGet.getCollection() + "`"));
                 searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ALL_ENTITIES);
             } else {
                 // replace the "commaSepLongs" token with the list of entity ids, e.g. "1","2","3"
                 querySubstitutor = new StrSubstitutor(ImmutableMap.of(
                     "collection",
-                    serviceEntityMultiGet.getCollection(),
+                    "`" + serviceEntityMultiGet.getCollection() + "`",
                     "commaSepLongs",
                     serviceEntityMultiGet.getEntityIds().stream()
-                                .map(id -> "\""+ Long.toString(id) +"\"")
+                                .map(id -> "\"" + Long.toString(id) + "\"")
                                 .collect(Collectors.joining(","))));
                 searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
             }
-            final String databaseName = TopologyDatabases.getDbName(serviceEntityMultiGet.getTopologyDatabase());
             final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
 
-            logger.debug("Service entity multi-get query {} for database {}", searchQuery, databaseName);
+            logger.debug("Service entity multi-get query {} for database {}", searchQuery, arangoDatabaseName);
 
             final Try<ArangoCursor<ServiceEntityRepoDTO>> results =
-                Try.of(() -> driver.db(databaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
+                Try.of(() -> driver.db(arangoDatabaseName).query(searchQuery, null, null, ServiceEntityRepoDTO.class));
             timer.observe();
 
             results.onFailure(logAQLException(searchQuery));
@@ -422,5 +426,25 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
             return result;
         }
+    }
+
+    /**
+     * Get Arango database name where the query command will be executed.
+     *
+     * @return Arango database name where the query command will be executed.
+     */
+    public String getArangoDatabaseName() {
+        return arangoDatabaseName;
+    }
+
+    /**
+     * Get full collection name based on given collection name and collection name suffix.
+     *
+     * @param collection Given collection name.
+     * @param collectionNameSuffix Given collection name suffix from TopologyID.
+     * @return Constructed full collection name.
+     */
+    public String fullCollectionName(String collection, String collectionNameSuffix) {
+        return collection + collectionNameSuffix;
     }
 }

@@ -9,21 +9,19 @@ import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
 public class TopologyIDTest {
 
-    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
-
     @Test
     public void testDatabaseName() {
-        final TopologyID id = topologyIDFactory.createTopologyID(1, 2, TopologyType.SOURCE);
-        assertEquals("turbonomic-topology-1-SOURCE-2", id.toDatabaseName());
-        assertEquals(id, TopologyID.fromDatabaseName(id.toDatabaseName()).get());
+        final TopologyID id = new TopologyID(1, 2, TopologyType.SOURCE);
+        assertEquals("-1-S-2", id.toCollectionNameSuffix());
+        assertEquals(id, TopologyID.fromCollectionName("topology" + id.toCollectionNameSuffix()).get());
     }
 
     @Test
     public void testParseInvalidName() {
-        assertFalse(TopologyID.fromDatabaseName("blah").isPresent());
-        assertFalse(TopologyID.fromDatabaseName("topology-x-SOURCE-1").isPresent());
-        assertFalse(TopologyID.fromDatabaseName("topology-1-BLAH-1").isPresent());
-        assertFalse(TopologyID.fromDatabaseName("topology-1-SOURCE-x").isPresent());
+        assertFalse(TopologyID.fromCollectionName("blah").isPresent());
+        assertFalse(TopologyID.fromCollectionName("topology-x-S-1").isPresent());
+        assertFalse(TopologyID.fromCollectionName("topology-1-BLAH-1").isPresent());
+        assertFalse(TopologyID.fromCollectionName("topology-1-S-x").isPresent());
     }
 
 }

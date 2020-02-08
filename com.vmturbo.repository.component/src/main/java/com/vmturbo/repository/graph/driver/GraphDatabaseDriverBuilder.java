@@ -13,16 +13,19 @@ public interface GraphDatabaseDriverBuilder {
 
     /**
      * Builds a {@link GraphDatabaseDriver} instance with a database.
+     *
      * @param database The database name
-     * @return
+     * @param collectionNameSuffix Collection name suffix to be appended to collection names.
+     * @return {@link GraphDatabaseDriver}.
      */
-    GraphDatabaseDriver build(final String database);
+    GraphDatabaseDriver build(String database, String collectionNameSuffix);
 
     /**
-     * List all the databases defined so far.
-     * @return The set of database names.
+     * List all collections created so far from the given database. This excludes system collections.
+     *
+     * @param arangoDatabaseName Given database from which collections are listed.
+     * @return The set of collection names.
      * @throws GraphDatabaseException If there is an issue connecting to the database.
      */
-    @Nonnull
-    Set<String> listDatabases() throws GraphDatabaseException;
+    Set<String> listCollections(String arangoDatabaseName) throws GraphDatabaseException;
 }

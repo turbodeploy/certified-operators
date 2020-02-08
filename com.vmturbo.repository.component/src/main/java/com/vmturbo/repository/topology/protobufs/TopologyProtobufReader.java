@@ -38,8 +38,8 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
     protected TopologyProtobufReader(@Nonnull final ArangoDatabaseFactory arangoDatabaseFactory,
                                      final long topologyId,
                                      @Nonnull final Optional<TopologyEntityFilter> entityFilter,
-                                     @Nonnull final String arangoDBNamespacePrefix) {
-        super(arangoDatabaseFactory, topologyId, arangoDBNamespacePrefix);
+                                     @Nonnull final String arangoDatabaseName) {
+        super(arangoDatabaseFactory, topologyId, arangoDatabaseName);
         count = topologyCollection.count().getCount();
         this.entityFilter = entityFilter;
     }

@@ -108,15 +108,12 @@ public class SupplyChainServiceTest {
 
         @Bean
         public TopologyID getTopologyId(){
-            return new TopologyID(1, 2, TopologyID.TopologyType.SOURCE, "");
+            return new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
         }
 
         @Bean
         public TopologyLifecycleManager topologyManager() {
             final TopologyLifecycleManager result = Mockito.mock(TopologyLifecycleManager.class);
-            final TopologyDatabase topologyDatabase = Mockito.mock(TopologyDatabase.class);
-            Mockito.when(result.getRealtimeDatabase())
-                    .thenReturn(Optional.of(topologyDatabase));
             Mockito.when(result.getRealtimeTopologyId()).thenReturn(Optional.of(getTopologyId()));
             return result;
         }
