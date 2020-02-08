@@ -32,6 +32,10 @@ public class TemplateProtoUtil {
 
     public static final String VM_COMPUTE_IO_THROUGHPUT_SIZE = "ioThroughputSize";
 
+    public static final String VM_COMPUTE_IO_THROUGHPUT = "ioThroughput";
+
+    public static final String VM_COMPUTE_NETWORK_THROUGHPUT = "networkThroughput";
+
     public static final String VM_COMPUTE_NETWORK_THROUGHPUT_CONSUMED = "networkThroughputConsumed";
 
     public static final String VM_COMPUTE_NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";

@@ -78,6 +78,22 @@
             "divisor" : "1024f",
             "valueType" : "NUMERIC",
             "description" : "Network Throughput"
+          },
+          {
+          "name" : "ioThroughput",
+          "displayName" : "Throughput",
+          "units" : "MB/s",
+          "divisor" : "1024f",
+          "valueType" : "NUMERIC",
+          "description" : "IO Throughput"
+          },
+          {
+            "name" : "networkThroughput",
+            "displayName" : "Throughput",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Network Throughput"
           }
         ]
       },
