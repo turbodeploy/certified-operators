@@ -476,20 +476,5 @@ public class SearchProtoUtil {
         return SearchParameters.newBuilder().setStartingFilter(startFilter);
     }
 
-    /**
-     * Get the entity type from the search parameters, if exists.
-     * If the search parameters don't have an entity type - return UNKNOWN.
-     *
-     * @param searchParameters the search parameters
-     * @return the entity type of this search parameter, if exists, UNKNOWN otherwise
-     */
-    public static UIEntityType getEntityTypeFromSearchParameters(SearchParameters searchParameters) {
-        if (searchParameters.hasStartingFilter()) {
-            PropertyFilter startingFilter = searchParameters.getStartingFilter();
-            if (SearchableProperties.ENTITY_TYPE.equals(startingFilter.getPropertyName())) {
-                return UIEntityType.fromType((int)startingFilter.getNumericFilter().getValue());
-            }
-        }
-        return UIEntityType.UNKNOWN;
-    }
+
 }

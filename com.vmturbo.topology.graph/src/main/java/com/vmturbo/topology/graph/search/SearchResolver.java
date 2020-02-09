@@ -1,6 +1,5 @@
 package com.vmturbo.topology.graph.search;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,7 +20,6 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -73,42 +71,30 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
      * The equivalent of applying {@link SearchResolver#search(SearchParameters, TopologyGraph)}
      * multiple times and intersecting the results.
      *
-     * @param searchParameters The list of input {@link SearchParameters}.
+     * @param search The list of input {@link SearchParameters}.
      * @param graph The {@link TopologyGraph} to use for the search.
      * @return A {@link Stream} of {@link TopologyGraphEntity}s that match all the parameters.
      */
     @Nonnull
-    public Stream<E> search(@Nonnull final List<SearchParameters> searchParameters,
+    public Stream<E> search(@Nonnull final List<SearchParameters> search,
                             @Nonnull final TopologyGraph<E> graph) {
-        if (searchParameters.isEmpty()) {
+        if (search.isEmpty()) {
             return Stream.empty();
-        } else if (searchParameters.size() == 1) {
-            return search(searchParameters.get(0), graph);
+        } else if (search.size() == 1) {
+            return search(search.get(0), graph);
         } else {
-            Map<Long, E> result = new HashMap<>();
-
-            // map entity type to SearchParameters
-            Map<UIEntityType, List<SearchParameters>> paramsPerEntityType = searchParameters.stream()
-                    .collect(Collectors.groupingBy(SearchProtoUtil::getEntityTypeFromSearchParameters));
-
-            // for each entity type, get the entities which match all the criteria for
-            // this specific entity type.
-            paramsPerEntityType.values().forEach(paramsListForType -> {
-                final Map<Long, E> matchingEntitiesById =
-                        search(paramsListForType.get(0), graph)
-                                .collect(Collectors.toMap(E::getOid, Function.identity()));
-                for (int i = 1; i < paramsListForType.size(); ++i) {
-                    // TODO (roman, May 20 2019): Can we pass the current matching entities
-                    // as an additional input to reduce the number of entities considered in
-                    // the subsequent searches?
-                    matchingEntitiesById.keySet().retainAll(search(paramsListForType.get(i), graph)
-                            .map(E::getOid)
-                            .collect(Collectors.toList()));
-                }
-                result.putAll(matchingEntitiesById);
-            });
-
-            return result.values().stream();
+            final Map<Long, E> matchingEntitiesById =
+                search(search.get(0), graph)
+                    .collect(Collectors.toMap(E::getOid, Function.identity()));
+            for (int i = 1; i < search.size(); ++i) {
+                // TODO (roman, May 20 2019): Can we pass the current matching entities
+                // as an additional input to reduce the number of entities considered in
+                // the subsequent searches?
+                matchingEntitiesById.keySet().retainAll(search(search.get(i), graph)
+                    .map(E::getOid)
+                    .collect(Collectors.toList()));
+            }
+            return matchingEntitiesById.values().stream();
         }
     }
 
