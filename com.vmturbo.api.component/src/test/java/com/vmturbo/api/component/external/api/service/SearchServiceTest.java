@@ -10,8 +10,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -119,6 +117,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -351,6 +350,46 @@ public class SearchServiceTest {
             null,
             true));
         verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
+    }
+
+    /**
+     * Test the method {@link SearchService#getSearchResults}.
+     *
+     * <p>Search on cluster should apply query to request</p>
+     *
+     * @throws Exception when something goes wrong (is not expected here)
+     */
+    @Test
+    public void testGetSearchResultsClusterWithQuery() throws Exception {
+        final SearchPaginationResponse paginationResponse =
+                Mockito.mock(SearchPaginationResponse.class);
+        final SearchPaginationRequest paginationRequest =
+                Mockito.mock(SearchPaginationRequest.class);
+        String query = "query";
+        when(paginationRequest.allResultsResponse(any())).thenReturn(paginationResponse);
+        when(groupsService.getGroupsByType(any(), any(), any(), eq(EnvironmentType.ONPREM))).thenReturn(Lists.newArrayList());
+
+        ArgumentCaptor<String> queryArgCap = ArgumentCaptor.forClass(String.class);
+
+        //WHEN
+        SearchPaginationResponse response = searchService.getSearchResults(
+                query,
+                Lists.newArrayList("Cluster"),
+                Lists.newArrayList("Market"),
+                null,
+                Collections.singletonList(null),
+                EnvironmentType.ONPREM,
+                null,
+                paginationRequest,
+                null,
+                null,
+                true);
+
+        //THEN
+        assertEquals(response, paginationResponse);
+        verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
+        verify(searchService).addNameMatcher(queryArgCap.capture(), any(), any());
+        assertEquals(query, queryArgCap.getValue());
     }
 
     /**

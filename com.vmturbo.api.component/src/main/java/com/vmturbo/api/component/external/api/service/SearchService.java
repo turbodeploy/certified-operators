@@ -353,13 +353,13 @@ public class SearchService implements ISearchService {
                     paginationRequest, null, environmentType, scopes, true);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
-                // TODO(OM-49616): return the proper search filters and handle the query string properly
                 for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
                     if (types.contains(entry.getKey())) {
-                        final Collection<GroupApiDTO> groups =
-                            groupsService.getGroupsByType(entry.getValue(),
-                                scopes, Collections.emptyList(), environmentType);
-                        return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+                        String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(entry.getKey() );
+                        return paginationRequest.allResultsResponse(Collections.unmodifiableList(
+                                groupsService.getGroupsByType(entry.getValue(), scopes,
+                                        addNameMatcher(query, Collections.emptyList(), filter),
+                                        environmentType)));
                     }
                 }
                 throw new IllegalStateException("This can never happen because intersect(types, groupTypes) > 0 if and only if there is at least one groupType in types.");
@@ -452,7 +452,6 @@ public class SearchService implements ISearchService {
                 paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType(),
                 inputDTO.getScope(), false);
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
-            // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
             return paginationRequest.allResultsResponse(Collections.unmodifiableList(
