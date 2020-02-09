@@ -100,7 +100,7 @@
     },
 
     "Service" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"}]
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "service"}]
     },
 
     "Database" : {
