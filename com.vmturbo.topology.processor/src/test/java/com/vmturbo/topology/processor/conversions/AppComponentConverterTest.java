@@ -76,7 +76,6 @@ public class AppComponentConverterTest {
      */
     @Test
     public void convertProbeInfo() throws IOException {
-        DiscoveryResponse response = null;
         try (InputStream inputStream = AppComponentConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/probe_info_conv_test.json").openStream()) {
             final ProbeInfo.Builder builder = ProbeInfo.newBuilder();

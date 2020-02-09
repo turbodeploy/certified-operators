@@ -55,6 +55,13 @@ public class AppComponentConverter {
      * @return new probe info format with APPLICATION_COMPONENT
      */
     public ProbeInfo convertProbeInfo(ProbeInfo oldProbeInfo) {
+        // If we already have APPLICATION_COMPONENT in metadata,
+        // return probe info as is
+        if (oldProbeInfo.getEntityMetadataList()
+                .stream()
+                .anyMatch(e -> APPLICATION_COMPONENT.equals(e.getEntityType()))) {
+            return oldProbeInfo;
+        }
         ProbeInfo.Builder builder = ProbeInfo.newBuilder(oldProbeInfo)
                 .clearEntityMetadata()
                 .clearSupplyChainDefinitionSet();
