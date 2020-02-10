@@ -588,6 +588,9 @@ service StatsHistoryService {
     //Get stats filtered by certain options and average over all desired entities in the cluser.
     rpc GetClusterStats(ClusterStatsRequest) returns (stream StatSnapshot);
 
+    // Get cluster stats for headroom plan, e.g. number of VMs.
+    rpc GetClusterStatsForHeadroomPlan(ClusterStatsRequest) returns (stream StatSnapshot);
+
     // Get stats from the latest projected topology.
     // Will return a response with no data if the stats service
     // doesn't have any projected stats.
