@@ -393,7 +393,8 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.planRpcService(),
             statsQueryExecutor(),
-            mapperConfig.uuidMapper());
+            mapperConfig.uuidMapper(),
+            userSessionContext());
     }
 
     @Bean
@@ -690,7 +691,8 @@ public class ServiceConfig {
                         communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
                         communicationConfig.repositoryApi(),
                         communicationConfig.reservedInstanceCostServiceBlockingStub(),
-                        mapperConfig.buyRiScopeHandler());
+                        mapperConfig.buyRiScopeHandler(),
+                        userSessionContext());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
     }

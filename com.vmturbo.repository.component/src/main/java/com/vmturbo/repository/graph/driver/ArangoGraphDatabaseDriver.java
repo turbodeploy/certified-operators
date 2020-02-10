@@ -15,6 +15,7 @@ import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.entity.BaseEdgeDocument;
+import com.arangodb.entity.CollectionEntity;
 import com.arangodb.entity.CollectionType;
 import com.arangodb.entity.EdgeDefinition;
 import com.arangodb.entity.IndexType;
@@ -25,6 +26,7 @@ import com.arangodb.velocypack.VPackSlice;
 import com.arangodb.velocypack.ValueType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.CollectionOperationException;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.EdgeOperationException;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
@@ -77,17 +79,23 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
 
     private static final String DOCUMENT_KEY_STRING = "_key";
 
+    private final String arangoCollectionNameSuffix;
+
     /**
      * Constructs the ArangoGraphDatabaseDriver.
      *
      * @param arangoDB   The underlying arangodb driver
      * @param database The associated database name
+     * @param arangoCollectionNameSuffix ArangoDB collection name suffix to to appended to collection
+     *                                   names.
      */
     public ArangoGraphDatabaseDriver(final @Nonnull ArangoDB arangoDB,
-                                     final @Nonnull String database) {
+                                     final @Nonnull String database,
+                                     final @Nonnull String arangoCollectionNameSuffix) {
         this.arangoDB = Objects.requireNonNull(arangoDB);
         this.database = Objects.requireNonNull(database);
         this.arangoDatabase = this.arangoDB.db(database);
+        this.arangoCollectionNameSuffix = arangoCollectionNameSuffix;
     }
 
     /**
@@ -102,7 +110,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
         final BaseEdgeDocument newEdge = new BaseEdgeDocument(p.getFrom(), p.getTo());
         newEdge.addAttribute("type", p.getEdgeType());
         try {
-            arangoDatabase.collection(p.getEdgeCollection()).insertDocument(newEdge);
+            arangoDatabase.collection(fullCollectionName(p.getEdgeCollection())).insertDocument(newEdge);
         } catch (ArangoDBException e) {
             throw new EdgeOperationException(e.getMessage(), e);
         }
@@ -131,7 +139,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
                 edgeDocument.addAttribute("type", p.getEdgeType());
                 newEdges.add(edgeDocument);
             }
-            arangoDatabase.collection(p.getEdgeCollection()).insertDocuments(newEdges);
+            arangoDatabase.collection(fullCollectionName(p.getEdgeCollection())).insertDocuments(newEdges);
         } catch (ArangoDBException e) {
             throw new EdgeOperationException(e.getMessage(), e);
         }
@@ -150,7 +158,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
         final Map<String, Object> propMap = objectMapper.convertValue(p.getValue(), Map.class);
         propMap.put(DOCUMENT_KEY_STRING, p.getKey());
         try {
-            arangoDatabase.collection(p.getCollection()).insertDocument(new BaseDocument(propMap));
+            arangoDatabase.collection(fullCollectionName(p.getCollection())).insertDocument(new BaseDocument(propMap));
         } catch (ArangoDBException e) {
             throw new VertexOperationException(e.getMessage(), e);
         }
@@ -181,7 +189,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
                 newVertexes.add(new BaseDocument(propMap));
 //                newVertexes.add(createVPackSlice(propMap));
             }
-            arangoDatabase.collection(p.getCollection()).insertDocuments(newVertexes);
+            arangoDatabase.collection(fullCollectionName(p.getCollection())).insertDocuments(newVertexes);
         } catch (ArangoDBException e) {
             throw new VertexOperationException(e.getMessage(), e);
         }
@@ -205,7 +213,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
             collectionOptions.type(CollectionType.DOCUMENT);
         }
         try {
-            arangoDatabase.createCollection(p.getName(), collectionOptions);
+            arangoDatabase.createCollection(fullCollectionName(p.getName()), collectionOptions);
         } catch (ArangoDBException e) {
             throw new CollectionOperationException(e.getMessage(), e);
         }
@@ -221,7 +229,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     public synchronized void emptyCollection(final @Nonnull String name)
             throws CollectionOperationException {
         try {
-            arangoDatabase.collection(name).truncate();
+            arangoDatabase.collection(fullCollectionName(name)).truncate();
         } catch (ArangoDBException e) {
             throw new CollectionOperationException(e.getMessage(), e);
         }
@@ -237,7 +245,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     public synchronized void createGraph(final @Nonnull GraphParameter p)
             throws GraphOperationException {
         try {
-            arangoDatabase.createGraph(p.getName(), p.getEdgeDefs().stream().map(edp -> createEdgeDef(edp))
+            arangoDatabase.createGraph(fullCollectionName(p.getName()), p.getEdgeDefs().stream().map(edp -> createEdgeDef(edp))
                                .collect(Collectors.toList()));
         } catch (ArangoDBException e) {
             throw new GraphOperationException(e.getMessage(), e);
@@ -255,7 +263,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
             throws IndexOperationException {
 
         try {
-            final ArangoCollection ac = arangoDatabase.collection(p.getCollectionName());
+            final ArangoCollection ac = arangoDatabase.collection(fullCollectionName(p.getCollectionName()));
 
             if (IndexParameter.GraphIndexType.FULLTEXT.equals(p.getIndexType())) {
                 ac.createFulltextIndex(p.getFieldNames(), null);
@@ -301,9 +309,9 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     private EdgeDefinition createEdgeDef(final @Nonnull EdgeDefParameter p) {
         EdgeDefinition edgeDef = new EdgeDefinition();
 
-        edgeDef.collection(p.getEdgeCollection());
-        edgeDef.from(p.getFromCollection());
-        edgeDef.to(p.getToCollection());
+        edgeDef.collection(fullCollectionName(p.getEdgeCollection()));
+        edgeDef.from(fullCollectionName(p.getFromCollection()));
+        edgeDef.to(fullCollectionName(p.getToCollection()));
 
         return edgeDef;
     }
@@ -327,7 +335,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
         });
 
         try {
-            arangoDatabase.collection(p.getCollection()).updateDocuments(values);
+            arangoDatabase.collection(fullCollectionName(p.getCollection())).updateDocuments(values);
         } catch (ArangoDBException e) {
             throw new VertexOperationException("Error updating the arangodb documents", e);
         }
@@ -346,27 +354,20 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     }
 
     @Override
-    public boolean createDatabase() throws GraphDatabaseException {
-        try {
-            if (arangoDB.getDatabases().contains(database)) {
-                return false;
-            }
-            arangoDB.createDatabase(database);
-
-        } catch (ArangoDBException e) {
-            throw new GraphDatabaseException(e.getMessage(), e);
-        }
-
-        return true;
-    }
-
-    @Override
     public String getDatabase() {
         return database;
     }
 
     @Override
-    public boolean dropDatabase() {
-        return arangoDatabase.drop();
+    public void dropCollections() {
+        arangoDatabase.getCollections().stream()
+            .map(CollectionEntity::getName)
+            .filter(collection -> collection.contains(arangoCollectionNameSuffix))
+            .map(arangoDatabase::collection)
+            .forEach(ArangoCollection::drop);
+    }
+
+    private String fullCollectionName(String collectionName) {
+        return collectionName + arangoCollectionNameSuffix;
     }
 }

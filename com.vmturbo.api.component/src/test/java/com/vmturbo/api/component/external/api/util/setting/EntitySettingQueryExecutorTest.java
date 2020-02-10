@@ -4,6 +4,7 @@ package com.vmturbo.api.component.external.api.util.setting;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
@@ -21,6 +22,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Maps;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,10 +46,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -74,6 +81,30 @@ public class EntitySettingQueryExecutorTest {
             groupExpander, entitySettingGroupMapper, settingsManagerMapping);
     }
 
+    /**
+     * Setup.
+     */
+    @Before
+    public void setup() {
+        doReturn(Collections.singletonList(FOO_SETTING_SPEC)).when(settingServiceBackend).searchSettingSpecs(any());
+
+        when(settingsManagerMapping.getManagerUuid(SPEC_NAME)).thenReturn(Optional.of(MGR_UUID));
+
+        SettingApiDTO mappedSetting = new SettingApiDTO();
+        mappedSetting.setDisplayName(SPEC_NAME);
+        when(entitySettingGroupMapper.toSettingApiDto(any(), any(), any(), anyBoolean(), any())).thenReturn(Optional.of(mappedSetting));
+
+        MAPPED_MGR_DTO.setUuid(MGR_UUID);
+        final SettingsManagerInfo mgrInfo = mock(SettingsManagerInfo.class);
+        when(mgrInfo.newApiDTO(MGR_UUID)).thenReturn(MAPPED_MGR_DTO);
+
+        when(settingsManagerMapping.getManagerInfo(MGR_UUID)).thenReturn(Optional.of(mgrInfo));
+
+        doReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(SETTING_GROUP)
+            .build())).when(settingPolicyServiceBackend).getEntitySettings(any());
+    }
+
     @Test
     public void testGetSettingsIndividualEntity() {
         // ARRANGE
@@ -99,7 +130,7 @@ public class EntitySettingQueryExecutorTest {
             .build());
         verify(settingsManagerMapping).getManagerUuid(SPEC_NAME);
         verify(entitySettingGroupMapper).toSettingApiDto(Collections.singletonList(SETTING_GROUP),
-            FOO_SETTING_SPEC, Optional.of(scopeType), false);
+            FOO_SETTING_SPEC, Optional.of(scopeType), false, Collections.emptyMap());
         verify(settingsManagerMapping).getManagerInfo(MGR_UUID);
         assertThat(retMgrs, containsInAnyOrder(MAPPED_MGR_DTO));
     }
@@ -120,27 +151,6 @@ public class EntitySettingQueryExecutorTest {
         .build();
 
     private static final SettingsManagerApiDTO MAPPED_MGR_DTO = new SettingsManagerApiDTO();
-
-    @Before
-    public void setup() {
-        doReturn(Collections.singletonList(FOO_SETTING_SPEC)).when(settingServiceBackend).searchSettingSpecs(any());
-
-        when(settingsManagerMapping.getManagerUuid(SPEC_NAME)).thenReturn(Optional.of(MGR_UUID));
-
-        SettingApiDTO mappedSetting = new SettingApiDTO();
-        mappedSetting.setDisplayName(SPEC_NAME);
-        when(entitySettingGroupMapper.toSettingApiDto(any(), any(), any(), anyBoolean())).thenReturn(Optional.of(mappedSetting));
-
-        MAPPED_MGR_DTO.setUuid(MGR_UUID);
-        final SettingsManagerInfo mgrInfo = mock(SettingsManagerInfo.class);
-        when(mgrInfo.newApiDTO(MGR_UUID)).thenReturn(MAPPED_MGR_DTO);
-
-        when(settingsManagerMapping.getManagerInfo(MGR_UUID)).thenReturn(Optional.of(mgrInfo));
-
-        doReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
-            .addSettingGroup(SETTING_GROUP)
-            .build())).when(settingPolicyServiceBackend).getEntitySettings(any());
-    }
 
     @Test
     public void testGetSettingsGroup() {
@@ -171,9 +181,172 @@ public class EntitySettingQueryExecutorTest {
             .build());
         verify(settingsManagerMapping).getManagerUuid(SPEC_NAME);
         verify(entitySettingGroupMapper).toSettingApiDto(Collections.singletonList(SETTING_GROUP),
-            FOO_SETTING_SPEC, Optional.of(scopeType), false);
+            FOO_SETTING_SPEC, Optional.of(scopeType), false, Collections.emptyMap());
         verify(settingsManagerMapping).getManagerInfo(MGR_UUID);
         assertThat(retMgrs, containsInAnyOrder(MAPPED_MGR_DTO));
+    }
+
+    /**
+     * When getEntitySettings is called for a group which has multiple setting groups, with at
+     * least one setting group having policies for the same spec FOO, then ensure that we fetch all
+     * these raw policies. But we should not fetch the policies listed for some other spec which
+     * does not have more than one policy id.
+     */
+    @Test
+    public void testGetSettingsGroupForSettingGroupWithTwoPolicies() {
+        // ARRANGE
+        final EntitySettingQueryExecutor executor = newExecutor();
+        final ApiId scope = mock(ApiId.class);
+        final long scopeId = 7;
+        final long groupMember = 77;
+        final UIEntityType scopeType = UIEntityType.VIRTUAL_MACHINE;
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.oid()).thenReturn(scopeId);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
+
+        when(groupExpander.expandOids(any())).thenReturn(Collections.singleton(groupMember));
+
+        EntitySettingGroup settingGroup1 = EntitySettingGroup.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setSettingSpecName(SPEC_NAME))
+            .addEntityOids(123)
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(3L).build())
+            .build();
+        EntitySettingGroup settingGroup2 = EntitySettingGroup.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setSettingSpecName(SPEC_NAME))
+            .addEntityOids(456)
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(1L).build())
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(2L).build())
+            .build();
+        EntitySettingGroup settingGroup3 = EntitySettingGroup.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setSettingSpecName("bar"))
+            .addEntityOids(789)
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(4L).build())
+            .build();
+
+        doReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(settingGroup1)
+            .addSettingGroup(settingGroup2)
+            .addSettingGroup(settingGroup3).build()))
+            .when(settingPolicyServiceBackend).getEntitySettings(any());
+
+        when(settingsManagerMapping.getManagerUuid("bar")).thenReturn(Optional.of(MGR_UUID));
+
+        SettingApiDTO mappedSetting = new SettingApiDTO();
+        mappedSetting.setDisplayName("bar");
+        when(entitySettingGroupMapper.toSettingApiDto(any(), any(), any(), anyBoolean(), any())).thenReturn(Optional.of(mappedSetting));
+
+        // ACT
+        executor.getEntitySettings(scope, true);
+
+        // ASSERT
+        verify(settingPolicyServiceBackend).listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+            .addAllIdFilter(Arrays.asList(1L, 2L, 3L))
+            .build());
+    }
+
+    /**<p>Group 1 consists of 3 VMs (ids 90, 91, 92).
+     * Group 2 consists of 1 VM (id 90).
+     * Policy P1 excludes templates 1 and 2, and is applied to Group 1. So it applies to 3 VMs.
+     * Policy P2 excludes templates 3 and 4, and is applied to Group 2. So it applies to 1 VM.</p>
+     *<p>This gives rise to two EntitySettingGroups - group1WithMultiplePolicyIds and
+     * group2WithSinglePolicyId.</p>
+     *<p>Group1WithMultiplePolicyIds has 2 policy ids. So in this case, we will just list out the
+     *   policies in the activeSettingPolicies of the resultant SettingApiDTO.</p>
+     * <p>We ensure that in this test case. We also test that the number of entities each policy is applied to is correct.</p>
+     */
+    @Test
+    public void testToSettingApiDtoForSettingGroupWithTwoPolicies() {
+        final SettingsMapper settingsMapper = mock(SettingsMapper.class);
+        final EntitySettingGroupMapper groupMapper = new EntitySettingGroupMapper(settingsMapper);
+
+        final EntitySettingGroup group1WithMultiplePolicyIds = EntitySettingGroup.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setSettingSpecName(FOO_SETTING_SPEC.getName())
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                    .addAllOids(Arrays.asList(1L, 2L, 3L, 4L))))
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(11L)
+                .setType(Type.USER)
+                .setDisplayName("P1"))
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(12L)
+                .setType(Type.USER)
+                .setDisplayName("P2"))
+            .addEntityOids(90L)
+            .build();
+
+        final EntitySettingGroup group2WithSinglePolicyId = EntitySettingGroup.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setSettingSpecName(FOO_SETTING_SPEC.getName())
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                    .addAllOids(Arrays.asList(1L, 2L))))
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setPolicyId(11L)
+                .setType(Type.USER)
+                .setDisplayName("P1"))
+            .addAllEntityOids(Arrays.asList(91L, 92L))
+            .build();
+
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        final SettingApiDTO settingApi = new SettingApiDTO();
+        settingApi.setValue("1,2");
+        when(possibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .thenReturn(Optional.of(settingApi));
+        when(settingsMapper.toSettingApiDto(group2WithSinglePolicyId.getSetting(), FOO_SETTING_SPEC))
+            .thenReturn(possibilities);
+
+        Setting policy1Setting = Setting.newBuilder()
+            .setSettingSpecName(FOO_SETTING_SPEC.getName())
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Arrays.asList(1L, 2L))).build();
+        final SettingApiDTOPossibilities possibilities1 = mock(SettingApiDTOPossibilities.class);
+        final SettingApiDTO settingApi1 = new SettingApiDTO();
+        settingApi1.setValue("1,2");
+        when(possibilities1.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .thenReturn(Optional.of(settingApi1));
+        when(settingsMapper.toSettingApiDto(policy1Setting, FOO_SETTING_SPEC))
+            .thenReturn(possibilities1);
+
+        Setting policy2Setting = Setting.newBuilder()
+            .setSettingSpecName(FOO_SETTING_SPEC.getName())
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Arrays.asList(3L, 4L))).build();
+        final SettingApiDTOPossibilities possibilities2 = mock(SettingApiDTOPossibilities.class);
+        final SettingApiDTO settingApi2 = new SettingApiDTO();
+        settingApi2.setValue("3,4");
+        when(possibilities2.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .thenReturn(Optional.of(settingApi2));
+        when(settingsMapper.toSettingApiDto(policy2Setting, FOO_SETTING_SPEC))
+            .thenReturn(possibilities2);
+
+        final Map<Long, SettingPolicy> rawSettingPoliciesById = Maps.newHashMap();
+        rawSettingPoliciesById.put(11L, SettingPolicy.newBuilder().setInfo(
+            SettingPolicyInfo.newBuilder().addSettings(policy1Setting).build()).build());
+        rawSettingPoliciesById.put(12L, SettingPolicy.newBuilder().setInfo(
+            SettingPolicyInfo.newBuilder().addSettings(policy2Setting).build()).build());
+
+        final Optional<SettingApiDTO<String>> resultOpt = groupMapper.toSettingApiDto(
+            Arrays.asList(group1WithMultiplePolicyIds, group2WithSinglePolicyId),
+            FOO_SETTING_SPEC,
+            Optional.of(UIEntityType.VIRTUAL_MACHINE), true, rawSettingPoliciesById);
+
+        assertEquals(2, resultOpt.get().getActiveSettingsPolicies().size());
+        assertEquals(3, (int)resultOpt.get().getActiveSettingsPolicies().get(0).getNumEntities());
+        assertEquals("1,2", resultOpt.get().getActiveSettingsPolicies().get(0).getValue());
+        assertEquals("11", resultOpt.get().getActiveSettingsPolicies().get(0).getSettingsPolicy().getUuid());
+        assertEquals("P1", resultOpt.get().getActiveSettingsPolicies().get(0).getSettingsPolicy().getDisplayName());
+
+        assertEquals(1, (int)resultOpt.get().getActiveSettingsPolicies().get(1).getNumEntities());
+        assertEquals("3,4", resultOpt.get().getActiveSettingsPolicies().get(1).getValue());
+        assertEquals("12", resultOpt.get().getActiveSettingsPolicies().get(1).getSettingsPolicy().getUuid());
+        assertEquals("P2", resultOpt.get().getActiveSettingsPolicies().get(1).getSettingsPolicy().getDisplayName());
     }
 
     @Test
@@ -217,7 +390,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> result = groupMapper.toSettingApiDto(
             Arrays.asList(smallerGroup, dominantGroup),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), false);
+            Optional.of(UIEntityType.VIRTUAL_MACHINE), false, Collections.emptyMap());
 
         // Relying on object equality.
         assertThat(result.get(), is(dominantSetting));
@@ -274,7 +447,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> resultOpt = groupMapper.toSettingApiDto(
             Arrays.asList(smallerGroup, dominantGroup),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), true);
+            Optional.of(UIEntityType.VIRTUAL_MACHINE), true, Collections.emptyMap());
 
         // Relying on object equality - the "base" should still be the dominant setting.
         final SettingApiDTO<String> result = resultOpt.get();
@@ -343,7 +516,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> resultOpt = groupMapper.toSettingApiDto(
             Collections.singletonList(defaultGroup),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), true);
+            Optional.of(UIEntityType.VIRTUAL_MACHINE), true, Collections.emptyMap());
 
         // Relying on object equality - the "base" should still be the dominant setting.
         final SettingApiDTO result = resultOpt.get();

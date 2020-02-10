@@ -132,6 +132,10 @@ public class UserSessionContext implements AutoCloseable {
         return UserScopeUtils.isUserScoped();
     }
 
+    public boolean isUserObserver() {
+        return UserScopeUtils.isUserObserver();
+    }
+
     public EntityAccessScope getUserAccessScope() {
         USER_SESSION_CONTEXT_REQUEST_COUNT.increment();
         return getAccessScope(UserScopeUtils.getUserScopeGroups());

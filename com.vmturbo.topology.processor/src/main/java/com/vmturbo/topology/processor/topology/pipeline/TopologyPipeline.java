@@ -178,7 +178,8 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
 
         @Nonnull
         @Override
-        public StageResult<InputType> execute(@Nonnull InputType input) throws PipelineStageException {
+        public StageResult<InputType> execute(@Nonnull InputType input)
+                throws PipelineStageException, InterruptedException {
             Status status = null;
             boolean retry = false;
             int numAttempts = 0;
@@ -247,7 +248,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
         }
 
         @Nonnull
-        public abstract Status passthrough(InputType input) throws PipelineStageException;
+        public abstract Status passthrough(InputType input) throws PipelineStageException, InterruptedException;
     }
 
     /**

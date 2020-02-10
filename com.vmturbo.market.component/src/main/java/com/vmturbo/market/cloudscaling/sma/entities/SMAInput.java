@@ -1,6 +1,7 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +41,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
@@ -51,8 +53,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
  * The input to the Stable marriage algorithm.
@@ -69,7 +69,7 @@ public class SMAInput {
     public final List<SMAInputContext> inputContexts;
 
     /*
-     * Dictionary for SMACSP by region.
+     * Dictionary for SMACSP by region.  Only regions where VMs were found.
      */
     private CspFromRegion cspFromRegion = new CspFromRegion();
 
@@ -148,15 +148,17 @@ public class SMAInput {
                 new SMAReservedInstanceKeyIDGenerator();
         /*
          * Map from computeTier OID to context to template, needed to convert provider list from
-         * compute tier to template.  Need context, because their is a one to many relationship
+         * compute tier to template.  Need context, because there is a one to many relationship
          * between a compute tier and templates, one template per context for a compute tier.
          * The context is what is used to aggregate VMs, RIs, and Templates.
          */
         Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate = HashBasedTable.create();
-        // Map from region ID to OSType to context: used to restrict compute tier and RI generation.
+        // Map from region ID to OSType to context: used to restrict template and RI creation.
         Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts = HashBasedTable.create();
-        // keep track of business accounts in the context's billing family.  Needed to process compute tiers.
+        // keep track of business accounts in the context's billing family, used to restrict template creation.
         Map<SMAContext, Set<Long>> contextToBusinessAccountIds = new HashMap<>();
+        // for each context in which VMs are found, collect the OSTypes, used to restrict template creation.
+        Map<SMAContext, Set<OSType>> contextToOSTypes = new HashMap<>();
 
 
         /*
@@ -165,15 +167,16 @@ public class SMAInput {
         List<TopologyEntityDTO> virtualMachines =
             cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
         int numberVMsCreated = 0;
+        logger.info("process {} VMs", () -> virtualMachines.size());
         for (TopologyEntityDTO vm : virtualMachines) {
             if (!(vm.getEntityState() == EntityState.POWERED_ON)) {
-                logger.debug(" VM={} state={} != POWERED_ON", vm.getOid(), vm.getEntityState().name());
+                logger.debug(" VM={} state={} != POWERED_ON", () -> vm.getOid(), () -> vm.getEntityState().name());
                 continue;
             }
             numberVMsCreated++;
-            processVirtualMachine(vm, cloudTopology, cloudCostData, smaContextToVMs,
-                regionIdToOsTypeToContexts, contextToBusinessAccountIds,
-                    consistentScalingHelper);
+            processVirtualMachine(vm, cloudTopology, cloudCostData, consistentScalingHelper,
+                smaContextToVMs, regionIdToOsTypeToContexts, contextToBusinessAccountIds,
+                contextToOSTypes);
         }
         logger.info("created {} VMs from {} VirtualMachines in {} contexts", numberVMsCreated,
             virtualMachines.size(), smaContextToVMs.keySet().size());
@@ -182,37 +185,43 @@ public class SMAInput {
         dumpContextToBusinessAccountsIds(contextToBusinessAccountIds);
 
         /*
-         * For each ComputeTier, generate SMATemplates, but only in contexts where VMs exist.
+         * For each ComputeTier, create SMATemplates, but only in contexts where VMs exist.
          */
         final List<TopologyEntityDTO> computeTiers =
             cloudTopology.getAllEntitiesOfType(EntityType.COMPUTE_TIER_VALUE);
+        logger.info("process {} computeTiers", () -> computeTiers.size());
         int numberTemplatesCreated = processComputeTiers(computeTiers, cloudTopology, cloudCostData,
-            regionIdToOsTypeToContexts, contextToBusinessAccountIds, computeTierOidToContextToTemplate,
-            smaContextToTemplates, marketPriceTable);
-        logger.info("created {} templates from {} compute tiers in {} contexts", numberTemplatesCreated,
-            computeTiers.size(), smaContextToTemplates.keySet().size());
+            regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes,
+            computeTierOidToContextToTemplate, smaContextToTemplates, marketPriceTable);
+        logger.info("created {} templates from {} compute tiers in {} contexts",
+            () -> numberTemplatesCreated, () -> computeTiers.size(),
+            () -> smaContextToTemplates.keySet().size());
         dumpSmaContextsToTemplates(smaContextToTemplates);
         dumpComputeTierOidToContextToTemplate(computeTierOidToContextToTemplate);
 
         /*
-         * For each the RI, create an  and  into SMAContexts.
+         * For each the RI, create an SMAReservedInstance, but only in contexts where VMs exist.
          */
         int numberRIsCreated = 0;
-        for (ReservedInstanceData data : cloudCostData.getAllRiBought()) {
+        Collection<ReservedInstanceData> allRIData = cloudCostData.getAllRiBought();
+        logger.info("process {} RIs", () -> allRIData.size());
+        for (ReservedInstanceData data :allRIData ) {
             if (processReservedInstance(data, cloudTopology, computeTierOidToContextToTemplate,
                 regionIdToOsTypeToContexts, smaContextToRIs,
                     reservedInstanceKeyIDGenerator)) {
                 numberRIsCreated++;
             }
         }
-        logger.info("created {} RIs from {} RI bought data in {} contexts", numberRIsCreated,
-            cloudCostData.getAllRiBought().size(), smaContextToRIs.keySet().size());
+        logger.info("created {} RIs from {} RI bought data in {} contexts",
+            numberRIsCreated, cloudCostData.getAllRiBought().size(), smaContextToRIs.keySet().size());
         dumpSmaContextsToRIs(smaContextToRIs);
 
         /*
          * Update VM's current template and provider list.
          */
-        for (SMAContext context : smaContextToVMs.keySet()) {
+        Set<SMAContext> smaContexts = smaContextToVMs.keySet();
+        logger.info("update VMS for {} contexts", () -> smaContexts.size());
+        for (SMAContext context :smaContexts) {
             Set<SMAVirtualMachine> vmsInContext = smaContextToVMs.get(context);
             updateVirtualMachines(vmsInContext, computeTierOidToContextToTemplate, providers,
                     cloudTopology, context,
@@ -223,8 +232,8 @@ public class SMAInput {
         /*
          * build input contexts.
          */
-        Set<SMAContext> smaContexts = smaContextToVMs.keySet();
         inputContexts = new ArrayList<>();
+        logger.info("build input contexts for {} contexts", () -> smaContexts.size());
         for (SMAContext context : smaContexts) {
             Set<SMAVirtualMachine> smaVMs = smaContextToVMs.get(context);
             if (ObjectUtils.isEmpty(smaVMs)) {
@@ -238,8 +247,8 @@ public class SMAInput {
                 logger.error(" no template for context={}", context);
                 continue;
             }
-            logger.info(": context={} #VMs={} #RIs={} #templates={}",
-                context, smaVMs.size(), smaRIs.size(), smaTemplates.size());
+            logger.info("{} #VMs={} #RIs={} #templates={}", () -> context,
+                () -> smaVMs.size(), () -> smaRIs.size(), () -> smaTemplates.size());
             SMAInputContext inputContext = new SMAInputContext(context,
                 Lists.newArrayList(smaVMs),
                 (smaRIs == null ? new ArrayList<>() : Lists.newArrayList(smaRIs)),
@@ -255,28 +264,30 @@ public class SMAInput {
      *  @param entity                     topology entity DTO that is a VM.
      * @param cloudTopology               the cloud topology to find source template.
      * @param cloudCostData               where to find costs and RI related info.  E.g. RI coverage for a VM.
-     * @param smaContextToVMs             map from SMA context to set of SMA virtual machines, to be updated
+     * @param smaContextToVMs             map from SMA context to set of SMA virtual machines, updated
      * @param regionIdToOsTypeToContexts  table from region ID  to osType to set of SMAContexts, defined
      * @param contextToBusinessAccountIds map from context to set of business account IDs, defined.
+     * @param contextToOSTypes            map from context to set of OSTypes.  Limits compute Tier processing. defined.
      * @param consistentScalingHelper     used to figure out the consistent scaling information.
      */
     private void processVirtualMachine(@Nonnull TopologyEntityDTO entity,
                                        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
                                        @Nonnull CloudCostData cloudCostData,
+                                       ConsistentScalingHelper consistentScalingHelper,
                                        Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
                                        Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                        Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
-                                       ConsistentScalingHelper consistentScalingHelper) {
+                                       Map<SMAContext, Set<OSType>> contextToOSTypes) {
         long oid = entity.getOid();
         String name = entity.getDisplayName();
         int entityType = entity.getEntityType();
         if (entityType != EntityType.VIRTUAL_MACHINE_VALUE) {
-            logger.error("processVirtualMachine: entity is not a VM: ID={} name={}",
+            logger.error("processVM: entity is not a VM: ID={} name={}",
                 oid, name);
             return;
         }
         if (!entity.getTypeSpecificInfo().hasVirtualMachine()) {
-            logger.error("processVirtualMachine: entity ID={} name={} doesn't have VirutalMachineInfo",
+            logger.error("processVM: entity ID={} name={} doesn't have VirutalMachineInfo",
                 oid, name);
             return;
         }
@@ -286,12 +297,11 @@ public class SMAInput {
         String osName = vmInfo.getGuestOsInfo().getGuestOsType().name();
         OSType osType = OSType.valueOf(osName);
         if (osType == OSType.UNKNOWN_OS && !osName.equalsIgnoreCase(OSType.UNKNOWN_OS.name())) {
-            logger.warn("processVirtualMachine: osName={} converted to UNKNOWN_OS", osName);
+            logger.warn("processVM: osName={} converted to UNKNOWN_OS", osName);
         }
         /*
          * create Context
          */
-
         long regionId = getVMRegionId(oid, cloudTopology);
         SMACSP csp = cspFromRegion.lookupWithRegionId(regionId);
         Optional<TopologyEntityDTO> zoneOptional = cloudTopology.getConnectedAvailabilityZone(oid);
@@ -300,22 +310,27 @@ public class SMAInput {
             zoneId = zoneOptional.get().getOid();
         } else if (csp != SMACSP.AZURE) {
             // Azure currently does not support availability zones.
-            logger.error("processVirtualMachine: VM ID={} can't find availabilty zone",
+            logger.error("processVM: VM ID={} can't find availabilty zone",
                 oid);
+            return;
         }
 
         // Because RIs are OS agnostic in Azure, if Azure, use OSType UNKNOWN.
         OSType osTypeForContext = (csp == SMACSP.AZURE ? OSType.UNKNOWN_OS : osType);
         long businessAccountId = getBusinessAccountId(oid, cloudTopology, "VM");
-        long masterAccountId = getMasterAccountId(businessAccountId, cloudTopology, "VM");
-        logger.info("processVirtualMachine: new SMAContext csp={} osType={} region={} masterAccount={} account={} tenancy={}",
-            csp.name(), osTypeForContext, regionId, masterAccountId, businessAccountId, tenancy);
-        SMAContext context = new SMAContext(csp, osTypeForContext, regionId, masterAccountId, tenancy);
-
+        long billingFamilyId = getBillingFamilyId(businessAccountId, cloudTopology, "VM");
+         SMAContext context = new SMAContext(csp, osTypeForContext, regionId, billingFamilyId, tenancy);
+        logger.debug("processVM: new {}  osType={}  accountId={}", context, osType,
+            businessAccountId);
         // Add business account to context.
         Set<Long> accounts = contextToBusinessAccountIds.getOrDefault(context, new HashSet<>());
         accounts.add(businessAccountId);
         contextToBusinessAccountIds.put(context, accounts);
+        // Add OSType to context.
+        Set<OSType> osTypes = contextToOSTypes.getOrDefault(context, new HashSet<>());
+        osTypes.add(osType);
+        contextToOSTypes.put(context, osTypes);
+
 
         Optional<String> groupIdOptional = consistentScalingHelper.getScalingGroupId(oid);
         String groupId = SMAUtils.NO_GROUP_ID;
@@ -336,9 +351,12 @@ public class SMAInput {
             SMAUtils.NO_CURRENT_RI,
             osType);
         if (vm == null) {
-            logger.error("processVirtualMachine: createSMAVirtualMachine failed for VM ID={}", vm.getOid());
+            logger.error("processVM: createSMAVirtualMachine failed for VM ID={}",
+                () -> vm.getOid());
             return;
         }
+        logger.debug("processVM: new {}", vm);
+
         Set<SMAVirtualMachine> contextVMs = smaContextToVMs.getOrDefault(context, new HashSet<>());
         contextVMs.add(vm);
         smaContextToVMs.put(context, contextVMs);
@@ -356,7 +374,7 @@ public class SMAInput {
      * @param cloudTopology dictionary.
      * @param context the input context the VM belongs to.
      * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
-     * @param cloudCostData             where to find costs and RI related info.  E.g. RI coverage for a VM.
+     * @param cloudCostData where to find costs and RI related info.  E.g. RI coverage for a VM.
      */
     private void updateVirtualMachines(Set<SMAVirtualMachine> vms,
                                        Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
@@ -365,8 +383,6 @@ public class SMAInput {
                                        SMAContext context,
                                        SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator,
                                        @Nonnull CloudCostData cloudCostData) {
-
-
         for (SMAVirtualMachine vm : vms) {
             long oid = vm.getOid();
             String name = vm.getName();
@@ -374,14 +390,15 @@ public class SMAInput {
             SMATemplate currentTemplate = null;
             long computeTierID = -1;
             if (!currentTemplateOptional.isPresent()) {
-                logger.error("updateVirtualMachines: VM ID={} name={} doesn't have a compute Tier",
+                logger.error("updateVMs: VM ID={} name={} no compute Tier",
                     oid, name);
             } else {
                 computeTierID = currentTemplateOptional.get().getOid();
                 currentTemplate = computeTierOidToContextToTemplate.get(computeTierID, context);
                 if (currentTemplate == null) {
-                    logger.error("updateVirtualMachines: VM ID={} name={} can't find template ID={} in list of templates",
+                    logger.error("updateVMs: VM ID={} name={} no template ID={} in list of templates",
                         oid, name, computeTierID);
+                    continue;
                 } else {
                     vm.setCurrentTemplate(currentTemplate);
                 }
@@ -389,14 +406,14 @@ public class SMAInput {
             Set<Long> providerOids = providersList.get(oid);
             List<SMATemplate> providers = new ArrayList<>();
             if (providerOids == null) {
-                logger.error("updateVirtualMachines: could not find providers for VM ID={} name={}",
+                logger.error("updateVMs: no providers for VM ID={} name={}",
                     oid, name);
                 vm.setNaturalTemplate(vm.getCurrentTemplate());
             } else {
                 for (long providerId : providerOids) {
                     SMATemplate template = computeTierOidToContextToTemplate.get(providerId, context);
                     if (template == null) {
-                        logger.error("updateVirtualMachines: VM ID={} name={} could not find providerID={} in computeTierToContextToTemplateMap with context={}",
+                        logger.error("updateVMs: VM ID={} name={} no providerID={} in computeTierToContextToTemplateMap with context={}",
                             oid, name, providerId, context);      // currently expected
                     } else {
                         providers.add(template);
@@ -406,8 +423,9 @@ public class SMAInput {
                 vm.updateNaturalTemplateAndMinCostProviderPerFamily();
             }
             Pair<Long, Float> currentRICoverage = computeRiCoverage(oid, cloudTopology, cloudCostData, reservedInstanceKeyIDGenerator);
-            logger.debug("processVirtualMachine: ID={} name={} cloudCostData currentRICoverage={} currentRI={}",
-                    oid, name, currentRICoverage.getSecond(), currentRICoverage.getFirst());
+            logger.debug("updateVMs: ID={} name={} currentRICoverage={} currentRI={}",
+                () -> oid, () -> name, () -> currentRICoverage.getSecond(),
+                () -> currentRICoverage.getFirst());
             if (currentRICoverage.getSecond() > SMAUtils.EPSILON) {
                 vm.setCurrentRIKey(currentRICoverage.getFirst());
                 vm.setCurrentRICoverage(currentRICoverage.getSecond());
@@ -417,7 +435,7 @@ public class SMAInput {
 
     /**
      * Given a set of computer tiers, generate the corresponding SMATemplates.
-     * A compute tier does not specify either a tenancy, a master or a business account.
+     * A compute tier does not specify either a tenancy, a billing family or a business account.
      * Only generate SMATemplates that are needed by the Virtual machines that may be scaled.
      *
      * @param computeTiers                Set of compute tiers in this cloud topology.
@@ -425,6 +443,7 @@ public class SMAInput {
      * @param cloudCostData               cost dictionary.
      * @param regionIdToOsTypeToContexts  table from region ID to osType to set of contexts.
      * @param contextToBusinessAccountIds map from context to set of business accounts in this context
+     * @param contextToOSTypes            map from context to set of OSTypes in this context
      * @param computeTierIdToContextToTemplateMap compute tier ID to context to Template map, to be updated
      * @param smaContextToTemplates       map from context to template, to be updated
      * @param marketPriceTable            price table to compute on-demand cost.
@@ -435,6 +454,7 @@ public class SMAInput {
                                     CloudCostData cloudCostData,
                                     Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                     Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
+                                    Map<SMAContext, Set<OSType>> contextToOSTypes,
                                     Table<Long, SMAContext, SMATemplate> computeTierIdToContextToTemplateMap,
                                     Map<SMAContext, Set<SMATemplate>> smaContextToTemplates,
                                     MarketPriceTable marketPriceTable) {
@@ -444,9 +464,8 @@ public class SMAInput {
             // set of valid compute tiers in that region.
             for (TopologyEntityDTO computeTier : computeTiers) {
                 boolean created = processComputeTier(computeTier, cloudTopology, cloudCostData,
-                    regionIdToOsTypeToContexts, contextToBusinessAccountIds, regionId,
-                    computeTierIdToContextToTemplateMap, smaContextToTemplates,
-                    marketPriceTable);
+                    regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes, regionId,
+                    marketPriceTable, computeTierIdToContextToTemplateMap, smaContextToTemplates);
                 if (created) {
                     numberTemplatesCreated++;
                 }
@@ -457,7 +476,7 @@ public class SMAInput {
 
     /**
      * Given an topology entity that is a compute tier, generate one or more SMATemplates.
-     * A compute tier does not specify either a tenancy, a master or a business account.
+     * A compute tier does not specify either a tenancy, a billing family or a business account.
      * A compute tier may support multiple OSTypes, which are found as sold commodities.
      * A compute tier may not be supported in a region, which can be determined by checking the
      * compute tier's connected entities.
@@ -468,11 +487,12 @@ public class SMAInput {
      * @param cloudTopology                 entity dictionary.
      * @param cloudCostData                 cost dictionary.
      * @param regionIdToOsTypeToContexts    table from region ID to osTypeForCSP to set of contexts.
-     * @param contextToBusinessAccountIds   set of business accounts in a context's billing family.
+     * @param contextToBusinessAccountIds   map from context to set of business accounts in this context
+     * @param contextToOSTypes              map from context to set of OSTypes in this context
      * @param regionId                      the ID of the region we are in.
-     * @param tierOidToContextToTemplateMap computeTier ID to context to template map, to be updated
-     * @param smaContextToTemplates         map from context to template, to be updated
      * @param marketPriceTable              price table to compute on-demand cost.
+     * @param computeTierOidToContextToTemplate computeTier ID to context to template map, to be updated
+     * @param smaContextToTemplates         map from context to template, to be updated
      * @return true if a template is created, else false
      */
     private boolean processComputeTier(TopologyEntityDTO computeTier,
@@ -480,10 +500,11 @@ public class SMAInput {
                                        CloudCostData cloudCostData,
                                        Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                        Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
+                                       Map<SMAContext, Set<OSType>> contextToOSTypes,
                                        long regionId,
-                                       Table<Long, SMAContext, SMATemplate> tierOidToContextToTemplateMap,
-                                       Map<SMAContext, Set<SMATemplate>> smaContextToTemplates,
-                                       MarketPriceTable marketPriceTable
+                                       MarketPriceTable marketPriceTable,
+                                       Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
+                                       Map<SMAContext, Set<SMATemplate>> smaContextToTemplates
     ) {
         long oid = computeTier.getOid();
         String name = computeTier.getDisplayName();
@@ -493,7 +514,7 @@ public class SMAInput {
             return false;
         }
         if (!computeTier.getTypeSpecificInfo().hasComputeTier()) {
-            logger.error("createSMATemplate: entity ID={} name={} doesn't have ComputeTierInfo",
+            logger.error("processComputeTier: entity ID={} name={} doesn't have ComputeTierInfo",
                 oid, name);
             return false;
         }
@@ -501,52 +522,74 @@ public class SMAInput {
         String family = computeTierInfo.getFamily();
         int coupons = computeTierInfo.getNumCoupons();
         SMACSP csp = cspFromRegion.lookupWithRegionId(regionId);
+        if (csp == null) {
+            // no VMs found in this region, skip this compute tier.
+            logger.trace("processComputeTier: skip tier ID={} name={}, no VMs in regionID={}",
+                oid, name, regionId);
+            return false;
+        }
 
         /*
          * Find all the contexts in which this template belongs.  Iterate threw osTypes and lookup
-         * contexts.  Because Azure is OS agnostic, templates do not distinguish by OS Type, but us
-         * UNKNOWN_OS as place holder.
+         * contexts.  Because Azure is platform flexible, templates are not distinguish by OS Type,
+         * but use UNKNOWN_OS as place holder.
          */
         Set<OSType> osTypes = computeOsTypes(computeTier);
         Set<OSType> osTypesForContext = UNKNOWN_OS_SINGLETON_SET;
         if (csp != SMACSP.AZURE) {
             osTypesForContext = osTypes;
         }
-        for (OSType  osType : osTypesForContext) {
+        for (OSType  osType : osTypes) {
             Set<SMAContext> contexts = regionIdToOsTypeToContexts.get(regionId, osType);
             if (CollectionUtils.isEmpty(contexts)) {
-                logger.trace("processComputeTier: ID={} name={}: regionId={} osType={} NOT found in regionToOsTypeToContext",
-                    oid, name, regionId, osType.name(), regionId);
+                logger.trace("processComputeTier: not in a context ID={} name={} regionId={} osType={}",
+                    () -> oid, () -> name, () -> regionId, () -> osType.name(), () -> regionId);
                 continue;
             }
-            logger.debug("processComputeTier: ID={} name={}: regionId={} osType={} found in regionToOsTypeToContext.",
-                oid, name, regionId, osType.name());
+            logger.debug("processComputeTier: in {} contexts: ID={} name={} regionId={} osType={}",
+                () -> contexts.size(), () -> oid, () -> name, () -> regionId, () -> osType.name());
 
             for (SMAContext context: contexts) {
+                if (context.getCsp() != csp) {
+                    logger.trace("processComputeTier: ID={} name={} csp={} != context CSP={} {}",
+                        () -> oid, () -> name, () -> csp, () -> context.getCsp().name(), () -> context);
+                    break;
+                }
+                Set<OSType> osTypesInContext = contextToOSTypes.getOrDefault(context, new HashSet<>());
                 /*
                  * For each osType create template with osType specific cost.
                  */
                 SMATemplate template = new SMATemplate(oid, name, family, coupons, context, computeTier);
+                logger.trace("processComputeTier: new {} in {}", template, context);
                 Set<SMATemplate> templates = smaContextToTemplates.getOrDefault(context, new HashSet<>());
                 templates.add(template);
                 smaContextToTemplates.put(context, templates);
                 /*
-                 * For each business account in this context's master account, compute cost.
+                 * For each business account in this context's billing family and OSType, compute cost.
                  */
-                for (long businessAccountId: contextToBusinessAccountIds.get(context)) {
+                for (long businessAccountId : contextToBusinessAccountIds.get(context)) {
                     if (csp == SMACSP.AZURE) {
-                        for (OSType osTypeInner: osTypes) {
-                            updateTemplateRate(template, osTypeInner, regionId, businessAccountId, cloudCostData,
-                                cloudTopology, marketPriceTable);
+                        // If Azure, because of platform flexible, have to iterate threw all the os types explicitly.
+                        for (OSType osTypeInner : osTypes) {
+                            if (osTypesInContext.contains(osTypeInner)) {
+                                updateTemplateRate(template, osTypeInner, context, businessAccountId,
+                                    regionId, cloudCostData, cloudTopology, marketPriceTable);
+                            } else {
+                                logger.trace("processComputeTier: ID={} name={} no VMs with OSType={} in {}",
+                                    oid, name, osTypeInner, context);
+                            }
                         }
                     } else {
-                        updateTemplateRate(template, osType, regionId, businessAccountId, cloudCostData,
-                            cloudTopology, marketPriceTable);
+                        if (osTypesForContext.contains(osType)) {
+                            updateTemplateRate(template, osType, context, businessAccountId,
+                                regionId, cloudCostData, cloudTopology, marketPriceTable);
+                        } else {
+                            logger.trace("processComputeTier: ID={} name={} no VMs with OSType={} in {}",
+                                oid, name, osType, context);
+                        }
                     }
                 }
-                logger.debug("processComputeTier: region={} new SMATemplate: oid={} name={} family={} coupons={}",
-                        regionId, oid, name, family, coupons);
-                tierOidToContextToTemplateMap.put(oid, context, template);
+                computeTierOidToContextToTemplate.put(oid, context, template);
             }
         }
         return true;
@@ -580,14 +623,16 @@ public class SMAInput {
      *
      * @param template the template, whose cost will be updated.
      * @param osType the OS type.
-     * @param regionId region where template resides.
+     * @param context the context.
      * @param businessAccountId business account of the template.
+     * @param regionId regionId of the template.
      * @param cloudCostData cost dictionary.
      * @param cloudTopology entity dictionary.
      * @param marketPriceTable price table to compute on-demand cost.
      */
-    private void updateTemplateRate(SMATemplate template, OSType osType, long regionId, long businessAccountId,
-                                    CloudCostData cloudCostData, CloudTopology<TopologyEntityDTO> cloudTopology,
+    private void updateTemplateRate(SMATemplate template, OSType osType, SMAContext context,
+                                    long businessAccountId, long regionId, CloudCostData cloudCostData,
+                                    CloudTopology<TopologyEntityDTO> cloudTopology,
                                     MarketPriceTable marketPriceTable) {
         long oid = template.getOid();
         String name = template.getName();
@@ -597,13 +642,20 @@ public class SMAInput {
         // business account specific pricing.
         Optional<AccountPricingData> pricingDataOptional = cloudCostData.getAccountPricingData(businessAccountId);
         if (!pricingDataOptional.isPresent()) {
-            logger.debug("updateTemplateRate: template ID={} name={} doesn't have pricingData for accountId={}",
-                oid, name, businessAccountId);
+            logger.debug("updateTemplateRate: template ID={}:name={} doesn't have pricingData for accountId={} in {}",
+                oid, name, businessAccountId, context);
             return;
         } else {
             AccountPricingData accountPricingData = pricingDataOptional.get();
-            ComputePriceBundle bundle = marketPriceTable.getComputePriceBundle(template.getComputeTier(), regionId, accountPricingData);
+            ComputePriceBundle bundle = marketPriceTable.getComputePriceBundle(template.getComputeTier(),
+                context.getRegionId(), accountPricingData);
             List<ComputePrice> computePrices = bundle.getPrices();
+            int computePriceSize = computePrices.size();
+            if (computePriceSize == 0) {
+                logger.trace("updateTemplateRate: template ID={}:name={} has computePrice.size() == 0 for accountId={} in {}",
+                    oid, name, businessAccountId, context);
+                return;
+            }
             double hourlyRate    = 0.0d;
             for (ComputePrice price: computePrices) {
                 if (price.getOsType() == osType) {  // FYI, UKNOWN_OS has a price, therefore can scale to natural template.
@@ -612,11 +664,12 @@ public class SMAInput {
                 }
             }
             if (hourlyRate == 0.0d) {
-                logger.error("updateTemplateRate: could not find hourlyRate for tier ID={}:name={} in accountId={} regionId={} osType={}",
-                    oid, name, businessAccountId, regionId, osType.name());
+                logger.error("updateTemplateRate: no on-demand hourlyRate in {} computePrices for template ID={}:name={} in accountId={} osType={} {}",
+                    computePriceSize, oid, name, businessAccountId, osType.name(), context);
+                return;
             } else if (osType != OSType.UNKNOWN_OS) {
-                logger.debug("Template on-demand Rate={}: name={} ID={}  accountId={} regionId={} osType={}",
-                    hourlyRate, name, oid, businessAccountId, regionId, osType.name());
+                logger.debug("updateTemplateRate: on-demand Rate={}: template ID={}:name={} in accountId={} osType={} {}",
+                    hourlyRate, oid, name, businessAccountId, osType.name(), context);
             }
             template.setOnDemandCost(businessAccountId, osType, new SMACost((float)hourlyRate, 0f));
 
@@ -624,23 +677,37 @@ public class SMAInput {
              * compute discounted costs
              * For AWS, there are no discounted costs.
              * Accessing the accounting price data is not working.
-            Optional<Integer> numCoresOptional = marketPriceTable.getComputeTierNumCores(template.getComputeTier());
-            if (numCoresOptional.isPresent()) {
-                logger.trace("updateTemplateRate() number of cores {} for template OID={} name={}",
-                    template.getOid(), template.getName(), numCoresOptional.get());
-                Optional<LicensePrice> riLicensePriceOptional = accountPricingData.getReservedLicensePrice(osType,
-                    numCoresOptional.get(), false);
-                if (riLicensePriceOptional.isPresent()) {
-                    LicensePrice riLicensePrice = riLicensePriceOptional.get();
-                    Price price = riLicensePrice.getPrice();
-                    if (price != null) {
-                        template.setDiscountedCost(businessAccountId, osType,
-                            new SMACost(0.0f, (long)price.getPriceAmount().getAmount()));
-                        return;
+             */
+            TopologyEntityDTO computeTier = template.getComputeTier();
+            Optional<TopologyEntityDTO> regionOptional = cloudTopology.getEntity(regionId);
+            if (!regionOptional.isPresent()) {
+                logger.error("updateTemplateRate: can't find region for ID={} for template ID={}:name={} in accountId={} osType={} {}",
+                    regionId, oid, name, businessAccountId, osType.name(), context);
+                return;
+            } else {
+                TopologyEntityDTO region = regionOptional.get();
+                bundle = marketPriceTable.getReservedLicensePriceBundle(accountPricingData, region, computeTier);
+                computePrices = bundle.getPrices();
+                hourlyRate = 0.0d;
+                computePriceSize = computePrices.size();
+                if (computePriceSize == 0) {
+                    logger.trace("updateTemplateRate: template ID={}:name={} has discount license computePrice.size() == 0 for accountId={} in {}",
+                        oid, name, businessAccountId, context);
+                    return;
+                }
+                for (ComputePrice price : computePrices) {
+                    if (price.getOsType() == osType) {  // FYI, UKNOWN_OS has a price, therefore can scale to natural template.
+                        hourlyRate = price.getHourlyPrice();
+                        break;
                     }
                 }
-            }*/
-            template.setDiscountedCost(businessAccountId, osType, SMAUtils.zeroCost);
+                if (osType != OSType.UNKNOWN_OS) {
+                    logger.debug("updateTemplateRate: template ID={}:name={} discount license Rate={} accountId={} in {}",
+                        oid, name, hourlyRate, businessAccountId, context);
+                }
+                // For AWS, hourly rate is zero.
+                template.setDiscountedCost(businessAccountId, osType, new SMACost(0f, (float)hourlyRate));
+            }
         }
     }
 
@@ -652,7 +719,7 @@ public class SMAInput {
      * 3) String region;
      * 4) String billingAccount;
      * 5) Tenancy tenancy;
-     *
+
      * @param data            TopologyEntityDTO that is an RI
      * @param cloudTopology   topology to get business account and region.
      * @param computeTierOidToContextToTemplate used to look up SMATemplate given the computeTier ID
@@ -668,23 +735,23 @@ public class SMAInput {
                                             Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
                                             SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
         ReservedInstanceBought riBought = data.getReservedInstanceBought();
+        long riBoughtId = riBought.getId();
         ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
         long businessAccountId = riBoughtInfo.getBusinessAccountId();
-        long masterAccountId = getMasterAccountId(businessAccountId, cloudTopology, "RI");
+        long billingFamilyId = getBillingFamilyId(businessAccountId, cloudTopology, "RI");
         String name = riBoughtInfo.getProbeReservedInstanceId();  // getDisplayName();
         long zoneId = riBoughtInfo.getAvailabilityZoneId();
         zoneId = (zoneId == 0 ? SMAUtils.NO_ZONE : zoneId);
         int count = riBoughtInfo.getNumBought();
         ReservedInstanceBoughtCost boughtCost = riBoughtInfo.getReservedInstanceBoughtCost();
+        boolean shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
 
         ReservedInstanceSpec riSpec = data.getReservedInstanceSpec();
-        long riBoughtId = riBought.getId();
         ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
         // Can't find template until after processComputeTier
 
         ReservedInstanceType type = riSpecInfo.getType();
         int years = type.getTermYears();
-        double riRate = computeHourlyRIRate(boughtCost, years);
         String tenancyName = riSpecInfo.getTenancy().name();
         Tenancy tenancy = Tenancy.valueOf(tenancyName);
         String osTypeName = riSpecInfo.getOs().name();
@@ -692,34 +759,41 @@ public class SMAInput {
         OSType  osType = OSType.valueOf(osTypeName);
         long regionId = riSpecInfo.getRegionId();
         SMACSP csp = cspFromRegion.lookupWithRegionId(regionId);
+        if (csp == null) {
+            // no VMs found in this region, skip this RI.
+            logger.trace("processRI: skip riBoughtId={} name={} no VMs in regionID={}",
+                riBoughtId, name, regionId);
+            return false;
+        }
         OSType osTypeForContext = osType;
         if (csp == SMACSP.AZURE) {
             osTypeForContext = OSType.UNKNOWN_OS;
         }
 
-        boolean found = contextExists(regionIdToOsTypeToContexts, masterAccountId, regionId, osType, tenancy);
+        boolean found = contextExists(regionIdToOsTypeToContexts, billingFamilyId, regionId, osType, tenancy);
         if (found == false) {
-            logger.info("no context billingAccountId={} regionId={} OSType={} Tenancy={} for RI name={}",
-                 masterAccountId, regionId, osType.name(), tenancy.name(), name);
+            logger.info("processRI: no context exits for RI name={} with billingFamilyId={} regionId={} OSType={} Tenancy={} ISF={} shared={} platformFlexible={}",
+                () -> name, () -> billingFamilyId, () -> regionId, () -> osType.name(),
+                () -> tenancy.name(), () -> riSpecInfo.getSizeFlexible(), () -> shared,
+                () -> riSpecInfo.getPlatformFlexible());
             return false;
         }
 
-        SMAContext context = new SMAContext(csp, osTypeForContext, regionId, masterAccountId, tenancy);
+        SMAContext context = new SMAContext(csp, osTypeForContext, regionId, billingFamilyId, tenancy);
         long computeTierOid = riSpecInfo.getTierId();
         // for Azure, this RI covers a set of templates, one for each OSType.
         SMATemplate template = computeTierOidToContextToTemplate.get(computeTierOid, context);
         if (template == null) {
-            logger.error("processReservedInstance: can't find template with ID={} in templateMap for RI boughtID={} name={}",
+            logger.error("processRI: can't find template with ID={} in templateMap for RI boughtID={} name={}",
                     computeTierOid, riBoughtId, name);
-            template = SMAUtils.BOGUS_TEMPLATE;
+            return false;
         }
-        //TODO(kshitij: For Azure, retrieve the billing family id and pass it as the 3rd argument
-        // of the ReservedInstanceKey constructor)
         ReservedInstanceKey reservedInstanceKey = new ReservedInstanceKey(data,
-                template.getFamily(), -1);
+                template.getFamily(), billingFamilyId);
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
 
         String templateName = template.getName();
+        // Unfortunately, the probe returns ISF=true for metal templates.
         SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,
             riKeyId,
             name,
@@ -727,13 +801,17 @@ public class SMAInput {
             template,
             zoneId,
             count,
-            riSpecInfo.getSizeFlexible());
+            riSpecInfo.getSizeFlexible(),
+            shared,
+            riSpecInfo.getPlatformFlexible());
         if (ri == null) {
-            logger.info("processReservedInstance: regionId={} template={} new SMA_RI FAILED: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={} rate RI={}",
-                regionId, templateName, riBoughtId, name, businessAccountId, templateName, zoneId,
-                osType.name(), tenancy.name(), count, riRate);
+            logger.info("processRI: regionId={} new SMA_RI FAILED: oid={} name={} accountId={} template={} zondId={} OS={} tenancy={} count={}",
+                regionId, riBoughtId, name, businessAccountId, templateName, zoneId, osType.name(),
+                tenancy.name(), count);
         } else {
-            logger.info("processReservedInstance: {} riRate={} IPF={} {}", ri, riRate, riSpecInfo.getPlatformFlexible(), context);
+            // for debugging purposes
+            double riRate = computeHourlyRIRate(boughtCost, years);
+            logger.info("processRI: new {} with riRate={} {}", ri, riRate, context);
             Set<SMAReservedInstance> smaRIs = smaContextToRIs.getOrDefault(context, new HashSet<>());
             smaRIs.add(ri);
             smaContextToRIs.put(context, smaRIs);
@@ -742,16 +820,16 @@ public class SMAInput {
     }
 
     /**
-     * Determine if there exists a context for csp, masterAccountId, regionId, osType and Tenancy.
+     * Determine if there exists a context for csp, billing family DI, regionId, osType and Tenancy.
      * @param regionToOsTypeToContext Table containing contexts.
-     * @param masterAccountId master (billing) accountID
+     * @param billingFamilyId billing family ID.
      * @param regionId region ID
      * @param osType OS
      * @param tenancy Tenancy
      * @return true if exists.
      */
     private boolean contextExists(Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext,
-                                  long masterAccountId, long regionId, OSType osType, Tenancy tenancy) {
+                                  long billingFamilyId, long regionId, OSType osType, Tenancy tenancy) {
         Set<SMAContext> contexts = regionToOsTypeToContext.get(regionId, osType);
         if (contexts == null) {
             return false;
@@ -760,7 +838,7 @@ public class SMAInput {
         // verify  exists a context with CSP, billing account and tenancy.
         for (SMAContext context : contexts) {
             if (context.getTenancy() == tenancy &&
-                context.getBillingAccountId() == masterAccountId
+                context.getBillingFamilyId() == billingFamilyId
             ) {
                 found = true;
                 break;
@@ -770,7 +848,7 @@ public class SMAInput {
     }
 
     /**
-     * Find the region.
+     * Find the region ID.
      * Side effect: update cspFromRegion with region.
      *
      * @param oid           ID  of topology entity
@@ -780,16 +858,39 @@ public class SMAInput {
     private long getVMRegionId(long oid,
                                @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         long regionId = -1;
+        TopologyEntityDTO region = null;
         Optional<TopologyEntityDTO> regionOpt = cloudTopology.getConnectedRegion(oid);
         if (!regionOpt.isPresent()) {
-            logger.error("getRegionID: can't find region for VM ID={}", oid);
+            logger.error("getRegion: can't find region for OID={}", oid);
         } else {
-            TopologyEntityDTO region = regionOpt.get();
-            regionId = region.getOid();
-            cspFromRegion.updateWithRegion(region);
-
+            region = regionOpt.get();
+            if (region == null) {
+                logger.error("getRegionID: can't find region for VM ID={}", oid);
+            } else {
+                regionId = region.getOid();
+                cspFromRegion.updateWithRegion(region);
+            }
         }
         return regionId;
+    }
+
+    /**
+     * Find the region.
+     *
+     * @param oid           ID  of topology entity
+     * @param cloudTopology dictionary of cloud topoolgy
+     * @return region ID
+     */
+    private TopologyEntityDTO getRegion(long oid,
+                               @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+        TopologyEntityDTO region = null;
+        Optional<TopologyEntityDTO> regionOpt = cloudTopology.getConnectedRegion(oid);
+        if (!regionOpt.isPresent()) {
+            logger.error("getRegion: can't find region for OID={}", oid);
+        } else {
+            region = regionOpt.get();
+        }
+        return region;
     }
 
     /**
@@ -798,7 +899,7 @@ public class SMAInput {
      * @param oid           ID  of topology entity
      * @param cloudTopology where to look for the business account
      * @param msg           who is
-     * @return master account ID
+     * @return business account ID
      */
     private long getBusinessAccountId(long oid,
                                       @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
@@ -814,35 +915,28 @@ public class SMAInput {
     }
 
     /**
-     * Given a business acount, find the master account.
+     * Given a business acount, find the billing family.
      * In AWS, the master account is the billing family.
-     * In Azure, the master account is the subscription.
+     * In Azure, the Enterprise Account is the billing family.
      *
      * @param oid           business account OID.
      * @param cloudTopology dictionary of cloud topology
      * @param msg           who is this.
-     * @return master account ID
+     * @return billing family ID
      */
-    private long getMasterAccountId(long oid,
+    private long getBillingFamilyId(long oid,
                                     @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
                                     String msg) {
-        long masterAccountId = oid;
-        Optional<TopologyEntityDTO> accountOpt = cloudTopology.getOwner(oid);
-        if (!accountOpt.isPresent()) {
+        long billingFamilyId = oid;
+        Optional<GroupAndMembers> optional = cloudTopology.getBillingFamilyForEntity(oid);
+        if (!optional.isPresent()) {
             // if ID  is a master account, expect accountOpt to be empty
-            logger.trace("getMasterAccount{}: can't find master account for ID={}", msg, oid);
+            logger.trace("getBillingFamilyId{}: can't find billing family ID for {} OID={}", msg, oid);
         } else {
-            masterAccountId = accountOpt.get().getOid();
-            while (true) {
-                accountOpt = cloudTopology.getOwner(masterAccountId);
-                if (accountOpt.isPresent()) {
-                    masterAccountId = accountOpt.get().getOid();
-                } else {
-                    break;
-                }
-            }
+            GroupAndMembers groupAndMembers = optional.get();
+            billingFamilyId = groupAndMembers.group().getId();
         }
-        return masterAccountId;
+        return billingFamilyId;
     }
 
     /**
@@ -864,8 +958,7 @@ public class SMAInput {
             EntityReservedInstanceCoverage coverage = coverageOptional.get();
             currentRICoverage = computeCoverage(coverage, reservedInstanceKeyIDGenerator);
         } else {
-            logger.error("processVirtualMachine: could not coverage VM ID={}",
-                vmOid);
+            logger.error("processVirtualMachine: could not coverage VM ID={}", vmOid);
         }
         return currentRICoverage;
     }
@@ -937,12 +1030,13 @@ public class SMAInput {
      * Debug code
      */
     private void dumpContextToVMs(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs) {
-        logger.info("dump contexts to VMS for {} contexts", smaContextToVMs.keySet().size());
+        logger.info("dump contexts to VMS for {} contexts",
+            () -> smaContextToVMs.keySet().size());
         for (SMAContext context : smaContextToVMs.keySet()) {
             logger.info("  {}", context);
             for (SMAVirtualMachine vm : smaContextToVMs.get(context)) {
-                logger.info("    VM: ID={} name={} businessAccountId={} OS={}", vm.getOid(),
-                    vm.getName(), vm.getBusinessAccountId(), vm.getOsType().name());
+                logger.info("    VM: ID={} name={} businessAccountId={} OS={}", () -> vm.getOid(),
+                    () -> vm.getName(), () -> vm.getBusinessAccountId(), () -> vm.getOsType().name());
             }
         }
     }
@@ -950,7 +1044,7 @@ public class SMAInput {
     private void dumpContextToVMsFinal(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs) {
         List<SMAVirtualMachine> vms = new ArrayList<>();
         smaContextToVMs.values().forEach(vms::addAll);
-        logger.info("dump {} VMs after updated", vms.size());
+        logger.info("dump {} VMs after updated", () -> vms.size());
         for (SMAVirtualMachine vm: vms) {
             logger.info("  {}", vm);
         }
@@ -958,7 +1052,7 @@ public class SMAInput {
 
     private void dumpRegionIdToOsTypeToContexts(Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts) {
         logger.info("dump region to osType to context table for {} regions",
-            regionIdToOsTypeToContexts.rowKeySet().size());
+            () -> regionIdToOsTypeToContexts.rowKeySet().size());
         for (long regionId : regionIdToOsTypeToContexts.rowKeySet()) {
             logger.info("  region={}", regionId);
             Map<OSType, Set<SMAContext>> map = regionIdToOsTypeToContexts.row(regionId);
@@ -973,23 +1067,24 @@ public class SMAInput {
 
     private void dumpContextToBusinessAccountsIds(Map<SMAContext, Set<Long>> contextToBusinessAccountIds) {
         logger.info("dump context to business account IDs for {} contexts",
-            contextToBusinessAccountIds.keySet().size());
+            () -> contextToBusinessAccountIds.keySet().size());
         for (SMAContext context: contextToBusinessAccountIds.keySet()) {
             Set<Long> accountIds = contextToBusinessAccountIds.get(context);
             StringBuffer buffer = new StringBuffer();
             for (long id: accountIds) {
                 buffer.append(" ").append(id);
             }
-            logger.info("  {}: account IDs={}", context, buffer.toString());
+            logger.info("  {}: account IDs={}", () -> context, () -> buffer.toString());
         }
     }
 
     private void dumpSmaContextsToTemplates(Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
-        logger.info("dump context to templates for {} contexts", smaContextToTemplates.keySet().size());
+        logger.info("{} context for templates",
+            () -> smaContextToTemplates.keySet().size());
         for (SMAContext context: smaContextToTemplates.keySet()) {
-            logger.debug("  context={}", context);
+            logger.trace("  context={}", context);
             for (SMATemplate template: smaContextToTemplates.get(context)) {
-                logger.debug("     {}", template.toStringWithOutCost());
+                logger.trace("     {}", () -> template);
             }
         }
     }
@@ -997,8 +1092,9 @@ public class SMAInput {
     private void dumpComputeTierOidToContextToTemplate(Table<Long, SMAContext, SMATemplate>
                                                            computeTierOidToContextToTemplate) {
         if (logger.isTraceEnabled()) {
+            int counter = 0;
             logger.trace("dump compute tier OID to context to templates for {} compute tiers",
-                computeTierOidToContextToTemplate.rowKeySet().size());
+                () -> computeTierOidToContextToTemplate.rowKeySet().size());
             for (Long computeTierOid : computeTierOidToContextToTemplate.rowKeySet()) {
                 logger.trace("  computer tier OID={}", computeTierOid);
                 Map<SMAContext, SMATemplate> entry = computeTierOidToContextToTemplate.row(computeTierOid);
@@ -1007,13 +1103,15 @@ public class SMAInput {
                     logger.trace("    context={}", context);
                     logger.trace("      template={}", template);
                 }
-                break;  // only do this once.
+                if (counter++ > 20) {
+                    break;
+                }
             }
         }
     }
 
     private void dumpSmaContextsToRIs(Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs) {
-        logger.info("dump context to RIs for {} contexts", smaContextToRIs.keySet().size());
+        logger.info("dump context to RIs for {} contexts", () -> smaContextToRIs.keySet().size());
         for (SMAContext context: smaContextToRIs.keySet()) {
             logger.info("  context={}", context);
             for (SMAReservedInstance ri: smaContextToRIs.get(context)) {
@@ -1100,7 +1198,7 @@ public class SMAInput {
         SMACSP lookupWithRegionId(long regionOid) {
             SMACSP csp = regionOidToCsp.get(regionOid);
             if (csp == null) {
-                logger.warn("getCspFromRegionId no CSP found for region ID={}", regionOid);
+                logger.trace("lookupWithRegionId no CSP found for region ID={}", regionOid);
                 csp = SMACSP.UNKNOWN;
             }
             return csp;

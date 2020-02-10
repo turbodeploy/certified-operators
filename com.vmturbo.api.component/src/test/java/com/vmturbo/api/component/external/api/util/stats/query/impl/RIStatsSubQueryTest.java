@@ -20,14 +20,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -46,6 +46,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
@@ -98,6 +99,8 @@ public class RIStatsSubQueryTest {
 
     private ApiId scope = mock(ApiId.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     @Before
     public void setup() {
         final RepositoryApi repositoryApi = mock(RepositoryApi.class);
@@ -112,7 +115,8 @@ public class RIStatsSubQueryTest {
                 mapper,
                 repositoryApi,
                 ReservedInstanceCostServiceGrpc.newBlockingStub(testServer.getChannel()),
-                buyRiScopeHandler);
+                buyRiScopeHandler,
+                userSessionContext);
 
         when(context.getInputScope()).thenReturn(scope);
         Set<UIEntityType> inputScopeTypes = new HashSet<>();
@@ -456,5 +460,13 @@ public class RIStatsSubQueryTest {
 
         StatApiDTO stat = snapshot.getStatistics().get(0);
         assertThat(stat.getName(), is(StringConstants.RI_COUPON_UTILIZATION));
+    }
+
+    @Test
+    public void testObserverUser() throws OperationFailedException {
+        when(userSessionContext.isUserObserver()).thenReturn(true);
+        // ACT
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(Sets.newHashSet(CVG_INPUT, UTL_INPUT), context);
+        assertThat(results.size(), is(0));
     }
 }

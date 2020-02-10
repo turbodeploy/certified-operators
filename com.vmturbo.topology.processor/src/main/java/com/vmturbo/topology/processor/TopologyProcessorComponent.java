@@ -37,7 +37,6 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.migration.MigrationsConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.internal.InternalProbeManager;
@@ -71,7 +70,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     KVConfig.class,
     MigrationsConfig.class,
     OperationConfig.class,
-    PlanConfig.class,
     ProbeConfig.class,
     RepositoryConfig.class,
     RESTConfig.class,

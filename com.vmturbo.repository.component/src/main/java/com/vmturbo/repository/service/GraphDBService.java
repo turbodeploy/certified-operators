@@ -89,43 +89,36 @@ public class GraphDBService {
         final Optional<TopologyID> targetTopologyId = contextID
                 .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
                 .orElse(topologyManager.getRealtimeTopologyId());
-
-        final Optional<TopologyDatabase> databaseToUse = targetTopologyId.map(TopologyID::database);
-
-        // Use the topology associated with the `contextID`, or the real-time topology.
-        return databaseToUse.map(topologyDB -> {
-            final GraphCmd.GetSupplyChain cmd = new GraphCmd.GetSupplyChain(
-                startId,
-                envType,
-                topologyDB,
-                graphDefinition.getProviderRelationship(),
-                graphDefinition.getServiceEntityVertex(),
-                entityAccessScope,
-                inclusionEntityTypes,
-                exclusionEntityTypes);
-            logger.debug("Constructed command, {}", cmd);
-
-            final Try<SupplyChainSubgraph> supplyChainResults = executor.executeSupplyChainCmd(cmd);
-            logger.debug("Values returned by the GraphExecutor {}", supplyChainResults);
-
-            final Option<Long> contextIDToUse =
-                    Option.ofOptional(targetTopologyId.map(TopologyID::getContextId));
-
-            final Option<Either<Throwable, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
-                    contextIDToUse.map(cid ->
-                    Match(supplyChainResults).of(
-                        Case(Success($()), v -> timedValue(() -> Either.right(v.toSupplyChainNodes().stream()),
-                            SINGLE_SOURCE_SUPPLY_CHAIN_CONVERSION_DURATION_SUMMARY)),
-                        Case(Failure($()), exc -> Either.left(exc))
-                    ));
-
-            return supplyChainResult.getOrElse(Either.right(java.util.stream.Stream.empty()));
-        })
-        // Real-time topology database is not yet created.
-        .orElseGet(() -> {
+        if (!targetTopologyId.isPresent()) {
             logger.warn("No topology database available to use. Returning an empty supply chain");
             return Either.right(java.util.stream.Stream.empty());
-        });
+        }
+        TopologyID topologyID = targetTopologyId.get();
+        final GraphCmd.GetSupplyChain cmd = new GraphCmd.GetSupplyChain(
+            startId,
+            envType,
+            graphDefinition.getProviderRelationship(),
+            graphDefinition.getSEVertexCollection(topologyID),
+            entityAccessScope,
+            inclusionEntityTypes,
+            exclusionEntityTypes);
+        logger.debug("Constructed command, {}", cmd);
+
+        final Try<SupplyChainSubgraph> supplyChainResults = executor.executeSupplyChainCmd(cmd);
+        logger.debug("Values returned by the GraphExecutor {}", supplyChainResults);
+
+        final Option<Long> contextIDToUse =
+                Option.ofOptional(targetTopologyId.map(TopologyID::getContextId));
+
+        final Option<Either<Throwable, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
+                contextIDToUse.map(cid ->
+                Match(supplyChainResults).of(
+                    Case(Success($()), v -> timedValue(() -> Either.right(v.toSupplyChainNodes().stream()),
+                        SINGLE_SOURCE_SUPPLY_CHAIN_CONVERSION_DURATION_SUMMARY)),
+                    Case(Failure($()), exc -> Either.left(exc))
+                ));
+
+        return supplyChainResult.getOrElse(Either.right(java.util.stream.Stream.empty()));
     }
 
 
@@ -159,32 +152,25 @@ public class GraphDBService {
         final Optional<TopologyID> targetTopologyId = contextId
                 .map(id -> topologyManager.getTopologyId(id, targetType))
                 .orElse(topologyManager.getRealtimeTopologyId());
-        final Option<TopologyDatabase> databaseToUse =
-                Option.ofOptional(targetTopologyId.map(TopologyID::database));
-
-        // Use the topology associated with the `contextID`, or the real-time topology.
-        final Option<Either<String, Collection<ServiceEntityApiDTO>>> results = databaseToUse.map(topologyDB -> {
-            final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-                    graphDefinition.getServiceEntityVertex(),
-                    entitiesToFind,
-                    topologyDB);
-            final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
-            logger.debug("Multi-entity search results {}", seResults);
-
-            return Match(seResults).of(
-                    Case(Success($()), repoDtos -> timedValue(
-                            () -> Either.right(repoDtos.stream()
-                                .map(ResultsConverter::toServiceEntityApiDTO)
-                                .collect(Collectors.toList())),
-                        SEARCH_CONVERSION_DURATION_SUMMARY)),
-                    Case(Failure($()), exc -> Either.left(exc.getMessage()))
-            );
-        });
-
-        return results.getOrElse(() -> {
+        if (!targetTopologyId.isPresent()) {
             logger.warn("No topology database available to use. Returning an empty result");
             return Either.right(Collections.emptyList());
-        });
+        }
+        TopologyID topologyID = targetTopologyId.get();
+        final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
+            graphDefinition.getSEVertexCollection(topologyID),
+            entitiesToFind);
+        final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
+        logger.debug("Multi-entity search results {}", seResults);
+
+        return Match(seResults).of(
+                Case(Success($()), repoDtos -> timedValue(
+                        () -> Either.right(repoDtos.stream()
+                            .map(ResultsConverter::toServiceEntityApiDTO)
+                            .collect(Collectors.toList())),
+                    SEARCH_CONVERSION_DURATION_SUMMARY)),
+                Case(Failure($()), exc -> Either.left(exc.getMessage()))
+        );
     }
 
     public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntity(
@@ -196,33 +182,28 @@ public class GraphDBService {
         final Optional<TopologyID> targetTopologyId = contextId
                 .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
                 .orElse(topologyManager.getRealtimeTopologyId());
-        final Option<TopologyDatabase> databaseToUse =
-                Option.ofOptional(targetTopologyId.map(TopologyID::database));
-
-        final Option<Either<String, Collection<ServiceEntityApiDTO>>> results = databaseToUse.map(topologyDB -> {
-            final GraphCmd.SearchServiceEntity cmd = new GraphCmd.SearchServiceEntity(
-                    graphDefinition.getServiceEntityVertex(),
-                    field, query, searchType,
-                    topologyDB);
-            logger.debug("Constructed search command {}", cmd);
-
-            final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeSearchServiceEntityCmd(cmd);
-            logger.debug("Search results {}", seResults);
-
-            return Match(seResults).of(
-                    Case(Success($()), v -> timedValue(
-                            () -> Either.right(v.stream()
-                                .map(ResultsConverter::toServiceEntityApiDTO)
-                                .collect(Collectors.toList())),
-                        SEARCH_CONVERSION_DURATION_SUMMARY)),
-                    Case(Failure($()), exc -> Either.left(exc.getMessage()))
-            );
-        });
-
-        return results.getOrElse(() -> {
+        if (!targetTopologyId.isPresent()) {
             logger.warn("No topology database available to use. Returning an empty result");
             return Either.right(Collections.emptyList());
-        });
+        }
+        TopologyID topologyID = targetTopologyId.get();
+        final GraphCmd.SearchServiceEntity cmd = new GraphCmd.SearchServiceEntity(
+            graphDefinition.getSEVertexCollection(topologyID),
+            field, query, searchType);
+        logger.debug("Constructed search command {}", cmd);
+
+        final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeSearchServiceEntityCmd(cmd);
+        logger.debug("Search results {}", seResults);
+
+        return Match(seResults).of(
+                Case(Success($()), v -> timedValue(
+                        () -> Either.right(v.stream()
+                            .map(ResultsConverter::toServiceEntityApiDTO)
+                            .collect(Collectors.toList())),
+                    SEARCH_CONVERSION_DURATION_SUMMARY)),
+                Case(Failure($()), exc -> Either.left(exc.getMessage()))
+        );
+
     }
 
     /**
@@ -237,12 +218,10 @@ public class GraphDBService {
     public Either<String, Collection<TopologyEntityDTO>> retrieveTopologyEntities(
             @Nonnull final TopologyID topologyID,
             @Nonnull final Set<Long> entitiesToFind) {
-        final TopologyDatabase databaseToUse = topologyID.database();
-
         final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-                graphDefinition.getServiceEntityVertex(),
-                entitiesToFind,
-                databaseToUse);
+            graphDefinition.getSEVertexCollection(topologyID),
+            entitiesToFind
+        );
         final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
         logger.debug("Multi-entity search results {}", seResults);
 
@@ -267,11 +246,9 @@ public class GraphDBService {
             @Nonnull final Set<Long> entitiesToFind) {
         final Optional<TopologyID> topologyID = topologyManager.getRealtimeTopologyId();
         if (topologyID.isPresent()) {
-            final TopologyDatabase databaseToUse = topologyID.get().database();
             final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-                    graphDefinition.getServiceEntityVertex(),
-                    entitiesToFind,
-                    databaseToUse);
+                graphDefinition.getSEVertexCollection(topologyID.get()),
+                entitiesToFind);
             final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
             logger.debug("Multi-entity search results {}", seResults);
 

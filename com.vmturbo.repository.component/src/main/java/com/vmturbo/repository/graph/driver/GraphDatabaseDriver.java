@@ -109,22 +109,13 @@ public interface GraphDatabaseDriver {
             throws VertexOperationException;
 
     /**
-     * Creates a database associated to this object.
-     * @return false if the database exists
-     *
-     * @throws GraphDatabaseException In case of any error performing the operation.
-     */
-    public boolean createDatabase() throws GraphDatabaseException;
-
-    /**
      * Gets the associated database.
      * @return The database name
      */
     public String getDatabase();
 
     /**
-     * Drops the associated database
-     * @return True if dropping is successful.
+     * Drop collections with given collection suffix.
      */
-    public boolean dropDatabase();
+    void dropCollections();
 }

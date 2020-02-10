@@ -45,7 +45,6 @@ import com.vmturbo.repository.graph.operator.GraphCreatorFixture;
 import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SearchHandlerTest {
@@ -82,8 +81,6 @@ public class SearchHandlerTest {
     private final String db = "db-1";
 
     private final GraphDBExecutor graphDBExecutor = Mockito.mock(GraphDBExecutor.class);
-
-    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
 
     @Mock
     private ArangoDatabaseFactory arangoDatabaseFactory;
@@ -199,7 +196,7 @@ public class SearchHandlerTest {
     @Test
     public void testGetEntitiesByOids() {
         final TopologyID topologyID =
-            topologyIDFactory.createTopologyID(123L, 456L, TopologyType.SOURCE);
+            new TopologyID(123L, 456L, TopologyType.SOURCE);
         final Set<Long> entityOids = Sets.newHashSet(1L, 2L);
         final GraphDefinition graphDefinition = Mockito.mock(GraphDefinition.class);
         final String serviceEntityVertex = "serviceEntityVertex";

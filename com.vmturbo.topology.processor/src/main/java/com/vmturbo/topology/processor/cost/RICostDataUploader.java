@@ -14,6 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -47,6 +50,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
+import com.vmturbo.topology.processor.entity.Entity;
+import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -68,14 +73,18 @@ public class RICostDataUploader {
     // track the last upload time. We want to space the uploads apart, to once-per-hour.
     private Instant lastUploadTime = null;
 
+    private final boolean fullAzureEARIDiscovery;
+
     public RICostDataUploader(RIAndExpenseUploadServiceBlockingStub costServiceClient,
-                              int minimumRIDataUploadIntervalMins, Clock clock) {
+                              int minimumRIDataUploadIntervalMins, Clock clock,
+                              boolean fullAzureEARIDiscovery) {
         this.costServiceClient = costServiceClient;
         if (minimumRIDataUploadIntervalMins < 0) {
             throw new IllegalArgumentException("minimumRIDataUploadIntervalMins cannot be less than 0.");
         }
         this.minimumRIDataUploadIntervalMins = minimumRIDataUploadIntervalMins;
         this.clock = clock;
+        this.fullAzureEARIDiscovery = fullAzureEARIDiscovery;
     }
 
     /**
@@ -214,12 +223,32 @@ public class RICostDataUploader {
         // RIBought info, which comes from multiple sources.
         Map<String, ReservedInstanceBought.Builder> riBoughtByLocalId = new HashMap<>();
 
+        final Map<Long, TopologyStitchingEntity> businessAccountById = stitchingContext
+                .getEntitiesOfType(EntityType.BUSINESS_ACCOUNT)
+                .collect(Collectors.toMap(TopologyStitchingEntity::getOid, Function.identity()));
+
         stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE)
                 .forEach(riStitchingEntity -> {
                     if (riStitchingEntity.getEntityBuilder() == null) {
                         logger.warn("No entity builder found for RI stitching entity {}", riStitchingEntity.getLocalId());
                         return;
                     }
+
+                    final Long baId = cloudEntitiesMap.get(riStitchingEntity.getEntityBuilder()
+                            .getReservedInstanceData().getPurchasingAccountId());
+                    TopologyStitchingEntity entity = businessAccountById.get(baId);
+                    if (entity != null) {
+                        boolean dataDiscovered = entity.getEntityBuilder().getBusinessAccountData()
+                                .getDataDiscovered();
+
+                        if (!dataDiscovered && !fullAzureEARIDiscovery) {
+                            logger.info("Ignoring RI : {} because the associated account information" +
+                                    " has not been discovered.", riStitchingEntity.getEntityBuilder()
+                                    .getReservedInstanceData().getReservationOrderId());
+                            return;
+                        }
+                    }
+
                     // create an RI spec based on the details of the entity
                     ReservedInstanceData riData = riStitchingEntity.getEntityBuilder().getReservedInstanceData();
                     ReservedInstanceSpecInfo.Builder riSpecInfoBuilder = ReservedInstanceSpecInfo.newBuilder()

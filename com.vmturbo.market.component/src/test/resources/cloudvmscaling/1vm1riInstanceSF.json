@@ -1,4 +1,5 @@
 {
+  "description": "1 VM and 1 RI only differ in OS; no match.  Assume not platform flexible.",
   "Contexts": [
     {
       "context": {

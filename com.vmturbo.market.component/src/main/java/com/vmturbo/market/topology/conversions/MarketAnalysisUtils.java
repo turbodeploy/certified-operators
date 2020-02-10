@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
@@ -279,6 +280,10 @@ public final class MarketAnalysisUtils {
                                     .setWeight(1.0f).build())
                     .build();
 
+    private static final PriceFunctionTO IG = PriceFunctionTO.newBuilder()
+                    .setIgnoreUtilization(PriceFunctionTO.IgnoreUtilization.newBuilder())
+                    .build();
+
     /**
      * Squared reciprocal price function used for VDI on-prem.
      * https://vmturbo.atlassian.net/wiki/spaces/Home/pages/876347519/Price+function+based+on+excess+capacity
@@ -320,15 +325,22 @@ public final class MarketAnalysisUtils {
      * @param commType {@link CommodityType} object that represents type and key of commodity
      * @param scale    float that represents how much the utilization is scaled to.
      *                 The scale has to be greater than or equal to 1.0 to be meaningful.
+     * @param dto the entity whose commodity price function is being set.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    public static PriceFunctionTO priceFunction(CommodityType commType, float scale) {
+    public static PriceFunctionTO priceFunction(CommodityType commType, float scale,
+                                                TopologyEntityDTO dto) {
         int commodityType = commType.getType();
         String commodityKey = commType.getKey();
         if (CONSTANT_PRICE_TYPES.contains(commodityType)) {
             return CONSTANT;
         } else if (STEP_PRICE_TYPES.contains(commodityType)) {
+            if (dto != null && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
+                && (commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
+                    || commodityType == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)) {
+                return IG;
+            }
             return STEP;
         } else if (FINITE_SWP_PRICE_TYPES.contains(commodityType)) {
             return FSWP;

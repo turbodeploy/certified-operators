@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -89,7 +90,8 @@ public class StatsUtils {
     }
 
     public static boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
-        return scope.getScopeTypes()
+        return !UserScopeUtils.isUserObserver() &&
+                scope.getScopeTypes()
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported
                 // types will be ignored

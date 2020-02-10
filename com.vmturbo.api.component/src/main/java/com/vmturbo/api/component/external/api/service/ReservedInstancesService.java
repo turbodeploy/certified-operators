@@ -38,6 +38,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
@@ -82,6 +83,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final UuidMapper uuidMapper;
 
+    private final UserSessionContext userSessionContext;
+
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
@@ -92,7 +95,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nonnull final GroupExpander groupExpander,
             @Nonnull final PlanServiceBlockingStub planRpcService,
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper) {
+            @Nonnull final UuidMapper uuidMapper,
+            @Nonnull final UserSessionContext userSessionContext) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
@@ -103,6 +107,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
         this.planRpcService = Objects.requireNonNull(planRpcService);
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     @Override
@@ -167,6 +172,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
         final Optional<Grouping> groupOptional = groupExpander.getGroup(String.valueOf(scopeUuid));
+
         if (StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
             final Optional<PlanInstance> optPlan = scope.getPlanInstance();
             // Currently, the RIs within scope of a plan are not indexed within the cost component

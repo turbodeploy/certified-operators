@@ -39,7 +39,6 @@ public class TopologyProtobufWriterTest {
         collection = mock(ArangoCollection.class);
         when(factory.getArangoDriver()).thenReturn(db);
         when(db.getDatabases()).thenReturn(Lists.newArrayList());
-        when(db.createDatabase(Mockito.any())).thenReturn(true);
         when(db.db(Mockito.any())).thenReturn(database);
         when(database.collection(Mockito.eq("topology-dtos-2222"))).thenReturn(collection);
         CollectionEntity info = mock(CollectionEntity.class);
@@ -48,9 +47,8 @@ public class TopologyProtobufWriterTest {
 
     @Test
     public void testWriter() {
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "turbonomic-");
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "Tturbonomic");
         final TopologyProtobufWriter writer = tpm.createProjectedTopologyProtobufWriter(2222);
-        verify(db).createDatabase(Mockito.eq("turbonomic-topology-protobufs"));
         verify(database).collection(Mockito.eq("topology-dtos-2222"));
         verify(database).createCollection(Mockito.eq("topology-dtos-2222"));
         assertSame(writer.topologyCollection, collection);

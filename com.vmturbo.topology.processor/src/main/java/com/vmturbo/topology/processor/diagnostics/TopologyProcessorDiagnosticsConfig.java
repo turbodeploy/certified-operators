@@ -17,17 +17,17 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ldcf.DataMetricTopology;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
+import com.vmturbo.topology.processor.template.TemplateConfig;
 
 /**
  * Configuration for the Topology package in TopologyProcessor.
  */
 @Configuration
 @Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class, GroupConfig.class,
-    PlanConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class})
+    TemplateConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class})
 public class TopologyProcessorDiagnosticsConfig {
     /**
      * The urgent collection interval setting.
@@ -74,7 +74,7 @@ public class TopologyProcessorDiagnosticsConfig {
     private GroupConfig groupConfig;
 
     @Autowired
-    private PlanConfig planConfig;
+    private TemplateConfig templateConfig;
 
     @Autowired
     private ProbeConfig probeConfig;
@@ -106,7 +106,7 @@ public class TopologyProcessorDiagnosticsConfig {
             entityConfig.entityStore(),
             probeConfig.probeStore(),
             groupConfig.discoveredGroupUploader(),
-            planConfig.discoveredTemplatesUploader(),
+            templateConfig.discoveredTemplatesUploader(),
             identityProviderConfig.identityProvider(),
             cloudCostConfig.discoveredCloudCostUploader(),
             cloudCostConfig.priceTableUploader());

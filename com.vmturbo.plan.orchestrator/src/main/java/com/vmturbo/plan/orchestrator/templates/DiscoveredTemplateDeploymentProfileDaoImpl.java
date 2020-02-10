@@ -98,9 +98,12 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             transactionDsl.batchDelete(missingTargetDeployprofileRecords).execute();
 
             for (Long targetId : discoveredTargetIds) {
-                TargetProfileIdentities identities = setDiscoveredTemplateDeploymentProfileByTarget(targetId,
-                    transactionDsl, targetMap.get(targetId), orphanedDeploymentProfileMap.get(targetId));
-                response.addTargetProfileIdentities(identities);
+                TemplateInfoToDeploymentProfileMap mapForTarget = targetMap.get(targetId);
+                if (mapForTarget != null && mapForTarget.isDataAvailable()) {
+                    TargetProfileIdentities identities = setDiscoveredTemplateDeploymentProfileByTarget(targetId,
+                        transactionDsl, mapForTarget, orphanedDeploymentProfileMap.get(targetId));
+                    response.addTargetProfileIdentities(identities);
+                }
             }
         });
 
@@ -380,10 +383,19 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
      */
     public static class TemplateInfoToDeploymentProfileMap {
 
-        private Map<TemplateInfo, List<DeploymentProfileInfo>> templateInfoListMap;
+        private final Map<TemplateInfo, List<DeploymentProfileInfo>> templateInfoListMap;
 
-        public TemplateInfoToDeploymentProfileMap() {
+        private final boolean dataAvailable;
+
+        /**
+         * Create new mapping.
+         *
+         * @param dataAvailable Whether or not the associated target has finished discovering.
+         *                      If false, the map will be empty.
+         */
+        public TemplateInfoToDeploymentProfileMap(final boolean dataAvailable) {
             this.templateInfoListMap = new HashMap<>();
+            this.dataAvailable = dataAvailable;
         }
 
         public void put(TemplateInfo templateInfo, List<DeploymentProfileInfo> deploymentProfileInfos) {
@@ -400,6 +412,10 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
 
         public Set<TemplateInfo> keySet() {
             return templateInfoListMap.keySet();
+        }
+
+        public boolean isDataAvailable() {
+            return dataAvailable;
         }
 
         public void clear() {

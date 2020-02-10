@@ -112,6 +112,12 @@ public class TopologyLifecycleManager implements DiagsRestorable {
 
     private final GraphDBExecutor graphDbExecutor;
 
+    /**
+     * Topology collection name prefix used to construct collection name with the name suffix when
+     * collecting diags.
+     */
+    private static final String TOPOLOGY_COLLECTION_NAME_PREFIX =  "topology";
+
     public TopologyLifecycleManager(@Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                                     @Nonnull final GraphDefinition graphDefinition,
                                     @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
@@ -164,7 +170,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             Executors.newSingleThreadExecutor().execute(
                     new RegisteredTopologyLoader(TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS),
                             graphDatabaseDriverBuilder, this, globalSupplyChainManager,
-                            realtimeTopologyContextId));
+                            realtimeTopologyContextId, graphDbExecutor));
         }
     }
 
@@ -172,7 +178,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         for ( Map<TopologyType, TopologyID> map: topologyIdByContextAndType.values()) {
             for (TopologyID topologyID: map.values()) {
-                final String string = topologyID.toDatabaseName();
+                final String string = TOPOLOGY_COLLECTION_NAME_PREFIX + topologyID.toCollectionNameSuffix();
                 appender.appendString(string);
             }
         }
@@ -184,7 +190,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
         // We rely on the diags handler to actually do the restoration of the database
         // to arangodb.
         collectedDiags.stream()
-                .map(TopologyID::fromDatabaseName)
+                .map(TopologyID::fromCollectionName)
                 .filter(Optional::isPresent).map(Optional::get)
                 // Register, overwriting any existing TID for the same context and topology type.
                 // This will drop any database associated with the existing TID.
@@ -209,26 +215,29 @@ public class TopologyLifecycleManager implements DiagsRestorable {
         private GraphDatabaseDriverBuilder driverBuilder;
         private TopologyLifecycleManager lifecycleManager;
         private GlobalSupplyChainManager globalSupplyChainManager;
+        private GraphDBExecutor graphDBExecutor;
 
         @VisibleForTesting
         RegisteredTopologyLoader(final long pollingIntervalMs,
                                  @Nonnull final GraphDatabaseDriverBuilder driverBuilder,
                                  @Nonnull final TopologyLifecycleManager lifecycleManager,
                                  @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
-                                 final long realtimeTopologyContextId) {
+                                 final long realtimeTopologyContextId,
+                                 @Nonnull final GraphDBExecutor graphDBExecutor) {
             this.pollingIntervalMs = pollingIntervalMs;
             this.driverBuilder = Objects.requireNonNull(driverBuilder);
             this.lifecycleManager = Objects.requireNonNull(lifecycleManager);
             this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
             this.realtimeTopologyContextId = realtimeTopologyContextId;
+            this.graphDBExecutor = Objects.requireNonNull(graphDBExecutor);
         }
 
         @Override
         public void run() {
-            Set<String> databases = null;
-            while (databases == null) {
+            Set<String> collections = null;
+            while (collections == null) {
                 try {
-                    databases = driverBuilder.listDatabases();
+                    collections = driverBuilder.listCollections(graphDBExecutor.getArangoDatabaseName());
                 } catch (GraphDatabaseException e) {
                     try {
                         Thread.sleep(pollingIntervalMs);
@@ -240,20 +249,14 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                 }
             }
 
-            databases
-                .stream()
-                .map(TopologyID::fromDatabaseName)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                // This means if there are multiple databases for the same context and topology type,
-                // one of them will get dropped.
+            collections
                 // Don't overwrite any new topologies that came in though.
-                .forEach(tid -> {
-                    final boolean registered = lifecycleManager.registerTopology(tid, false);
-                    // Only clean up non-realtime (plan) topologies, real time topologies are clean up in
-                    // deleteObsoletedRealtimeDB method
-                    if (!registered && tid.getContextId() != realtimeTopologyContextId ) {
-                        driverBuilder.build(tid.toDatabaseName()).dropDatabase();
+                .forEach(collection -> {
+                    Optional<TopologyID> tidOptional = TopologyID.fromCollectionName(collection);
+                    if (tidOptional.isPresent()) {
+                        // Register plan topologyID to load plan topology data.
+                        TopologyID tid = tidOptional.get();
+                        lifecycleManager.registerTopology(tid, false);
                     }
                 });
 
@@ -273,12 +276,14 @@ public class TopologyLifecycleManager implements DiagsRestorable {
      * based on topology id with ascending order.
      * 3. If the size of each realtime topologies are bigger than expected numbers
      * ("numberOfExpectedRealtimeSourceDB" and "numberOfExpectedRealtimeProjectedDB"), delete the earlier ones.
+     * TODO delete this method as we don't store real-time topologies to ArangoDB anymore.
      *
      * @param topologyID new realtime toplogyid that to be deleted.
      * @param driverBuilder Graph database driver builder to interact with DB.
      * @param realtimeTopologyContextId real time topology context id.
      * @param numberOfExpectedRealtimeSourceDB  number of expected real time "Source" DB, injected from environment.
      * @param numberOfExpectedRealtimeProjectedDB number of expected real time "Projected" DB, injected from environment.
+     * @param graphDBExecutor The executor abstracts away the actual graph database backend.
      */
     @VisibleForTesting
     static void deleteObsoletedRealtimeDB(@Nonnull final TopologyID topologyID,
@@ -286,13 +291,14 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                                           @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
                                           final long realtimeTopologyContextId,
                                           final int numberOfExpectedRealtimeSourceDB,
-                                          final int numberOfExpectedRealtimeProjectedDB) {
+                                          final int numberOfExpectedRealtimeProjectedDB,
+                                          @Nonnull final GraphDBExecutor graphDBExecutor) {
         // explicitly deleting DB associated to the topologyID, so if deletion failed, it will provide hints that
         // this DB was deleted externally.
         try {
-            LOGGER.info("Dropping database {}.", topologyID.toDatabaseName());
+            LOGGER.info("Dropping collections with suffix {}.", topologyID.toCollectionNameSuffix());
             globalSupplyChainManager.removeGlobalSupplyChain(topologyID);
-            driverBuilder.build(topologyID.toDatabaseName()).dropDatabase();
+            driverBuilder.build(graphDBExecutor.getArangoDatabaseName(), topologyID.toCollectionNameSuffix()).dropCollections();
         } catch (ArangoDBException e) {
             if (e.getResponseCode().intValue() == 404) {
                 // ignore database not found errors since we are trying to drop these anyways.
@@ -301,33 +307,35 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                 LOGGER.error("Failed to clean up topology {}. ", topologyID);
             }
         }
-        Set<String> databases;
+        Set<String> collections;
         try {
-            databases = driverBuilder.listDatabases();
+            collections = driverBuilder.listCollections(graphDBExecutor.getArangoDatabaseName());
         } catch (GraphDatabaseException e) {
             LOGGER.error("Failed to listing databases during full realtime topology clean up: ", e);
             return;
         }
 
-        final List<TopologyID> realtimeTopologyIds = databases
+        final List<TopologyID> realtimeTopologyIds = collections
             .stream()
-            .map(TopologyID::fromDatabaseName)
+            .map(TopologyID::fromCollectionName)
             .filter(Optional::isPresent)
             .map(Optional::get)
             // only clean real time topologies
             .filter(tid -> tid.getContextId() == realtimeTopologyContextId)
             .collect(Collectors.toList());
         deleteObsoletedRealtimeDBHelper(driverBuilder, realtimeTopologyIds,
-            TopologyType.PROJECTED, numberOfExpectedRealtimeSourceDB);
+            TopologyType.PROJECTED, numberOfExpectedRealtimeSourceDB, graphDBExecutor);
         deleteObsoletedRealtimeDBHelper(driverBuilder, realtimeTopologyIds,
-            TopologyType.SOURCE, numberOfExpectedRealtimeProjectedDB);
+            TopologyType.SOURCE, numberOfExpectedRealtimeProjectedDB, graphDBExecutor);
     }
 
     /* internal helper method to delete obsoleted realtime topologies */
+    // TODO delete this method as we don't store real-time topologies to ArangoDB anymore.
     private static void deleteObsoletedRealtimeDBHelper(@Nonnull GraphDatabaseDriverBuilder driverBuilder,
                                                         @Nonnull final List<TopologyID> realtimeTopologyIds,
                                                         @Nonnull final TopologyType topologyType,
-                                                        final int number) {
+                                                        final int number,
+                                                        @Nonnull final GraphDBExecutor graphDBExecutor) {
         final List<TopologyID> tobeRemovedIds = realtimeTopologyIds.stream()
             .filter(topologyID -> topologyID.getType() == topologyType)
             // assume newer topologies always have bigger topologyId,
@@ -340,12 +348,12 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                 .limit(tobeRemovedIds.size() - number)
                 .forEach(tid -> {
                         try {
-                            driverBuilder.build(tid.toDatabaseName()).dropDatabase();
-                            LOGGER.warn("Dropping obsoleted real time database {}.",
-                                tid.toDatabaseName());
+                            driverBuilder.build(graphDBExecutor.getArangoDatabaseName(), tid.toCollectionNameSuffix()).dropCollections();
+                            LOGGER.warn("Dropping obsoleted real time collections with suffix {}.",
+                                tid.toCollectionNameSuffix());
                         } catch (ArangoDBException e) {
-                            LOGGER.error("Failed to drop obsoleted real time database {} with exception:",
-                                tid.toDatabaseName(), e.getMessage());
+                            LOGGER.error("Failed to drop obsoleted real time collections {} with exception:",
+                                tid.toCollectionNameSuffix(), e.getMessage());
                         }
                     }
                 );
@@ -413,29 +421,16 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             // Replace the previous one.
             TopologyID topologyID = idByTypeInContext.put(tid.getType(), tid);
             topologyIdByPrimitiveId.put(tid.getTopologyId(), tid);
-            if (topologyID != null) {
-                Runnable dropTask = () -> {
-                        deleteObsoletedRealtimeDB(topologyID, graphDatabaseDriverBuilder,
-                            globalSupplyChainManager,
-                            realtimeTopologyContextId, numberOfExpectedRealtimeSourceDB,
-                            numberOfExpectedRealtimeProjectedDB);
-                };
-                // determine if we need to schedule a delayed drop of the existing database
-                long delaySeconds = realtimeTopologyDropDelaySecs;
-                if (scheduler != null && delaySeconds > 0) {
-                    // schedule for delayed drop
-                    LOGGER.info("Scheduling drop of database {} in {} seconds.", topologyID.toDatabaseName(), delaySeconds);
-                    scheduler.schedule(dropTask, delaySeconds, TimeUnit.SECONDS);
-                } else {
-                    // run immediately
-                    dropTask.run();
-                }
-            }
             return true;
         } else {
             final TopologyID existing = idByTypeInContext.get(tid.getType());
             if (existing != null) {
-                LOGGER.warn("Not registering topology {} because it would overwrite " +
+                // It is an expected case to have existing TopologyID here given that the TopologyID
+                // type as the key of idByTypeInContext map is either SOURCE or PROJECTED. Multiple
+                // collections in ArangoDB have common suffix with topology ID, so we'll try to
+                // register the same TopologyID multiple times here from the list of Arango collections.
+                // Use debug level message to avoid polluting the log.
+                LOGGER.debug("Not registering topology {} because it would overwrite " +
                     "the existing topology {}.", tid, existing);
             } else {
                 // Update the lookup maps
@@ -500,7 +495,8 @@ public class TopologyLifecycleManager implements DiagsRestorable {
         }
         // Next, delete the graph representation of the supplied topology
         try {
-            graphDatabaseDriverBuilder.build(tid.toDatabaseName()).dropDatabase();
+            LOGGER.info("Dropping collections with suffix {}.", tid.toCollectionNameSuffix());
+            graphDatabaseDriverBuilder.build(graphDbExecutor.getArangoDatabaseName(), tid.toCollectionNameSuffix()).dropCollections();
 
             // Once we dropped the database, get rid of it in the internal map (if it exists).
             final Map<TopologyType, TopologyID> idByTypeInContext =
@@ -550,17 +546,6 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     }
 
     /**
-     * A convenience method - the equivalent of calling {@link TopologyID#database()} on the result
-     * of {@link TopologyLifecycleManager#getRealtimeTopologyId()}.
-     *
-     * @return The {@link TopologyDatabase} of the latest realtime topology, or an empty optional
-     *         if there has been no broadcast.
-     */
-    public Optional<TopologyDatabase> getRealtimeDatabase() {
-        return getRealtimeTopologyId().map(TopologyID::database);
-    }
-
-    /**
      * Get the {@link TopologyID} representing the topology with a particular topology ID.
      *
      * @param topologyId the primitive ID of the topology
@@ -592,21 +577,6 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             }
         }
         return Optional.empty();
-    }
-
-    /**
-     * A convenience method - the equivalent of calling {@link TopologyID#database()} on
-     * the result of {@link TopologyLifecycleManager#getTopologyId(long, TopologyType)}.
-     *
-     * @param contextId See {@link TopologyLifecycleManager#getTopologyId(long, TopologyType)}.
-     * @param type See {@link TopologyLifecycleManager#getTopologyId(long, TopologyType)}.
-     * @return The {@link TopologyDatabase} of the latest topology for the desired context and type,
-     *         or an empty optional if there has been no broadcast of a matching topology.
-     */
-    public Optional<TopologyDatabase> databaseOf(final long contextId,
-                                                 @Nonnull final TopologyType type) {
-        return getTopologyId(contextId, type)
-            .map(TopologyID::database);
     }
 
     /**
@@ -750,7 +720,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             this.topologyID = Objects.requireNonNull(topologyID);
             this.graphDatabaseDriverBuilder = Objects.requireNonNull(graphDatabaseDriverBuilder);
             this.graphDatabaseDriver = Objects.requireNonNull(graphDatabaseDriverBuilder.build(
-                    topologyID.toDatabaseName()));
+                    graphDbExecutor.getArangoDatabaseName(), topologyID.toCollectionNameSuffix()));
             this.onComplete = onComplete;
             this.topologyProtobufWriter = topologyProtobufWriter;
 
@@ -792,7 +762,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
         public void rollback() {
             deleteObsoletedRealtimeDB(topologyID, graphDatabaseDriverBuilder,
                     globalSupplyChainManager, realtimeTopologyContextId,
-                    numberOfExpectedRealtimeSourceDB, numberOfExpectedRealtimeProjectedDB);
+                    numberOfExpectedRealtimeSourceDB, numberOfExpectedRealtimeProjectedDB, graphDbExecutor);
             topologyProtobufWriter.ifPresent(TopologyProtobufHandler::delete);
         }
     }
@@ -924,46 +894,6 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     }
 
     /**
-     * A {@link TopologyDatabase} variant that will be dynamically re-evaluated each time it is
-     * matched. We can use this to dynamically provide the current "realtime" topology database
-     * name, for example.
-     */
-    public static class RealtimeTopologyDatabase extends TopologyDatabase {
-
-        private Supplier<TopologyDatabase> databaseSupplier;
-
-        /**
-         *
-         * @param databaseSupplier A function that will supply the database to use.
-         */
-        RealtimeTopologyDatabase(Supplier<TopologyDatabase> databaseSupplier) {
-            this.databaseSupplier = databaseSupplier;
-        }
-
-        /**
-         * @return true, if the database supplier function detects a value. false, if it would return
-         * null.
-         */
-        public boolean hasValue() {
-            return (databaseSupplier.get() != null);
-        }
-
-        private TopologyDatabase eval() {
-            return databaseSupplier.get();
-        }
-
-        @Override
-        public <R> R match(Function1<String, R> dbName) {
-            return eval().match(dbName);
-        }
-
-        @Override
-        public String toString() {
-            return this.eval().toString();
-        }
-    }
-
-    /**
      * A dynamic topology ID differs from a "regular" topology id in that the "topology id" component
      * of the "topologyID" (arrgh!!) is dynamic and will point to the current topology id for the
      * specified (static) topology context id. This means the database name it resolves to will also
@@ -972,7 +902,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     public class RealtimeTopologyID extends TopologyID {
 
         public RealtimeTopologyID(final long contextId, final TopologyType type) {
-            super(contextId, 0, type, "");
+            super(contextId, 0, type);
         }
 
         @Override
@@ -982,19 +912,6 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             // the value exists. If the value turns out not to exist, we will propagate a
             // NoSuchElementException to indicate that the topology id doesn't exist.
             return topologyID.get().getTopologyId();
-        }
-
-        /**
-         *
-         * @return a {@link RealtimeTopologyDatabase} the dynamically recalculates the database name when
-         *      * evaluated.
-         */
-        @Override
-        public TopologyDatabase database() {
-            return new RealtimeTopologyDatabase(()
-                    -> TopologyLifecycleManager.this.getTopologyId(getContextId(), getType())
-                    .map(TopologyID::database)
-                    .orElse(null));
         }
 
         /**

@@ -10,8 +10,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -119,6 +117,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -351,6 +350,46 @@ public class SearchServiceTest {
             null,
             true));
         verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
+    }
+
+    /**
+     * Test the method {@link SearchService#getSearchResults}.
+     *
+     * <p>Search on cluster should apply query to request</p>
+     *
+     * @throws Exception when something goes wrong (is not expected here)
+     */
+    @Test
+    public void testGetSearchResultsClusterWithQuery() throws Exception {
+        final SearchPaginationResponse paginationResponse =
+                Mockito.mock(SearchPaginationResponse.class);
+        final SearchPaginationRequest paginationRequest =
+                Mockito.mock(SearchPaginationRequest.class);
+        String query = "query";
+        when(paginationRequest.allResultsResponse(any())).thenReturn(paginationResponse);
+        when(groupsService.getGroupsByType(any(), any(), any(), eq(EnvironmentType.ONPREM))).thenReturn(Lists.newArrayList());
+
+        ArgumentCaptor<String> queryArgCap = ArgumentCaptor.forClass(String.class);
+
+        //WHEN
+        SearchPaginationResponse response = searchService.getSearchResults(
+                query,
+                Lists.newArrayList("Cluster"),
+                Lists.newArrayList("Market"),
+                null,
+                Collections.singletonList(null),
+                EnvironmentType.ONPREM,
+                null,
+                paginationRequest,
+                null,
+                null,
+                true);
+
+        //THEN
+        assertEquals(response, paginationResponse);
+        verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
+        verify(searchService).addNameMatcher(queryArgCap.capture(), any(), any());
+        assertEquals(query, queryArgCap.getValue());
     }
 
     /**
@@ -667,7 +706,8 @@ public class SearchServiceTest {
         when(repositoryApi.entitiesRequest(any()))
             .thenReturn(req);
 
-        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
+                null);
         List<BaseApiDTO> results = response.getRawResults();
 
         assertEquals(1, results.size());
@@ -693,7 +733,8 @@ public class SearchServiceTest {
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(serviceEntities);
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
-        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
+                null);
         List<BaseApiDTO> results = response.getRawResults();
         assertEquals(1, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
@@ -727,7 +768,7 @@ public class SearchServiceTest {
         Mockito.when(paginationRequest.getOrderBy())
                 .thenReturn(SearchOrderBy.NAME);
 
-        searchService.getMembersBasedOnFilter("foo", request, paginationRequest);
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null);
         verify(paginationRequest).finalPageResponse(resultCaptor.capture(), totalRecordCount.capture());
 
         final List<Long> resultIds = resultCaptor.getValue()
@@ -768,7 +809,7 @@ public class SearchServiceTest {
 
         // Test a search with a special character
         request.setClassName("VirtualMachine");
-        searchService.getMembersBasedOnFilter("[b", request, paginationRequest);
+        searchService.getMembersBasedOnFilter("[b", request, paginationRequest, null);
 
         final ArgumentCaptor<SearchEntitiesRequest> captor = ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchServiceSpy).searchEntities(captor.capture());
@@ -804,10 +845,10 @@ public class SearchServiceTest {
 
         assertTrue(response == searchService.getMembersBasedOnFilter("foo",
             requestForVirtualMachineGroups,
-            paginationRequest));
+            paginationRequest, null));
         assertTrue(response == searchService.getMembersBasedOnFilter("foo",
             requestForAllGroups,
-            paginationRequest));
+            paginationRequest, null));
         verify(groupsService, times(2)).getPaginatedGroupApiDTOs(any(), any(), resultCaptor.capture(), any(), any(), eq(false));
         // verify that first call to groupsService.getPaginatedGroupApiDTOs passed in VirtualMachine
         // as entityType argument
@@ -884,7 +925,7 @@ public class SearchServiceTest {
         Mockito.when(paginationRequest.getOrderBy())
                 .thenReturn(SearchOrderBy.NAME);
 
-        searchService.getMembersBasedOnFilter("", request, paginationRequest);
+        searchService.getMembersBasedOnFilter("", request, paginationRequest, null);
         verify(paginationRequest).allResultsResponse(resultCaptor.capture());
 
         final List<Long> resultIds = resultCaptor.getValue()
@@ -953,7 +994,7 @@ public class SearchServiceTest {
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 4L,
             5L));
 
-        searchService.getMembersBasedOnFilter("foo", request, paginationRequest);
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null);
 
         final ArgumentCaptor<Integer> totalRecordCount = ArgumentCaptor.forClass((Class)Integer.class);
         verify(paginationRequest).finalPageResponse(resultCaptor.capture(), totalRecordCount.capture());
@@ -1227,7 +1268,7 @@ public class SearchServiceTest {
         SearchPaginationResponse response = searchService.getServiceEntityPaginatedWithSeverity(new GroupApiDTO(),
                 null,
                 searchPaginationRequestnew,
-                uuids, SearchEntityOidsRequest.newBuilder().build());
+                uuids, SearchEntityOidsRequest.newBuilder().build(), null);
 
         //THEN
         assertNotNull(response);

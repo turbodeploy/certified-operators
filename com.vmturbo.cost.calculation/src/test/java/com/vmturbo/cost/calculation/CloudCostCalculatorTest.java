@@ -24,10 +24,12 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
@@ -112,9 +114,10 @@ public class CloudCostCalculatorTest {
     private static final double GB_MONTH_PRICE_10 = 14.0;
     private static final double GB_MONTH_PRICE_20 = 26.0;
     private static final double GB_MONTH_PRICE_32 = 38.0;
-    private static final long V_VOLUME_SIZRE_IOPS = 17;
+    private static final long V_VOLUME_SIZE_IOPS = 17;
 
     private static final long REGION_ID = 1;
+    private static final long AVAILABILITY_ZONE_ID = 3;
     private static final long BUSINESS_ACCOUNT_ID = 2;
     private static final long STORAGE_TIER_ID = 10;
     private static final long COMPUTE_TIER_ID = 11;
@@ -125,6 +128,8 @@ public class CloudCostCalculatorTest {
     private static final long DEFAULT_SERVICE_ID = 0;
 
     private static final TestEntityClass region = TestEntityClass.newBuilder(REGION_ID)
+                    .build(infoExtractor);
+    private static final TestEntityClass availabilityZone = TestEntityClass.newBuilder(AVAILABILITY_ZONE_ID)
                     .build(infoExtractor);
     private static final TestEntityClass businessAccount = TestEntityClass.newBuilder(BUSINESS_ACCOUNT_ID)
             .build(infoExtractor);
@@ -158,6 +163,7 @@ public class CloudCostCalculatorTest {
             .build(infoExtractor);
         // Configure CloudTopology
         when(topology.getConnectedRegion(DEFAULT_VM_ID)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(DEFAULT_VM_ID)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(DEFAULT_VM_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getConnectedService(COMPUTE_TIER_ID)).thenReturn(Optional.of(service));
         when(topology.getComputeTier(DEFAULT_VM_ID)).thenReturn(Optional.of(computeTier));
@@ -251,7 +257,7 @@ public class CloudCostCalculatorTest {
         // No adjustment and license costs for spot instances
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
 
-        final TestEntityClass suseVm =  createVmTestEntity(DEFAULT_VM_ID, OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
+        final TestEntityClass suseVm = createVmTestEntity(DEFAULT_VM_ID, OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
         final CostJournal<TestEntityClass> journal3 = cloudCostCalculator.calculateCost(suseVm);
@@ -358,7 +364,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostIOPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZRE_IOPS, 0))
+                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -368,7 +374,7 @@ public class CloudCostCalculatorTest {
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
         assertThat(journal.getTotalHourlyCost().getValue(),
-            closeTo(IOPS_RANGE * IOPS_PRICE_RANGE_1 + (V_VOLUME_SIZRE_IOPS - IOPS_RANGE)
+            closeTo(IOPS_RANGE * IOPS_PRICE_RANGE_1 + (V_VOLUME_SIZE_IOPS - IOPS_RANGE)
                     * IOPS_PRICE, DELTA));
     }
 
@@ -379,7 +385,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostGBMonth() {
         final int vVolSizeMb = 19; // should be >= GB_RANGE
         final CostJournal<TestEntityClass> journal =
-                createCostJornalForVolumeCostCalculation(vVolSizeMb);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb);
 
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
@@ -393,7 +399,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostSizeEqualToEndRange() {
         final int vVolSizeMb = 32;
         final CostJournal<TestEntityClass> journal =
-                createCostJornalForVolumeCostCalculation(vVolSizeMb);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb);
         assertThat(journal.getTotalHourlyCost().getValue(),
                 closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                         + GB_MONTH_PRICE_32, DELTA));
@@ -404,9 +410,8 @@ public class CloudCostCalculatorTest {
      *
      * @param vVolSizeMb virtual volume size.
      * @return {@link CostJournal} for volume of a given virtual volume size.
-     * @throws CloudCostDataRetrievalException not expected to happen
      */
-    private CostJournal<TestEntityClass> createCostJornalForVolumeCostCalculation(
+    private CostJournal<TestEntityClass> createCostJournalForVolumeCostCalculation(
                                                             final int vVolSizeMb) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -437,6 +442,7 @@ public class CloudCostCalculatorTest {
                 .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
 
@@ -444,6 +450,7 @@ public class CloudCostCalculatorTest {
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+
         // act
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
@@ -473,6 +480,7 @@ public class CloudCostCalculatorTest {
             .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
 
@@ -480,6 +488,7 @@ public class CloudCostCalculatorTest {
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+
         // act
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
@@ -505,6 +514,7 @@ public class CloudCostCalculatorTest {
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
         when(topology.getConnectedRegion(vmId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(vmId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(vmId)).thenReturn(Optional.of(businessAccount));
         when(topology.getComputeTier(vmId)).thenReturn(Optional.of(computeTier));
 
@@ -554,6 +564,7 @@ public class CloudCostCalculatorTest {
                 .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
 
@@ -697,9 +708,13 @@ public class CloudCostCalculatorTest {
                     .build())
                     .build())
                 .build())
-            .putSpotPriceByRegionId(REGION_ID, Pricing.SpotInstancePriceTable.newBuilder()
-                .putSpotPriceByInstanceId(COMPUTE_TIER_ID, price(Unit.HOURS, BASE_PRICE))
-                .build())
+            .putSpotPriceByZoneOrRegionId(AVAILABILITY_ZONE_ID, SpotInstancePriceTable.newBuilder()
+                    .putSpotPricesByTierOid(COMPUTE_TIER_ID, SpotPricesForTier.newBuilder()
+                        .addPriceForGuestOsType(PriceForGuestOsType.newBuilder()
+                                .setGuestOsType(OSType.SUSE)
+                                .setPrice(price(Unit.HOURS, BASE_PRICE)))
+                        .build())
+                    .build())
             .addOnDemandLicensePrices(LicensePriceEntry.newBuilder()
                 .setOsType(OSType.WINDOWS_WITH_SQL_ENTERPRISE)
                 .addLicensePrices(licensePrice(1, price(Unit.HOURS, WSQL_ENTERPRISE_1)))
@@ -725,8 +740,7 @@ public class CloudCostCalculatorTest {
     private CloudCostData createCloudCostDataWithAccountPricingTable(Long baOid, AccountPricingData accountPricingData) {
         Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
-        CloudCostData cloudCostData = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+        return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), accountPricingDataByBusinessAccount);
-        return cloudCostData;
     }
 }

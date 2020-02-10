@@ -409,7 +409,7 @@ public class PlanDaoImpl implements PlanDao {
         }
 
         if (!errors.isEmpty()) {
-            logger.error("Encountered errors trying to delete plan {}. Errors:\n", plan.getPlanId(),
+            logger.error("Encountered errors trying to delete plan {}. Errors:\n{}", plan.getPlanId(),
                     StringUtils.join(errors, "\n"));
         } else {
             logger.info("Successfully deleted all known related objects for plan {}", topologyContextId);

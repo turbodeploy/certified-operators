@@ -30,6 +30,6 @@ public class DiskArrayAspectMapper extends DiskCommonAspectMapper {
     @Nonnull
     @Override
     public AspectName getAspectName() {
-        return AspectName.DISK_ARRAY;
+        return AspectName.STORAGE;
     }
 }

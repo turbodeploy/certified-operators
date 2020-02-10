@@ -25,7 +25,6 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
@@ -59,8 +58,6 @@ public class MarketTopologyListenerTest {
     private final ProjectedTopologyEntity pmDTO;
     private final ProjectedTopologyEntity dsDTO;
 
-    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
-
     public MarketTopologyListenerTest() throws IOException {
         vmDTO = ProjectedTopologyEntity.newBuilder()
             .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json"))
@@ -75,7 +72,7 @@ public class MarketTopologyListenerTest {
 
     @Before
     public void setUp() throws Exception {
-        marketTopologyListener = new MarketTopologyListener(apiBackend, topologyManager, topologyIDFactory);
+        marketTopologyListener = new MarketTopologyListener(apiBackend, topologyManager);
 
         // Simulates three DTOs with two chunks received by the listener.
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
@@ -94,7 +91,7 @@ public class MarketTopologyListenerTest {
         final long projectedTopologyId = 33333L;
         final long creationTime = 44444L;
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
-        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
+        final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
         final TopologyInfo originalTopoInfo = TopologyInfo.newBuilder()
             .setTopologyId(srcTopologyId)
             .setTopologyContextId(topologyContextId)
@@ -127,9 +124,7 @@ public class MarketTopologyListenerTest {
                     .build()
             ).build());
 
-        when(topologyManager.getRealtimeTopologyId())
-                .thenReturn(TopologyID.fromDatabaseName("topology-11-SOURCE-2"));
-        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
+        final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
         final TopologyInfo originalTopoInfo = TopologyInfo.newBuilder()
             .setTopologyId(srcTopologyId)
             .setTopologyContextId(topologyContextId)

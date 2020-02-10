@@ -150,14 +150,14 @@ public class SMATemplate {
      * Lookup the on-demand total cost for the business account.
      * @param businessAccountId the business account ID.
      * @param osType OS.
-     * @return on-demand total cost or 0 if not found.
+     * @return on-demand total cost or Float.MAX_VALUE if not found.
      */
     public float getOnDemandTotalCost(long businessAccountId, OSType osType) {
         SMACost cost = onDemandCosts.get(businessAccountId, osType);
         if (cost == null) {
-            logger.warn("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
+            logger.debug("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
                 oid, name, businessAccountId, osType.name());
-            return 0f;
+            return Float.MAX_VALUE;
         }
         return SMAUtils.round(cost.getTotal());
     }
@@ -167,14 +167,14 @@ public class SMATemplate {
      * Lookup the discounted total cost for the business account.
      * @param businessAccountId the business account ID.
      * @param osType OS.
-     * @return discounted total cost or 0 if not found.
+     * @return discounted total cost or Float.MAX_VALUE if not found.
      */
     public float getDiscountedTotalCost(long businessAccountId, OSType osType) {
         SMACost cost = discountedCosts.get(businessAccountId, osType);
         if (cost == null) {
-            logger.warn("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
+            logger.debug("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
                 oid, name, businessAccountId, osType.name());
-            return 0f;
+            return Float.MAX_VALUE;
         }
         return SMAUtils.round(cost.getTotal());
     }

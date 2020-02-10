@@ -76,7 +76,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
@@ -85,6 +85,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
@@ -204,12 +205,14 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(final Map<Long, TopologyEntity.Builder> topology) {
+        @Nonnull
+        public Status passthrough(final Map<Long, TopologyEntity.Builder> topology)
+                throws InterruptedException {
             try {
                 notifier.sendTemplateDeploymentProfileData();
                 notifier.patchTopology(topology);
                 return Status.success();
-            } catch (CommunicationException e) {
+            } catch (UploadException e) {
                 return Status.failed("Failed to upload templates: " + e.getMessage());
             }
         }

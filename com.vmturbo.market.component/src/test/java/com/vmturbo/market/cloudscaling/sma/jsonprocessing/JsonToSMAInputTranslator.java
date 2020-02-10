@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 
 import com.google.common.collect.Table;
@@ -90,7 +89,7 @@ public class JsonToSMAInputTranslator {
                 br.write("\t\t\t\t\"os\": \"" + smaContext.getOs().name() + "\",\n");
                 br.write("\t\t\t\t\"csp\": \"" + smaContext.getCsp().name() + "\",\n");
                 br.write("\t\t\t\t\"region\": " + smaContext.getRegionId() + ",\n");
-                br.write("\t\t\t\t\"billingAccount\": " + smaContext.getBillingAccountId() + ",\n");
+                br.write("\t\t\t\t\"billingAccount\": " + smaContext.getBillingFamilyId() + ",\n");
                 br.write("\t\t\t\t\"tenancy\": \"" + smaContext.getTenancy().name() + "\"\n");
                 br.write("\t\t\t},\n");
 
@@ -179,9 +178,9 @@ public class JsonToSMAInputTranslator {
                     br.write("\t\t\t\t\t\"oid\": " + smaReservedInstance.getOid() + ",\n");
                     br.write("\t\t\t\t\t\"keyOid\": " + smaReservedInstance.getRiKeyOid() + ",\n");
                     br.write("\t\t\t\t\t\"name\": \"" + smaReservedInstance.getName() + "\",\n");
-                    br.write("\t\t\t\t\t\"businessAccount\": " + smaReservedInstance.getBusinessAccount() + ",\n");
+                    br.write("\t\t\t\t\t\"businessAccount\": " + smaReservedInstance.getBusinessAccountId() + ",\n");
                     br.write("\t\t\t\t\t\"utilization\": " + "0,\n");
-                    br.write("\t\t\t\t\t\"zone\": " + smaReservedInstance.getZone() + ",\n");
+                    br.write("\t\t\t\t\t\"zone\": " + smaReservedInstance.getZoneId() + ",\n");
                     br.write("\t\t\t\t\t\"template\": " + smaReservedInstance.getTemplate().getOid() + ",\n");
                     br.write("\t\t\t\t\t\"count\": " + smaReservedInstance.getCount() + ",\n");
                     br.write("\t\t\t\t\t\"isf\": " + smaReservedInstance.isIsf() + "\n");
@@ -280,15 +279,23 @@ public class JsonToSMAInputTranslator {
         String name = reservedInstanceObj.get("name").getAsString();
         long businessAccount = reservedInstanceObj.get("businessAccount").getAsLong();
         long templateOid = reservedInstanceObj.get("template").getAsLong();
+        int count = reservedInstanceObj.get("count").getAsInt();
         boolean isf = reservedInstanceObj.get("isf").getAsBoolean();
+        boolean shared = true;
+        if (reservedInstanceObj.has("shared")) {
+            shared = reservedInstanceObj.get("shared").getAsBoolean();
+        }
+        boolean platformFlexible = false;
+        if (reservedInstanceObj.has("platformFlexible")) {
+            reservedInstanceObj.get("platformFlexible").getAsBoolean();
+        }
         long zone = SMAUtils.NO_ZONE;
         JsonElement zoneObj = reservedInstanceObj.get("zone");
         if (zoneObj != null) {
             zone = reservedInstanceObj.get("zone").getAsLong();
         }
-        int count = reservedInstanceObj.get("count").getAsInt();
         SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, keyOid, name, businessAccount,
-                oidToTemplate.get(templateOid), zone, count, isf);
+                oidToTemplate.get(templateOid), zone, count, isf, shared, platformFlexible);
         return reservedInstance;
     }
 
@@ -327,7 +334,10 @@ public class JsonToSMAInputTranslator {
         String name = virtualMachineObj.get("name").getAsString();
         Long businessAccountOid = virtualMachineObj.get("businessAccount").getAsLong();
         OSType osType = OSType.valueOf(virtualMachineObj.get("os").getAsString());
-        float currentRICoverage = virtualMachineObj.get("currentRICoverage").getAsFloat();
+        float currentRICoverage = 0f;
+        if (virtualMachineObj.has("currentRICoverage")) {
+            currentRICoverage = virtualMachineObj.get("currentRICoverage").getAsFloat();
+        }
         JsonElement currentRIObj = virtualMachineObj.get("currentRIKeyID");
         long currentRI = SMAUtils.NO_CURRENT_RI;
         if (currentRIObj != null) {

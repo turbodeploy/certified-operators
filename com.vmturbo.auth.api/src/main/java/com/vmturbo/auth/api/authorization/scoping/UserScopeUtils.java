@@ -31,6 +31,7 @@ public class UserScopeUtils {
     private static Logger logger = LogManager.getLogger();
 
     public static final Set<String> SHARED_ROLES = ImmutableSet.of("SHARED_OBSERVER", "SHARED_ADVISOR");
+    public static final Set<String> OBSERVER_ROLES = ImmutableSet.of("OBSERVER", "SHARED_OBSERVER");
 
     // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
     // ScopedUserUtil.java.
@@ -74,6 +75,23 @@ public class UserScopeUtils {
             }
         }
         return false;
+    }
+
+    /**
+     * To check if an auth user is of type observer. See {@link #OBSERVER_ROLES}.
+     *
+     * @return true if observer user.
+     */
+    public static boolean isUserObserver() {
+        Optional<AuthUserDTO> user = getAuthUser();
+        List<String> roles;
+        if (user.isPresent()) {
+            roles = user.get().getRoles();
+        } else {
+            // check grpc context
+            roles = SecurityConstant.USER_ROLES_KEY.get();
+        }
+        return roles != null && (roles.stream().anyMatch(OBSERVER_ROLES::contains));
     }
 
     /**

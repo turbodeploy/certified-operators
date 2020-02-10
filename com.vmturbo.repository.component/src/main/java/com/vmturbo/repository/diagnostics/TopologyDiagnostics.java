@@ -52,6 +52,8 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
     private final TopologyType topologyType;
     private final String diagsFileName;
 
+    private final String arangoDatabaseName;
+
     /**
      * Constructs topology diagnostics.
      *
@@ -66,19 +68,20 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
             @Nonnull final ArangoRestore arangoRestore,
             @Nonnull final TopologyLifecycleManager topologyLifecycleManager,
             @Nonnull final RestTemplate restTemplate, @Nonnull final TopologyType topologyType,
-            @Nonnull final String diagsFileName) {
+            @Nonnull final String diagsFileName, @Nonnull final String arangoDatabaseName) {
         this.arangoDump = Objects.requireNonNull(arangoDump);
         this.arangoRestore = Objects.requireNonNull(arangoRestore);
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.restTemplate = Objects.requireNonNull(restTemplate);
         this.topologyType = Objects.requireNonNull(topologyType);
         this.diagsFileName = Objects.requireNonNull(diagsFileName);
+        this.arangoDatabaseName = arangoDatabaseName;
     }
 
     @Override
     public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
         if (bytes.length == 0) {
-            logger.info("Topology dump for " + topologyType + " is empty. Skipping it...");
+            logger.info("Database dump for " + arangoDatabaseName + " is empty. Skipping it...");
             return;
         }
         final List<String> errors = new ArrayList<>();
@@ -96,7 +99,7 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
          * manager should have an entry for the realtime database.
          */
         final TopologyID tid = topologyID.get();
-        final String database = tid.toDatabaseName();
+        final String database = arangoDatabaseName;
         final String fullRestoreUrl = arangoRestore.getEndpoint() + "/" + database;
 
         final MultiValueMap<String, Object> map = new LinkedMultiValueMap<>();
@@ -110,16 +113,16 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
         });
 
         final HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(map);
-        logger.info("Restoring topology with request to {}", fullRestoreUrl);
+        logger.info("Restoring database with request to {}", fullRestoreUrl);
         try {
             final ResponseEntity<String> responseEntity =
                     restTemplate.postForEntity(fullRestoreUrl, request, String.class);
 
             if (responseEntity.getStatusCode() != HttpStatus.CREATED) {
-                errors.add("Failed to restore " + topologyType + " topology: " +
+                errors.add("Failed to restore " + arangoDatabaseName + " database: " +
                         responseEntity.getBody());
             } else {
-                logger.info("Restored " + topologyType + " topology.");
+                logger.info("Restored " + arangoDatabaseName + " database.");
             }
         } catch (RestClientException e) {
             errors.add("POST to arangodb to restore topology failed with exception: " +
@@ -134,6 +137,13 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
     @Override
     public void collectDiags(@Nonnull OutputStream outputStream)
             throws DiagnosticsException, IOException {
+        // We don't save real-time topology data in ArangoDB anymore. When dumping the diags,
+        // sourceTopologyId and projectedTopologyId are always not present here and
+        // "source_topology_dump" and "projected_topology_dump" files won't be correctly exported.
+        // Even if we invoke the subsequent method to dump ArangoDB, the connection to fullDumpUrl
+        // (arangodb:8599/dump/<db_name>) will be failed.
+        // TODO we need to either refactor this to make ArangoDB dump work or remove the corresponding
+        // logic if we decide ArangoDB dump is not needed in the diags.
         final Optional<TopologyID> topologyID =
                 topologyLifecycleManager.getRealtimeTopologyId(topologyType);
         if (!topologyID.isPresent()) {
@@ -141,7 +151,7 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
                     topologyType + " topology is not present. Skipping dump");
         }
         final TopologyID tid = topologyID.get();
-        final String db = tid.toDatabaseName();
+        final String db = arangoDatabaseName;
 
         logger.info("Dumping real-time topology with database {}, {}", db, tid);
 
@@ -158,12 +168,12 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
             try (CloseableHttpResponse response = httpClient.execute(get)) {
                 if (response.getStatusLine().getStatusCode() == org.apache.http.HttpStatus.SC_OK) {
                     IOUtils.copy(response.getEntity().getContent(), outputStream);
-                    logger.info("Finished dumping topology {}", tid);
+                    logger.info("Finished dumping database {}", db);
                 } else {
                     final String errorResponse =
                             IOUtils.toString(response.getEntity().getContent(), Charsets.UTF_8);
                     throw new DiagnosticsException(
-                            String.format("Fail to dump topology %d HTTP status %d: %s", tid,
+                            String.format("Fail to dump database %d HTTP status %d: %s", db,
                                     response.getStatusLine().getStatusCode(), errorResponse));
                 }
             }

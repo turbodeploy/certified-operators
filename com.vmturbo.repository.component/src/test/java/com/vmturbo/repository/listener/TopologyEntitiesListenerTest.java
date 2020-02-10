@@ -26,7 +26,6 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
@@ -61,8 +60,6 @@ public class TopologyEntitiesListenerTest {
     private final TopologyDTO.Topology.DataSegment pmDTO;
     private final TopologyDTO.Topology.DataSegment dsDTO;
 
-    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
-
     public TopologyEntitiesListenerTest() throws IOException {
         TopologyEntityDTO vmDTOE;
         TopologyEntityDTO pmDTOE;
@@ -81,7 +78,7 @@ public class TopologyEntitiesListenerTest {
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
-                notificationSender, topologyIDFactory);
+                notificationSender);
 
         // Simulates three DTOs with two chunks received by the listener.
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
@@ -95,7 +92,7 @@ public class TopologyEntitiesListenerTest {
         final long topologyContextId = realtimeTopologyContextId;
         final long topologyId = 22222L;
         final long creationTime = 33333L;
-        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, topologyId,
+        final TopologyID tid = new TopologyID(topologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
         final TopologyInfo info = TopologyInfo.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -124,7 +121,7 @@ public class TopologyEntitiesListenerTest {
             .setSuccess(TopologyBroadcastSuccess.getDefaultInstance())
             .build());
         final long topologyId = 1L;
-        final TopologyID tid = topologyIDFactory.createTopologyID(realtimeTopologyContextId, topologyId,
+        final TopologyID tid = new TopologyID(realtimeTopologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
 
         final TopologyInfo info = TopologyInfo.newBuilder()

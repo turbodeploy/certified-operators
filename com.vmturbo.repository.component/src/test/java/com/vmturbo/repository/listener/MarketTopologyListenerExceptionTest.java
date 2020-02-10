@@ -27,7 +27,6 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
@@ -65,8 +64,7 @@ public class MarketTopologyListenerExceptionTest {
     private static final long srcTopologyId = 11111L;
     private static final long projectedTopologyId = 33333L;
     private static final long creationTime = 44444L;
-    private static final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
-    private static final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
+    private static final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
     private static final TopologyInfo originalInfo = TopologyInfo.newBuilder()
             .setTopologyId(srcTopologyId)
             .setTopologyContextId(topologyContextId)
@@ -85,7 +83,7 @@ public class MarketTopologyListenerExceptionTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        marketTopologyListener = new MarketTopologyListener(apiBackend, topologyManager, topologyIDFactory);
+        marketTopologyListener = new MarketTopologyListener(apiBackend, topologyManager);
 
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
         when(topologyManager.newProjectedTopologyCreator(any(), any())).thenReturn(topologyCreator);

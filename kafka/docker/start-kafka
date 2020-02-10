@@ -17,7 +17,6 @@ kafka_bin=/opt/kafka/bin/kafka-server-start.sh
 
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
-#export KAFKA_OPTS="-Djava.net.preferIPv4Stack=true"
 if [ -n "$CURRENT_KAFKA_VERSION" ]; then
     KAFKA_PARAMS="$KAFKA_PARAMS --override inter.broker.protocol.version=$CURRENT_KAFKA_VERSION"
 fi
@@ -58,6 +57,11 @@ echo Executing kafka with options: $KAFKA_PARAMS | $LOGGER_COMMAND
 
 # disable GC logging in order, as we do not have any space to write it.
 export KAFKA_GC_LOG_OPTS=" "
+
+# move out the old data directory if exist
+if [ -d /home/kafka/data/data ]; then
+  mv /home/kafka/data/data /home/kafka/data.old
+fi
 
 exec $kafka_bin $KAFKA_SERVER_CONFIG $KAFKA_PARAMS > >($LOGGER_COMMAND) 2>&1
 

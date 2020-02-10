@@ -26,8 +26,8 @@ public class TopologyProtobufWriter<E> extends TopologyProtobufHandler {
 
     protected TopologyProtobufWriter(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
                                      Function<E, String> entityOidMappingFunction,
-                                     String arangoDBNamespacePrefix) {
-        super(arangoDatabaseFactory, topologyId, arangoDBNamespacePrefix);
+                                     String arangoDatabaseName) {
+        super(arangoDatabaseFactory, topologyId, arangoDatabaseName);
         this.keyMappingFunction = entityOidMappingFunction;
     }
 

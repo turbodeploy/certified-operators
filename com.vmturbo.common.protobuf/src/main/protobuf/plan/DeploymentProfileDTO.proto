@@ -146,6 +146,14 @@ message UpdateTargetDiscoveredTemplateDeploymentProfileRequest {
 
     // Store discovered deployment profiles which have no referenced templates.
     repeated DeploymentProfileInfo deployment_profile_without_templates = 3;
+
+    // If false, this target hasn't completed a discovery and we don't know whether or not it
+    // has associated templates/deployment profiles. This is useful when determining whether or not
+    // to clean out existing data for the target.
+    //
+    // Set to "true" by default to make it harder to accidentally leave it as "false".
+    // The default assumption is that data is available for every uploaded target.
+    optional bool data_available = 4 [default = true];
 }
 
 // Template to deployment profile relationship is many to many. In order to represent relationship,

@@ -117,7 +117,7 @@ public class RIDataUploaderTest {
         // test cost component client
         final RIAndExpenseUploadServiceBlockingStub costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
 
-        riCostDataUploader = new RICostDataUploader(costServiceClient, 0, Clock.systemUTC());
+        riCostDataUploader = new RICostDataUploader(costServiceClient, 0, Clock.systemUTC(), true);
 
         // create some discovery cost data for the uploader to cache
         Discovery discovery = new Discovery(PROBE_ID_AWS_DISCOVERY_1, TARGET_ID_AWS_DISCOVERY_1, identityProvider);

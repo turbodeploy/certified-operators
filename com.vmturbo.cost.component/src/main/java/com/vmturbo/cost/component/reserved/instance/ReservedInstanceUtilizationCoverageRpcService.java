@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -52,7 +53,11 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
+    private final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore;
+
     private final TimeFrameCalculator timeFrameCalculator;
+
+    private final long realtimeTopologyContextId;
 
     /**
      * Constructor for ReservedInstanceUtilizationCoverageRpcService. The parameters are the shared
@@ -66,21 +71,28 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
      *     The instance of ProjectedRICoverageStore
      * @param entityReservedInstanceMappingStore
      *     The instance of EntityReservedInstanceMappingStore
+     * @param planProjectedRICoverageAndUtilStore
+     *     The instance of PlanProjectedRICoverageAndUtilStore
      * @param timeFrameCalculator
      *     The instance of TimeFrameCalculator
+     * @param realtimeTopologyContextId realtime topology context ID
      */
     public ReservedInstanceUtilizationCoverageRpcService(
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
             @Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
-                    @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
-            @Nonnull final TimeFrameCalculator timeFrameCalculator) {
+            @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+            @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore,
+            @Nonnull final TimeFrameCalculator timeFrameCalculator,
+            final long realtimeTopologyContextId) {
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
         this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;
         this.projectedRICoverageStore = projectedRICoverageStore;
         this.entityReservedInstanceMappingStore =
                         Objects.requireNonNull(entityReservedInstanceMappingStore);
+        this.planProjectedRICoverageAndUtilStore = Objects.requireNonNull(planProjectedRICoverageAndUtilStore);
         this.timeFrameCalculator = timeFrameCalculator;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -109,11 +121,18 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 logger.trace("Adding latest RI utilization stats: {}", () -> latestStats);
             }
 
-            // Add projected RI Utilization point
-            statRecords.add(
+            if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
+                final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
+                                .getPlanReservedInstanceUtilizationStatsRecords(request.getTopologyContextId());
+                if (!CollectionUtils.isEmpty(statsRecords)) {
+                    statRecords.add(statsRecords.get(0));
+                }
+            } else {
+                // Add projected RI Utilization point
+                statRecords.add(
                     projectedRICoverageStore.getReservedInstanceUtilizationStats(
                             filter, request.getIncludeBuyRiUtilization()));
-
+            }
             final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -155,11 +174,18 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 logger.trace("Adding latest RI coverage stats: {}", () -> latestStats);
             }
 
-
-            // Add projected RI Coverage point
-            statRecords.add(
+            if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
+                final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
+                                .getPlanReservedInstanceCoverageStatsRecords(request.getTopologyContextId());
+                if (!CollectionUtils.isEmpty(statsRecords)) {
+                    statRecords.add(statsRecords.get(0));
+                }
+            } else {
+                // Add projected RI Coverage point
+                statRecords.add(
                     projectedRICoverageStore.getReservedInstanceCoverageStats(
                             filter, request.getIncludeBuyRiCoverage()));
+            }
 
             final GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()

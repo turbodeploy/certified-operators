@@ -38,9 +38,9 @@ public class SMAReservedInstance {
     private final String name;
 
     /*
-     * BusinessAccount, subaccount of billing account.
+     * BusinessAccount, subaccount of the billing family.
      */
-    private final long businessAccount;
+    private final long businessAccountId;
     /*
      * Template, used to infer CSP, family and coupons.
      */
@@ -55,6 +55,16 @@ public class SMAReservedInstance {
      */
     private final boolean isf;
 
+    /*
+     * Scope of RI: only applicable to Azure.  If true applies to Enterprise account, otherwise
+     * only to the RI's business account.
+     */
+    private final boolean shared;
+
+    /*
+     * Reserved Instance is platform flexible or not based on context.
+     */
+    private final boolean platformFlexible;
 
     /*
      * Additional instance variables.
@@ -82,12 +92,15 @@ public class SMAReservedInstance {
      */
     private HashMap<Integer, List<Pair<SMAVirtualMachine, Integer>>> couponToBestVM;
 
+    /*
+     * list of VMs partitioned by business account id, to handle Azure single scoping.
+     */
     private HashSet<SMAVirtualMachine> discountableVMs;
 
     /*
      * Availability zone.  If zone == NO_ZONE then regional RI.
      */
-    private final long zone;
+    private final long zoneId;
 
     /*
      * Total count is the count after we normalize the RI and combine the RIs.
@@ -105,14 +118,17 @@ public class SMAReservedInstance {
     /**
      * SMA Reserved Instance.
      *
-     * @param oid             oid of RI bought.
-     * @param riKeyOid        generated keyid for ReservedInstanceKey
-     * @param name            name of RI
-     * @param businessAccount business account
-     * @param template        compute tier
-     * @param zone            availabilty zone
-     * @param count           number of RIs
-     * @param isf             true if RI is instance size flexible
+     * @param oid              oid of RI bought.
+     * @param riKeyOid         generated keyid for ReservedInstanceKey
+     * @param name             name of RI
+     * @param businessAccount  business account
+     * @param template         compute tier
+     * @param zone             availability zone
+     * @param count            number of RIs
+     * @param isf              true if RI is instance size flexible
+     * @param shared           true if RI is scoped to AWS billing family or Azure EA.
+     *                         Otherwise, scoped to business account (only Azure)
+     * @param platformFlexible true if RI is instance size flexible
      */
     public SMAReservedInstance(final long oid,
                                final long riKeyOid,
@@ -121,21 +137,98 @@ public class SMAReservedInstance {
                                @Nonnull final SMATemplate template,
                                final long zone,
                                final int count,
-                               @Nonnull final boolean isf) {
+                               final boolean isf,
+                               final boolean shared,
+                               final boolean platformFlexible) {
         this.oid = oid;
         this.riKeyOid = riKeyOid;
         this.name = Objects.requireNonNull(name, "name is null!");
-        this.businessAccount = businessAccount;
+        this.businessAccountId = businessAccount;
         this.template = Objects.requireNonNull(template, "template is null!");
         this.normalizedTemplate = template;
-        this.zone = zone;
+        this.zoneId = zone;
         this.normalizedCount = count;
         this.count = count;
         this.isf = isf;
+        this.shared = shared;
+        this.platformFlexible = platformFlexible;
         couponToBestVM = new HashMap<>();
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
         discountableVMs = new HashSet<>();
+    }
+
+    /*
+     * Getter and setters for constructor attributes.
+     */
+    public long getOid() {
+        return oid;
+    }
+
+    public long getRiKeyOid() {
+        return riKeyOid;
+    }
+
+    @Nonnull
+    public String getName() {
+        return name;
+    }
+
+    public long getBusinessAccountId() {
+        return businessAccountId;
+    }
+
+    @Nonnull
+    public SMATemplate getTemplate() {
+        return template;
+    }
+
+    @Nonnull
+    public SMATemplate getNormalizedTemplate() {
+        return normalizedTemplate;
+    }
+
+    public void setNormalizedTemplate(final SMATemplate normalizedTemplate) {
+        this.normalizedTemplate = normalizedTemplate;
+    }
+
+    public long getZoneId() {
+        return zoneId;
+    }
+
+    public float getNormalizedCount() {
+        return normalizedCount;
+    }
+
+    public int getCount() {
+        return count;
+    }
+
+    public void setNormalizedCount(final float normalizedCount) {
+        this.normalizedCount = normalizedCount;
+    }
+
+    public boolean isIsf() {
+        return isf;
+    }
+
+    public boolean isShared() {
+        return shared;
+    }
+
+    public boolean isPlatformFlexible() {
+        return platformFlexible;
+    }
+
+    /**
+     * determines if the RI is regional or zonal.
+     * @return returns true if the RI is regional. false if zonal.
+     */
+    public boolean isRegionScoped() {
+        if (zoneId == SMAUtils.NO_ZONE) {
+            return true;
+        }
+        return false;
     }
 
     public SMAVirtualMachine getLastDiscountedVM() {
@@ -146,79 +239,17 @@ public class SMAReservedInstance {
         this.lastDiscountedVM = lastDiscountedVM;
     }
 
-    public long getOid() {
-        return oid;
-    }
-
-    public boolean isIsf() {
-        return isf;
-    }
-
-    /**
-     * determines if the RI is regional or zonal.
-     * @return returns true if the RI is regional. false if zonal.
-     */
-    public boolean isRegionScoped() {
-        if (zone == SMAUtils.NO_ZONE) {
-            return true;
-        }
-        return false;
-    }
-
-    @Nonnull
-    public long getRiKeyOid() {
-        return riKeyOid;
-    }
-
-    @Nonnull
-    public String getName() {
-        return name;
-    }
-
-    public int getCount() {
-        return count;
-    }
-
     public HashSet<SMAVirtualMachine> getDiscountableVMs() {
         return discountableVMs;
     }
 
-    public SMATemplate getTemplate() {
-        return template;
-    }
 
-    @Nonnull
-    public long getBusinessAccount() {
-        return businessAccount;
-    }
-
-    @Nonnull
-    public SMATemplate getNormalizedTemplate() {
-        return normalizedTemplate;
-    }
-
-    public long getZone() {
-        return zone;
-    }
-
-    public float getNormalizedCount() {
-        return normalizedCount;
-    }
-
-    public void setNormalizedTemplate(final SMATemplate normalizedTemplate) {
-        this.normalizedTemplate = normalizedTemplate;
-    }
-
-    public void setNormalizedCount(final float normalizedCount) {
-        this.normalizedCount = normalizedCount;
-    }
 
     /**
      * Normalize the RI to the cheapest template in the family for ISF RIs.
      *
      * @param newTemplate new normalized template.
      */
-
     public void normalizeTemplate(SMATemplate newTemplate) {
         if (isIsf()) {
             SMATemplate oldTemplate = getNormalizedTemplate();
@@ -311,7 +342,6 @@ public class SMAReservedInstance {
         return bestVM;
     }
 
-
     /**
      * compute the coupons the vm group is currently discounted by this RI.
      *
@@ -364,7 +394,6 @@ public class SMAReservedInstance {
         return (riCoverage > SMAUtils.EPSILON && vm.getCurrentRIKey() == getRiKeyOid());
     }
 
-
     /**
      * Determine if two RIs are equivalent.  They are equivalent if they have same oid.
      * @return hash code based on oid
@@ -402,10 +431,12 @@ public class SMAReservedInstance {
                 "OID='" + oid + "'" +
                 ", keyOID='" + riKeyOid + "'" +
                 ", name='" + name + "'" +
-                ", businessAccount='" + businessAccount + "'" +
-                ", zone='" + zone + "'" +
+                ", businessAccount='" + businessAccountId + "'" +
+                ", zone='" + zoneId + "'" +
                 ", normalizedCount=" + normalizedCount +
                 ", isf=" + isf +
+                ", platformFlexible=" + platformFlexible +
+                ", shared=" + shared +
                 ", normalizedTemplate=" + normalizedTemplate.toStringWithOutCost() +
                 '}';
     }

@@ -77,7 +77,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyDeletionException;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
@@ -108,11 +107,9 @@ public class ArangoRepositoryRpcServiceTest {
 
     private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
 
-    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
-
     private ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
         topologyLifecycleManager, topologyProtobufsManager, graphDBService,
-        planStatsService, partialEntityConverter, 10, topologyIDFactory);
+        planStatsService, partialEntityConverter, 10);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -135,7 +132,7 @@ public class ArangoRepositoryRpcServiceTest {
         RepositoryOperationResponse repoResponse =
             repoClient.deleteTopology(topologyId, topologyContextId, topologyType);
 
-        final TopologyID expectedTopologyId = topologyIDFactory.createTopologyID(topologyContextId,
+        final TopologyID expectedTopologyId = new TopologyID(topologyContextId,
             topologyId,
             TopologyType.PROJECTED
         );
@@ -158,7 +155,7 @@ public class ArangoRepositoryRpcServiceTest {
     @Test
     public void testDeleteTopologyException() throws Exception {
         Mockito.doThrow(TopologyDeletionException.class)
-            .when(topologyLifecycleManager).deleteTopology(topologyIDFactory.createTopologyID(topologyContextId,
+            .when(topologyLifecycleManager).deleteTopology(new TopologyID(topologyContextId,
             topologyId,
             TopologyType.PROJECTED));
 
@@ -323,7 +320,7 @@ public class ArangoRepositoryRpcServiceTest {
         when(topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty()))
                 .thenReturn(protobufReader);
 
-        TopologyID topologyID = topologyIDFactory.createTopologyID(0, topologyId, TopologyType.PROJECTED);
+        TopologyID topologyID = new TopologyID(0, topologyId, TopologyType.PROJECTED);
         when(topologyLifecycleManager.getTopologyId(topologyId)).thenReturn(Optional.of(topologyID));
 
         final EntityStats stats = EntityStats.newBuilder()
@@ -486,9 +483,9 @@ public class ArangoRepositoryRpcServiceTest {
         final long sourceTopologyId = 4567;
         final long projectedTopologyId = 6789;
         final TopologyID sourceTid =
-            topologyIDFactory.createTopologyID(topologyContextId, sourceTopologyId, TopologyType.SOURCE);
+            new TopologyID(topologyContextId, sourceTopologyId, TopologyType.SOURCE);
         final TopologyID projectedTid =
-            topologyIDFactory.createTopologyID(topologyContextId, projectedTopologyId, TopologyType.PROJECTED);
+            new TopologyID(topologyContextId, projectedTopologyId, TopologyType.PROJECTED);
 
         when(topologyLifecycleManager.getTopologyId(topologyContextId, TopologyType.SOURCE))
             .thenReturn(Optional.of(sourceTid));

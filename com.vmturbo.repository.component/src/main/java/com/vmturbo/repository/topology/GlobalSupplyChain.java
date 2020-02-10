@@ -244,7 +244,6 @@ public class GlobalSupplyChain implements DiagsRestorable {
 
         logger.info("Storing global supply chain in db for: {}", topologyId);
         try {
-            String dbName = TopologyDatabases.getDbName(topologyId.database());
             DocumentCreateOptions documentCreateOptions =
                     new DocumentCreateOptions();
             documentCreateOptions.returnNew(false);
@@ -253,8 +252,8 @@ public class GlobalSupplyChain implements DiagsRestorable {
             GlobalSupplyChainRelationships supplyChainRels =
                     new GlobalSupplyChainRelationships(globalSupplyChainProviderRels);
             graphDbExecutor.insertNewDocument(supplyChainRels.convertToDocument(),
-                    ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION,
-                    dbName, documentCreateOptions);
+                getFullCollectionName(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION),
+                documentCreateOptions);
 
             final BaseDocument baseDocument = new BaseDocument();
             baseDocument.setKey(GLOBAL_SUPPLY_CHAIN_ENTITY_INFO_DOC_KEY);
@@ -263,8 +262,8 @@ public class GlobalSupplyChain implements DiagsRestorable {
                             entry -> (new Gson()).toJson(entry.getValue())));
             baseDocument.setProperties(map);
             graphDbExecutor.insertNewDocument(baseDocument,
-                    ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION,
-                    dbName, documentCreateOptions);
+                getFullCollectionName(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION),
+                documentCreateOptions);
 
         } catch (ArangoDBException e) {
             throw new TopologyEntitiesException(e);
@@ -285,9 +284,7 @@ public class GlobalSupplyChain implements DiagsRestorable {
 
         logger.info("Loading global supply chain from db for: {}", topologyId);
 
-        globalSupplyChainProviderRels =
-                graphDbExecutor.getSupplyChainRels(
-                        topologyId.database()).getRelationships();
+        globalSupplyChainProviderRels = graphDbExecutor.getSupplyChainRels().getRelationships();
 
         try {
 
@@ -314,11 +311,18 @@ public class GlobalSupplyChain implements DiagsRestorable {
 
     private BaseDocument loadDocumentFromDb()
             throws ArangoDBException {
-
-        String dbName = TopologyDatabases.getDbName(topologyId.database());
         return graphDbExecutor.getDocument(GLOBAL_SUPPLY_CHAIN_ENTITY_INFO_DOC_KEY,
-                        ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION,
-                        dbName);
+            getFullCollectionName(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION));
+    }
+
+    /**
+     * Get full collection name by concatenating given collection name with collection name suffix.
+     *
+     * @param collection Given collection name.
+     * @return Constructed full collection name.
+     */
+    private String getFullCollectionName(String collection) {
+        return collection + topologyId.toCollectionNameSuffix();
     }
 
     /**

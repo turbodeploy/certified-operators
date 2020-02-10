@@ -25,7 +25,10 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -44,6 +47,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
@@ -182,19 +186,24 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator, dependentCostLookup);
 
             long regionId = entityInfoExtractor.getId(region);
-            Optional<OnDemandPriceTable> onDemandPriceTable = Optional.empty();
-            Optional<SpotInstancePriceTable> spotInstancePriceTable = Optional.empty();
 
-            if (!CollectionUtils.isEmpty(accountPricingData.getPriceTable().getOnDemandPriceByRegionIdMap())) {
-                onDemandPriceTable = Optional.ofNullable(accountPricingData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId));
-            }
+            final PriceTable priceTable = accountPricingData.getPriceTable();
+            final Optional<OnDemandPriceTable> onDemandPriceTable =
+                    Optional.ofNullable(priceTable.getOnDemandPriceByRegionIdMap().get(regionId));
 
-            if (!CollectionUtils.isEmpty(accountPricingData.getPriceTable().getSpotPriceByRegionIdMap())) {
-                spotInstancePriceTable = Optional.ofNullable(accountPricingData.getPriceTable().getSpotPriceByRegionIdMap().get(regionId));
-            }
-            final CostCalculationContext<ENTITY_CLASS> context =
-                    new CostCalculationContext<>(journal, entity, regionId,
-                    accountPricingData, onDemandPriceTable, spotInstancePriceTable);
+            // Get Spot price table by Availability Zone (if present) or by Region (if Availability
+            // Zone is missing)
+            final Map<Long, SpotInstancePriceTable> spotInstancePriceTableMap = priceTable
+                    .getSpotPriceByZoneOrRegionIdMap();
+            final SpotInstancePriceTable spotInstancePriceTable = cloudTopology
+                    .getConnectedAvailabilityZone(entityId)
+                    .map(entityInfoExtractor::getId)
+                    .filter(spotInstancePriceTableMap::containsKey)
+                    .map(spotInstancePriceTableMap::get)
+                    .orElse(spotInstancePriceTableMap.get(regionId));
+            final CostCalculationContext<ENTITY_CLASS> context = new CostCalculationContext<>(
+                    journal, entity, regionId, accountPricingData, onDemandPriceTable,
+                    Optional.ofNullable(spotInstancePriceTable));
 
             switch (entityInfoExtractor.getEntityType(entity)) {
                 case EntityType.VIRTUAL_MACHINE_VALUE:
@@ -547,13 +556,33 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                           CostJournal.Builder<ENTITY_CLASS> journal,
                                           CostCalculationContext<ENTITY_CLASS> context) {
         final Optional<SpotInstancePriceTable> spotPriceTable = context.getSpotInstancePriceTable();
-        if (spotPriceTable.isPresent()) {
-            Price spotPrice = spotPriceTable.get().getSpotPriceByInstanceIdMap()
-                    .get(entityInfoExtractor.getId(computeTier));
-            final TraxNumber unitsBought = trax(1, "units bought at spot price");
-            journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
-                    spotPrice, unitsBought);
+        if (!spotPriceTable.isPresent()) {
+            return;
         }
+        final long computeTierOid = entityInfoExtractor.getId(computeTier);
+        final SpotPricesForTier spotPricesForTier = spotPriceTable.get()
+                .getSpotPricesByTierOidMap().get(computeTierOid);
+        if (spotPricesForTier == null) {
+            logger.error("Cannot find Spot prices for zone/region {}, compute tier {}",
+                    context.getRegionid(), computeTierOid);
+            return;
+        }
+        final ENTITY_CLASS entity = context.getEntity();
+        final OSType osType = entityInfoExtractor.getComputeConfig(entity)
+                .map(ComputeConfig::getOs)
+                .orElse(OSType.UNKNOWN_OS);
+        final Optional<Price> spotPrice = spotPricesForTier.getPriceForGuestOsTypeList()
+                .stream()
+                .filter(priceForGuestOs -> priceForGuestOs.getGuestOsType() == osType)
+                .map(PriceForGuestOsType::getPrice)
+                .findAny();
+        if (!spotPrice.isPresent()) {
+            logger.error("Cannot find Spot price for zone/region {}, compute tier {}, OS {}",
+                    context.getRegionid(), computeTierOid, osType);
+            return;
+        }
+        final TraxNumber unitsBought = trax(1, "units bought at spot price");
+        journal.recordOnDemandCost(CostCategory.SPOT, computeTier, spotPrice.get(), unitsBought);
     }
 
     private void calculateDatabaseCost(final boolean isDbServer,

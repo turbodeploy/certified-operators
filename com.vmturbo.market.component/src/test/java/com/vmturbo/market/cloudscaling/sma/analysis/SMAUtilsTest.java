@@ -79,11 +79,13 @@ public class SMAUtilsTest {
                         smaReservedInstance.getOid(),
                         representative.getRiKeyOid(),
                         smaReservedInstance.getName(),
-                        smaReservedInstance.getBusinessAccount(),
+                        smaReservedInstance.getBusinessAccountId(),
                         smaReservedInstance.getTemplate(),
-                        smaReservedInstance.getZone(),
+                        smaReservedInstance.getZoneId(),
                         smaReservedInstance.getCount(),
-                        smaReservedInstance.isIsf());
+                        smaReservedInstance.isIsf(),
+                        smaReservedInstance.isShared(),
+                        smaReservedInstance.isPlatformFlexible());
                 smaInputContext.getReservedInstances().add(newReservedInstance);
             }
         }
@@ -121,8 +123,8 @@ public class SMAUtilsTest {
          */
         public SMAReservedInstanceKey(final SMAReservedInstance ri) {
             this.normalizedTemplate = ri.getNormalizedTemplate();
-            this.zone = ri.getZone();
-            this.businessAccount = ri.getBusinessAccount();
+            this.zone = ri.getZoneId();
+            this.businessAccount = ri.getBusinessAccountId();
         }
 
         /*
@@ -271,11 +273,13 @@ public class SMAUtilsTest {
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
                         oldRI.getRiKeyOid(),
                         oldRI.getName(),
-                        oldRI.getBusinessAccount(),
+                        oldRI.getBusinessAccountId(),
                         oldRI.getTemplate(),
-                        oldRI.getZone(),
+                        oldRI.getZoneId(),
                         oldRI.getCount(),
-                        oldRI.isIsf());
+                        oldRI.isIsf(),
+                        oldRI.isShared(),
+                        oldRI.isPlatformFlexible());
                 newReservedInstances.add(newRI);
             }
             SMAContext context = inputContext.getContext();
@@ -412,6 +416,7 @@ public class SMAUtilsTest {
 
     /**
      * Test performance of worst case scenario for SMA when every RI proposes to every VM.
+     * For AWS, because shared is true and platformFlexible is false for RIs.
      * @param nVirtualMachines number of virtual machines
      * @param nReservedInstances number of reserved instances
      */
@@ -452,7 +457,9 @@ public class SMAUtilsTest {
                     smaTemplate,
                     SMATestConstants.ZONE_BASE,
                     1,
-                    true);
+                    true,
+                    true,
+                    false);
             reservedInstances.add(reservedInstance);
         }
         SMAContext context = new SMAContext(SMACSP.AWS,
@@ -521,13 +528,15 @@ public class SMAUtilsTest {
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
-                        oldRI.getRiKeyOid(),
-                        oldRI.getName(),
-                        oldRI.getBusinessAccount(),
-                        oldRI.getTemplate(),
-                        oldRI.getZone(),
-                        oldRI.getCount(),
-                        oldRI.isIsf());
+                    oldRI.getRiKeyOid(),
+                    oldRI.getName(),
+                    oldRI.getBusinessAccountId(),
+                    oldRI.getTemplate(),
+                    oldRI.getZoneId(),
+                    oldRI.getCount(),
+                    oldRI.isIsf(),
+                    oldRI.isShared(),
+                    oldRI.isPlatformFlexible());
                 newReservedInstances.add(newRI);
             }
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
@@ -663,12 +672,14 @@ public class SMAUtilsTest {
             long riKeyOid = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + i;
             long zone = (typeOfRIs == TypeOfRIs.REGIONAL ? SMAUtils.NO_ZONE : SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
             SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid,
-                    riKeyOid, "ri" + riOid,
-                    SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount),
-                    smaTemplates.get(rand.nextInt(nTemplates)),
-                    zone,
-                    1,  // count
-                    computeInstanceSizeFlexibleForAWSRIs(zone, context.getTenancy(), context.getOs()));
+                riKeyOid, "ri" + riOid,
+                SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount),
+                smaTemplates.get(rand.nextInt(nTemplates)),
+                zone,
+                1,  // count
+                computeInstanceSizeFlexibleForAWSRIs(zone, context.getTenancy(), context.getOs()),
+                true,
+                false);
             smaReservedInstances.add(smaReservedInstance);
         }
         SMAInputContext inputContext = new SMAInputContext(context, smaVirtualMachines, smaReservedInstances, smaTemplates);
@@ -801,13 +812,15 @@ public class SMAUtilsTest {
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
                 SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
-                        oldRI.getRiKeyOid(),
-                        oldRI.getName(),
-                        oldRI.getBusinessAccount(),
-                        oldRI.getTemplate(),
-                        oldRI.getZone(),
-                        oldRI.getCount(),
-                        oldRI.isIsf());
+                    oldRI.getRiKeyOid(),
+                    oldRI.getName(),
+                    oldRI.getBusinessAccountId(),
+                    oldRI.getTemplate(),
+                    oldRI.getZoneId(),
+                    oldRI.getCount(),
+                    oldRI.isIsf(),
+                    oldRI.isShared(),
+                    oldRI.isPlatformFlexible());
                 newReservedInstances.add(newRI);
             }
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
@@ -905,12 +918,14 @@ public class SMAUtilsTest {
                 Long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + (i * (asgSize + 1)) + j;
                 Long riKeyOid = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + (i * (asgSize + 1)) + j;
                 SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid,
-                        riKeyOid, "ri_" + riOid + "_" + j,
-                        businessAccount,
-                        riTemplate,
-                        zone,
-                        1,  // count
-                        computeInstanceSizeFlexibleForAWSRIs(zone, context.getTenancy(), context.getOs()));
+                    riKeyOid, "ri_" + riOid + "_" + j,
+                    businessAccount,
+                    riTemplate,
+                    zone,
+                    1,  // count
+                    computeInstanceSizeFlexibleForAWSRIs(zone, context.getTenancy(), context.getOs()),
+                    true,
+                    false);
                 smaReservedInstances.add(smaReservedInstance);
             }
         }

@@ -67,7 +67,6 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -76,6 +75,8 @@ import com.vmturbo.topology.processor.stitching.journal.EmptyStitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -245,7 +246,7 @@ public class StagesTest {
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
         final DiscoveredTemplateDeploymentProfileNotifier uploader =
                 mock(DiscoveredTemplateDeploymentProfileNotifier.class);
-        doThrow(CommunicationException.class).when(uploader).sendTemplateDeploymentProfileData();
+        doThrow(UploadException.class).when(uploader).sendTemplateDeploymentProfileData();
         final UploadTemplatesStage stage = new UploadTemplatesStage(uploader);
         assertThat(stage.passthrough(topology).getType(), is(TopologyPipeline.Status.Type.FAILED));
     }
@@ -329,7 +330,7 @@ public class StagesTest {
     }
 
     @Test
-    public void testEditStage() throws PipelineStageException {
+    public void testEditStage() throws Exception {
         final TopologyEditor topologyEditor = mock(TopologyEditor.class);
         final List<ScenarioChange> changes = Collections.emptyList();
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -352,7 +353,7 @@ public class StagesTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    public void testPostStitchingStage() throws PipelineStageException {
+    public void testPostStitchingStage() throws Exception {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final PostStitchingStage postStitchingStage = new PostStitchingStage(stitchingManager);
@@ -390,7 +391,7 @@ public class StagesTest {
     }
 
     @Test
-    public void testPolicyStage() throws PipelineStageException {
+    public void testPolicyStage() throws Exception {
         final PolicyManager policyManager = mock(PolicyManager.class);
 
         final PolicyStage policyStage = new PolicyStage(policyManager);

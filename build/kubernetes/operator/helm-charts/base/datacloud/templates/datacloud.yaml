@@ -53,8 +53,10 @@ spec:
         - name: "SEVONE_{{ $name }}"
           value: {{ $value | quote }}
         {{- end }}
+{{- if .Values.sevone.tls_cert_secret_name }}
         - name: SEVONE_GRPC_CERT
           value: "/usr/share/pki/sevone/tls.crt"
+{{- end }}
         ports:
           - containerPort: 2112
         readinessProbe:
@@ -112,12 +114,17 @@ spec:
       restartPolicy: Always
       volumes:
       - name: persist-data
-{{ toYaml .Values.sevone.data_volume | indent 10 }}
+{{ toYaml .Values.sevone.data_volume | indent 8 }}
 {{- if .Values.sevone.tls_cert_secret_name }}
       - name: sevone-tls
         secret:
           secretName: {{ .Values.sevone.tls_cert_secret_name | quote }}
+          optional: true
           items:
           - key: {{ .Values.sevone.tls_cert_secret_key }}
             path: tls.crt
 {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}

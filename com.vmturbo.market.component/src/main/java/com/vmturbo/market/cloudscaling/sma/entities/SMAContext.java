@@ -24,9 +24,9 @@ public class SMAContext {
      */
     private final long regionId;
     /*
-     * BillingAccount ID: e.g. master account in AWS or EA in Azure
+     * Billing family ID: e.g. in Azure it is the enterprise agreement, in AWS it is the master account.
      */
-    private final long billingAccountId;
+    private final long billingFamilyId;
     /*
      * Tenancy
      */
@@ -37,18 +37,18 @@ public class SMAContext {
      * @param csp  csp
      * @param osType operating system
      * @param regionId the corresponding region
-     * @param billingAccountId corresponding billing account
+     * @param billingFamilyId corresponding billing family
      * @param tenancy the corresponding tenancy
      */
     public SMAContext(@Nonnull SMACSP csp,
                       @Nonnull OSType osType,
                       long regionId,
-                      long billingAccountId,
+                      long billingFamilyId,
                       @Nonnull Tenancy tenancy) {
         this.csp = Objects.requireNonNull(csp);
         this.osType = Objects.requireNonNull(osType);
         this.regionId = regionId;
-        this.billingAccountId = billingAccountId;
+        this.billingFamilyId = billingFamilyId;
         this.tenancy = Objects.requireNonNull(tenancy);
     }
 
@@ -56,8 +56,6 @@ public class SMAContext {
     public SMACSP getCsp() {
         return csp;
     }
-
-
 
     @Nonnull
     public OSType getOs() {
@@ -69,8 +67,8 @@ public class SMAContext {
         return regionId;
     }
 
-    public long getBillingAccountId() {
-        return billingAccountId;
+    public long getBillingFamilyId() {
+        return billingFamilyId;
     }
 
     @Nonnull
@@ -80,7 +78,7 @@ public class SMAContext {
 
     @Override
     public int hashCode() {
-        return Objects.hash(osType, regionId, billingAccountId, tenancy);
+        return Objects.hash(osType, regionId, billingFamilyId, tenancy);
     }
 
     @Override
@@ -94,7 +92,7 @@ public class SMAContext {
         final SMAContext that = (SMAContext)obj;
         return osType == that.osType &&
                 Objects.equals(regionId, that.regionId) &&
-                Objects.equals(billingAccountId, that.billingAccountId) &&
+                Objects.equals(billingFamilyId, that.billingFamilyId) &&
                 tenancy == that.tenancy;
     }
 
@@ -102,8 +100,8 @@ public class SMAContext {
     public String toString() {
         return "SMAContext{" +
             "csp=" + csp +
-            ", billingAccount='" + billingAccountId + '\'' +
-            ", region='" + regionId + '\'' +
+            ", billingFamilyId='" + billingFamilyId + '\'' +
+            ", regionId='" + regionId + '\'' +
             ", os=" + osType +
             ", tenancy=" + tenancy +
             '}';

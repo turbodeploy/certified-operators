@@ -20,7 +20,6 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
 import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -36,7 +35,6 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
 
     private final RepositoryNotificationSender notificationSender;
     private final TopologyLifecycleManager topologyManager;
-    private final TopologyIDFactory topologyIDFactory;
 
     private Object topologyInfoLock = new Object();
 
@@ -44,11 +42,9 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     private TopologyInfo latestKnownRealtimeTopologyInfo = null;
 
     public TopologyEntitiesListener(@Nonnull final TopologyLifecycleManager topologyManager,
-                                    @Nonnull final RepositoryNotificationSender sender,
-                                    @Nonnull final TopologyIDFactory topologyIDFactory) {
+                                    @Nonnull final RepositoryNotificationSender sender) {
         this.notificationSender = Objects.requireNonNull(sender);
         this.topologyManager = Objects.requireNonNull(topologyManager);
-        this.topologyIDFactory = topologyIDFactory;
     }
 
 
@@ -137,7 +133,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
             .labels(SharedMetrics.SOURCE_LABEL)
             .startTimer();
-        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
+        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
         final TopologyCreator<TopologyEntityDTO> topologyCreator =
             topologyManager.newSourceTopologyCreator(tid, topologyInfo);
         TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
