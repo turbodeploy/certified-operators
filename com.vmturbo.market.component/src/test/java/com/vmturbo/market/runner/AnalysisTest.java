@@ -10,7 +10,6 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -498,41 +497,6 @@ public class AnalysisTest {
                 .build();
         assertEquals(type, fakeEntityDTO.getCommoditiesBoughtFromProvidersList().get(0)
                 .getCommodityBought(0).getCommodityType());
-    }
-
-    /**
-     * Make sure fake entities creation is invloked only for REALTIME and not for PLAN topology type.
-     * @throws ExecutionException if exception is encountered by the task.
-     * @throws InterruptedException if interruption is encountered on the task.
-     */
-    @Test
-    public void testCreateFakeEntityForSuspensionThrottlingForRealtimeAndPlan()
-            throws ExecutionException, InterruptedException {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-                SuspensionsThrottlingConfig.CLUSTER, Collections.emptyMap())
-                .setIncludeVDC(false)
-                .setRightsizeLowerWatermark(0.3f)
-                .setRightsizeUpperWatermark(0.8f)
-                .build();
-
-        TopologyInfo realtimeTopologyType = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
-                .build();
-        Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, Collections.emptySet(), realtimeTopologyType));
-        when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of());
-        analysis.execute();
-
-        // Fake Entities creation should not be called once since its REALTIME.
-        Mockito.verify(analysis, times(1)).createFakeTopologyEntityDTOsForSuspensionThrottling();
-
-        //Change Analysis object to plan
-        TopologyInfo planTopologyType = TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN)
-                .build();
-        analysis = Mockito.spy(getAnalysis(analysisConfig, Collections.emptySet(), planTopologyType));
-        when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of());
-        analysis.execute();
-
-        // Fake Entities creation should not be called since its a PLAN.
-        Mockito.verify(analysis, times(0)).createFakeTopologyEntityDTOsForSuspensionThrottling();
     }
 
     /**

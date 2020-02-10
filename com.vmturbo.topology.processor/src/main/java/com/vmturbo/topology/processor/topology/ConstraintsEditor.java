@@ -7,7 +7,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -125,32 +124,11 @@ public class ConstraintsEditor {
                 .forEach(entity ->
                         entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES));
 
-        // HACK : Ignore All constraints at global level.
-        // This is done because currently there is a gap in UI where not enough information is
-        // sent at global level to apply ignore constraints generically. IgnoreConstraint
-        // without group only exists for ALL_COMMODITIES and applies to VMs/Containers/ContainerPods.
-        // TODO : Revisit this with OM-55303 to consume changes made in UI for Ignore Constraints.
-        ignoredCommodities.stream()
-            .filter(IgnoreConstraint::hasIgnoreGroup)
-            .map(IgnoreConstraint::getIgnoreGroup)
-            .filter(ConstraintGroup::hasCommodityType)
-            .map(ConstraintGroup::getCommodityType)
-            .filter(commType -> ConstraintType.GlobalIgnoreConstraint.name().equals(commType))
-            .findFirst()
-            .ifPresent(comm -> {
-                    Stream.of(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE),
-                        graph.entitiesOfType(EntityType.CONTAINER),
-                        graph.entitiesOfType(EntityType.CONTAINER_POD))
-                            .flatMap(Function.identity())
-                            .forEach(entity -> entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES));
-            });
-
         Set<Long> groups = ignoredCommodities.stream()
                 .filter(IgnoreConstraint::hasIgnoreGroup)
                 .map(IgnoreConstraint::getIgnoreGroup)
                 .map(ConstraintGroup::getGroupUuid)
                 .collect(Collectors.toSet());
-
         groupService.getGroups(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder()
                                         .addAllId(groups))

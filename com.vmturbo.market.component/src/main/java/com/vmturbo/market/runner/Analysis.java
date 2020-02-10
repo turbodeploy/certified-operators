@@ -302,8 +302,8 @@ public class Analysis {
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 originalCloudTopology);
-        final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
-                && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);
+        final boolean enableThrottling = (config.getSuspensionsThrottlingConfig()
+                == SuspensionsThrottlingConfig.CLUSTER);
         DataMetricTimer processResultTime = null;
         Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
         AnalysisResults results = null;
