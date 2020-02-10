@@ -193,7 +193,7 @@ public class CommodityConverter {
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
-                                scale))
+                                scale, dto))
                         .setUpdateFunction(updateFunction(topologyCommSold))
                         .build();
 
@@ -271,7 +271,7 @@ public class CommodityConverter {
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
                         .setCapacityUpperBound(capacity)
-                        .setPriceFunction(priceFunction(commodityType, 1.0f))
+                        .setPriceFunction(priceFunction(commodityType, 1.0f, null))
                         .setUpdateFunction(uf)
                         .build();
 
@@ -410,13 +410,15 @@ public class CommodityConverter {
      *
      * @param commType a commodity type for which to add a price function
      * @param scale    float that represents how much the utilization is scaled to.
+     * @param dto the entity whose commodity price function is being set.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     private static PriceFunctionDTOs.PriceFunctionTO priceFunction(CommodityType commType,
-                                                                   float scale) {
+                                                                   float scale,
+                                                                   TopologyEntityDTO dto) {
         // logic to choose correct price function is based on commodity type
-        return MarketAnalysisUtils.priceFunction(commType, scale);
+        return MarketAnalysisUtils.priceFunction(commType, scale, dto);
     }
 
     /**
