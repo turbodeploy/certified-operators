@@ -830,6 +830,9 @@
                 <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
+                <module>../com.vmturbo.reports.api</module>
+                <module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module>
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
@@ -903,6 +906,9 @@
                 <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
+                <module>../com.vmturbo.reports.api</module>
+                <module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module>
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
@@ -991,6 +997,9 @@
                 <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
+                <module>../com.vmturbo.reports.api</module>
+                <module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module>
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
@@ -1679,6 +1688,16 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.repository.api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.reports.api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.reports.templates</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
