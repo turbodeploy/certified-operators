@@ -30,6 +30,6 @@ public class LogicalPoolAspectMapper extends DiskCommonAspectMapper {
     @Nonnull
     @Override
     public AspectName getAspectName() {
-        return AspectName.LOGICAL_POOL;
+        return AspectName.STORAGE;
     }
 }
