@@ -31,7 +31,8 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
      */
     public static final String UDE_PROBE_TYPE = "User Defined Entities";
 
-    private final UserDefinedEntitiesProbeRetrieval retrieval;
+    private final UserDefinedEntitiesProbeConverter converter;
+    private final UserDefinedEntitiesProbeExplorer explorer;
 
     /**
      * Constructor.
@@ -40,7 +41,8 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
      */
     @ParametersAreNonnullByDefault
     public UserDefinedEntitiesProbe(@Nonnull UserDefinedEntitiesProbeRetrieval retrieval) {
-        this.retrieval = retrieval;
+        converter = new UserDefinedEntitiesProbeConverter();
+        explorer = new UserDefinedEntitiesProbeExplorer(retrieval);
     }
 
     @Nonnull
@@ -76,8 +78,6 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
             throws InterruptedException {
         final String targetName = account.getTargetName();
         try {
-            final UserDefinedEntitiesProbeConverter converter = new UserDefinedEntitiesProbeConverter();
-            final UserDefinedEntitiesProbeExplorer explorer = new UserDefinedEntitiesProbeExplorer(retrieval);
             return converter.convertToResponse(explorer.getUserDefinedGroups());
         } catch (Exception e) {
             LOGGER.info("Internal probe {} discovery error.", targetName);

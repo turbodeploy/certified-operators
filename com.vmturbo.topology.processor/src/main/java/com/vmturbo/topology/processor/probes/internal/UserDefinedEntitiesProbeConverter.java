@@ -11,6 +11,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.SER
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -49,6 +50,14 @@ class UserDefinedEntitiesProbeConverter {
     private static final Collection<EntityType> AVAILABLE_GROUP_TYPES = Sets.newHashSet(
             BUSINESS_APPLICATION, BUSINESS_TRANSACTION, SERVICE
     );
+
+    /**
+     * Map of entity name to the corresponding group ID (EntityDefinition ID).
+     * When an entity is created based on an EntityDefinition, we save the group ID that was used
+     * to create the entity, so that when this entity is used as a member in a different group,
+     * the proxy entity that we create for it will have the same ID as the non-proxy entity.
+     */
+    private Map<String, Long> entityNameToGroupId = new HashMap<>();
 
     /**
      * Makes a converting from groups into the response of the probe.
@@ -131,11 +140,20 @@ class UserDefinedEntitiesProbeConverter {
     @Nullable
     @ParametersAreNonnullByDefault
     private EntityDTO convertMember(TopologyEntityDTO memberEntity, String groupId) {
-        final String memberId = getMemberId(memberEntity);
+        String memberId = getMemberId(memberEntity);
         final String displayName = memberEntity.getDisplayName();
         final String name = StringUtils.isNotEmpty(displayName) ? displayName : String.format("%s:%s", groupId, memberId);
         final EntityType type = EntityType.forNumber(memberEntity.getEntityType());
         if (isSupportedMemberType(type)) {
+            if (isSupportedGroupType(type)) {
+                // In case that the member is a user-defined entity, use the EntityDefinition's OID.
+                // Since the EntityDTO that we create for user-defined entities have
+                // id = EntityDefinitionOID, we want to create proxy EntityDTOs here with the same OID
+                Long entityDefinitionOid = entityNameToGroupId.get(displayName);
+                if (entityDefinitionOid != null) {
+                    memberId = String.valueOf(entityDefinitionOid);
+                }
+            }
             return EntityBuilders.entity(memberId)
                     .entityType(type)
                     .selling(createApplicationSold(memberId, groupId))
@@ -157,6 +175,7 @@ class UserDefinedEntitiesProbeConverter {
                 .collect(Collectors.toSet());
         final EntityType type = getGroupEntityType(group);
         if (isSupportedGroupType(type)) {
+            entityNameToGroupId.putIfAbsent(originGroupName, group.getId());
             final GenericEntityBuilder builder = EntityBuilders.entity(groupId)
                     .entityType(type)
                     .displayName(name);
