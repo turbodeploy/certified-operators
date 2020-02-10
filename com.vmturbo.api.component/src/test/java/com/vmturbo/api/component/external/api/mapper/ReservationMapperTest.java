@@ -17,7 +17,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -36,8 +35,6 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOMoles.DeploymentProfileServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -93,24 +90,6 @@ public class ReservationMapperTest {
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
             .build();
 
-    private static final ReservationChanges RES_CHANGES = ReservationChanges.newBuilder()
-        .buildPartial();
-    private static final ReservationChanges RESERVED_CHANGE = RES_CHANGES.toBuilder()
-        .addReservationChange(ReservationChange.newBuilder()
-            .setId(1L)
-            .setStatus(ReservationStatus.RESERVED)
-            .build())
-        .build();
-    private static final ReservationChanges FAILED_INPROGRESS_CHANGE = RES_CHANGES.toBuilder()
-        .addReservationChange(ReservationChange.newBuilder()
-            .setId(2L)
-            .setStatus(ReservationStatus.PLACEMENT_FAILED)
-            .build())
-        .addReservationChange(ReservationChange.newBuilder()
-            .setId(3L)
-            .setStatus(ReservationStatus.INPROGRESS)
-            .build())
-        .build();
     /**
      * Utility gRPC server to mock out gRPC service dependencies.
      */
@@ -270,39 +249,4 @@ public class ReservationMapperTest {
                 .collect(Collectors.toList())
                 .get(0).getValue()));
     }
-
-    /**
-     * Test that a {@link ReservationNotification} has proper fields after being converted from
-     * {@link ReservationChanges} with single {@link ReservationChange} that is Reserved.
-     */
-    @Test
-    public void testNotificationFromReservationChangesSucceeded() {
-        final ReservationNotification success = ReservationMapper.notificationFromReservationChanges(RESERVED_CHANGE);
-        assertTrue(success.hasStatusNotification());
-        assertEquals(1, success.getStatusNotification().getReservationStatusCount());
-        assertEquals(Long.toString(1L),
-            success.getStatusNotification().getReservationStatus(0).getId());
-        assertEquals(ReservationStatus.RESERVED.toString(),
-            success.getStatusNotification().getReservationStatus(0).getStatus());
-    }
-
-    /**
-     * Test that a {@link ReservationNotification} has proper fields after being converted from
-     * {@link ReservationChanges} with 2 {@link ReservationChange} where 1 is Failed and 1 is InProgress.
-     */
-    @Test
-    public void testNotificationFromReservationChangesInProgressAndFailed() {
-        final ReservationNotification success = ReservationMapper.notificationFromReservationChanges(FAILED_INPROGRESS_CHANGE);
-        assertTrue(success.hasStatusNotification());
-        assertEquals(2, success.getStatusNotification().getReservationStatusCount());
-        assertEquals(Long.toString(2L),
-            success.getStatusNotification().getReservationStatus(0).getId());
-        assertEquals(ReservationStatus.PLACEMENT_FAILED.toString(),
-            success.getStatusNotification().getReservationStatus(0).getStatus());
-        assertEquals(Long.toString(3L),
-            success.getStatusNotification().getReservationStatus(1).getId());
-        assertEquals(ReservationStatus.INPROGRESS.toString(),
-            success.getStatusNotification().getReservationStatus(1).getStatus());
-    }
-
 }

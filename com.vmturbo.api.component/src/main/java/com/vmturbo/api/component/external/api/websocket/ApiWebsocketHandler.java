@@ -34,7 +34,6 @@ import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
-import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetsNotification;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -256,16 +255,6 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
             .setId(IdentityGenerator.next())
             .setTime(Instant.now().toEpochMilli())
             .setExportNotification(Objects.requireNonNull(notification))
-            .build());
-    }
-
-    @Override
-    public void broadcastReservationNotification(@Nonnull final ReservationNotification notification) {
-        logger_.debug("Broadcasting reservation notification: {}", notification);
-        broadcastNotification(Notification.newBuilder()
-            .setId(IdentityGenerator.next())
-            .setTime(Instant.now().toEpochMilli())
-            .setReservationNotification(Objects.requireNonNull(notification))
             .build());
     }
 

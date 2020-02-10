@@ -31,9 +31,6 @@ import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
-import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
-import com.vmturbo.api.ReservationNotificationDTO.ReservationStatus;
-import com.vmturbo.api.ReservationNotificationDTO.ReservationStatusNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
@@ -196,32 +193,6 @@ public class ApiWebsocketHandlerTest {
             notification.getExportNotification().getStatusNotification().getStatus());
         assertEquals("export",
             notification.getExportNotification().getStatusNotification().getDescription());
-    }
-
-    /**
-     * Test that broadcastReservationNotification() publishes the notification.
-     *
-     * @throws Exception if the test fails.
-     */
-    @Test
-    public void testBroadcastReservationNotification() throws Exception {
-        websocketHandler.broadcastReservationNotification(ReservationNotification.newBuilder()
-            .setStatusNotification(ReservationStatusNotification.newBuilder()
-                .addReservationStatus(ReservationStatus.newBuilder()
-                    .setId("12345")
-                    .setStatus("RESERVED"))
-                .build()
-            ).build());
-
-        verify(session).sendMessage(notificationCaptor.capture());
-        final Notification notification = Notification.parseFrom(
-            notificationCaptor.getValue().getPayload().array());
-        assertEquals(1,
-            notification.getReservationNotification().getStatusNotification().getReservationStatusCount());
-        assertEquals("12345",
-            notification.getReservationNotification().getStatusNotification().getReservationStatus(0).getId());
-        assertEquals("RESERVED",
-            notification.getReservationNotification().getStatusNotification().getReservationStatus(0).getStatus());
     }
 
     /**

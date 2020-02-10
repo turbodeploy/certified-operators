@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
@@ -82,7 +81,7 @@ public class PlanNotificationsTest {
         server = new IntegrationTestServer(testName, PlanTestConfig.class);
         threadPool = Executors.newCachedThreadPool();
         messageReceiver = server.getBean("messageChannel");
-        client = new PlanOrchestratorClientImpl(messageReceiver, Mockito.mock(IMessageReceiver.class), threadPool, 0);
+        client = new PlanOrchestratorClientImpl(messageReceiver, threadPool, 0);
         planDao = server.getBean(PlanDao.class);
         actionsListener = server.getBean(PlanProgressListener.class);
         reservationPlacementHandler = server.getBean(ReservationPlacementHandler.class);

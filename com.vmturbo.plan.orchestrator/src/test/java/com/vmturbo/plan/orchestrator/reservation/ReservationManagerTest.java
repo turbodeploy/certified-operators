@@ -2,7 +2,6 @@ package com.vmturbo.plan.orchestrator.reservation;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anySet;
@@ -28,15 +27,12 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -53,10 +49,6 @@ public class ReservationManagerTest {
     private PlanRpcService planRpcService;
 
     private ReservationManager reservationManager;
-
-    private IMessageSender<ReservationDTO.ReservationChanges> sender;
-
-    private ReservationNotificationSender resNotificationSender;
 
     @Captor
     private ArgumentCaptor<Set<Reservation>> updateBatchCaptor;
@@ -153,26 +145,6 @@ public class ReservationManagerTest {
                             .setTemplateId(234L)))
             .build();
 
-    private Reservation testReservationForBroadcast1 = Reservation.newBuilder()
-        .setId(1000)
-        .setName("test-reservation1")
-        .setStatus(ReservationStatus.RESERVED)
-        .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-            .addReservationTemplate(ReservationTemplate.newBuilder()
-                .setCount(1L)
-                .setTemplateId(234L)))
-        .build();
-
-    private Reservation testReservationForBroadcast2 = Reservation.newBuilder()
-        .setId(1000)
-        .setName("test-reservation2")
-        .setStatus(ReservationStatus.PLACEMENT_FAILED)
-        .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-            .addReservationTemplate(ReservationTemplate.newBuilder()
-                .setCount(1L)
-                .setTemplateId(234L)))
-        .build();
-
     /**
      * Initial setup.
      * @throws Exception because of calls to reservationDao methods.
@@ -183,11 +155,7 @@ public class ReservationManagerTest {
         planDao = Mockito.mock(PlanDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
         planRpcService = Mockito.mock(PlanRpcService.class);
-
-        sender = Mockito.mock(IMessageSender.class);
-        resNotificationSender = new ReservationNotificationSender(sender);
-
-        reservationManager = new ReservationManager(planDao, reservationDao, planRpcService, resNotificationSender);
+        reservationManager = new ReservationManager(planDao, reservationDao, planRpcService);
     }
 
     /**
@@ -323,31 +291,6 @@ public class ReservationManagerTest {
         assertThat(updatedReservations, containsInAnyOrder(inProgressReservation1.toBuilder()
             .setStatus(ReservationStatus.INVALID)
             .build()));
-    }
-
-    /**
-     * Test that broadcasting a reservation change will appropriately invoke the message sender.
-     *
-     * @throws Exception if an error occurs.
-     */
-    @Test
-    public void testbroadcastReservationChange() throws Exception {
-        final Set<ReservationDTO.Reservation> newReservations = new HashSet<>();
-        newReservations.add(testReservationForBroadcast1);
-        newReservations.add(testReservationForBroadcast2);
-
-        ArgumentCaptor<ReservationChanges> resChangesCaptor =
-            ArgumentCaptor.forClass(ReservationChanges.class);
-        reservationManager.broadcastReservationChange(newReservations);
-
-        verify(sender).sendMessage(resChangesCaptor.capture());
-        final ReservationChanges resChanges = resChangesCaptor.getValue();
-
-        assertEquals(2, resChanges.getReservationChangeCount());
-        assertEquals(testReservationForBroadcast1.getId(), resChanges.getReservationChange(0).getId());
-        assertEquals(testReservationForBroadcast1.getStatus().toString(), resChanges.getReservationChange(0).getStatus().toString());
-        assertEquals(testReservationForBroadcast2.getId(), resChanges.getReservationChange(1).getId());
-        assertEquals(testReservationForBroadcast2.getStatus().toString(), resChanges.getReservationChange(1).getStatus().toString());
     }
 
 }

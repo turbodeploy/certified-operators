@@ -17,7 +17,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -62,24 +61,10 @@ public class PlanOrchestratorClientConfig {
                         PlanInstance::parseFrom);
     }
 
-    /**
-     * Create a message receiver for {@link ReservationChanges}.
-     *
-     * @return the message receiver for reservations.
-     */
-    @Bean
-    protected IMessageReceiver<ReservationChanges> reservationChangesMessageReceiver() {
-        return consumerConfig.kafkaConsumer()
-            .messageReceiver(PlanOrchestratorClientImpl.RESERVATION_NOTIFICATION_TOPIC,
-                ReservationChanges::parseFrom);
-    }
-
     @Bean
     public PlanOrchestrator planOrchestrator() {
         return new PlanOrchestratorClientImpl(planInstanceReceiver(),
-            reservationChangesMessageReceiver(),
-            planOrchestratorClientThreadPool(),
-            kafkaReceiverTimeoutSeconds);
+                planOrchestratorClientThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 
     @Bean

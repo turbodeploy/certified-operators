@@ -42,7 +42,6 @@ public class ExceptionMapper {
             case CANCELLED:
                 return new InterruptedException(statusException.getMessage());
             case INVALID_ARGUMENT:
-            case ALREADY_EXISTS:
                 return new InvalidOperationException(statusException.getMessage());
             default:
                 return new OperationFailedException(statusException.getMessage(), statusException);

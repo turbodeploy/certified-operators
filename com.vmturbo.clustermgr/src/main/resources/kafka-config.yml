@@ -60,9 +60,6 @@ topics:
   - topic: plan-orchestrator-status-changed
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
-  - topic: reservation-status-notifications
-    properties:
-      retention.ms: 86400000 # 86400k ms = 24 hr
   - topic: cost-notifications
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr

@@ -97,6 +97,6 @@ public interface ReservationDao extends DiagsRestorable {
      * Add a reservation status listener.
      * @param listener the listener to be added.
      */
-    void addListener(@Nonnull ReservationDeletedListener listener);
+    void addListener(@Nonnull ReservationStatusListener listener);
 
 }
