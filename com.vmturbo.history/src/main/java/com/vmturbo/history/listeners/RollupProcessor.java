@@ -262,8 +262,19 @@ public class RollupProcessor {
     private Future<Void> scheduleRepartition(Table<?> table) {
         return executorService.submit(() -> {
             try (Connection conn = historydbIO.unpooledConnection()) {
-                final String sql = String.format("CALL rotate_partition('%s')", table.getName());
-                historydbIO.using(conn).execute(sql);
+                // MySQL does not permit LOCK TABLES statement within a stored
+                // procedure, so we must obtain locks outside the call. And we must
+                // lock every table that we will access!
+                historydbIO.using(conn).execute(String.format(
+                        "LOCK TABLES %s WRITE," +
+                                "appl_performance WRITE," +
+                                "retention_policies READ," +
+                                "idle_threads_policy READ",
+                        table.getName()));
+                historydbIO.using(conn).execute(String.format(
+                        "CALL rotate_partition('%s', NULL)",
+                                table.getName()));
+                historydbIO.using(conn).execute("UNLOCK TABLES");
             } catch (Exception e) {
                 logger.error("Repartitioning failed for table {}: {}", table.getName(), e.toString());
             }
