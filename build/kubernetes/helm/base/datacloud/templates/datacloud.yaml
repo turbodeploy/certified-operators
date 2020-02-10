@@ -32,17 +32,16 @@ spec:
         envFrom:
         - secretRef:
             name: {{ .Values.sevone.transport.sevone_auth_secret | quote }}
+            optional: true
         env:
-        - name: SEVONE_TRANSPORT
-          value: "de-grpc"
-        - name: KAFKA_HOSTS
+        - name: TURBO_KAFKA_HOSTS
           value: "{{ .Values.collector.kafka.host }}:{{ .Values.collector.kafka.port }}"
-        - name: KAFKA_ADVERTISED_LISTENERS
-          value: "kafka://{{ .Values.collector.kafka.host}}:{{ .Values.collector.kafka.port }}"
-        - name: KAFKA_VERSION
+        - name: TURBO_KAFKA_VERSION
           value: {{ .Values.collector.kafka.version | quote }}
-        - name: KAFKA_TOPOLOGY_TOPIC
-          value: {{ .Values.collector.kafka.topics.topology | quote }}
+        - name: TURBO_KAFKA_TOPOLOGY_TOPIC
+          value: "{{ .Release.Namespace }}.{{ .Values.collector.kafka.topics.topology }}"
+        - name: TURBO_ENABLE_ACTION_LOGS
+          value: {{ .Values.collector.api.action.enable | quote }}
         - name: TURBONOMIC_ACTION_GRPC_ADDRESS
           value: "{{ .Values.collector.api.action.host }}:{{ .Values.collector.api.action.port }}"
         - name: TURBONOMIC_GROUP_GRPC_ADDRESS

@@ -18,6 +18,7 @@ sevone:
       DE_HOST: cloud.sevone.com
       GRPC_PORT: 443
       PERSIST: none
+      TRANSPORT: de-grpc
   tls_cert_secret_name:
   tls_cert_secret_key: "tls.crt"
   data_volume:
@@ -29,10 +30,11 @@ collector:
     port: 9092
     version: "1.1.0"
     topics:
-      topology: "tp-live-topologies"
-    client_id: "sevone"
+      topology: tp-live-topologies
+    client_id: sevone
   api:
     action:
+      enable: "true"
       host: action-orchestrator
       port: 9001
     group:
