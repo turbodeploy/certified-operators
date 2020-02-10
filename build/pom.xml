@@ -831,8 +831,8 @@
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
-                <module>../com.vmturbo.reports.component</module>
-                <module>../com.vmturbo.reports.templates</module>
+                <!--module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
@@ -907,8 +907,8 @@
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
-                <module>../com.vmturbo.reports.component</module>
-                <module>../com.vmturbo.reports.templates</module>
+                <!-- module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
@@ -998,8 +998,8 @@
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
-                <module>../com.vmturbo.reports.component</module>
-                <module>../com.vmturbo.reports.templates</module>
+                <!-- module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
