@@ -276,10 +276,21 @@ public class CommunicationConfig {
         return new ApiComponentPlanListener(websocketConfig.websocketHandler());
     }
 
+    /**
+     * Create an {@link ApiComponentReservationListener}.
+     *
+     * @return the API Component Reservation Listener.
+     */
+    @Bean
+    public ApiComponentReservationListener apiComponentReservationListener() {
+        return new ApiComponentReservationListener(websocketConfig.websocketHandler());
+    }
+
     @Bean
     public PlanOrchestrator planOrchestrator() {
         final PlanOrchestrator planOrchestrator = planClientConfig.planOrchestrator();
         planOrchestrator.addPlanListener(apiComponentPlanListener());
+        planOrchestrator.addReservationListener(apiComponentReservationListener());
         return planOrchestrator;
     }
 

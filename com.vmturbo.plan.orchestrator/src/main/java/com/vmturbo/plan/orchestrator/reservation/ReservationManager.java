@@ -25,6 +25,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
@@ -35,6 +37,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -47,7 +50,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
  * We also kickoff a new reservation plan if no other plan is running.
  * All the state transition logic is handled by this class.
  */
-public class ReservationManager implements PlanStatusListener, ReservationStatusListener {
+public class ReservationManager implements PlanStatusListener, ReservationDeletedListener {
     private final Logger logger = LogManager.getLogger();
 
     private final ReservationDao reservationDao;
@@ -56,22 +59,27 @@ public class ReservationManager implements PlanStatusListener, ReservationStatus
 
     private final PlanRpcService planService;
 
+    private final ReservationNotificationSender reservationNotificationSender;
+
     private static final String DISABLED = "DISABLED";
 
     private static final Object reservationSetLock = new Object();
 
     /**
      * constructor for ReservationManager.
-     * @param planDao input plan dao
-     * @param reservationDao input reservation dao
-     * @param planRpcService input plan service
+     * @param planDao input plan dao.
+     * @param reservationDao input reservation dao.
+     * @param planRpcService input plan service.
+     * @param reservationNotificationSender the reservation notification sender.
      */
     public ReservationManager(@Nonnull final PlanDao planDao,
                               @Nonnull final ReservationDao reservationDao,
-                              @Nonnull final PlanRpcService planRpcService) {
+                              @Nonnull final PlanRpcService planRpcService,
+                              @Nonnull final ReservationNotificationSender reservationNotificationSender) {
         this.planDao = Objects.requireNonNull(planDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.planService = Objects.requireNonNull(planRpcService);
+        this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.reservationDao.addListener(this);
     }
 
@@ -207,26 +215,68 @@ public class ReservationManager implements PlanStatusListener, ReservationStatus
      */
     public void updateReservationResult(Set<ReservationDTO.Reservation> reservationSet) {
         synchronized (reservationSetLock) {
-            Set<ReservationDTO.Reservation> updatedReservation = new HashSet<>();
+            Set<ReservationDTO.Reservation> updatedReservations = new HashSet<>();
             for (ReservationDTO.Reservation reservation : reservationSet) {
-                if (reservation.getStatus() == ReservationStatus.INPROGRESS) {
+                boolean isSuccessful = isReservationSuccessful(reservation);
+                if (isSuccessful && ReservationStatus.RESERVED != reservation.getStatus()) {
+                    ReservationDTO.Reservation updatedReservation = reservation.toBuilder()
+                        .setStatus(ReservationStatus.RESERVED).build();
+                    updatedReservations.add(updatedReservation);
                     logger.info("Finished Reservation: " + reservation.getName());
-                }
-                if (isReservationSuccessful(reservation)) {
-                    updatedReservation.add(reservation.toBuilder()
-                            .setStatus(ReservationStatus.RESERVED).build());
-                } else {
-                    updatedReservation.add(reservation.toBuilder()
-                            .setStatus(ReservationStatus.PLACEMENT_FAILED).build());
+                } else if (!isSuccessful && ReservationStatus.PLACEMENT_FAILED != reservation.getStatus()) {
+                    ReservationDTO.Reservation updatedReservation = reservation.toBuilder()
+                            .setStatus(ReservationStatus.PLACEMENT_FAILED).build();
+                    updatedReservations.add(updatedReservation);
+                    logger.info("Finished Reservation: " + reservation.getName());
                 }
             }
             try {
-                reservationDao.updateReservationBatch(updatedReservation);
+                if (!updatedReservations.isEmpty()) {
+                    reservationDao.updateReservationBatch(updatedReservations);
+                    broadcastReservationChange(updatedReservations);
+                }
             } catch (NoSuchObjectException e) {
                 logger.error("Reservation update failed" + e);
             }
             return;
         }
+    }
+
+    /**
+     * Broadcast the {@link ReservationChanges} using the reservation notification sender and handle
+     * any errors.
+     *
+     * @param reservations the reservations whose statuses have changed and will be broadcasted.
+     */
+    @VisibleForTesting
+    protected void broadcastReservationChange(@Nonnull final Set<ReservationDTO.Reservation> reservations) {
+        if (reservations.isEmpty()) {
+            return;
+        }
+
+        final ReservationDTO.ReservationChanges.Builder resChangesBuilder =
+            ReservationDTO.ReservationChanges.newBuilder();
+        for (ReservationDTO.Reservation reservation : reservations) {
+            resChangesBuilder.addReservationChange(buildReservationChange(reservation));
+        }
+
+        try {
+            reservationNotificationSender.sendNotification(resChangesBuilder.build());
+        } catch (CommunicationException e) {
+            logger.error("Error sending reservation update notification for reservation changes.", e);
+        }
+    }
+
+    /**
+     * Builds a {@link ReservationDTO.ReservationChange} from a {@link ReservationDTO.Reservation}.
+     * @param reservation the reservation.
+     * @return a ReservationChange object built from the reservation.
+     */
+    private ReservationDTO.ReservationChange buildReservationChange(ReservationDTO.Reservation reservation) {
+        return ReservationChange.newBuilder()
+            .setId(reservation.getId())
+            .setStatus(reservation.getStatus())
+            .build();
     }
 
     /**

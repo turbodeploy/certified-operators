@@ -16,7 +16,6 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -24,6 +23,9 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.api.ReservationNotificationDTO;
+import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
+import com.vmturbo.api.ReservationNotificationDTO.ReservationStatusNotification;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -50,6 +52,8 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -185,6 +189,26 @@ public class ReservationMapper {
                         reservationApiDTO);
         }
         return reservationApiDTO;
+    }
+
+    /**
+     * Create a {@link ReservationNotification} from a {@link ReservationChanges}.
+     *
+     * @param reservationChanges the the current batch of reservation changes.
+     * @return a reservation notification that conforms to what the API layer will broadcast.
+     */
+    public static ReservationNotification notificationFromReservationChanges(@Nonnull final ReservationChanges reservationChanges) {
+        final ReservationStatusNotification.Builder notificationBuilder = ReservationStatusNotification.newBuilder();
+        for (ReservationChange resChange : reservationChanges.getReservationChangeList()) {
+            notificationBuilder.addReservationStatus(
+                ReservationNotificationDTO.ReservationStatus.newBuilder()
+                    .setId(Long.toString(resChange.getId()))
+                    .setStatus(resChange.getStatus().toString())
+                    .build());
+        }
+        return ReservationNotification.newBuilder()
+            .setStatusNotification(notificationBuilder.build())
+            .build();
     }
 
     /**
