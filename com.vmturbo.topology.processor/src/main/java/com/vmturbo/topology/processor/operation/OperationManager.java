@@ -79,7 +79,7 @@ import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandle
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;

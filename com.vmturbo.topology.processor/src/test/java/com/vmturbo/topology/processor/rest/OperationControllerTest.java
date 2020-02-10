@@ -13,6 +13,9 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -41,9 +44,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
-
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -85,7 +85,6 @@ import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -95,6 +94,7 @@ import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 

@@ -12,6 +12,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -20,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
@@ -32,15 +35,17 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
  * The configuration for dealing with groups.
  */
 @Configuration
-@Import({EntityConfig.class, GroupClientConfig.class, PlanConfig.class,
-        ActionOrchestratorClientConfig.class, TargetConfig.class})
+@Import({EntityConfig.class,
+    GroupClientConfig.class,
+    PlanOrchestratorClientConfig.class,
+    ActionOrchestratorClientConfig.class,
+    TargetConfig.class})
 public class GroupConfig {
 
     @Autowired
@@ -50,7 +55,7 @@ public class GroupConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private PlanConfig planConfig;
+    private PlanOrchestratorClientConfig planClientConfig;
 
     @Autowired
     private ActionOrchestratorClientConfig actionOrchestratorClientConfig;
@@ -127,10 +132,25 @@ public class GroupConfig {
     @Bean
     public PolicyManager policyManager() {
         return new PolicyManager(policyRpcService(), groupServiceBlockingStub(), policyFactory(),
-            initialPlacementPolicyFactory(), planConfig.reservationServiceBlockingStub(),
+            initialPlacementPolicyFactory(), reservationServiceBlockingStub(),
             policyApplicator());
     }
 
+    /**
+     * gRPC stub for the reservation service in the plan orchestrator.
+     *
+     * @return The stub.
+     */
+    @Bean
+    public ReservationServiceBlockingStub reservationServiceBlockingStub() {
+        return ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+    }
+
+    /**
+     * Factory class for policies.
+     *
+     * @return The {@link PolicyFactory}.
+     */
     @Bean
     public PolicyFactory policyFactory() {
         return new PolicyFactory();

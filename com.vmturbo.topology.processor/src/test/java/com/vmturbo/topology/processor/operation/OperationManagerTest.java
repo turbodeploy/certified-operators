@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.Lists;
+
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -37,8 +39,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
@@ -88,13 +88,13 @@ import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.util.Probes;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 

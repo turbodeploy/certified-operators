@@ -9,6 +9,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,8 +21,6 @@ import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -58,7 +58,6 @@ import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationManager;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
@@ -69,6 +68,7 @@ import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 

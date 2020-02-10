@@ -9,8 +9,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOREST.AnalysisServiceController;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
-import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
@@ -21,7 +19,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 @Import({
     TopologyConfig.class,
     IdentityProviderConfig.class,
-    RepositoryConfig.class,
     StitchingConfig.class,
     ClockConfig.class})
 public class AnalysisConfig {
@@ -31,12 +28,6 @@ public class AnalysisConfig {
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
-
-    @Autowired
-    private RepositoryConfig repositoryConfig;
-
-    @Autowired
-    private PlanConfig planConfig;
 
     @Autowired
     private ClockConfig clockConfig;

@@ -28,7 +28,6 @@ import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
@@ -54,7 +53,6 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     IdentityProviderConfig.class,
     GroupConfig.class,
     StitchingConfig.class,
-    PlanConfig.class,
     RepositoryConfig.class,
     TemplateConfig.class,
     ClockConfig.class,
@@ -85,9 +83,6 @@ public class TopologyConfig {
 
     @Autowired
     private GroupConfig groupConfig;
-
-    @Autowired
-    private PlanConfig planConfig;
 
     @Autowired
     private RepositoryConfig repositoryConfig;
@@ -220,7 +215,7 @@ public class TopologyConfig {
         return new LivePipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
                 stitchingConfig.stitchingManager(),
-                planConfig.discoveredTemplatesUploader(),
+                templateConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostConfig.discoveredCloudCostUploader(),

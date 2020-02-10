@@ -3,12 +3,16 @@ package com.vmturbo.plan.orchestrator.templates;
 import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.vmturbo.common.protobuf.plan.ReservationDTO;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
+import com.google.common.collect.Lists;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -21,18 +25,19 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl.TemplateInfoToDeploymentProfileMap;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -96,7 +101,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         final String depId1 = "probe-dp-1";
         final String depId2 = "probe-dp-2";
 
-        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap(true);
 
         TemplateInfo firstTemplateInfo = TemplateInfo.newBuilder()
             .setProbeTemplateId(templateId1)
@@ -222,7 +227,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         templatesDao.createTemplate(userCreatedTemplateFirst);
         templatesDao.createTemplate(userCreatedTemplateSecond);
 
-        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap(true);
 
         TemplateInfo firstTemplateInfo = TemplateInfo.newBuilder()
             .setProbeTemplateId("probe-template-1")
@@ -326,7 +331,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
         final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
 
-        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap(true);
 
         TemplateInfo firstTemplateInfo = TemplateInfo.newBuilder()
             .setProbeTemplateId("probe-template-1")
@@ -364,8 +369,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
         final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
 
-        TemplateInfoToDeploymentProfileMap firstTargetMap = new TemplateInfoToDeploymentProfileMap();
-        TemplateInfoToDeploymentProfileMap secondTargetMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap firstTargetMap = new TemplateInfoToDeploymentProfileMap(true);
+        TemplateInfoToDeploymentProfileMap secondTargetMap = new TemplateInfoToDeploymentProfileMap(true);
 
         TemplateInfo firstTargetTemplateInfo1 = TemplateInfo.newBuilder()
                 .setProbeTemplateId("probe-template-1")
@@ -433,7 +438,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
         final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
 
-        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap(true);
 
         TemplateInfo template1 = TemplateInfo.newBuilder()
             .setProbeTemplateId("probe-template-1")
@@ -474,8 +479,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
         final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
 
-        TemplateInfoToDeploymentProfileMap firstTargetMap = new TemplateInfoToDeploymentProfileMap();
-        TemplateInfoToDeploymentProfileMap secondTargetMap = new TemplateInfoToDeploymentProfileMap();
+        TemplateInfoToDeploymentProfileMap firstTargetMap = new TemplateInfoToDeploymentProfileMap(true);
+        TemplateInfoToDeploymentProfileMap secondTargetMap = new TemplateInfoToDeploymentProfileMap(true);
 
         TemplateInfo firstTargetTemplateInfo1 = TemplateInfo.newBuilder()
             .setProbeTemplateId("probe-template-1")
