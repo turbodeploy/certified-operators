@@ -24,9 +24,9 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 
 /**
- * Tests AppComponentConverter class.
+ * Tests ApplicationEntitiesConverter class.
  */
-public class AppComponentConverterTest {
+public class ApplicationEntitiesConverterTest {
 
     private static final String APP_ID = "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]";
 
@@ -37,13 +37,13 @@ public class AppComponentConverterTest {
     @Test
     public void convertResponseTest() throws IOException {
         DiscoveryResponse response = null;
-        try (InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = ApplicationEntitiesConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/apm_old_format_data.txt").openStream()) {
             final DiscoveryResponse.Builder builder = DiscoveryResponse.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
             TextFormat.getParser().merge(reader, builder);
             response = builder.build();
-            DiscoveryResponse newResponse = new AppComponentConverter().convertResponse(response);
+            DiscoveryResponse newResponse = new ApplicationEntitiesConverter().convertResponse(response);
             assertEquals(1, response.getEntityDTOList().stream().filter(e -> e.getEntityType().equals(APPLICATION)).count());
             assertEquals(4, response.getEntityDTOList().stream().filter(e -> e.getEntityType().equals(APPLICATION_SERVER)).count());
             assertEquals(0, newResponse.getEntityDTOList().stream().filter(e -> e.getEntityType().equals(APPLICATION)).count());
@@ -71,17 +71,17 @@ public class AppComponentConverterTest {
     }
 
     /**
-     * Tests converting response without entities (should return original response).
+     * Tests converting probe info.
      * @throws IOException error reading file
      */
     @Test
     public void convertProbeInfo() throws IOException {
-        try (InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = ApplicationEntitiesConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/probe_info_conv_test.json").openStream()) {
             final ProbeInfo.Builder builder = ProbeInfo.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
             JsonFormat.parser().merge(reader, builder);
-            ProbeInfo probeInfo = new AppComponentConverter().convertProbeInfo(builder.build());
+            ProbeInfo probeInfo = new ApplicationEntitiesConverter().convertProbeInfo(builder.build());
             assertTrue(probeInfo.getEntityMetadataList().stream()
                     .noneMatch(e -> e.getEntityType() == APPLICATION));
             assertTrue(probeInfo.getEntityMetadataList().stream()
@@ -133,13 +133,13 @@ public class AppComponentConverterTest {
     @Test
     public void convertEntityFreeTest() throws IOException {
         DiscoveryResponse response = null;
-        try (InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = ApplicationEntitiesConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/aws_cost_shrink_data.txt").openStream()) {
             final DiscoveryResponse.Builder builder = DiscoveryResponse.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
             TextFormat.getParser().merge(reader, builder);
             response = builder.build();
-            DiscoveryResponse newResponse = new AppComponentConverter().convertResponse(response);
+            DiscoveryResponse newResponse = new ApplicationEntitiesConverter().convertResponse(response);
             assertSame(response, newResponse);
         }
     }
@@ -151,13 +151,13 @@ public class AppComponentConverterTest {
     @Test
     public void convertAppFreeTest() throws IOException {
         DiscoveryResponse response = null;
-        try (InputStream inputStream = AppComponentConverterTest.class
+        try (InputStream inputStream = ApplicationEntitiesConverterTest.class
                 .getClassLoader().getResource("protobuf/messages/app_free_data.txt").openStream()) {
             final DiscoveryResponse.Builder builder = DiscoveryResponse.newBuilder();
             InputStreamReader reader = new InputStreamReader(inputStream, UTF_8);
             TextFormat.getParser().merge(reader, builder);
             response = builder.build();
-            DiscoveryResponse newResponse = new AppComponentConverter().convertResponse(response);
+            DiscoveryResponse newResponse = new ApplicationEntitiesConverter().convertResponse(response);
             assertSame(response, newResponse);
         }
     }

@@ -30,7 +30,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.topology.processor.conversions.AppComponentConverter;
+import com.vmturbo.topology.processor.conversions.ApplicationEntitiesConverter;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -93,7 +93,7 @@ public class RemoteProbeStore implements ProbeStore {
                 try {
                     final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
                     JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
-                    return new AppComponentConverter().convertProbeInfo(probeInfoBuilder.build());
+                    return new ApplicationEntitiesConverter().convertProbeInfo(probeInfoBuilder.build());
                 } catch (InvalidProtocolBufferException e){
                     logger.error("Failed to load probe info from Consul.");
                     return null;
@@ -126,7 +126,7 @@ public class RemoteProbeStore implements ProbeStore {
                     throws ProbeException {
         Objects.requireNonNull(oldProbeInfo, "Probe info should not be null");
         Objects.requireNonNull(transport, "Transport should not be null");
-        final ProbeInfo probeInfo = new AppComponentConverter().convertProbeInfo(oldProbeInfo);
+        final ProbeInfo probeInfo = new ApplicationEntitiesConverter().convertProbeInfo(oldProbeInfo);
 
         synchronized (dataLock) {
             final long probeId;

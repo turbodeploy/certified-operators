@@ -62,7 +62,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
-import com.vmturbo.topology.processor.conversions.AppComponentConverter;
+import com.vmturbo.topology.processor.conversions.ApplicationEntitiesConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -996,7 +996,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
                                           @Nonnull final DiscoveryResponse oldFormatResponse) {
         final boolean success = !hasGeneralCriticalError(oldFormatResponse.getErrorDTOList());
-        final DiscoveryResponse response = new AppComponentConverter().convertResponse(oldFormatResponse);
+        final DiscoveryResponse response = new ApplicationEntitiesConverter().convertResponse(oldFormatResponse);
         // Discovery response changed since last discovery
         final boolean change = !response.hasNoChange();
         final long targetId = discovery.getTargetId();
