@@ -7,7 +7,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 /**
  * An interface to be implemented by classes that wish to receive events related to reservations.
  */
-public interface ReservationStatusListener {
+public interface ReservationDeletedListener {
 
     /**
      * A callback to be called when a reservation has been successfully deleted.
