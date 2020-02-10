@@ -255,20 +255,6 @@ public class ServiceEntityMapper {
     }
 
     /**
-     * Convert the given {@link RelatedEntity} to {@link BaseApiDTO}.
-     *
-     * @param relatedEntity the entity to convert
-     * @return {@link BaseApiDTO}
-     */
-    private static BaseApiDTO toBaseApiDTO(@Nonnull RelatedEntity relatedEntity) {
-        BaseApiDTO entityApiDTO = new BaseApiDTO();
-        entityApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
-        entityApiDTO.setDisplayName(relatedEntity.getDisplayName());
-        entityApiDTO.setClassName(UIEntityType.fromType(relatedEntity.getEntityType()).apiStr());
-        return entityApiDTO;
-    }
-
-    /**
      * Converts a {@link TopologyEntityDTO} instance to a {@link ServiceEntityApiDTO} instance
      * to be returned by the REST API.
      *
@@ -340,6 +326,51 @@ public class ServiceEntityMapper {
         return result;
     }
 
+    /**
+     * Compute the cost price for the entities having the OIDs in the input list.
+     *
+     * @param enityIDs The list of input entity IDs.
+     *
+     * @return The map of entity ID to cost price.
+     */
+    @Nonnull
+    public Map<Long, Double> computeCostPriceByEntity(Set<Long> enityIDs) {
+        if (enityIDs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // Do a multi-get to the cost service.
+        final EntityFilter entityFilter = EntityFilter.newBuilder()
+            .addAllEntityId(enityIDs)
+            .build();
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
+                    .addAllCostCategory(TEMPLATE_PRICE_CATEGORIES))
+                .setEntityFilter(entityFilter))
+            .build();
+        final GetCloudCostStatsResponse response =
+            costServiceBlockingStub.getCloudCostStats(request);
+        return response.getCloudStatRecordList().stream()
+            .flatMap(record -> record.getStatRecordsList().stream())
+            .collect(Collectors.groupingBy(StatRecord::getAssociatedEntityId,
+                    Collectors.summingDouble(record -> record.getValues().getAvg())));
+    }
+
+    /**
+     * Convert the given {@link RelatedEntity} to {@link BaseApiDTO}.
+     *
+     * @param relatedEntity the entity to convert
+     * @return {@link BaseApiDTO}
+     */
+    private static BaseApiDTO toBaseApiDTO(@Nonnull RelatedEntity relatedEntity) {
+        BaseApiDTO entityApiDTO = new BaseApiDTO();
+        entityApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
+        entityApiDTO.setDisplayName(relatedEntity.getDisplayName());
+        entityApiDTO.setClassName(UIEntityType.fromType(relatedEntity.getEntityType()).apiStr());
+        return entityApiDTO;
+    }
+
     private void setDiscoveredBy(Supplier<Map<Long, PerTargetEntityInformation>> idMapGetter, ServiceEntityApiDTO result) {
         Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
         if (!target2data.isEmpty()) {
@@ -379,29 +410,6 @@ public class ServiceEntityMapper {
         apiDTO.setDisplayName(thinTargetInfo.displayName());
         apiDTO.setCategory(thinTargetInfo.probeInfo().category());
         return apiDTO;
-    }
-
-    private Map<Long, Double> computeCostPriceByEntity(Set<Long> costPriceEntities) {
-        if (costPriceEntities.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        // Do a multi-get to the cost service.
-        final EntityFilter entityFilter = EntityFilter.newBuilder()
-            .addAllEntityId(costPriceEntities)
-            .build();
-        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
-                    .addAllCostCategory(TEMPLATE_PRICE_CATEGORIES))
-                .setEntityFilter(entityFilter))
-            .build();
-        final GetCloudCostStatsResponse response =
-            costServiceBlockingStub.getCloudCostStats(request);
-        return response.getCloudStatRecordList().stream()
-            .flatMap(record -> record.getStatRecordsList().stream())
-            .collect(Collectors.groupingBy(StatRecord::getAssociatedEntityId,
-                    Collectors.summingDouble(record -> record.getValues().getAvg())));
     }
 
     private Map<Long, Integer> computeNrOfVmsPerEntity(Set<Long> numberOfVmEntities) {
