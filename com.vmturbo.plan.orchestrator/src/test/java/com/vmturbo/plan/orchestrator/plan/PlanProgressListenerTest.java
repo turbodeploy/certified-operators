@@ -332,10 +332,11 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeSuccess() {
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan(
-                null, null, null, null,
-                null, SUCCEEDED, null));
+        PlanInstance.Builder plan = getPlan(null, null, null, null,
+                null, SUCCEEDED, null);
+        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(plan);
         Assert.assertEquals(SUCCEEDED, planStatus);
+        Assert.assertTrue(plan.getEndTime() != 0);
     }
 
     /**
@@ -343,10 +344,12 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeFail() {
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan(
+        PlanInstance.Builder plan = getPlan(
                 null, null, null, null,
-                null, FAILED, null));
+                null, FAILED, null);
+        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(plan);
         Assert.assertEquals(FAILED, planStatus);
+        Assert.assertTrue(plan.getEndTime() != 0);
     }
 
     /**

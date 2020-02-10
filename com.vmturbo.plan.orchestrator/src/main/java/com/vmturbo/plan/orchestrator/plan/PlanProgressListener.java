@@ -517,13 +517,15 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     @VisibleForTesting
     static PlanStatus getPlanStatusBasedOnPlanType(@Nonnull final Builder plan) {
         final PlanStatus existingStatus = plan.getStatus();
-        if (PlanStatus.FAILED.equals(existingStatus) ||
-                PlanStatus.SUCCEEDED.equals(existingStatus)) {
+        if (isPlanDone(existingStatus)) {
+            if (plan.getEndTime() == 0) {
+                updatePlanEndTime(plan, existingStatus);
+            }
             return existingStatus;
         }
+        PlanStatus newStatus = existingStatus;
         if (isOCP(plan)) {
             // The optimize cloud plan (OCP)
-            PlanStatus newStatus = existingStatus;
             if (isOCPOptimizeAndBuyRI(plan)) {
                 // OCP buy RI and optimize services (OCP type 1).
                 newStatus = getOCPWithBuyRIPlanStatus(plan, true);
@@ -534,15 +536,31 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 logger.warn("This OCP wasn't OCP type 1, 2 or 3. Plan ID: " + plan.getPlanId());
             }
             if (!newStatus.equals(existingStatus)) {
+                updatePlanEndTime(plan, newStatus);
                 logger.debug("The plan status has been changed from {} to {}- plan ID: " +
                         "{}", existingStatus, newStatus, plan.getPlanId());
             }
             return newStatus;
         }
         // Plans other than OCPs.
-        return (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
+        newStatus = (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
                 plan.hasProjectedTopologyId()) && plan.hasSourceTopologyId() ?
                 PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
+        if (!newStatus.equals(existingStatus)) {
+            updatePlanEndTime(plan, newStatus);
+        }
+        return newStatus;
+    }
+
+    private static boolean isPlanDone(final PlanStatus existingStatus) {
+        return PlanStatus.FAILED.equals(existingStatus) ||
+                PlanStatus.SUCCEEDED.equals(existingStatus);
+    }
+
+    private static void updatePlanEndTime(Builder plan, PlanStatus newStatus) {
+        if (isPlanDone(newStatus)) {
+            plan.setEndTime(System.currentTimeMillis());
+        }
     }
 
     /**
