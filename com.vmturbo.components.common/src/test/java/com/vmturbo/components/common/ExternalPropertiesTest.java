@@ -89,6 +89,6 @@ public class ExternalPropertiesTest {
         assertThat(propertiesSource.getProperty("test.txt"), equalTo("text-value"));
         // multi-line .txt file
         final String property = (String)propertiesSource.getProperty("test2.txt");
-        assertThat(property, equalTo("line1\nline2"));
+        assertThat(property, equalTo("line1" + System.lineSeparator() + "line2"));
     }
 }

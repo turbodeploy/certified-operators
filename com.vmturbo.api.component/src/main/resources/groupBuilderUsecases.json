@@ -108,11 +108,18 @@
     },
 
     "BusinessTransaction" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"}]
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "businessTransactionByBusinessApplication"}
+        ]
     },
 
     "Service" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"}]
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessTransaction"}
+        ]
     },
 
     "Database" : {

@@ -123,6 +123,7 @@
         "usedIncrement_StAmt",
         "excludedTemplatesOids",
         "responseTimeCapacity",
+        "autoSetResponseTimeCapacity",
         "slaCapacity",
         "transactionsCapacity",
         "autoSetTransactionsCapacity",

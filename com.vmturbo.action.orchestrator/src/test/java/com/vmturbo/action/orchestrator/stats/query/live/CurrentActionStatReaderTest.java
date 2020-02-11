@@ -7,19 +7,25 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status.Code;
 
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -27,12 +33,15 @@ import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.Com
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
@@ -118,6 +127,11 @@ public class CurrentActionStatReaderTest {
         }
     }
 
+    /**
+     * Tests the basic function of readActionStats.
+     *
+     * @throws FailedActionQueryException should not be thrown.
+     */
     @Test
     public void testReadActionStats() throws FailedActionQueryException {
         // Create two queries, with a different group by to distinguish them.
@@ -197,4 +211,61 @@ public class CurrentActionStatReaderTest {
         assertThat(statsByQueryId.get(query2.getQueryId()), contains(stat2));
     }
 
+    /**
+     * When entity oids are duplicated between queries, the actions should not be double counted.
+     *
+     * @throws FailedActionQueryException should not be thrown.
+     */
+    @Test
+    public void testReadActionStatsDuplicateOids() throws FailedActionQueryException {
+        long realTimeContextOid = 77777L;
+
+        final ActionStore actionStore = mock(ActionStore.class);
+        when(actionStore.getStoreTypeName()).thenReturn("store"); // so prometheus metrics doesn't NPE
+        when(actionStorehouse.getStore(realTimeContextOid)).thenReturn(Optional.of(actionStore));
+        QueryableActionViews queryableActionViews = mock(QueryableActionViews.class);
+        when(actionStore.getActionViews()).thenReturn(queryableActionViews);
+        final ArgumentCaptor<Collection<Long>> listCaptor = ArgumentCaptor.forClass((Class)Collection.class);
+        when(queryableActionViews.getByEntity(listCaptor.capture())).thenReturn(Stream.empty());
+
+        CurrentActionStatReader overriddenStatsReader = new CurrentActionStatReader(realTimeContextOid, actionStorehouse);
+
+        GetCurrentActionStatsRequest request = GetCurrentActionStatsRequest.newBuilder()
+            .addQueries(SingleQuery.newBuilder()
+                .setQueryId(1L)
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                    .setScopeFilter(ScopeFilter.newBuilder()
+                        .setEntityList(EntityScope.newBuilder()
+                            .addOids(1L)
+                            .addOids(2L)
+                            .addOids(3L)
+                            .build())
+                        .build())
+                    .build())
+                .build())
+            .addQueries(SingleQuery.newBuilder()
+                .setQueryId(2L)
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                    .setScopeFilter(ScopeFilter.newBuilder()
+                        .setEntityList(EntityScope.newBuilder()
+                            .addOids(2L)
+                            .addOids(3L)
+                            .addOids(4L)
+                            .build())
+                        .build())
+                    .build())
+                .build())
+            .build();
+        overriddenStatsReader.readActionStats(request);
+
+        // readActionStats should ask for all oids in the query
+        Collection<Long> actual = listCaptor.getValue();
+        Assert.assertEquals(ImmutableSet.of(1L, 2L, 3L, 4L), new HashSet<Long>(actual));
+
+        // readActionStats should ask for each oid once
+        Map<Long, Long> oidCounts = actual.stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        Assert.assertEquals("each oid should only be passed once to getByEntity", 0L, oidCounts.values().stream()
+            .filter(count -> count != 1)
+            .count());
+    }
 }

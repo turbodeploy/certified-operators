@@ -117,6 +117,25 @@ public class SupplyChainFetcherFactory {
         UIEntityType.VIRTUAL_APPLICATION,
         UIEntityType.VIRTUAL_MACHINE,
         UIEntityType.VIRTUAL_VOLUME);
+
+    private static final Set<UIEntityType> SCOPE_EXPANSION_TYPES_FOR_RISK = ImmutableSet.of(
+        UIEntityType.SERVICE,
+        UIEntityType.APPLICATION,
+        UIEntityType.VIRTUAL_APPLICATION,
+        UIEntityType.APPLICATION_SERVER,
+        UIEntityType.APPLICATION_COMPONENT,
+        UIEntityType.DATABASE,
+        UIEntityType.DATABASE_SERVER,
+        UIEntityType.DATABASE_SERVER_TIER,
+        UIEntityType.DATABASE_TIER,
+        UIEntityType.CONTAINER,
+        UIEntityType.CONTAINER_POD,
+        UIEntityType.VIRTUAL_MACHINE,
+        UIEntityType.VIRTUAL_VOLUME,
+        UIEntityType.PHYSICAL_MACHINE,
+        UIEntityType.STORAGE
+    );
+
     /**
      * This maps aggregator entity types (such as region or datacenter), to
      * the set of types of the entities that we will get after their expansion.
@@ -125,12 +144,19 @@ public class SupplyChainFetcherFactory {
      * expand cloud aggregators, we want to get entities of all the types in
      * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
      */
-    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        UIEntityType.DATACENTER, Collections.singleton(UIEntityType.PHYSICAL_MACHINE),
-        UIEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        UIEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        UIEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        UIEntityType.VIRTUAL_DATACENTER, Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND =
+        ImmutableMap.<UIEntityType, Set<UIEntityType>>builder()
+            .put(UIEntityType.BUSINESS_APPLICATION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
+                ImmutableSet.of(UIEntityType.BUSINESS_APPLICATION, UIEntityType.BUSINESS_TRANSACTION)))
+            .put(UIEntityType.BUSINESS_TRANSACTION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
+                Collections.singleton(UIEntityType.BUSINESS_TRANSACTION)))
+            .put(UIEntityType.SERVICE, SCOPE_EXPANSION_TYPES_FOR_RISK)
+            .put(UIEntityType.DATACENTER, Collections.singleton(UIEntityType.PHYSICAL_MACHINE))
+            .put(UIEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
+            .put(UIEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
+            .put(UIEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
+            .put(UIEntityType.VIRTUAL_DATACENTER, Collections.singleton(UIEntityType.VIRTUAL_MACHINE))
+            .build();
 
     private static final Logger logger = LogManager.getLogger();
 

@@ -21,13 +21,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -62,6 +62,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
+import com.vmturbo.topology.processor.conversions.ApplicationEntitiesConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -993,8 +994,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
-                                          @Nonnull final DiscoveryResponse response) {
-        final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
+                                          @Nonnull final DiscoveryResponse sourceResponse) {
+        final boolean success = !hasGeneralCriticalError(sourceResponse.getErrorDTOList());
+        final DiscoveryResponse response = new ApplicationEntitiesConverter().convertResponse(sourceResponse);
         // Discovery response changed since last discovery
         final boolean change = !response.hasNoChange();
         final long targetId = discovery.getTargetId();
