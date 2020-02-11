@@ -64,11 +64,11 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -76,7 +76,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
@@ -85,20 +85,21 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
-import com.vmturbo.topology.processor.topology.HistoryAggregator;
+import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
+import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
-import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
-import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
+import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -204,12 +205,14 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(final Map<Long, TopologyEntity.Builder> topology) {
+        @Nonnull
+        public Status passthrough(final Map<Long, TopologyEntity.Builder> topology)
+                throws InterruptedException {
             try {
                 notifier.sendTemplateDeploymentProfileData();
                 notifier.patchTopology(topology);
                 return Status.success();
-            } catch (CommunicationException e) {
+            } catch (UploadException e) {
                 return Status.failed("Failed to upload templates: " + e.getMessage());
             }
         }
@@ -850,25 +853,29 @@ public class Stages {
                     policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
-            final boolean errors = applicationResults.errors().size() > 0;
+            final boolean errors = applicationResults.getErrors().size() > 0;
             if (errors) {
-                statusMsg.add(applicationResults.errors().size() +
+                statusMsg.add(applicationResults.getErrors().size() +
                     " policies encountered errors and failed to run!\n");
             }
-            if (applicationResults.appliedCounts().size() > 0) {
+            if (applicationResults.getInvalidPolicyCount() > 0) {
+                statusMsg.add(applicationResults.getInvalidPolicyCount() +
+                    " policies were invalid and got ignored!\n");
+            }
+            if (applicationResults.getAppliedCounts().size() > 0) {
                 statusMsg.add("(policy type) : (num applied)\n" +
-                    applicationResults.appliedCounts().entrySet().stream()
+                    applicationResults.getAppliedCounts().entrySet().stream()
                         .map(entry -> entry.getKey() + " : " + entry.getValue())
                         .collect(Collectors.joining("\n")));
             }
-            if (applicationResults.addedCommodityCounts().size() > 0) {
+            if (applicationResults.getAddedCommodityCounts().size() > 0) {
                 statusMsg.add("(commodity type) : (num commodities added)\n" +
-                    applicationResults.addedCommodityCounts().entrySet().stream()
+                    applicationResults.getAddedCommodityCounts().entrySet().stream()
                         .map(entry -> entry.getKey() + " : " + entry.getValue())
                         .collect(Collectors.joining("\n")));
             }
 
-            if (errors) {
+            if (errors || applicationResults.getInvalidPolicyCount() > 0) {
                 return Status.withWarnings(statusMsg.toString());
             } else {
                 return Status.success(statusMsg.toString());

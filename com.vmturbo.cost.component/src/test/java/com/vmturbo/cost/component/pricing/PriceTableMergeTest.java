@@ -12,9 +12,9 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
-import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
 public class PriceTableMergeTest {
@@ -88,21 +88,21 @@ public class PriceTableMergeTest {
         final long region1Id = 7L;
         final long region2Id = 2L;
         final SpotInstancePriceTable region1PriceTable = SpotInstancePriceTable.newBuilder()
-                .putSpotPriceByInstanceId(10L, Price.getDefaultInstance())
+                .putSpotPricesByTierOid(10L, SpotPricesForTier.getDefaultInstance())
                 .build();
         final SpotInstancePriceTable region2PriceTable = SpotInstancePriceTable.newBuilder()
-                .putSpotPriceByInstanceId(10L, Price.getDefaultInstance())
+                .putSpotPricesByTierOid(10L, SpotPricesForTier.getDefaultInstance())
                 .build();
 
         final PriceTable priceTable1 = PriceTable.newBuilder()
-                .putSpotPriceByRegionId(region1Id, region1PriceTable)
+                .putSpotPriceByZoneOrRegionId(region1Id, region1PriceTable)
                 .build();
         final PriceTable priceTable2 = PriceTable.newBuilder()
-                .putSpotPriceByRegionId(region2Id, region2PriceTable)
+                .putSpotPriceByZoneOrRegionId(region2Id, region2PriceTable)
                 .build();
         final PriceTable mergedPriceTable = PriceTable.newBuilder()
-                .putSpotPriceByRegionId(region1Id, region1PriceTable)
-                .putSpotPriceByRegionId(region2Id, region2PriceTable)
+                .putSpotPriceByZoneOrRegionId(region1Id, region1PriceTable)
+                .putSpotPriceByZoneOrRegionId(region2Id, region2PriceTable)
                 .build();
 
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));
@@ -112,21 +112,21 @@ public class PriceTableMergeTest {
     public void testMergeSpotTablesDropDuplicateRegion() {
         final long region1Id = 7L;
         final SpotInstancePriceTable region1PriceTable1 = SpotInstancePriceTable.newBuilder()
-                .putSpotPriceByInstanceId(10L, Price.getDefaultInstance())
+                .putSpotPricesByTierOid(10L, SpotPricesForTier.getDefaultInstance())
                 .build();
         final SpotInstancePriceTable region1PriceTable2 = SpotInstancePriceTable.newBuilder()
-                .putSpotPriceByInstanceId(10L, Price.getDefaultInstance())
+                .putSpotPricesByTierOid(10L, SpotPricesForTier.getDefaultInstance())
                 .build();
 
         final PriceTable priceTable1 = PriceTable.newBuilder()
-                .putSpotPriceByRegionId(region1Id, region1PriceTable1)
+                .putSpotPriceByZoneOrRegionId(region1Id, region1PriceTable1)
                 .build();
         final PriceTable priceTable2 = PriceTable.newBuilder()
-                .putSpotPriceByRegionId(region1Id, region1PriceTable2)
+                .putSpotPriceByZoneOrRegionId(region1Id, region1PriceTable2)
                 .build();
         final PriceTable mergedPriceTable = PriceTable.newBuilder()
                 // Should keep the first one encountered.
-                .putSpotPriceByRegionId(region1Id, region1PriceTable1)
+                .putSpotPriceByZoneOrRegionId(region1Id, region1PriceTable1)
                 .build();
 
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));

@@ -13,7 +13,7 @@ import com.vmturbo.topology.processor.history.IHistoryCommodityData;
 /**
  * Pre-calculated cache for maximum value over retention period.
  */
-public class MaxValueCommodityData implements IHistoryCommodityData<CachingHistoricalEditorConfig, Float> {
+public class MaxValueCommodityData implements IHistoryCommodityData<CachingHistoricalEditorConfig, Float, Void> {
     // TODO dmitry handle dbMax expiration
     private Float topologyMax;
     private Float dbMax;

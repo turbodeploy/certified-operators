@@ -113,6 +113,7 @@ public class ClassicEnumMapper {
             .put("StorageLatency",              CommodityType.STORAGE_LATENCY)
             .put("StorageProvisioned",          CommodityType.STORAGE_PROVISIONED)
             .put("Swapping",                    CommodityType.SWAPPING)
+            .put("TenancyAccess",               CommodityType.TENANCY_ACCESS)
             .put("Threads",                     CommodityType.THREADS)
             .put("Transaction",                 CommodityType.TRANSACTION)
             .put("TransactionLog",              CommodityType.TRANSACTION_LOG)
@@ -124,6 +125,7 @@ public class ClassicEnumMapper {
             .put("VMPMAccessCommodity",         CommodityType.VMPM_ACCESS)
             .put("VStorage",                    CommodityType.VSTORAGE)
             .put("Unknown",                     CommodityType.UNKNOWN)
+            .put("Zone",                        CommodityType.ZONE)
             .build();
 
     /**

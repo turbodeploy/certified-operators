@@ -16,16 +16,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
@@ -36,6 +38,7 @@ import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,7 +51,6 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -63,6 +65,11 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
@@ -107,15 +114,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TargetInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
- * Translates to {@link GroupApiDTO}s.
+ * Unit test for {@link GroupMapper}.
  */
 public class GroupMapperTest {
 
@@ -125,6 +130,55 @@ public class GroupMapperTest {
                                                     .setStringPropertyRegex("PhysicalMachine")));
 
     private static final long CONTEXT_ID = 7777777;
+
+    private static final ThinTargetCache.ThinTargetInfo AWS_TARGET = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                    .type(SDKProbeType.AWS.getProbeType())
+                    .oid(111111L)
+                    .build())
+            .displayName("SOME CLOUD TARGET")
+            .oid(11111L)
+            .isHidden(false)
+            .build();
+    private static final ThinTargetCache.ThinTargetInfo VC_TARGET = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .category(ProbeCategory.HYPERVISOR.getCategoryInUpperCase())
+                    .type(SDKProbeType.VCENTER.getProbeType())
+                    .oid(111112L)
+                    .build())
+            .displayName("VC target")
+            .oid(11112L)
+            .isHidden(false)
+            .build();
+    private static final ThinTargetCache.ThinTargetInfo AZURE_TARGET = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                    .type(SDKProbeType.AZURE.getProbeType())
+                    .oid(111113L)
+                    .build())
+            .displayName("TARGET_DISPLAY_NAME")
+            .oid(11113L)
+            .isHidden(false)
+            .build();
+    private static final ThinTargetCache.ThinTargetInfo APPD_TARGET = ImmutableThinTargetInfo.builder()
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .category(ProbeCategory.GUEST_OS_PROCESSES.getCategoryInUpperCase())
+                    .type(SDKProbeType.APPDYNAMICS.getProbeType())
+                    .oid(111114L)
+                    .build())
+            .displayName("AppD Target")
+            .oid(11114)
+            .isHidden(false)
+            .build();
+
+
+    private static final MinimalEntity ENTITY_VM1 =  MinimalEntity.newBuilder()
+            .setOid(3L)
+            .setDisplayName("foo")
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
+            .build();
 
     /**
      * Expected exception rule.
@@ -142,49 +196,74 @@ public class GroupMapperTest {
 
     private GroupExpander groupExpander = mock(GroupExpander.class);
 
-    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
-
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
+    private EntitySeverityServiceMole severityService;
 
     /**
      * gRPC server to mock out inter-component dependencies.
      */
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(costServiceMole);
+    public GrpcTestServer grpcServer;
 
     private EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
 
     private GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
 
-    private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
+    private SeverityPopulator severityPopulator;
 
-    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
+    private ThinTargetCache targetCache;
 
-    private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
+    private final CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
 
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private GroupMapper groupMapper;
-
+    private ExecutorService threadPool;
     private static final String AND = "AND";
     private static final String FOO = "foo";
     private static final String VM_TYPE = "VirtualMachine";
+    private Collection<ThinTargetInfo> targets;
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exception occurred.
+     */
     @Before
-    public void setup() {
-        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
+    public void setup() throws Exception {
+        targets = new ArrayList<>();
+        targetCache = Mockito.mock(ThinTargetCache.class);
+        Mockito.when(targetCache.getAllTargets()).thenAnswer(invocation -> targets);
+        Mockito.when(targetCache.getTargetInfo(Mockito.anyLong()))
+                .thenAnswer(invocation -> targets.stream()
+                        .filter(target -> target.oid() == invocation.getArgumentAt(0, Long.class))
+                        .findFirst());
+        severityService = Mockito.spy(new EntitySeverityServiceMole());
+        grpcServer = GrpcTestServer.newServer(costServiceMole, severityService);
+        grpcServer.start();
+        threadPool = Executors.newCachedThreadPool();
+        severityPopulator = Mockito.spy(new SeverityPopulator(
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel())));
+        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
                 businessAccountRetriever, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                CONTEXT_ID, targetCache, cloudTypeMapper);
+                CONTEXT_ID, targetCache, cloudTypeMapper, threadPool);
         SearchRequest req = ApiTestUtils.mockSearchCountReq(0);
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
     }
 
     /**
+     * Cleans up environment after the tests.
+     */
+    @After
+    public void cleanup() {
+        threadPool.shutdownNow();
+    }
+
+    /**
      * Test static group converting GroupApiDTO to GroupInfo.
      *
-     * @throws Exception should not be thrown.
+     * @throws Exception if anything goes wrong.
      */
     @Test
     public void testToGroupInfoStaticGroup() throws Exception {
@@ -364,7 +443,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO dto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
 
         assertThat(dto.getUuid(), is(Long.toString(oid)));
         assertThat(dto.getDisplayName(), is(displayName));
@@ -412,7 +495,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO dto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
 
         assertEquals(Long.toString(oid), dto.getUuid());
         assertEquals(displayName, dto.getDisplayName());
@@ -617,7 +704,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(computeCluster);
+        final GroupApiDTO dto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(computeCluster), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertEquals("7", dto.getUuid());
         assertEquals(StringConstants.CLUSTER, dto.getClassName());
         assertEquals(true, dto.getIsStatic());
@@ -660,7 +751,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(computeVirtualMachineCluster);
+        final GroupApiDTO dto = groupMapper.groupsToGroupApiDto(
+                Collections.singletonList(computeVirtualMachineCluster), false)
+                .values()
+                .iterator()
+                .next();
         assertEquals("7", dto.getUuid());
         assertEquals(StringConstants.VIRTUAL_MACHINE_CLUSTER, dto.getClassName());
         assertEquals(true, dto.getIsStatic());
@@ -700,7 +795,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(storageCluster);
+        final GroupApiDTO dto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(storageCluster), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertEquals("7", dto.getUuid());
         assertEquals(StringConstants.STORAGE_CLUSTER, dto.getClassName());
         assertEquals(true, dto.getIsStatic());
@@ -843,7 +942,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
 
         assertThat(mappedDto.getTemporary(), is(true));
         assertThat(mappedDto.getUuid(), is("8"));
@@ -874,8 +977,13 @@ public class GroupMapperTest {
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).entities(GroupProtoUtil.getStaticMembers(group))
                         .members(GroupProtoUtil.getStaticMembers(group)).build());
+        Mockito.when(targetCache.getAllTargets()).thenReturn(Collections.singletonList(AWS_TARGET));
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.CLOUD);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
 
         assertThat(mappedDto.getTemporary(), is(true));
         assertThat(mappedDto.getUuid(), is("8"));
@@ -929,15 +1037,24 @@ public class GroupMapperTest {
                 ))
             .build();
 
-        final SingleEntityRequest testRg = ApiTestUtils.mockSingleEntityRequest(
-                MinimalEntity.newBuilder().setOid(parentId).setDisplayName(parentDisplayName).build());
-        when(repositoryApi.entityRequest(parentId)).thenReturn(testRg);
+        final MultiEntityRequest testRg = ApiTestUtils.mockMultiMinEntityReq(
+                Collections.singletonList(MinimalEntity.newBuilder()
+                        .setOid(parentId)
+                        .setDisplayName(parentDisplayName)
+                        .build()));
+        when(repositoryApi.entitiesRequest(Collections.singleton(parentId))).thenReturn(testRg);
 
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
             .group(group).entities(GroupProtoUtil.getStaticMembers(group))
             .members(GroupProtoUtil.getStaticMembers(group)).build());
+        Mockito.when(targetCache.getAllTargets())
+                .thenReturn(Collections.singletonList(AWS_TARGET));
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.CLOUD);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
 
         assertThat(mappedDto.getTemporary(), is(false));
         assertThat(mappedDto.getUuid(), is("8"));
@@ -973,11 +1090,16 @@ public class GroupMapperTest {
                         .group(group).entities(Collections.singleton(1L))
                         .members(Collections.singleton(1L)).build());
 
-        final int count = 10;
+        final int count = 1;
         final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(count);
+        Mockito.when(countReq.getOids()).thenReturn(Collections.singleton(1L));
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertThat(mappedDto.getUuid(), is("8"));
         assertThat(mappedDto.getActiveEntitiesCount(), is(count));
 
@@ -1016,13 +1138,17 @@ public class GroupMapperTest {
         final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(count);
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertThat(mappedDto.getUuid(), is("8"));
         assertThat(mappedDto.getActiveEntitiesCount(), is(count));
 
         final ArgumentCaptor<SearchParameters> captor =
                         ArgumentCaptor.forClass(SearchParameters.class);
-        verify(repositoryApi).newSearchRequest(captor.capture());
+        verify(repositoryApi, Mockito.times(2)).newSearchRequest(captor.capture());
         final SearchParameters params = captor.getValue();
         assertThat(params.getStartingFilter(),
                         is(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_MACHINE)));
@@ -1050,11 +1176,15 @@ public class GroupMapperTest {
                         .members(Collections.singleton(1L)).build());
 
         final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(0);
-        when(countReq.count()).thenThrow(Status.INTERNAL.asRuntimeException());
+        when(countReq.getOids()).thenThrow(Status.INTERNAL.asRuntimeException());
 
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertThat(mappedDto.getUuid(), is("8"));
         // The fallback is the number of entities.
         assertThat(mappedDto.getActiveEntitiesCount(), is(1));
@@ -1080,7 +1210,11 @@ public class GroupMapperTest {
                         // Return a different entity set to make sure it gets used for the entity count.
                         .entities(ImmutableSet.of(2L, 3L)).build());
 
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
 
         assertThat(mappedDto.getTemporary(), is(true));
         assertThat(mappedDto.getUuid(), is("8"));
@@ -1105,30 +1239,37 @@ public class GroupMapperTest {
                                                                         .setType(MemberType
                                                                                         .newBuilder()
                                                                                         .setEntity(10))
-                                                                        .addMembers(1L))))
+                                                                        .addMembers(1L)
+                                                                        .addMembers(2L))))
                         .build();
 
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).entities(GroupProtoUtil.getStaticMembers(group))
                         .members(GroupProtoUtil.getStaticMembers(group)).build());
 
-        // mock only one vcenter target
-        final long probeId = 111L;
-        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(targetInfo));
-        final ProbeInfo probeInfo = Mockito.mock(ProbeInfo.class);
-        when(probeInfo.getId()).thenReturn(probeId);
-        when(probeInfo.getType()).thenReturn(SDKProbeType.VCENTER.getProbeType());
-        when(topologyProcessor.getAllProbes()).thenReturn(ImmutableSet.of(probeInfo));
+        final MultiEntityRequest request = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(
+                MinimalEntity.newBuilder()
+                        .setOid(1L)
+                        .addDiscoveringTargetIds(VC_TARGET.oid())
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                        .build(), MinimalEntity.newBuilder()
+                        .setOid(2L)
+                        .addDiscoveringTargetIds(AWS_TARGET.oid())
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build()));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(request);
+        Mockito.when(targetCache.getAllTargets()).thenReturn(Arrays.asList(VC_TARGET, AWS_TARGET));
+        Mockito.when(targetCache.getTargetInfo(VC_TARGET.oid())).thenReturn(Optional.of(VC_TARGET));
+        Mockito.when(targetCache.getTargetInfo(AWS_TARGET.oid()))
+                .thenReturn(Optional.of(AWS_TARGET));
 
         // if no cloud targets, it should be ONPREM
-        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.HYBRID);
-        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
-
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
         // mock one cloud target and expect the environment type to be HYBRID
-        when(probeInfo.getType()).thenReturn(SDKProbeType.AWS.getProbeType());
-        mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.HYBRID);
         assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.HYBRID));
     }
 
@@ -1158,7 +1299,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
+        final GroupApiDTO dto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertEquals("7", dto.getUuid());
         assertEquals(true, dto.getIsStatic());
         assertThat(dto.getEntitiesCount(), is(2));
@@ -1189,7 +1334,11 @@ public class GroupMapperTest {
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
+        final GroupApiDTO dto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
         assertThat(dto.getEntitiesCount(), is(3));
         assertThat(dto.getMemberUuidList(), containsInAnyOrder("10", "20", "30"));
     }
@@ -1343,7 +1492,7 @@ public class GroupMapperTest {
                         .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
                         .build();
         MinimalEntity entVM2 =  MinimalEntity.newBuilder()
-                        .setOid(uuid1)
+                        .setOid(uuid2)
                         .setDisplayName("foo")
                         .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                         .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.ON_PREM)
@@ -1351,15 +1500,21 @@ public class GroupMapperTest {
         List<MinimalEntity> listVMs = new ArrayList<>();
         listVMs.add(entVM1);
         listVMs.add(entVM2);
+        Mockito.when(targetCache.getAllTargets()).thenReturn(Arrays.asList(VC_TARGET, AWS_TARGET));
 
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
-        EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
-        assertEquals(envCloudType.getEnvironmentType(), EnvironmentType.HYBRID);
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req1);
+
+        final GroupApiDTO groupDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
+        Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.HYBRID);
     }
 
     /**
-     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} in case when we
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean)}} in case when we
      * have regular group with empty resource group members.
      */
     @Test
@@ -1374,14 +1529,21 @@ public class GroupMapperTest {
                 .members(Arrays.asList(1L, 2L))
                 .entities(Collections.emptySet())
                 .build();
-        final EntityEnvironment entityEnvironment =
-                groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
-        final EnvironmentType environmentType = entityEnvironment.getEnvironmentType();
-        assertEquals(environmentType, EnvironmentType.CLOUD);
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(ENTITY_VM1));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final GroupApiDTO groupDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
+        Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
     }
 
     /**
-     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} in case when we
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean)}} in case when we
      * have empty resource group.
      */
     @Test
@@ -1395,14 +1557,21 @@ public class GroupMapperTest {
                 .members(Collections.emptySet())
                 .entities(Collections.emptySet())
                 .build();
-        final EntityEnvironment entityEnvironment =
-                groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
-        final EnvironmentType environmentType = entityEnvironment.getEnvironmentType();
-        assertEquals(environmentType, EnvironmentType.CLOUD);
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(ENTITY_VM1));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final GroupApiDTO groupDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
+        Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
     }
 
     /**
-     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} in case when we
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean)}} in case when we
      * have empty billing family.
      */
     @Test
@@ -1416,10 +1585,17 @@ public class GroupMapperTest {
                 .members(Collections.emptySet())
                 .entities(Collections.emptySet())
                 .build();
-        final EntityEnvironment entityEnvironment =
-                groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
-        final EnvironmentType environmentType = entityEnvironment.getEnvironmentType();
-        assertEquals(environmentType, EnvironmentType.CLOUD);
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(ENTITY_VM1));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final GroupApiDTO groupDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
+        Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
     }
 
     /**
@@ -1432,10 +1608,6 @@ public class GroupMapperTest {
         final long oid = 123L;
         final long uuid1 = 2L;
         final long uuid2 = 3L;
-        final long targetId1 = 2141L;
-        final long targetId2 = 9485L;
-        final long probeId1 = 111L;
-        final long probeId2 = 222L;
 
         final Grouping group = Grouping.newBuilder()
                 .setId(oid)
@@ -1456,81 +1628,58 @@ public class GroupMapperTest {
                 )
                 .build();
 
-        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
-                .group(group)
-                .members(ImmutableSet.of(uuid1, uuid2))
-                .entities(ImmutableSet.of(uuid1, uuid2))
-                .build());
 
         final MinimalEntity entVM1 =  MinimalEntity.newBuilder()
                 .setOid(uuid1)
                 .setDisplayName("foo1")
-                .addDiscoveringTargetIds(targetId1)
+                .addDiscoveringTargetIds(AWS_TARGET.oid())
                 .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
         final MinimalEntity entVM2 =  MinimalEntity.newBuilder()
-                .setOid(uuid1)
+                .setOid(uuid2)
                 .setDisplayName("foo2")
-                .addDiscoveringTargetIds(targetId2)
+                .addDiscoveringTargetIds(AZURE_TARGET.oid())
                 .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
         List<MinimalEntity> listVMs = new ArrayList<>();
         listVMs.add(entVM1);
 
-        final ThinTargetCache.ThinTargetInfo thinTargetInfo1 = ImmutableThinTargetInfo.builder()
-                .probeInfo(ImmutableThinProbeInfo.builder()
-                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
-                        .type(SDKProbeType.AWS.getProbeType())
-                        .oid(probeId1)
-                        .build())
-                .displayName("TARGET_DISPLAY_NAME")
-                .oid(targetId1)
-                .isHidden(false)
+        final GroupAndMembers groupAws = ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(ImmutableSet.of(uuid1))
+                .entities(ImmutableSet.of(uuid1))
                 .build();
 
-        final ThinTargetCache.ThinTargetInfo thinTargetInfo2 = ImmutableThinTargetInfo.builder()
-                .probeInfo(ImmutableThinProbeInfo.builder()
-                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
-                        .type(SDKProbeType.AZURE.getProbeType())
-                        .oid(probeId2)
-                        .build())
-                .displayName("TARGET_DISPLAY_NAME")
-                .oid(targetId2)
-                .isHidden(false)
-                .build();
-
-        final TargetInfo targetInfo1 = Mockito.mock(TargetInfo.class);
-        when(targetInfo1.getProbeId()).thenReturn(probeId1);
-
-        final ProbeInfo probeInfo1 = Mockito.mock(ProbeInfo.class);
-        when(probeInfo1.getType()).thenReturn(SDKProbeType.AWS.getProbeType());
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        targets.add(AZURE_TARGET);
 
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
-        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
-        when(cloudTypeMapper.fromTargetType(any())).thenReturn(Optional.of(CloudType.AWS));
         // test with only one type, cloudType should be AWS
-        EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
-        assertEquals(envCloudType.getCloudType(), CloudType.AWS);
+        final GroupApiDTO groupApiDTO =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAws), false)
+                        .iterator()
+                        .next();
+        assertEquals(groupApiDTO.getCloudType(), CloudType.AWS);
 
+        final GroupAndMembers groupHybrid = ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(ImmutableSet.of(uuid1, uuid2))
+                .entities(ImmutableSet.of(uuid1, uuid2))
+                .build();
         listVMs.add(entVM2);
-        final TargetInfo targetInfo2 = Mockito.mock(TargetInfo.class);
-        when(targetInfo2.getProbeId()).thenReturn(probeId2);
-
-        final ProbeInfo probeInfo2 = Mockito.mock(ProbeInfo.class);
-        when(probeInfo2.getType()).thenReturn(SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
 
         MultiEntityRequest req2 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req2);
-        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
-        when(targetCache.getTargetInfo(targetId2)).thenReturn(Optional.of(thinTargetInfo2));
-        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(Optional.of(CloudType.AWS));
-        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(Optional.of(CloudType.AZURE));
         // test with both AWS and Azure, cloudType should be Hybrid
-        envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
-        assertEquals(envCloudType.getCloudType(), CloudType.HYBRID);
+        final GroupApiDTO groupApiDTO2 =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupHybrid), false)
+                        .iterator()
+                        .next();
+        assertEquals(groupApiDTO2.getCloudType(), CloudType.HYBRID);
     }
 
     /**
@@ -1545,12 +1694,6 @@ public class GroupMapperTest {
         final long uuid1 = 1L;
         final long uuid2 = 2L;
         final long uuid3 = 3L;
-        final long targetId1 = 2141L;
-        final long targetId2 = 9485L;
-        final long targetId3 = 9124L;
-        final long probeId1 = 111L;
-        final long probeId2 = 222L;
-        final long probeId3 = 333L;
 
         final Grouping group = Grouping.newBuilder()
                 .setId(oid)
@@ -1568,78 +1711,47 @@ public class GroupMapperTest {
         final MinimalEntity entVM1 = MinimalEntity.newBuilder()
                 .setOid(uuid1)
                 .setDisplayName("foo1")
-                .addDiscoveringTargetIds(targetId1)
+                .addDiscoveringTargetIds(AWS_TARGET.oid())
                 .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
 
         final MinimalEntity entVM2 = MinimalEntity.newBuilder()
-                .setOid(uuid1)
+                .setOid(uuid2)
                 .setDisplayName("foo2")
-                .addDiscoveringTargetIds(targetId2)
+                .addDiscoveringTargetIds(AZURE_TARGET.oid())
                 .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
 
         final MinimalEntity entVM3 = MinimalEntity.newBuilder()
-                .setOid(uuid1)
+                .setOid(uuid3)
                 .setDisplayName("foo3")
-                .addDiscoveringTargetIds(targetId2)
+                .addDiscoveringTargetIds(VC_TARGET.oid())
                 .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                 .build();
 
-        final ThinTargetCache.ThinTargetInfo thinTargetInfo1 = ImmutableThinTargetInfo.builder()
-                .probeInfo(ImmutableThinProbeInfo.builder()
-                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
-                        .type(SDKProbeType.AWS.getProbeType())
-                        .oid(probeId1).build())
-                .displayName("AWS")
-                .oid(targetId1)
-                .isHidden(false)
-                .build();
-
-        final ThinTargetCache.ThinTargetInfo thinTargetInfo2 = ImmutableThinTargetInfo.builder()
-                .probeInfo(ImmutableThinProbeInfo.builder()
-                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
-                        .type(SDKProbeType.AZURE.getProbeType())
-                        .oid(probeId2)
-                        .build())
-                .displayName("Azure")
-                .oid(targetId2)
-                .isHidden(false)
-                .build();
-
-        final ThinTargetCache.ThinTargetInfo thinTargetInfo3 = ImmutableThinTargetInfo.builder()
-                .probeInfo(ImmutableThinProbeInfo.builder()
-                        .category(ProbeCategory.HYPERVISOR.getCategoryInUpperCase())
-                        .type(SDKProbeType.VCENTER.getProbeType())
-                        .oid(probeId3)
-                        .build())
-                .displayName("Vcenter")
-                .oid(targetId3)
-                .isHidden(false)
-                .build();
+        targets.add(AWS_TARGET);
+        targets.add(AZURE_TARGET);
+        targets.add(VC_TARGET);
 
         final List<MinimalEntity> listVMs = Arrays.asList(entVM1, entVM2, entVM3);
         final MultiEntityRequest minEntityReq = ApiTestUtils.mockMultiMinEntityReq(listVMs);
 
-        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
                 .group(group)
                 .members(ImmutableSet.of(uuid1, uuid2, uuid3))
                 .entities(ImmutableSet.of(uuid1, uuid2, uuid3))
-                .build());
+                .build();
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(minEntityReq);
-        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
-        when(targetCache.getTargetInfo(targetId2)).thenReturn(Optional.of(thinTargetInfo2));
-        when(targetCache.getTargetInfo(targetId3)).thenReturn(Optional.of(thinTargetInfo3));
-        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(Optional.of(CloudType.AWS));
-        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(Optional.of(CloudType.AZURE));
 
-        final EntityEnvironment envAndCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(
-                groupExpander.getMembersForGroup(group));
-        assertEquals(EnvironmentType.HYBRID, envAndCloudType.getEnvironmentType());
-        assertEquals(CloudType.HYBRID, envAndCloudType.getCloudType());
+        final GroupApiDTO groupApiDTO =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), true)
+                        .iterator()
+                        .next();
+        assertEquals(EnvironmentType.HYBRID, groupApiDTO.getEnvironmentType());
+        assertEquals(CloudType.HYBRID, groupApiDTO.getCloudType());
     }
 
     /**
@@ -1676,8 +1788,6 @@ public class GroupMapperTest {
                 .entities(Arrays.asList(rgMember1Oid, rgMember2Oid))
                 .build();
 
-        when(groupExpander.getMembersForGroup(group)).thenReturn(groupAndMembers);
-
         final MinimalEntity entVM1 = MinimalEntity.newBuilder()
                 .setOid(rgMember1Oid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -1688,16 +1798,19 @@ public class GroupMapperTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
 
         final List<MinimalEntity> listVMs = Arrays.asList(entVM1, entVM2);
 
         final MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
-        EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
-        assertEquals(envCloudType.getEnvironmentType(), EnvironmentType.CLOUD);
+        final GroupApiDTO groupDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
+        assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
     }
-
-
 
     /**
      * A cloud entity in a group that belongs to a Cloud target and a Non-cloud target should not
@@ -1706,56 +1819,36 @@ public class GroupMapperTest {
      */
     @Test
     public void testCloudEntityStitchedByNonCloudTarget() {
-        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
-        when(groupAndMembers.entities()).thenReturn(Arrays.asList(1L));
+        final long entityId = 1L;
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(Grouping.newBuilder().setId(2L).build())
+                .members(Collections.singletonList(entityId))
+                .entities(Collections.singletonList(entityId))
+                .build();
 
-        long awsTargetId = 2L;
-        long appDTargetId = 3L;
         final MinimalEntity entVM1 =  MinimalEntity.newBuilder()
+                .setOid(entityId)
             .setDisplayName("VM in cloud stitched to AppD")
-            .addDiscoveringTargetIds(appDTargetId)
-            .addDiscoveringTargetIds(awsTargetId)
+            .addDiscoveringTargetIds(APPD_TARGET.oid())
+            .addDiscoveringTargetIds(AWS_TARGET.oid())
             .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
             .buildPartial();
         List<MinimalEntity> listVMs = new ArrayList<>();
         listVMs.add(entVM1);
 
-        long awsProbeId = 4L;
-        final ThinTargetCache.ThinTargetInfo awsTargetInfo = ImmutableThinTargetInfo.builder()
-            .probeInfo(ImmutableThinProbeInfo.builder()
-                .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
-                .type(SDKProbeType.AWS.getProbeType())
-                .oid(awsProbeId)
-                .build())
-            .displayName("AWS Target")
-            .oid(awsTargetId)
-            .isHidden(false)
-            .build();
-        long appDProbeId = 5L;
-        final ThinTargetCache.ThinTargetInfo appDProbeInfo = ImmutableThinTargetInfo.builder()
-            .probeInfo(ImmutableThinProbeInfo.builder()
-                .category(ProbeCategory.GUEST_OS_PROCESSES.getCategoryInUpperCase())
-                .type(SDKProbeType.APPDYNAMICS.getProbeType())
-                .oid(appDProbeId)
-                .build())
-            .displayName("AppD Target")
-            .oid(appDTargetId)
-            .isHidden(false)
-            .build();
-        when(targetCache.getTargetInfo(awsTargetId)).thenReturn(Optional.of(awsTargetInfo));
-        when(targetCache.getTargetInfo(appDTargetId)).thenReturn(Optional.of(appDProbeInfo));
-
-        when(cloudTypeMapper.fromTargetType(SDKProbeType.AWS.getProbeType())).thenReturn(Optional.of(CloudType.AWS));
-        // This is the scenario that caused the NPE in OM-54171.
-        when(cloudTypeMapper.fromTargetType(SDKProbeType.APPDYNAMICS.getProbeType())).thenReturn(Optional.empty());
+        targets.add(AWS_TARGET);
+        targets.add(APPD_TARGET);
 
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
-        EntityEnvironment entityEnvironment = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
-        assertEquals(EnvironmentType.CLOUD, entityEnvironment.getEnvironmentType());
-        assertEquals(CloudType.AWS, entityEnvironment.getCloudType());
+        final GroupApiDTO convertedDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
+        assertEquals(EnvironmentType.CLOUD, convertedDto.getEnvironmentType());
+        assertEquals(CloudType.AWS, convertedDto.getCloudType());
     }
 
 
@@ -1782,13 +1875,22 @@ public class GroupMapperTest {
                         .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                         .build()));
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
-        when(severityPopulator.calculateSeverity(eq(CONTEXT_ID), eq(Collections.singleton(1L))))
-                .thenReturn(Optional.of(Severity.CRITICAL));
+        Mockito.when(severityService.getEntitySeverities(Mockito.any()))
+                .thenReturn(Collections.singletonList(EntitySeveritiesResponse.newBuilder()
+                        .setEntitySeverity(EntitySeveritiesChunk.newBuilder()
+                                .addEntitySeverity(EntitySeverity.newBuilder()
+                                        .setEntityId(1L)
+                                        .setSeverity(Severity.CRITICAL)))
+                        .build()));
 
-        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, true);
+        GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), true)
+                        .values()
+                        .iterator()
+                        .next();
         // verify that calculateSeverity is invoked and severity is populated
         assertEquals(mappedDto.getSeverity(), Severity.CRITICAL.name());
-        verify(severityPopulator).calculateSeverity(eq(CONTEXT_ID), eq(Collections.singleton(1L)));
+        verify(severityPopulator).getSeverityMap(eq(CONTEXT_ID), eq(Collections.singleton(1L)));
 
         // verify that calculateSeverity is not invoked and severity is not populated if group is empty
         req = ApiTestUtils.mockMultiMinEntityReq(Collections.emptyList());
@@ -1804,9 +1906,12 @@ public class GroupMapperTest {
                 .entities(Collections.emptyList())
                 .members(Collections.emptyList())
                 .build());
-        mappedDto = groupMapper.toGroupApiDto(group, true);
+        mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), true)
+                        .values()
+                        .iterator()
+                        .next();
         assertNull(mappedDto.getSeverity());
-        verifyZeroInteractions(severityPopulator);
     }
 
     /**
@@ -1842,11 +1947,10 @@ public class GroupMapperTest {
             .members(oidsInBillingFamily)
             .entities(Collections.emptyList())
             .build();
-        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(
-            groupAndMembers,
-            EnvironmentType.CLOUD,
-            CloudType.AWS,
-            false);
+        GroupApiDTO mappedDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
 
         Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);
         BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
@@ -1903,11 +2007,10 @@ public class GroupMapperTest {
             .members(oidsInBillingFamily)
             .entities(Collections.emptyList())
             .build();
-        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(
-            groupAndMembers,
-            EnvironmentType.CLOUD,
-            CloudType.AWS,
-            false);
+        final GroupApiDTO mappedDto =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                        .iterator()
+                        .next();
 
         Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);
         BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
@@ -1933,7 +2036,7 @@ public class GroupMapperTest {
                 .members(Collections.emptyList())
                 .entities(Collections.emptyList())
                 .build();
-        groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.CLOUD, CloudType.AZURE, false);
+        groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false);
         final GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                         .setEntityFilter(Cost.EntityFilter.newBuilder()

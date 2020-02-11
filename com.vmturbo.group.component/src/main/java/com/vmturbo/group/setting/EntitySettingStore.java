@@ -218,7 +218,8 @@ public class EntitySettingStore {
         }
 
         SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
-                .withType(Type.USER);
+                .withType(Type.USER)
+                .withType(Type.DISCOVERED);
             settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
         return settingStore.getSettingPolicies(settingPolicyFilter.build());
     }

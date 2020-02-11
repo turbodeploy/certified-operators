@@ -74,10 +74,20 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             final PlanInstance plan = planDao.updatePlanInstance(planId, planBuilder -> {
                 planBuilder.getPlanProgressBuilder()
                     .setSourceTopologySummary(topologySummary);
-                if (planBuilder.getStatus() == PlanStatus.CONSTRUCTING_TOPOLOGY) {
-                    planBuilder.setStatus(PlanStatus.RUNNING_ANALYSIS);
+                // If the topology failed to broadcast, we won't get any other results for the plan.
+                // Mark it as failed.
+                if (topologySummary.hasFailure()) {
+                    logger.error("Plan {} - failed due to topology broadcast failure: {} ", planId,
+                        topologySummary.getFailure().getErrorDescription());
+                    planBuilder.setStatus(PlanStatus.FAILED);
+                    planBuilder.setStatusMessage(topologySummary.getFailure().getErrorDescription());
+                } else {
+                    if (planBuilder.getStatus() == PlanStatus.CONSTRUCTING_TOPOLOGY) {
+                        planBuilder.setStatus(PlanStatus.RUNNING_ANALYSIS);
+                    }
                 }
             });
+
             logger.info("Received broadcast success notification for plan {}. New status: {}",
                 planId, plan.getStatus());
         } catch (IntegrityException e) {
@@ -126,6 +136,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                                 actionsUpdated.getUpdateFailure().getErrorMessage());
                         planDao.updatePlanInstance(planId, planBuilder -> {
                             planBuilder.setStatus(PlanStatus.FAILED);
+                            planBuilder.setStatusMessage(actionsUpdated.getUpdateFailure().getErrorMessage());
                         });
                     } else {
                         // If the action update was successful.
@@ -230,10 +241,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 });
                 logger.warn("Marked plan {} as failed because of: {}", plan.getPlanId(),
                         plan.getStatusMessage());
-                if (plan.getProjectType() == PlanProjectType.RESERVATION_PLAN) {
-                    reservationPlacementHandler.getReservationManager()
-                            .updateReservationsOnPlanFailure();
-                }
             } catch (IntegrityException e) {
                 logger.error("Could not change plan's {} state according to  " +
                         "available projected topology {}", topologyContextId, projectedTopologyId, e);
@@ -295,10 +302,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 });
                 logger.warn("Plan {} as failed because of: {}", plan.getPlanId(),
                         plan.getStatusMessage());
-                if (plan.getProjectType() == PlanProjectType.RESERVATION_PLAN) {
-                    reservationPlacementHandler.getReservationManager()
-                            .updateReservationsOnPlanFailure();
-                }
             } catch (IntegrityException e) {
                 logger.error("Could not change plan's {} state according to  " +
                         "available source topology {}", topologyContextId, topologyId, e);
@@ -327,7 +330,10 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 if (statsAvailable.hasUpdateFailure()) {
                     logger.error("Stats failed for plan {}. {}.", planId,
                             statsAvailable.getUpdateFailure().getErrorMessage());
-                    planDao.updatePlanInstance(planId, PlanProgressListener::processStatsFailure);
+                    planDao.updatePlanInstance(planId, plan -> {
+                        plan.setStatus(PlanStatus.FAILED);
+                        plan.setStatusMessage(statsAvailable.getUpdateFailure().getErrorMessage());
+                    });
                 } else {
                     planDao.updatePlanInstance(planId, PlanProgressListener::processStatsAvailable);
                 }
@@ -346,11 +352,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     private static void processStatsAvailable(@Nonnull final PlanInstance.Builder plan) {
         plan.setStatsAvailable(true);
         plan.setStatus(getPlanStatusBasedOnPlanType(plan));
-    }
-
-    private static void processStatsFailure(@Nonnull final PlanInstance.Builder plan) {
-        plan.setStatsAvailable(false);
-        plan.setStatus(PlanStatus.FAILED);
     }
 
     private static void processSourceTopology(@Nonnull final PlanInstance.Builder plan,
@@ -468,6 +469,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             plan.setPlanProgress(plan.getPlanProgress().toBuilder()
                  .setAnalysisStatus(Status.FAIL));
             plan.setStatus(PlanStatus.FAILED);
+            // TODO (roman, Feb 5 2020): Propagate a better error message here.
+            plan.setStatusMessage("Analysis failed.");
         }
     }
 
@@ -514,13 +517,15 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     @VisibleForTesting
     static PlanStatus getPlanStatusBasedOnPlanType(@Nonnull final Builder plan) {
         final PlanStatus existingStatus = plan.getStatus();
-        if (PlanStatus.FAILED.equals(existingStatus) ||
-                PlanStatus.SUCCEEDED.equals(existingStatus)) {
+        if (isPlanDone(existingStatus)) {
+            if (plan.getEndTime() == 0) {
+                updatePlanEndTime(plan, existingStatus);
+            }
             return existingStatus;
         }
+        PlanStatus newStatus = existingStatus;
         if (isOCP(plan)) {
             // The optimize cloud plan (OCP)
-            PlanStatus newStatus = existingStatus;
             if (isOCPOptimizeAndBuyRI(plan)) {
                 // OCP buy RI and optimize services (OCP type 1).
                 newStatus = getOCPWithBuyRIPlanStatus(plan, true);
@@ -531,15 +536,31 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 logger.warn("This OCP wasn't OCP type 1, 2 or 3. Plan ID: " + plan.getPlanId());
             }
             if (!newStatus.equals(existingStatus)) {
+                updatePlanEndTime(plan, newStatus);
                 logger.debug("The plan status has been changed from {} to {}- plan ID: " +
                         "{}", existingStatus, newStatus, plan.getPlanId());
             }
             return newStatus;
         }
         // Plans other than OCPs.
-        return (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
+        newStatus = (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
                 plan.hasProjectedTopologyId()) && plan.hasSourceTopologyId() ?
                 PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
+        if (!newStatus.equals(existingStatus)) {
+            updatePlanEndTime(plan, newStatus);
+        }
+        return newStatus;
+    }
+
+    private static boolean isPlanDone(final PlanStatus existingStatus) {
+        return PlanStatus.FAILED.equals(existingStatus) ||
+                PlanStatus.SUCCEEDED.equals(existingStatus);
+    }
+
+    private static void updatePlanEndTime(Builder plan, PlanStatus newStatus) {
+        if (isPlanDone(newStatus)) {
+            plan.setEndTime(System.currentTimeMillis());
+        }
     }
 
     /**

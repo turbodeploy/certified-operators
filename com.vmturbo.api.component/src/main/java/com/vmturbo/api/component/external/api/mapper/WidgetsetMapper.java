@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -12,6 +13,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import io.grpc.StatusRuntimeException;
@@ -26,6 +28,7 @@ import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
@@ -229,19 +232,18 @@ public class WidgetsetMapper {
         if (!groupScopedWidgets.isEmpty()) {
             try {
                 // Get all groups referenced by the widgets.
-                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                final List<Grouping> groups = Lists.newArrayList(groupRpcService.getGroups(
+                        GetGroupsRequest.newBuilder()
                                 .setGroupFilter(GroupFilter.newBuilder()
-                                        .addAllId(groupScopedWidgets.keySet())
-                                        )
-                                .build()
-                    )
-                    .forEachRemaining(group -> {
-                        final GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(group);
-                        // For each widget scoped to this group, replace the base scope DTO with the
-                        // group's DTO.
-                        groupScopedWidgets.get(group.getId()).forEach(widgetWithGroupScope ->
-                            widgetWithGroupScope.setScope(groupApiDTO));
-                    });
+                                        .addAllId(groupScopedWidgets.keySet()))
+                                .build()));
+                for (Entry<Long, GroupApiDTO> entry : groupMapper.groupsToGroupApiDto(groups, false)
+                        .entrySet()) {
+                    // For each widget scoped to this group, replace the base scope DTO with the
+                    // group's DTO.
+                    groupScopedWidgets.get(entry.getKey()).forEach(widgetWithGroupScope ->
+                            widgetWithGroupScope.setScope(entry.getValue()));
+                }
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to retrieve the groups that the following widgets are " +
                     " scoped to. Widgets may not render properly: {}",

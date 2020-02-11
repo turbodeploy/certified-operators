@@ -15,7 +15,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableTable;
 
@@ -44,7 +43,8 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
      */
     @Before
     public void testSetup() {
-        when(groupMemberRetriever.getGroupsWithMembers(any())).thenReturn(Stream.of(BILLING_FAMILY_GROUPS));
+        when(groupMemberRetriever.getGroupsWithMembers(any())).thenReturn(
+                Collections.singletonList(BILLING_FAMILY_GROUPS));
     }
 
     @Test

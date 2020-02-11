@@ -1385,12 +1385,15 @@ public abstract class BasedbIO {
         if (ex instanceof SQLException) {
             String sqlState = ((SQLException)ex).getSQLState();
 
-            // SQLSTATE values are always 5 characters long, per standard.
-            if (sqlState.length() != 5) {
+            // SQLSTATE values are always 5 characters long, per standard, but
+            // we sometime see 2-character versions, which we assume provide
+            // initial two-character class code of the full sqlState.
+            if (sqlState.length() != 5 && sqlState.length() != 2) {
                 logger.error("Strange sqlState value: " + sqlState, originalEx);
                 return DBFailureType.SOFT;
             }
 
+            // try the full code first, then its class code
             DBFailureType ret = STATE_TO_DBFAILURE.get(sqlState);
             if (ret == null) {
                 ret = STATE_TO_DBFAILURE.get(sqlState.substring(0, 2));

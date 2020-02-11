@@ -40,6 +40,9 @@ public class CloudCostConfig {
     @Value("${riSpecPriceChunkSize:10000}")
     private int riSpecPriceChunkSize;
 
+    @Value("${fullAzureEARIDiscovery:false}")
+    private boolean fullAzureEARIDiscovery;
+
     @Bean
     public RIAndExpenseUploadServiceBlockingStub costServiceClient() {
         return RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel());
@@ -53,13 +56,13 @@ public class CloudCostConfig {
     @Bean
     public PriceTableUploader priceTableUploader() {
         return new PriceTableUploader(priceServiceClient(), clockConfig.clock(), riSpecPriceChunkSize,
-                targetConfig.targetStore());
+                targetConfig.targetStore(), spotPriceTableConverter());
     }
 
     @Bean
     public RICostDataUploader riDataUploader() {
         return new RICostDataUploader(costServiceClient(), minimumRIDataUploadIntervalMins,
-                clockConfig.clock());
+                clockConfig.clock(), fullAzureEARIDiscovery);
     }
 
     @Bean
@@ -81,5 +84,10 @@ public class CloudCostConfig {
                 .newBlockingStub(costClientConfig.costChannel());
         return new BusinessAccountPriceTableKeyUploader(pricingServiceBlockingStub,
                 targetConfig.targetStore());
+    }
+
+    @Bean
+    public SpotPriceTableConverter spotPriceTableConverter() {
+        return new SpotPriceTableConverter();
     }
 }

@@ -1,14 +1,16 @@
 package com.vmturbo.api.component.external.api.util;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -19,6 +21,8 @@ import com.google.common.collect.Sets;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -46,6 +50,7 @@ public class GroupExpander {
         "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
     private final GroupServiceBlockingStub groupServiceGrpc;
+    private final Logger logger = LogManager.getLogger(getClass());
 
     private final GroupMemberRetriever groupMemberRetriever;
 
@@ -176,8 +181,8 @@ public class GroupExpander {
      * @return A stream of {@link GroupAndMembers} describing the groups that matched the request
      *         and the members of those groups.
      */
-    public Stream<GroupAndMembers> getGroupsWithMembers(
-                    @Nonnull final GetGroupsRequest getGroupsRequest) {
+    public List<GroupAndMembers> getGroupsWithMembers(
+            @Nonnull final GetGroupsRequest getGroupsRequest) {
         return groupMemberRetriever.getGroupsWithMembers(getGroupsRequest);
     }
 

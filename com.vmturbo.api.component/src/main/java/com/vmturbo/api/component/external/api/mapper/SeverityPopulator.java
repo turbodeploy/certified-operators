@@ -1,20 +1,20 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.collect.Streams;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 
 public class SeverityPopulator {
+    private static final String NORMAL_SEVERITY_NAME = ActionDTOUtil.getSeverityName(Severity.NORMAL);
     private static final Logger logger = LogManager.getLogger();
     private final EntitySeverityServiceBlockingStub severityService;
 
@@ -72,8 +73,11 @@ public class SeverityPopulator {
                 .map(ServiceEntityApiDTO::getUuid)
                 .map(Long::parseLong)
                 .collect(Collectors.toList())));
-        entityDtos.forEach(entityDto -> entityDto.setSeverity(
-            severityMap.getSeverity(Long.parseLong(entityDto.getUuid()))));
+        for (ServiceEntityApiDTO entityDto : entityDtos) {
+            long entityOid = Long.parseLong(entityDto.getUuid());
+            entityDto.setSeverity(severityMap.getSeverity(entityOid));
+            entityDto.setSeverityBreakdown(severityMap.getSeverityBreakdown(entityOid));
+        }
         return entityDtos;
     }
 
@@ -100,8 +104,10 @@ public class SeverityPopulator {
 
         supplychainApiDTO.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
             if (supplychainEntryDTO != null) {
-                supplychainEntryDTO.getInstances().forEach((id, serviceEntityDTO) -> {
-                    serviceEntityDTO.setSeverity(severityMap.getSeverity(Long.parseLong(id)));
+                supplychainEntryDTO.getInstances().forEach((uuid, serviceEntityDTO) -> {
+                    long oid = Long.parseLong(uuid);
+                    serviceEntityDTO.setSeverity(severityMap.getSeverity(oid));
+                    serviceEntityDTO.setSeverityBreakdown(severityMap.getSeverityBreakdown(oid));
                 });
             }
         });
@@ -116,79 +122,45 @@ public class SeverityPopulator {
      * @return a mapping between entity id and corresponding severity.
      */
     @Nonnull
-    public Map<Long, Optional<Severity>> calculateSeverities(final long topologyContextId,
-                                               @Nonnull final Collection<Long> entityOids) {
-    try {
-            Iterable<EntitySeveritiesResponse> response = () ->
-                severityService.getEntitySeverities( MultiEntityRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .addAllEntityIds(entityOids)
-                .build());
-            Map<Long, Optional<Severity>> entityToSeverity = new HashMap<>();
-            StreamSupport.stream(response.spliterator(), false)
-                .forEach(chunk -> {
-                    if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                        chunk.getEntitySeverity()
-                            .getEntitySeverityList()
-                            .forEach(entity -> entityToSeverity.put(entity.getEntityId(), entity.hasSeverity() ?
-                                Optional.of(entity.getSeverity()) : Optional.empty()));
-                    }
-                });
-            return entityToSeverity;
-            } catch (RuntimeException e) {
-        if (e instanceof StatusRuntimeException) {
-            // This is a gRPC StatusRuntimeException
-            Status status = ((StatusRuntimeException)e).getStatus();
-            logger.warn("Unable to fetch severities: {} caused by {}.",
-                status.getDescription(), status.getCause());
-        } else {
-            logger.error("Error when fetching severities: ", e);
+    private Map<Long, EntitySeverity> calculateSeverities(final long topologyContextId,
+                                                          @Nonnull final Collection<Long> entityOids) {
+        try {
+            Iterator<EntitySeveritiesResponse> response = severityService.getEntitySeverities(
+                MultiEntityRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .addAllEntityIds(entityOids)
+                    .build());
+
+            return Streams.stream(response)
+                .filter(chunk -> chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY)
+                .map(EntitySeveritiesResponse::getEntitySeverity)
+                .flatMap(chunk -> chunk.getEntitySeverityList().stream())
+                .collect(Collectors.toMap(EntitySeverity::getEntityId, entitySeverity -> entitySeverity));
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to fetch severities: {} caused by {}.",
+                    status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when fetching severities: ", e);
+            }
         }
-    }
-            return entityOids.stream()
-                .collect(Collectors.toMap(Function.identity(),
-                    id -> Optional.of(Severity.NORMAL)));
+        return Collections.emptyMap();
 }
 
 
     /**
-     * Calculate the highest severity for the passed in entity OIDs.
-     * TODO: to improve performance, move the calculation to Group component, and cache results.
-     * TODO: Created OM-43416 for this change.
+     * Gets the severity map for the specified context and collection of entities.
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityOids        The set of entity OIDs.
      * @return calculated highest severity
      */
     @Nonnull
-    public Optional<Severity> calculateSeverity(final long topologyContextId,
-                                                @Nonnull final Collection<Long> entityOids) {
-        try {
-            Iterable<EntitySeveritiesResponse> response = () -> severityService.getEntitySeverities(
-                MultiEntityRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .addAllEntityIds(entityOids)
-                    .build());
-
-            List<EntitySeverity> entitySeverityList = processEntitySeverityStream(response);
-
-            // Calculate the highest severity based on enum value: NORMAL(1), MINOR(2), MAJOR(3), CRITICAL(4)
-            return Optional.ofNullable(entitySeverityList
-                    .stream()
-                    .map(EntitySeverity::getSeverity)
-                    .reduce(Severity.NORMAL, (first, second)
-                            -> first.getNumber() > second.getNumber() ? first : second));
-        } catch (RuntimeException e) {
-            if (e instanceof StatusRuntimeException) {
-                // This is a gRPC StatusRuntimeException
-                Status status = ((StatusRuntimeException)e).getStatus();
-                logger.warn("Unable to fetch severities: {} caused by {}.",
-                        status.getDescription(), status.getCause());
-            } else {
-                logger.error("Error when fetching severities: ", e);
-            }
-        }
-        return Optional.of(Severity.NORMAL);
+    public SeverityMap getSeverityMap(final long topologyContextId,
+            @Nonnull final Collection<Long> entityOids) {
+        return new SeverityMap(calculateSeverities(topologyContextId, entityOids));
     }
 
     /**
@@ -205,7 +177,10 @@ public class SeverityPopulator {
                                                    @Nonnull final Map<Long, ServiceEntityApiDTO> entityDTOs) {
         final SeverityMap severityMap = new SeverityMap(calculateSeverities(
             topologyContextId, entityDTOs.keySet()));
-        entityDTOs.forEach((entityId, dto) -> dto.setSeverity(severityMap.getSeverity(entityId)));
+        entityDTOs.forEach((entityId, dto) -> {
+            dto.setSeverity(severityMap.getSeverity(entityId));
+            dto.setSeverityBreakdown(severityMap.getSeverityBreakdown(entityId));
+        });
         return entityDTOs;
     }
 
@@ -213,11 +188,15 @@ public class SeverityPopulator {
      * Wraps a map of EntityId -> Severity.
      * Rather than returning null for an unknown entity, it returns NORMAL.
      */
-    private static class SeverityMap {
-        private final String NORMAL_SEVERITY_NAME = ActionDTOUtil.getSeverityName(Severity.NORMAL);
-        private final Map<Long, Optional<Severity>> severities;
+    public static class SeverityMap {
+        private final Map<Long, EntitySeverity> severities;
 
-        public SeverityMap(@Nonnull final Map<Long, Optional<Severity>> severities) {
+        /**
+         * Constructs the wrapper class containing severity and severity breakdown mappings.
+         *
+         * @param severities the severities to translate missing entries to normal.
+         */
+        private SeverityMap(@Nonnull final Map<Long, EntitySeverity> severities) {
             this.severities = Objects.requireNonNull(severities);
         }
 
@@ -229,21 +208,48 @@ public class SeverityPopulator {
          */
         @Nonnull
         public String getSeverity(@Nonnull final Long id) {
-            return severities.get(id)
+            return Optional.ofNullable(severities.get(id))
+                .flatMap(entity -> Optional.of(entity.getSeverity()))
                 .map(ActionDTOUtil::getSeverityName)
                 .orElse(NORMAL_SEVERITY_NAME);
         }
-    }
 
-    private List<EntitySeverity> processEntitySeverityStream(Iterable<EntitySeveritiesResponse> response) {
-        List<EntitySeverity> entitySeverityList = new ArrayList<>();
-        StreamSupport.stream(response.spliterator(), false)
-            .forEach(chunk -> {
-                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                    entitySeverityList.addAll(chunk.getEntitySeverity()
-                        .getEntitySeverityList());
-                }
-            });
-        return entitySeverityList;
+        /**
+         * Calculate the highest severity for the passed in entity OIDs.
+         *
+         * @param entityOids The set of entity OIDs.
+         * @return calculated highest severity
+         */
+        @Nonnull
+        public Severity calculateSeverity(@Nonnull final Collection<Long> entityOids) {
+            return entityOids.stream()
+                    .map(severities::get)
+                    .filter(Objects::nonNull)
+                    .map(EntitySeverity::getSeverity)
+                    .map(Optional::ofNullable)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .max(Comparator.comparing(Severity::getNumber))
+                    .orElse(Severity.NORMAL);
+        }
+
+        /**
+         * Return the severity breakdown for the given id. Returns null if not found.
+         *
+         * @param id the id to search for.
+         * @return the severity breakdown for the given id. Returns null if not found.
+         */
+        @Nullable
+        public Map<String, Long> getSeverityBreakdown(long id) {
+            EntitySeverity entitySeverity = severities.get(id);
+            if (entitySeverity == null) {
+                return null;
+            }
+            return entitySeverity.getSeverityBreakdownMap().entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .collect(Collectors.toMap(
+                    entry -> Severity.forNumber(entry.getKey()).name(),
+                    Entry::getValue));
+        }
     }
 }

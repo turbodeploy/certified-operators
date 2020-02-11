@@ -81,7 +81,6 @@ spec:
         volumeMounts:
         - mountPath: /home/kafka
           name: kafka-log
-          subPath: data
         - mountPath: /tmp
           name: kafka-tmpfs0
 {{- if .Values.global }}

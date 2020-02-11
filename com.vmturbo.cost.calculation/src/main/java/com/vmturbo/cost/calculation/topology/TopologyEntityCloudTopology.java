@@ -232,7 +232,8 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 return Optional.empty();
             } else if (connectedRegions.size() > 1) {
                 logger.warn("Entity {} connected to multiple regions: {}! Choosing the first.",
-                    connectedRegions.stream()
+                    () -> entity.getOid(),
+                    () -> connectedRegions.stream()
                         .map(region -> Long.toString(region.getOid()))
                         .collect(Collectors.joining(",")));
             }
@@ -255,9 +256,10 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 return Optional.empty();
             } else if (connectedAZs.size() > 1) {
                 logger.warn("Entity {} connected to multiple availability zone: {}! Choosing the first.",
-                        connectedAZs.stream()
-                                .map(region -> Long.toString(region.getOid()))
-                                .collect(Collectors.joining(",")));
+                    () -> entity.getOid(),
+                    () -> connectedAZs.stream()
+                        .map(region -> Long.toString(region.getOid()))
+                        .collect(Collectors.joining(",")));
             }
             return Optional.of(connectedAZs.iterator().next());
         });
@@ -447,7 +449,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      */
     private Map<Long, GroupAndMembers> createAccountIdToBillingFamilyGroupMap() {
         // Retrieve Billing family groups from GroupMemberRetriever
-        final Stream<GroupAndMembers> billingFamilyGroups = retrieveBillingFamilyGroups();
+        final Collection<GroupAndMembers> billingFamilyGroups = retrieveBillingFamilyGroups();
 
         // Create map from account id to Billing Family group
         final Map<Long, GroupAndMembers> billingFamilyGroupByBusinessAccountId =
@@ -457,7 +459,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         return billingFamilyGroupByBusinessAccountId;
     }
 
-    private Stream<GroupAndMembers> retrieveBillingFamilyGroups() {
+    private Collection<GroupAndMembers> retrieveBillingFamilyGroups() {
         return groupMemberRetriever
                 .getGroupsWithMembers(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder()

@@ -42,10 +42,10 @@ import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -353,13 +353,13 @@ public class SearchService implements ISearchService {
                     paginationRequest, null, environmentType, scopes, true);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
-                // TODO(OM-49616): return the proper search filters and handle the query string properly
                 for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
                     if (types.contains(entry.getKey())) {
-                        final Collection<GroupApiDTO> groups =
-                            groupsService.getGroupsByType(entry.getValue(),
-                                scopes, Collections.emptyList(), environmentType);
-                        return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+                        String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(entry.getKey() );
+                        return paginationRequest.allResultsResponse(Collections.unmodifiableList(
+                                groupsService.getGroupsByType(entry.getValue(), scopes,
+                                        addNameMatcher(query, Collections.emptyList(), filter),
+                                        environmentType)));
                     }
                 }
                 throw new IllegalStateException("This can never happen because intersect(types, groupTypes) > 0 if and only if there is at least one groupType in types.");
@@ -425,6 +425,7 @@ public class SearchService implements ISearchService {
                 .filter(entity -> EnvironmentTypeMapper.matches(environmentType,
                         entity.getEnvironmentType()))
                 .collect(Collectors.toList());
+
         return paginationRequest.allResultsResponse(result);
     }
 
@@ -434,13 +435,14 @@ public class SearchService implements ISearchService {
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
      *
      * @param query The query to run against the display name of the results.
-     * @param inputDTO the specification of what to search
+     * @param inputDTO the specification of what to search.
+     * @param paginationRequest The pagination related parameter.
+     * @param aspectNames The input list of aspect names for a particular entity type.
      * @return a list of DTOs based on the type of the search: ServiceEntityApiDTO or GroupApiDTO
      */
     @Override
-    public SearchPaginationResponse getMembersBasedOnFilter(String query,
-                                                            GroupApiDTO inputDTO,
-                                                            SearchPaginationRequest paginationRequest)
+    public SearchPaginationResponse getMembersBasedOnFilter(String query, GroupApiDTO inputDTO,
+            SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
             throws OperationFailedException, InvalidOperationException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // if this is a group search, we need to know the right "name filter type" that can be used
@@ -452,7 +454,6 @@ public class SearchService implements ISearchService {
                 paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType(),
                 inputDTO.getScope(), false);
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
-            // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
             return paginationRequest.allResultsResponse(Collections.unmodifiableList(
@@ -483,7 +484,7 @@ public class SearchService implements ISearchService {
                 .getFullEntity();
             if (!topologyEntityDTO.isPresent()) {
                 // if this is not business account try regular search
-                return searchEntitiesByParameters(inputDTO, query, paginationRequest);
+                return searchEntitiesByParameters(inputDTO, query, paginationRequest, aspectNames);
             }
 
             Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
@@ -501,7 +502,7 @@ public class SearchService implements ISearchService {
             return paginationRequest.allResultsResponse(results);
         } else {
             // this isn't a group search after all -- use a generic search method instead.
-            return searchEntitiesByParameters(inputDTO, query, paginationRequest);
+            return searchEntitiesByParameters(inputDTO, query, paginationRequest, aspectNames);
         }
     }
 
@@ -541,11 +542,12 @@ public class SearchService implements ISearchService {
      *
      * @param inputDTO a Description of what search to conduct
      * @param nameQuery user specified search query for entity name.
+     * @param paginationRequest The pagination related parameter.
+     * @param aspectNames The input list of aspect names.
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
-    private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO,
-                                                                @Nullable String nameQuery,
-                                                                @Nonnull SearchPaginationRequest paginationRequest)
+    private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO, @Nullable String nameQuery,
+            @Nonnull SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
                 throws OperationFailedException {
         final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
         final List<String> entityTypes = getEntityTypes(inputDTO.getClassName());
@@ -589,7 +591,7 @@ public class SearchService implements ISearchService {
                         .addAllEntityOid(allEntityOids)
                         .build();
                 return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
-                        allEntityOids, searchOidsRequest);
+                        allEntityOids, searchOidsRequest, aspectNames);
             } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
                 final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                         .addAllSearchParameters(searchParameters)
@@ -684,16 +686,17 @@ public class SearchService implements ISearchService {
      * @param nameQuery user specified search query for entity name.
      * @param paginationRequest {@link SearchPaginationRequest}
      * @param expandedIds a list of entity oids after expanded.
-     * @param searchEntityOidsRequest {@link Search.SearchEntityOidsRequest}.
+     * @param searchEntityOidsRequest {@link SearchEntityOidsRequest}.
+     * @param aspectNames The input list of requested aspects by name.
      * @return {@link SearchPaginationResponse}.
      */
     @VisibleForTesting
     protected SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
-            @Nonnull final GroupApiDTO inputDTO,
-            @Nullable final String nameQuery,
+            @Nonnull final GroupApiDTO inputDTO, @Nullable final String nameQuery,
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
-            @Nonnull final Search.SearchEntityOidsRequest searchEntityOidsRequest) {
+            @Nonnull final SearchEntityOidsRequest searchEntityOidsRequest,
+            @Nullable Collection<String> aspectNames) {
         final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds,
                 searchEntityOidsRequest);
         /*
@@ -728,9 +731,12 @@ public class SearchService implements ISearchService {
             entitySeverityList.stream()
                         .collect(Collectors.toMap(EntitySeverity::getEntityId,
                                 entitySeverity -> ActionDTOUtil.getSeverityName(entitySeverity.getSeverity())));
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-            repositoryApi.entitiesRequest(paginatedEntitySeverities.keySet())
-                .getSEMap();
+        final RepositoryApi.MultiEntityRequest entityRequest =
+                repositoryApi.entitiesRequest(paginatedEntitySeverities.keySet());
+        if (CollectionUtils.isNotEmpty(aspectNames)) {
+            entityRequest.useAspectMapper(entityAspectMapper, aspectNames);
+        }
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = entityRequest.getSEMap();
         // Should use the entity severities collected from the entitySeverityRpc since they are
         // already sorted and paginated.
         final List<ServiceEntityApiDTO> entities =

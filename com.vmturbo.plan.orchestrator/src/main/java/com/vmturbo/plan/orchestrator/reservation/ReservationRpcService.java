@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusReq
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureReservationRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
@@ -193,17 +193,26 @@ public class ReservationRpcService extends ReservationServiceImplBase {
     }
 
     @Override
-    public void updateFutureReservation(UpdateFutureReservationRequest request,
+    public void updateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest request,
                                         StreamObserver<Reservation> responseObserver) {
         try {
+            Set<Reservation> allReservations = reservationDao.getAllReservations();
             Set<Reservation> futureReservations =
-                    reservationDao.getReservationsByStatus(ReservationStatus.FUTURE)
-                    .stream().filter(res -> reservationManager.isReservationActiveNow(res))
+                    allReservations.stream()
+                            .filter(res -> res.getStatus() == ReservationStatus.FUTURE &&
+                                    reservationManager.isReservationActiveNow(res))
+                    .collect(Collectors.toSet());
+            Set<Reservation> expiredReservation = allReservations.stream()
+                    .filter(res -> reservationManager.hasReservationExpired(res))
                     .collect(Collectors.toSet());
             Set<Reservation> updatedFutureReservation = new HashSet<>();
             for (Reservation reservation: futureReservations) {
                 updatedFutureReservation.add(reservationManager
                         .intializeReservationStatus(reservation));
+            }
+            for (Reservation reservation : expiredReservation) {
+                reservationDao.deleteReservationById(reservation.getId());
+                logger.info("Deleted Expired Reservation: " + reservation.getName());
             }
             if (updatedFutureReservation.size() > 0) {
                 reservationManager.checkAndStartReservationPlan();
@@ -212,6 +221,10 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to update reservations.")
+                    .asException());
+        } catch (NoSuchObjectException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription("Failed to delete expired reservation")
                     .asException());
         }
     }

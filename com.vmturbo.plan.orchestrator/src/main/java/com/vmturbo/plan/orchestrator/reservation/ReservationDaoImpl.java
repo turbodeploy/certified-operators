@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,6 +53,9 @@ public class ReservationDaoImpl implements ReservationDao {
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final DSLContext dsl;
+
+    private final List<ReservationStatusListener> listeners =
+            Collections.synchronizedList(new ArrayList<>());
 
     public ReservationDaoImpl(@Nonnull final DSLContext dsl) {
         this.dsl = Objects.requireNonNull(dsl);
@@ -243,14 +247,16 @@ public class ReservationDaoImpl implements ReservationDao {
     @Override
     public ReservationDTO.Reservation deleteReservationById(final long id) throws NoSuchObjectException {
         try {
-            return dsl.transactionResult(configuration -> {
+            ReservationDTO.Reservation reservation = dsl.transactionResult(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
-                final ReservationDTO.Reservation reservation = getReservationById(id)
+                final ReservationDTO.Reservation insideReservation = getReservationById(id)
                         .orElseThrow(() ->
                                 new NoSuchObjectException("Reservation with id" + id + " not found"));
                 transactionDsl.deleteFrom(RESERVATION).where(RESERVATION.ID.eq(id)).execute();
-                return reservation;
+                return insideReservation;
             });
+            listeners.forEach(listener -> listener.onReservationDeleted(reservation));
+            return reservation;
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
                 throw (NoSuchObjectException)e.getCause();
@@ -503,5 +509,14 @@ public class ReservationDaoImpl implements ReservationDao {
         } catch (DataAccessException e) {
             return 0;
         }
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addListener(@Nonnull ReservationStatusListener listener) {
+        listeners.add(Objects.requireNonNull(listener));
     }
 }

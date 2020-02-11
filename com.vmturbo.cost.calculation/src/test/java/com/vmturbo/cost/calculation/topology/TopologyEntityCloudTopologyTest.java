@@ -13,10 +13,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -231,8 +231,8 @@ public class TopologyEntityCloudTopologyTest {
                   COMPUTE_TIER, DATABASE_TIER, DATABASE_SERVER_TIER, STORAGE_TIER, EMPTY_STORAGE_TIER,
                   VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
 
-    private static final Stream<GroupAndMembers> BILLING_FAMILY_GROUPS =
-            Stream.of(ImmutableGroupAndMembers.builder()
+    private static final List<GroupAndMembers> BILLING_FAMILY_GROUPS =
+            Collections.singletonList(ImmutableGroupAndMembers.builder()
                     .group(Grouping.newBuilder()
                             .setId(BILLING_FAMILY_ID)
                             .build())

@@ -209,10 +209,10 @@ public class SystemLoadCalculatedProfile {
         templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, vCPUSpeed);
         // TODO : Update NUM_OF_CPU once we are able to extract this information.
         templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, 1F);
-        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, ioThroughputConsumed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT, ioThroughputConsumed);
         templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, Math.min(1, memConsumedFactor));
         templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, vMemSize);
-        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, networkThroughputConsumed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, networkThroughputConsumed);
         // storage
         templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));
         templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, storageConsumed);

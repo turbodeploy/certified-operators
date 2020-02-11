@@ -20,6 +20,8 @@ import org.junit.Test;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -45,6 +47,9 @@ public class PlanRpcServiceTest {
     private final BuyRIAnalysisServiceMole testBuyRiRpcService = spy(new BuyRIAnalysisServiceMole());
     private final GroupServiceMole testGroupRpcService = spy(new GroupServiceMole());
     private final RepositoryServiceMole testRepositoryRpcService = spy(new RepositoryServiceMole());
+    private final long topologyId = 2222;
+    // The  realtime topology context Id.
+    private static final Long realtimeTopologyContextId = 777777L;
 
     //Runs tasks on same thread that's invoking execute/submit
     private ExecutorService sameThreadExecutor = MoreExecutors.newDirectExecutorService();
@@ -67,7 +72,9 @@ public class PlanRpcServiceTest {
             BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            1, TimeUnit.SECONDS);
+            PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            1, TimeUnit.SECONDS, realtimeTopologyContextId );
     }
 
     /**

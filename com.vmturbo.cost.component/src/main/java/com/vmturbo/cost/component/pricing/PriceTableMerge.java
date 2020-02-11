@@ -6,10 +6,10 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.Stopwatch;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -109,17 +109,18 @@ public class PriceTableMerge {
                     }
                 });
 
-                final Map<Long, SpotInstancePriceTable> srcSpotPriceTables = nextPriceTable.getSpotPriceByRegionIdMap();
-                srcSpotPriceTables.forEach((regionId, priceTable) -> {
-                    if (mergeBuilder.containsSpotPriceByRegionId(regionId)) {
+                final Map<Long, SpotInstancePriceTable> srcSpotPriceTables = nextPriceTable
+                        .getSpotPriceByZoneOrRegionIdMap();
+                srcSpotPriceTables.forEach((zoneOrRegionId, priceTable) -> {
+                    if (mergeBuilder.containsSpotPriceByZoneOrRegionId(zoneOrRegionId)) {
                         // This can happen if Azure EA is added and there are multiple price tables
                         // containing the overlapping region ids
                         // TODO Fix this when Azure Buy RI support is added
-                        logger.warn("Region {} exists in two separate price tables (for " +
+                        logger.warn("Zone/Region {} exists in two separate price tables (for " +
                             "spot instances)! This means region ID assignment isn't working as " +
-                            "expected. Ignoring one of them.", regionId);
+                            "expected. Ignoring one of them.", zoneOrRegionId);
                     } else {
-                        mergeBuilder.putSpotPriceByRegionId(regionId, priceTable);
+                        mergeBuilder.putSpotPriceByZoneOrRegionId(zoneOrRegionId, priceTable);
                     }
                 });
 

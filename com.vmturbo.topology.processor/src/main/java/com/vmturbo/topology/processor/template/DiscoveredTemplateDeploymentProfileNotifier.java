@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.plan;
+package com.vmturbo.topology.processor.template;
 
 import java.util.Collection;
 import java.util.List;
@@ -12,6 +12,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 
 /**
  * Responsible for upload and delete discovered templates and deployment profile. We should upload
@@ -40,9 +41,10 @@ public interface DiscoveredTemplateDeploymentProfileNotifier {
     /**
      * Upload discovered templates and deployment profile to plan component before broadcast.
      *
-     * @throws CommunicationException if upload failure.
+     * @throws UploadException if upload failure.
+     * @throws InterruptedException if thread interrupted during upload.
      */
-    void sendTemplateDeploymentProfileData() throws CommunicationException;
+    void sendTemplateDeploymentProfileData() throws UploadException, InterruptedException;
 
     /**
      * Delete related discovered templates and deployment profile when some target is removed.

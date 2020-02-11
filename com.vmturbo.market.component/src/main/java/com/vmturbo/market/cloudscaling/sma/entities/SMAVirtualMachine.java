@@ -152,18 +152,19 @@ public class SMAVirtualMachine {
             minCostPerFamily.put(template.getFamily(), Float.MAX_VALUE);
         }
         for (SMATemplate template : groupProviders) {
-            if (template.getOnDemandTotalCost(businessAccountId, osType) - minCost < (-1.0 * SMAUtils.EPSILON)) {
-                minCost = template.getOnDemandTotalCost(businessAccountId, osType);
+            float onDemandTotalCost = template.getOnDemandTotalCost(businessAccountId, osType);
+            if (onDemandTotalCost - minCost < (-1.0 * SMAUtils.EPSILON)) {
+                minCost = onDemandTotalCost;
                 minCostProvider = Optional.of(template);
             } else {
                 // Template cost is equal, then switch if the new template is the natural
                 // template.
-                if ((Math.abs(template.getOnDemandTotalCost(businessAccountId, osType) - minCost) < SMAUtils.EPSILON) &&
+                if ((Math.abs(onDemandTotalCost - minCost) < SMAUtils.EPSILON) &&
                         getCurrentTemplate().equals(template)) {
                         minCostProvider = Optional.of(template);
                 }
             }
-            if (template.getOnDemandTotalCost(businessAccountId, osType) - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
+            if (onDemandTotalCost - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
                 minCostPerFamily.put(template.getFamily(), template.getOnDemandTotalCost(businessAccountId, osType));
                 minCostProviderPerFamily.put(template.getFamily(), template);
             }
@@ -306,15 +307,16 @@ public class SMAVirtualMachine {
     public String toStringShallow() {
         StringBuffer buffer = new StringBuffer();
         buffer.append("SMAVirtualMachine{")
-                 .append("OID='").append(oid)
-                .append(", name='").append(name)
-                .append("', businessAccount='").append(businessAccountId)
-                .append("', OS='").append(osType.name())
-                .append("', currentTemplate=").append(currentTemplate.getName())
-                .append(", naturalTemplate=").append(naturalTemplate.getName())
-                .append(", groupProviders=").append(groupProviders.size())
-                .append(", currentRICoverage=").append(currentRICoverage)
-                .append(", zone='").append(zoneId).append("\'}");
+            .append("OID='").append(oid)
+            .append(", name='").append(name)
+            .append("', businessAccount='").append(businessAccountId)
+            .append("', OS='").append(osType.name())
+            .append(", currentRICoverage=").append(currentRICoverage)
+            .append(", zone='").append(zoneId)
+            .append("', currentTemplate=").append(currentTemplate.getName())
+            .append(", naturalTemplate=").append(naturalTemplate.getName())
+            .append(", groupProviders=").append(groupProviders.size())
+            .append("\'}");
         return buffer.toString();
     }
 
@@ -343,7 +345,7 @@ public class SMAVirtualMachine {
         if (ri.isRegionScoped()) {
             return true;
         } else {
-            if (zoneId == ri.getZone()) {
+            if (zoneId == ri.getZoneId()) {
                 return true;
             }
         }

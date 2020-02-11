@@ -10,17 +10,22 @@ import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyResponse;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -67,19 +72,18 @@ public class PlanTopologyListener implements PlanAnalysisTopologyListener {
     // the database access utility classes for the History-related RDB tables
     private final PlanReservedInstanceStore planReservedInstanceStore;
 
-    private final ReservedInstanceBoughtRpcService reservedInstanceBoughtService;
+    private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub;
 
     /**
      * Creates {@link PlanTopologyListener} instance.
      *
+     * @param costChannel the cost channel.
      * @param planReservedInstanceStore plan RI store.
-     * @param reservedInstanceBoughtService RI bought service.
      */
-    public PlanTopologyListener(
-                    @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
-                    @Nonnull final ReservedInstanceBoughtRpcService reservedInstanceBoughtService) {
+    public PlanTopologyListener(@Nonnull final Channel costChannel,
+                    @Nonnull final PlanReservedInstanceStore planReservedInstanceStore) {
+        this.reservedInstanceBoughtServiceBlockingStub = Objects.requireNonNull(ReservedInstanceBoughtServiceGrpc.newBlockingStub(costChannel));
         this.planReservedInstanceStore = Objects.requireNonNull(planReservedInstanceStore);
-        this.reservedInstanceBoughtService = Objects.requireNonNull(reservedInstanceBoughtService);
     }
 
     /**
@@ -94,18 +98,17 @@ public class PlanTopologyListener implements PlanAnalysisTopologyListener {
         @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
         final List<Long> scopedSeedOids = topologyInfo.getScopeSeedOidsList();
         final long topologyContextId = topologyInfo.getTopologyContextId();
-        final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
-                        GetReservedInstanceBoughtByFilterRequest.newBuilder();
-        final BiConsumer<List<Long>, GetReservedInstanceBoughtByFilterRequest.Builder> filterCreator =
-                        ENTITY_TYPE_TO_FILTER_CREATOR.getOrDefault(EntityType.forNumber(topologyInfo.getScopeEntityType()),
-                                        (oids, builder) -> {
-                                            // No filter.
-                                        });
-        filterCreator.accept(scopedSeedOids, requestBuilder);
-        final ReservedInstanceBoughtStreamObserver responseObserver = new ReservedInstanceBoughtStreamObserver();
+
+        final GetReservedInstanceBoughtByTopologyRequest.Builder requestBuilder =
+                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
+                        .setTopologyType(topologyInfo.getTopologyType())
+                        .setTopologyContextId(topologyInfo.getTopologyContextId())
+                        .setScopeEntityType(topologyInfo.getScopeEntityType())
+                        .addAllScopeSeedOids(topologyInfo.getScopeSeedOidsList());
         // Getting bought RIs from grpc service allow to get data with RI utilization.
-        reservedInstanceBoughtService.getReservedInstanceBoughtByFilter(requestBuilder.build(), responseObserver);
-        final List<ReservedInstanceBought> allReservedInstancesBought = responseObserver.getReservedInstanceBougtList();
+        final GetReservedInstanceBoughtByTopologyResponse riBoughtResponse =
+        reservedInstanceBoughtServiceBlockingStub.getReservedInstanceBoughtByTopology(requestBuilder.build());
+        final List<ReservedInstanceBought> allReservedInstancesBought = riBoughtResponse.getReservedInstanceBoughtList();
         planReservedInstanceStore.insertPlanReservedInstanceBought(allReservedInstancesBought,
                         topologyContextId);
     }
@@ -137,7 +140,7 @@ public class PlanTopologyListener implements PlanAnalysisTopologyListener {
          *
          * @return list of {@link ReservedInstanceBought}.
          */
-        public List<ReservedInstanceBought> getReservedInstanceBougtList() {
+        public List<ReservedInstanceBought> getReservedInstanceBoughtList() {
             return reservedInstanceBougtList;
         }
     }

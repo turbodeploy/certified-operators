@@ -7,7 +7,10 @@
             {"inputType": "*", "elements": "VirtualDataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDCnested"},
             {"inputType": "*", "elements": "DiskArray:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByDiskArrayName"},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByStorage"},
-            {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByService"},
             {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:PRODUCES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState", "loadOptions": true},
@@ -68,7 +71,11 @@
     "Container" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"}
+            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByService"}
         ]
     },
 
@@ -88,7 +95,12 @@
     },
 
     "ApplicationComponent" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"}]
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByService"}
+        ]
     },
 
     "BusinessApplication" : {
@@ -100,7 +112,7 @@
     },
 
     "Service" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "service"}]
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"}]
     },
 
     "Database" : {
@@ -108,7 +120,11 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseByResourceGroupUuid", "loadOptions": true}
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseByResourceGroupUuid", "loadOptions": true},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByService"}
         ]
     },
 
@@ -117,7 +133,11 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupUuid", "loadOptions": true}
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupUuid", "loadOptions": true},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByService"}
         ]
     },
 

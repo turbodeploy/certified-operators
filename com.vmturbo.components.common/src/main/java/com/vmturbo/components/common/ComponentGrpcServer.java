@@ -31,6 +31,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 
 import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.common.grpc.RequestLoggingInterceptor;
 
 /**
  * A wrapper around a gRPC {@link Server} that can be used inside a component. Used to isolate
@@ -112,6 +113,8 @@ public class ComponentGrpcServer {
             // Add tracing interceptor at the end, so that it gets called first (Matthew 20:16 :P),
             // and the other interceptors get traced too.
             new ServerTracingInterceptor(Tracing.tracer()),
+            // Log all the requests timings
+            new RequestLoggingInterceptor(),
             // Last, so that it gets called first, and catches any unhandled exceptions from the
             // call or any of the other interceptors.
             new GrpcCatchExceptionInterceptor());

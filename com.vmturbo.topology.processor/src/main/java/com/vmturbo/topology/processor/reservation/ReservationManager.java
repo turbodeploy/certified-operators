@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureReservationRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -100,9 +100,9 @@ public class ReservationManager {
         // Retrieve potential active reservations which start day is today or before and status is FUTURE.
         Set<Reservation> todayActiveReservations = new HashSet<>();
         if (topologyType == TopologyType.REALTIME) {
-            final UpdateFutureReservationRequest request = UpdateFutureReservationRequest.newBuilder()
-                    .build();
-            reservationService.updateFutureReservation(request);
+            reservationService.updateFutureAndExpiredReservations(
+                    UpdateFutureAndExpiredReservationsRequest.newBuilder()
+                    .build());
         }
         if (planType == PlanProjectType.RESERVATION_PLAN) {
             todayActiveReservations.addAll(StreamSupport.stream(allReservations.spliterator(), false)

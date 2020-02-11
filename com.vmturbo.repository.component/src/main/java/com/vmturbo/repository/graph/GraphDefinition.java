@@ -4,6 +4,8 @@ import com.google.common.base.MoreObjects;
 
 import java.util.Objects;
 
+import com.vmturbo.repository.topology.TopologyID;
+
 /**
  * Metadata about the service entity graph stored in a graph database.
  */
@@ -36,8 +38,16 @@ public class GraphDefinition {
         return providerRelationship;
     }
 
-    public String getTopologyProtoCollection() {
-        return topologyProtoCollection;
+    /**
+     * Get full serviceEntityVertex collection name by appending collection name suffix from the
+     * given TopologyID.
+     *
+     * @param topologyID Given TopologyID from which collection name suffix is converted.
+     * @return Constructed full serviceEntityVertex collection name by appending collection name
+     * suffix from given TopologyID.
+     */
+    public String getSEVertexCollection(TopologyID topologyID) {
+        return serviceEntityVertex + topologyID.toCollectionNameSuffix();
     }
 
     @Override

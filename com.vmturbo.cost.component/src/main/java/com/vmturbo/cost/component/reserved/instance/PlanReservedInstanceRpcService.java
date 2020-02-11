@@ -20,16 +20,18 @@ import org.jooq.exception.DataAccessException;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.DeletePlanReservedInstanceStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeletePlanReservedInstanceStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceImplBase;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
 
@@ -115,7 +117,28 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
                             .withDescription("Failed to delete plan reserved instance stats.")
                             .asException());
         }
+    }
 
+    /**
+     * Insert plan reserved instances bought (Included RIs).
+     *
+     * @param request  The request.
+     * @param responseObserver The response observer.
+     */
+    @Override
+    public void insertPlanReservedInstanceBought(UploadRIDataRequest request,
+        StreamObserver<UploadRIDataResponse> responseObserver) {
+        try {
+            final Long planId = request.getTopologyId();
+            planReservedInstanceStore.insertPlanReservedInstanceBought(request.getReservedInstanceBoughtList(),
+                                                                       planId);
+            responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL
+                            .withDescription("Failed to insert plan bought reserved instance(s).")
+                            .asException());
+        }
     }
 
     @Override

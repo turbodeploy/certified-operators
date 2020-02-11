@@ -118,9 +118,9 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     .set(ENTITY_COST.COST_SOURCE, 1)
                                     .set(ENTITY_COST.CURRENCY, 0)
                                     .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
-                                    .set(ENTITY_COST.ACCOUNT_ID, (Long)null)
-                                    .set(ENTITY_COST.AVAILABILITY_ZONE_ID, (Long)null)
-                                    .set(ENTITY_COST.REGION_ID, (Long)null)
+                                    .set(ENTITY_COST.ACCOUNT_ID, 0L)
+                                    .set(ENTITY_COST.AVAILABILITY_ZONE_ID, 0L)
+                                    .set(ENTITY_COST.REGION_ID, 0L)
                     );
 
                     // Bind values to the batch insert statement. Each "bind" should have values for
@@ -136,11 +136,11 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     entityCost.getTotalAmount().getCurrency(),
                                     BigDecimal.valueOf(componentCost.getAmount().getAmount()),
                                     cloudTopology.getOwner(entityOid)
-                                        .map(TopologyEntityDTO::getOid).orElse(null),
+                                        .map(TopologyEntityDTO::getOid).orElse(0L),
                                     cloudTopology.getConnectedAvailabilityZone(entityOid)
-                                        .map(TopologyEntityDTO::getOid).orElse(null),
+                                        .map(TopologyEntityDTO::getOid).orElse(0L),
                                     cloudTopology.getConnectedRegion(entityOid)
-                                        .map(TopologyEntityDTO::getOid).orElse(null));
+                                        .map(TopologyEntityDTO::getOid).orElse(0L));
                                 }
                             ));
                     if (batch.size() > 0) {
@@ -185,9 +185,9 @@ public class SqlEntityCostStore implements EntityCostStore {
                                         .set(ENTITY_COST.COST_SOURCE, 0)
                                         .set(ENTITY_COST.CURRENCY, 0)
                                         .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
-                                        .set(ENTITY_COST.ACCOUNT_ID, (Long)null)
-                                        .set(ENTITY_COST.AVAILABILITY_ZONE_ID, (Long)null)
-                                        .set(ENTITY_COST.REGION_ID, (Long)null)
+                                        .set(ENTITY_COST.ACCOUNT_ID, 0L)
+                                        .set(ENTITY_COST.AVAILABILITY_ZONE_ID, 0L)
+                                        .set(ENTITY_COST.REGION_ID, 0L)
                         );
 
                         // Bind values to the batch insert statement. Each "bind" should have values for
@@ -207,11 +207,11 @@ public class SqlEntityCostStore implements EntityCostStore {
                                             CurrencyAmount.getDefaultInstance().getCurrency(),
                                             BigDecimal.valueOf(categoryCost.getValue()),
                                             cloudTopology.getOwner(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(null),
+                                                .map(TopologyEntityDTO::getOid).orElse(0L),
                                             cloudTopology.getConnectedAvailabilityZone(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(null),
+                                                .map(TopologyEntityDTO::getOid).orElse(0L),
                                             cloudTopology.getConnectedRegion(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(null)
+                                                .map(TopologyEntityDTO::getOid).orElse(0L)
                                         );
 
                                 }

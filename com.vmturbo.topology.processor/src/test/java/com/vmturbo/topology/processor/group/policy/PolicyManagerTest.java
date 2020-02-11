@@ -1,9 +1,12 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.neverDiscoveredTopologyEntity;
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,13 +41,8 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
@@ -53,13 +51,17 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.application.ImmutableResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
+import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator.Results;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 
 /**
@@ -74,14 +76,14 @@ public class PolicyManagerTest {
     private final ReservationServiceMole reservationServiceMole =
             Mockito.spy(new ReservationServiceMole());
 
-    private final GroupResolver groupResolver = Mockito.mock(GroupResolver.class);
+    private final GroupResolver groupResolver = mock(GroupResolver.class);
 
-    private final TopologyGraph<TopologyEntity> topologyGraph = Mockito.mock(TopologyGraph.class);
+    private final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
-    private final PolicyApplicator policyApplicator = Mockito.mock(PolicyApplicator.class);
+    private final PolicyApplicator policyApplicator = mock(PolicyApplicator.class);
 
     private final ReservationPolicyFactory reservationPolicyFactory =
-            Mockito.mock(ReservationPolicyFactory.class);
+            mock(ReservationPolicyFactory.class);
 
     private final long id1 = 1L;
     private final long id2 = 2L;
@@ -153,11 +155,49 @@ public class PolicyManagerTest {
         when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
-            .thenReturn(ImmutableResults.builder().build());
+            .thenReturn(new Results());
         policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
 
         // There shouldn't be a call to get groups if there are no policies.
         verify(groupServiceMole, never()).getGroups(any());
+    }
+
+    /**
+     * Test that a user policy that refers to non-existing groups gets ignored.
+     */
+    @Test
+    public void testUserPolicyMissingGroup() {
+        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
+            .setPolicy(policy12)
+            .build()));
+        // Do not configure the group service to return any of the groups.
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
+        Results expectedResults = mock(Results.class);
+
+        when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
+            .thenReturn(expectedResults);
+
+        final Results results = policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
+        // We should filter out the invalid policy.
+        verify(policyApplicator).applyPolicies(eq(Collections.emptyList()), eq(groupResolver), eq(topologyGraph));
+        assertThat(results, is(expectedResults));
+    }
+
+    /**
+     * Test that a discovered policy that refers to non-existing groups throws an exception.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testDiscoveredPolicyMissingGroupException() {
+        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
+            .setPolicy(policy12.toBuilder()
+                .setTargetId(123)
+                .build())
+            .build()));
+        // Do not configure the group service to return any of the groups.
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
+        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
     }
 
     @Test

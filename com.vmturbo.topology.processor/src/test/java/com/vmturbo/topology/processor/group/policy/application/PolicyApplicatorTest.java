@@ -75,9 +75,9 @@ public class PolicyApplicatorTest {
         order.verify(mustNotRunTogetherApplication).apply(Collections.singletonList(mustNotRunTogetherPolicy));
         order.verify(bindToGroupApplication).apply(Collections.singletonList(bindToGroupPolicy));
 
-        assertThat(results.appliedCounts().get(PolicyDetailCase.MERGE), is(1));
-        assertThat(results.appliedCounts().get(PolicyDetailCase.MUST_NOT_RUN_TOGETHER), is(1));
-        assertThat(results.appliedCounts().get(PolicyDetailCase.BIND_TO_GROUP), is(1));
+        assertThat(results.getAppliedCounts().get(PolicyDetailCase.MERGE), is(1));
+        assertThat(results.getAppliedCounts().get(PolicyDetailCase.MUST_NOT_RUN_TOGETHER), is(1));
+        assertThat(results.getAppliedCounts().get(PolicyDetailCase.BIND_TO_GROUP), is(1));
     }
 
     @Test
@@ -108,8 +108,8 @@ public class PolicyApplicatorTest {
             Arrays.asList(mustNotRunTogetherPolicy, mergePolicy);
 
         final Results results = policyApplicator.applyPolicies(policies, groupResolver, topologyGraph);
-        assertThat(results.errors().get(mergePolicy), is(mergeException));
-        assertThat(results.errors().get(mustNotRunTogetherPolicy), is(mustNotRunTogetherException));
+        assertThat(results.getErrors().get(mergePolicy), is(mergeException));
+        assertThat(results.getErrors().get(mustNotRunTogetherPolicy), is(mustNotRunTogetherException));
     }
 
     @Test
@@ -140,8 +140,8 @@ public class PolicyApplicatorTest {
             Arrays.asList(mustNotRunTogetherPolicy, mergePolicy);
 
         final Results results = policyApplicator.applyPolicies(policies, groupResolver, topologyGraph);
-        assertThat(results.addedCommodityCounts().get(CommodityType.SEGMENTATION), is(10));
-        assertThat(results.addedCommodityCounts().get(CommodityType.VSTORAGE), is(1));
+        assertThat(results.getAddedCommodityCounts().get(CommodityType.SEGMENTATION), is(10));
+        assertThat(results.getAddedCommodityCounts().get(CommodityType.VSTORAGE), is(1));
     }
 
     private MergePolicy mergePolicy() {

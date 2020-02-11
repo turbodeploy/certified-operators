@@ -26,6 +26,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -175,11 +176,15 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Nonnull
     private Collection<Grouping> getListOfGroups(@Nonnull IGroupStore groupStore,
             GetGroupsRequest request) throws StoreOperationException {
-        boolean resolveGroupBasedFilters =
+        final StopWatch stopWatch = new StopWatch("GetListOfGroups");
+        stopWatch.start("replace group filter");
+        final boolean resolveGroupBasedFilters =
             request.getReplaceGroupPropertyWithGroupMembershipFilter();
-
+        stopWatch.stop();
+        stopWatch.start("get group ids");
         final Collection<Long> groupIds = getGroupIds(groupStore, request);
-
+        stopWatch.stop();
+        stopWatch.start("apply user scope");
         final Set<Long> requestedIds = new HashSet<>(request.getGroupFilter().getIdList());
         final List<Long> filteredIds = new ArrayList<>(groupIds.size());
         for (long groupId: groupIds) {
@@ -187,7 +192,11 @@ public class GroupRpcService extends GroupServiceImplBase {
                 filteredIds.add(groupId);
             }
         }
+        stopWatch.stop();
+        stopWatch.start("get groups by ids");
         final Collection<Grouping> filteredGroups = groupStore.getGroupsById(filteredIds);
+        stopWatch.stop();
+        stopWatch.start("replace group properties filter");
         final Collection<Grouping> groupsResult;
         if (resolveGroupBasedFilters) {
             groupsResult = filteredGroups.stream()
@@ -197,6 +206,8 @@ public class GroupRpcService extends GroupServiceImplBase {
         } else {
             groupsResult = filteredGroups;
         }
+        stopWatch.stop();
+        logger.debug(stopWatch::prettyPrint);
         return groupsResult;
     }
 
@@ -781,17 +792,16 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .forEach(memberTypes::add);
                 break;
             case ENTITY_FILTERS:
-                final List<EntityFilter> filterList = groupDefinition
-                                .getEntityFilters().getEntityFilterList();
-
-                 filterList
+                groupDefinition
+                        .getEntityFilters()
+                        .getEntityFilterList()
                         .stream()
-                        .map(EntityFilter::getEntityType)
-                        .distinct()
+                        .map(GroupProtoUtil::getEntityTypesFromEntityFilter)
+                        .flatMap(Collection::stream)
                         .map(entityType -> MemberType
-                                            .newBuilder().setEntity(entityType).build())
+                                .newBuilder().setEntity(entityType.typeNumber()).build())
                         .forEach(memberTypes::add);
-                 break;
+                break;
             case GROUP_FILTERS:
                 // If the group type is dynamic group of groups we currently cannot determine the type
                 // expected in the group so we return empty list

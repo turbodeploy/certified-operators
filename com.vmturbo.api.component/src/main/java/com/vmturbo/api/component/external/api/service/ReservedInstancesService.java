@@ -38,6 +38,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanRese
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -81,6 +83,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final UuidMapper uuidMapper;
 
+    private final UserSessionContext userSessionContext;
+
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
@@ -91,7 +95,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nonnull final GroupExpander groupExpander,
             @Nonnull final PlanServiceBlockingStub planRpcService,
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper) {
+            @Nonnull final UuidMapper uuidMapper,
+            @Nonnull final UserSessionContext userSessionContext) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
@@ -102,6 +107,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
         this.planRpcService = Objects.requireNonNull(planRpcService);
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     @Override
@@ -164,6 +170,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
      */
     private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nonnull ApiId scope)
             throws UnknownObjectException {
+        String scopeUuid = String.valueOf(scope.oid());
+        final Optional<Grouping> groupOptional = groupExpander.getGroup(String.valueOf(scopeUuid));
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
             final Optional<PlanInstance> optPlan = scope.getPlanInstance();
@@ -171,11 +179,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
             // by the plan ID/topology context ID. Instead, when the scope seed OIDs are sent to the
             // cost component, they are expanded. As part of this expansion, the billing families
             // linked to any accounts in scope are pulled in. This differs from realtime behavior in
-            // that there is no scope expansion. At the point RIs are stored within the cost component
-            // by topology context iD (which plans will have to do at some point to correctly snapshot
-            // RI inventory at the point the plan was run), this logic will be collapsed to a single
+            // that there is no scope expansion. This logic will be collapsed to a single
             // branch for both RT and plans
-            if (optPlan.isPresent()) {
+            if (optPlan.isPresent()) { // This is a plan and the call passes in plan id
                 final PlanInstance plan = optPlan.get();
                 final Set<Long> scopeIds = MarketMapper.getPlanScopeIds(plan);
                 final long scopeId = scopeIds.iterator().next();
@@ -189,11 +195,11 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 .setPlanId(plan.getPlanId())
                                 .build();
                 return planReservedInstanceService.getPlanReservedInstanceBought(request).getReservedInstanceBoughtsList();
-            } else { // this must be a realtime scope
-
+            } else { // this is real-time or plans for which the call passes in the entity/group scope uuid rather than the plan id
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
 
+                List<Long> groupScopeMemberOids = new ArrayList<>();
                 // add any scope filters
                 scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
                     switch (entityType) {
@@ -215,6 +221,13 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                             .addAllAccountId(entityOids)
                                             .build());
                             break;
+                        // Note that scope expansion will happen only for groups.  However, related business
+                        // accounts will only be pulled in for plans.
+                        case VIRTUAL_MACHINE:
+                        case DATABASE:
+                        case DATABASE_SERVER:
+                            groupScopeMemberOids.addAll(entityOids);
+                            break;
                         default:
                             // This is an unsupported scope type, therefore we'll ignore it
                             break;
@@ -225,8 +238,35 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         .getReservedInstanceBoughtByFilter(requestBuilder.build())
                         .getReservedInstanceBoughtsList();
             }
-        } else {
-            return Collections.emptySet();
+        } else { // The call for groups is only made from plans.
+            if (groupOptional.isPresent()) {
+                List<Long> groupScopeMemberOids = new ArrayList<>();
+                // add any scope filters
+                scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
+                    switch (entityType) {
+                        // Note that scope expansion will happen only for groups.  However, related business
+                        // accounts will only be pulled in for plans.
+                        case VIRTUAL_MACHINE:
+                        case DATABASE:
+                        case DATABASE_SERVER:
+                            groupScopeMemberOids.addAll(entityOids);
+                            break;
+                        default:
+                            // This is an unsupported scope type, therefore we'll ignore it
+                            break;
+                    }
+                });
+                return reservedInstanceService
+                                .getReservedInstanceBoughtByTopology(
+                                         GetReservedInstanceBoughtByTopologyRequest
+                                             .newBuilder()
+                                             .setTopologyType(TopologyType.PLAN)
+                                                 .addAllScopeSeedOids(groupScopeMemberOids)
+                                                 .build())
+                    .getReservedInstanceBoughtList();
+            } else {
+                return Collections.emptySet();
+            }
         }
     }
 

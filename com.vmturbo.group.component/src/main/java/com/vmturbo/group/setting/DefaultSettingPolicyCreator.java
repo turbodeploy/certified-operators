@@ -1,6 +1,7 @@
 package com.vmturbo.group.setting;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -14,14 +15,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
-import com.google.common.collect.ImmutableMap;
-
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -75,22 +78,19 @@ public class DefaultSettingPolicyCreator implements Runnable {
     }
 
     /**
-     * Attempt to save the default policies into the database.
+     * Attempt to save the default policies into the database. Only save policies that
+     * are different from those already in the DB (to handle upgrades). Don't remove
+     * existing policies or policy specs (even if they were removed from EntitySettingSpec,
+     * which is not supposed to happen) - only add new ones.
      *
      * @return True if another iteration is required. False otherwise (i.e. when all policies
      * have either been written, or failed with unrecoverable errors).
      */
     private boolean runIteration() {
-        // TODO (roman, Oct 6 2017) OM-25242: Merge new defaults with existing defaults,
-        // preserving user modifications unless the modified settings got removed.
-        //
-        // For now we just ignore any entity types that already have
-        // default policies. This is because the facilities to update or
-        // delete policies aren't in place yet.
         settingStore.getSettingPolicies(
                 SettingPolicyFilter.newBuilder().withType(Type.DEFAULT).build())
-                .map(policy -> policy.getInfo().getEntityType())
-                .forEach(policies::remove);
+                    .map(SettingProto.SettingPolicy::getInfo)
+                    .forEach(this::mergePolicies);
         logger.debug("Creating default setting policies: {}", () -> policies.values()
                 .stream()
                 .map(SettingPolicyInfo::getName)
@@ -122,6 +122,47 @@ public class DefaultSettingPolicyCreator implements Runnable {
         // Retain the policies we want to retry.
         policies.keySet().retainAll(retrySet);
         return !policies.isEmpty();
+    }
+
+    /**
+     * Given a policy from the DB, look for the corresponding entry in policies (generated from
+     * EntitySettingSpec for the same entity type - it is assumed that one exists). If it has the
+     * same specs as the one from the DB then don't do anything. If it has extra specs then add
+     * the extra specs to the db policy.
+     * The cases where there is a policy for an entity type in the db, but no corresponding
+     * policy in EntitySettingSpec, or where the one in the db has more specs then the one in
+     * EntitySettingSpec (i.e. policy specs were removed) are not handled.
+     *
+     * @param dbPolicyInfo a policy info from the database
+     */
+    private void mergePolicies(@Nonnull SettingProto.SettingPolicyInfo dbPolicyInfo) {
+        int entityType = dbPolicyInfo.getEntityType();
+        SettingPolicyInfo defaultPolicy = policies.get(entityType);
+        List<String> dbSpecsNames = specNames(dbPolicyInfo);
+        List<String> defaultSpecsNames = specNames(defaultPolicy);
+        if (dbSpecsNames.equals(defaultSpecsNames)) {
+            // Default policies in EntitySettingSpec has the same names as in the DB
+            policies.remove(dbPolicyInfo.getEntityType());
+        } else {
+            // Create a new policy with all specs from the DB and new specs from EntitySettingSpec
+            defaultSpecsNames.removeAll(dbSpecsNames);
+            SettingPolicyInfo merged = SettingPolicyInfo.newBuilder(dbPolicyInfo)
+                    .addAllSettings(defaultPolicy.getSettingsList().stream()
+                        .filter(setting -> defaultSpecsNames.contains(setting.getSettingSpecName()) )
+                        .collect(Collectors.toList()))
+                    .build();
+            policies.put(entityType, merged);
+        }
+    }
+
+    @Nonnull
+    private static List<String> specNames(@Nullable SettingPolicyInfo policy) {
+        return policy == null
+            ? Collections.emptyList()
+            : policy.getSettingsList().stream()
+                .map(Setting::getSettingSpecName)
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     /**
@@ -218,7 +259,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
      */
     @Nonnull
     private static Setting defaultSettingFromSpec(@Nonnull final SettingSpec spec,
-            @Nonnull int entityType) {
+            int entityType) {
         final Setting.Builder retBuilder = Setting.newBuilder().setSettingSpecName(spec.getName());
         switch (spec.getSettingValueTypeCase()) {
             case BOOLEAN_SETTING_VALUE_TYPE: {

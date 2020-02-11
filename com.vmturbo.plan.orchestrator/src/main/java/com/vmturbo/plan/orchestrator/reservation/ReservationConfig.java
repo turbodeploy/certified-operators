@@ -42,8 +42,10 @@ public class ReservationConfig {
      */
     @Bean
     public ReservationManager reservationManager() {
-        return new ReservationManager(planConfig.planDao(),
+        ReservationManager reservationManager = new ReservationManager(planConfig.planDao(),
                 dbConfig.reservationDao(), planConfig.planService());
+        planConfig.planDao().addStatusListener(reservationManager);
+        return reservationManager;
     }
 
     @Bean

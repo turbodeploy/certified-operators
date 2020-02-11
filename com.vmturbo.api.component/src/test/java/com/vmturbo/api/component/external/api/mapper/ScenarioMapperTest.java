@@ -1114,7 +1114,8 @@ public class ScenarioMapperTest {
                         .addId(groupId))
                 .build()))
             .thenReturn(Collections.singletonList(group));
-        when(groupMapper.toGroupApiDto(group)).thenReturn(groupApiDTO);
+        Mockito.when(groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false))
+                .thenReturn(Collections.singletonMap(group.getId(), groupApiDTO));
 
         final ScenarioChangeMappingContext context =
                 new ScenarioChangeMappingContext(repositoryApi, templatesUtils,

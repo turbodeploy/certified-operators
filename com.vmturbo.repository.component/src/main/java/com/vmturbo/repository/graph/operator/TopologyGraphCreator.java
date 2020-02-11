@@ -71,28 +71,13 @@ public class TopologyGraphCreator {
      * @throws GraphDatabaseException
      */
     public void init() throws GraphDatabaseException {
-        final String database = graphDatabaseDriver.getDatabase();
-        // Create the database if it doesn't exist
-        try {
-            if (graphDatabaseDriver.createDatabase()) {
-                logger.info("Created database " + database);
-            } else {
-                logger.warn("Database " + database + " already exists");
-                return;
-            }
-        } catch (GraphDatabaseException e) {
-            throw new GraphDatabaseException(
-                         "Exception encountered while creating database " + database, e);
-        }
-
-
         serviceEntitySubGraphCreator.init();
 
         createTopologyGraph();
 
         createIndices();
 
-        logger.info("Initialized topology graph creation in database " + database);
+        logger.info("Initialized topology graph creation in database " + graphDatabaseDriver.getDatabase());
     }
 
     private void createIndices() throws IndexOperationException {

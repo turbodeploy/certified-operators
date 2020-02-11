@@ -25,6 +25,8 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 import com.vmturbo.topology.processor.history.percentile.PercentileHistoricalEditorConfig;
+import com.vmturbo.topology.processor.history.timeslot.TimeSlotEditor;
+import com.vmturbo.topology.processor.history.timeslot.TimeslotHistoricalEditorConfig;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 
 /**
@@ -64,6 +66,18 @@ public class HistoryAggregationConfig {
     private int grpcStreamTimeoutSec;
     @Value("${historyAggregation.blobReadWriteChunkSizeKb:128}")
     private int blobReadWriteChunkSizeKb;
+
+    @Value("${historyAggregation.backgroundLoadingThreshold:5000}")
+    private int backgroundLoadingThreshold = 5000;
+    @Value("${historyAggregation.backgroundLoadingRetries:3}")
+    private int backgroundLoadingRetries = 3;
+    @Value("${historyAggregation.backgroundLoadingTimeoutMin:60}")
+    private int backgroundLoadingTimeoutMin = 60;
+
+    @Value("${historyAggregation.timeslotEnabled:true}")
+    private boolean timeslotEnabled = true;
+    @Value("${historyAggregation.timeslotMaintenanceWindowHours:23}")
+    private int timeslotMaintenanceWindowHours = TimeslotHistoricalEditorConfig.defaultMaintenanceWindowHours;
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
@@ -108,14 +122,19 @@ public class HistoryAggregationConfig {
     }
 
     /**
-     * Configuration for generic commodities editor that supports chunking.
+     * Configuration for timeslot commodities editor.
      *
      * @return editor configuration
      */
     @Bean
-    public CachingHistoricalEditorConfig historicalEditorConfig() {
-        return new CachingHistoricalEditorConfig(historyAggregationLoadingChunkSize,
-                                                 historyAggregationCalculationChunkSize);
+    public TimeslotHistoricalEditorConfig timeslotEditorConfig() {
+        return new TimeslotHistoricalEditorConfig(historyAggregationLoadingChunkSize,
+                                                  historyAggregationCalculationChunkSize,
+                                                  backgroundLoadingThreshold,
+                                                  backgroundLoadingRetries,
+                                                  backgroundLoadingTimeoutMin,
+                                                  timeslotMaintenanceWindowHours,
+                                                  clockConfig.clock());
     }
 
     /**
@@ -149,6 +168,16 @@ public class HistoryAggregationConfig {
     }
 
     /**
+     * Timeslot commodities history editor.
+     *
+     * @return timeslot editor bean
+     */
+    @Bean
+    public IHistoricalEditor<?> timeslotHistoryEditor() {
+        return new TimeSlotEditor(timeslotEditorConfig(), historyClient());
+    }
+
+    /**
      * Historical values aggregation topology pipeline stage.
      *
      * @return pipeline stage bean
@@ -158,6 +187,9 @@ public class HistoryAggregationConfig {
         Set<IHistoricalEditor<?>> editors = new HashSet<>();
         if (percentileEnabled) {
             editors.add(percentileHistoryEditor());
+        }
+        if (timeslotEnabled) {
+            editors.add(timeslotHistoryEditor());
         }
         return new HistoryAggregator(historyAggregationThreadPool(), ImmutableSet.copyOf(editors));
     }

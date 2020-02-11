@@ -101,6 +101,16 @@ message ScenarioChange {
 
         optional HistoricalBaseline historical_baseline = 5;
 
+        optional IncludedCoupons included_coupons = 7;
+
+        message IncludedCoupons {
+           // User selected OIDs of RIs/Coupons to include in OC plans.
+           repeated int64 included_coupon_oids = 1;
+           // Specied whether the above list is a white (included - default)
+           // or excluded (black) list.
+           optional bool is_white_list = 2 [default = true];
+        }
+
         message IgnoreConstraint {
             // Constraints can be set per group/cluster, for all entities of a specific type
             // or for all entities in the topology.

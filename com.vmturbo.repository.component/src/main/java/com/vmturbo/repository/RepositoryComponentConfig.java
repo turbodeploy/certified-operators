@@ -5,6 +5,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import javax.annotation.PreDestroy;
 
 import com.arangodb.ArangoDB;
+import com.arangodb.ArangoDBException;
 import com.arangodb.Protocol;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
@@ -25,6 +26,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
+import com.vmturbo.arangodb.ArangoError;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -61,8 +63,14 @@ public class RepositoryComponentConfig {
     // Using abbreviated name to consume less space as the
     // name is referenced in the edges in the edgeCollection
     private static final String VERTEX_COLLECTION_NAME = "svc";
-    private static final String EDGE_COLLECTION_NAME = "seProviderEdgeCollection";
+    private static final String EDGE_COLLECTION_NAME = "seProviderEdgeCol";
     private static final String TOPOLOGY_PROTO_COLLECTION_NAME = "topology_proto";
+    /**
+     * Database name prefix used to construct Arango database name to make sure db name starts with
+     * a letter.
+     * https://www.arangodb.com/docs/stable/data-modeling-naming-conventions-database-names.html
+     */
+    private static final String DATABASE_NAME_PREFIX = "T";
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -97,6 +105,11 @@ public class RepositoryComponentConfig {
     private UserSessionConfig userSessionConfig;
 
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
+
+    /**
+     * Boolean field to check if given database has been created or not.
+     */
+    private boolean databaseCreated = false;
 
     /**
      * Store an object of type {@link TopologyDTO.Topology} into ArangoDB.
@@ -183,7 +196,7 @@ public class RepositoryComponentConfig {
     @Bean
     public ArangoDatabaseFactory arangoDatabaseFactory() {
         return () -> {
-            return this.arangoDB.ensureSet(() -> {
+            ArangoDB db = this.arangoDB.ensureSet(() -> {
                 return new ArangoDB.Builder().host(repositoryProperties.getArangodb().getHost(),
                         repositoryProperties.getArangodb().getPort())
                         .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
@@ -195,6 +208,34 @@ public class RepositoryComponentConfig {
                         .useProtocol(Protocol.HTTP_VPACK)
                         .build();
             });
+            // Check databaseCreated first so that every time calling getArangoDriver(), we don't
+            // have to list all databases to see if the given database exists.
+            // We don't expect an Arango database deleted once repository component is running. If by
+            // accident a database is deleted, we have to restart repository component to recreate the
+            // database.
+            // TODO This can be improved by returning a queried ArangoDatabase (arangoDriver.db(databaseName))
+            // instead of arangoDriver (ArangoDB) in this method. If DB does not exist, catch the exception
+            // and recreate the DB so that we don't have to restart repository component to recreate the DB.
+            if (!databaseCreated) {
+                if (!db.getAccessibleDatabases().contains(getArangoDatabaseName())) {
+                    logger.info("Creating database {}.", getArangoDatabaseName());
+                    try {
+                        db.createDatabase(getArangoDatabaseName());
+                    } catch (ArangoDBException adbe) {
+                        // We will treat "duplicate name" errors as harmless -- this means someone
+                        // else may have already created our database.
+                        if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
+                            logger.info("Database {} already created.", getArangoDatabaseName());
+                        } else {
+                            // we'll re-throw the other errors.
+                            logger.error("Error when creating database {}.", getArangoDatabaseName());
+                            throw adbe;
+                        }
+                    }
+                }
+                databaseCreated = true;
+            }
+            return db;
         };
     }
 
@@ -204,7 +245,7 @@ public class RepositoryComponentConfig {
      * @return Topology protobufs manager.
      */
     public TopologyProtobufsManager topologyProtobufsManager() {
-        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDBNamespacePrefix());
+        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDatabaseName());
     }
 
     /**
@@ -222,15 +263,16 @@ public class RepositoryComponentConfig {
     }
 
     /**
-     * Construct ArangoDB namespace prefix to be prepended to database names. For example, if
-     * ArangoDB
-     * namespace is "turbonomic", then the constructed arangoDBNamespacePrefix is "turbonomic-".
+     * Construct Arango database name based on arangoDBNamespace and starting with letter "T", which
+     * stands for Topology, because Arango database (except "_system") name must always start with a
+     * letter: https://www.arangodb.com/docs/stable/data-modeling-naming-conventions-database-names.html
+     * For each namespace, we create only one database to store plan data. For example, if
+     * arangoDBNamespace is "turbonomic", then the constructed database name is "Tturbonomic".
      *
-     * @return Constructed ArangoDB namespace prefix to be prepended to database names.
+     * @return Constructed ArangoDB database name.
      */
-    public String getArangoDBNamespacePrefix() {
-        return StringUtils.isEmpty(repositoryProperties.getArangodb().getNamespace()) ?
-                StringUtils.EMPTY : repositoryProperties.getArangodb().getNamespace() + "-";
+    public String getArangoDatabaseName() {
+        return DATABASE_NAME_PREFIX + repositoryProperties.getArangodb().getNamespace();
     }
 
     /**
@@ -265,7 +307,7 @@ public class RepositoryComponentConfig {
      */
     @Bean
     public GraphDBExecutor arangoDBExecutor() {
-        return new ArangoDBExecutor(arangoDatabaseFactory());
+        return new ArangoDBExecutor(arangoDatabaseFactory(), getArangoDatabaseName());
     }
 
     /**

@@ -29,6 +29,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -129,6 +130,10 @@ public class ServiceConfig {
     // 10 minutes default skew period.
     @Value("${clockSkewSecond:600}")
     private String clockSkewSecond;
+
+    // maximum placement count.
+    @Value("${maximumPlacementCount:100}")
+    private int maximumPlacementCount;
 
     /**
      * Deployment configuration used to expose areas of the application front or backend.
@@ -388,7 +393,8 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.planRpcService(),
             statsQueryExecutor(),
-            mapperConfig.uuidMapper());
+            mapperConfig.uuidMapper(),
+            userSessionContext());
     }
 
     @Bean
@@ -410,7 +416,8 @@ public class ServiceConfig {
     public ReservationsService reservationsService() {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
-                mapperConfig.reservationMapper());
+                mapperConfig.reservationMapper(),
+                maximumPlacementCount);
     }
 
     @Bean
@@ -498,21 +505,30 @@ public class ServiceConfig {
         final StatsService statsService = new StatsService(
             communicationConfig.historyRpcService(),
             communicationConfig.planRpcService(),
-            communicationConfig.repositoryApi(),
-            communicationConfig.repositoryRpcService(),
-            communicationConfig.supplyChainFetcher(),
             mapperConfig.statsMapper(),
-            communicationConfig.groupExpander(),
-            Clock.systemUTC(),
             communicationConfig.groupRpcService(),
             mapperConfig.magicScopeGateway(),
             userSessionContext(),
-            communicationConfig.serviceEntityMapper(),
             mapperConfig.uuidMapper(),
             statsQueryExecutor(),
-            planEntityStatsFetcher());
+            planEntityStatsFetcher(),
+            paginatedStatsExecutor());
         groupsService().setStatsService(statsService);
         return statsService;
+    }
+
+    @Bean
+    public PaginatedStatsExecutor paginatedStatsExecutor() {
+        return new PaginatedStatsExecutor(
+                mapperConfig.statsMapper(),
+                mapperConfig.uuidMapper(),
+                Clock.systemUTC(),
+                communicationConfig.repositoryApi(),
+                communicationConfig.historyRpcService(),
+                communicationConfig.supplyChainFetcher(),
+                userSessionContext(),
+                communicationConfig.groupExpander()
+                );
     }
 
     @Bean
@@ -675,7 +691,8 @@ public class ServiceConfig {
                         communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
                         communicationConfig.repositoryApi(),
                         communicationConfig.reservedInstanceCostServiceBlockingStub(),
-                        mapperConfig.buyRiScopeHandler());
+                        mapperConfig.buyRiScopeHandler(),
+                        userSessionContext());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
     }

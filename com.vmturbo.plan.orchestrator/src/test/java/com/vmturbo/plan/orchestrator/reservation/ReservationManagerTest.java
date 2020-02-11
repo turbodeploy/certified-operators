@@ -1,20 +1,32 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
@@ -38,6 +50,9 @@ public class ReservationManagerTest {
 
     private ReservationManager reservationManager;
 
+    @Captor
+    private ArgumentCaptor<Set<Reservation>> updateBatchCaptor;
+
     private Reservation testReservation = Reservation.newBuilder()
             .setId(1000)
             .setName("test-reservation")
@@ -47,16 +62,18 @@ public class ReservationManagerTest {
                             .setTemplateId(234L)))
             .build();
 
-    // 100 hrs later
+    // active 100 hrs later expires 101 hrs later
     private Reservation testFutureReservation = Reservation.newBuilder()
             .setId(1001)
             .setName("test-reservation")
             .setStartDate(System.currentTimeMillis() + 1000 * 60 * 60 * 100)
+            .setExpirationDate(System.currentTimeMillis() + 1000 * 60 * 60 * 101)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
                             .setTemplateId(234L)))
             .build();
+
 
     private Reservation unfulfilledReservation = Reservation.newBuilder()
             .setId(1002)
@@ -103,12 +120,38 @@ public class ReservationManagerTest {
                                     .addPlacementInfo(PlacementInfo.newBuilder().setProviderId(500L)))))
             .build();
 
+
+    // expired
+    private Reservation testExpiredReservation = Reservation.newBuilder()
+            .setId(1006)
+            .setName("test-reservation")
+            .setStartDate(System.currentTimeMillis() - 2000)
+            .setExpirationDate(System.currentTimeMillis() - 1000)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
+            .build();
+
+    // active for the last 2 hrs and expires in another hr
+    private Reservation testActiveNotExpiredReservation = Reservation.newBuilder()
+            .setId(1007)
+            .setName("test-reservation")
+            .setStartDate(System.currentTimeMillis() - 1000 * 60 * 60 * 2)
+            .setExpirationDate(System.currentTimeMillis() + 1000 * 60 * 60)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
+            .build();
+
     /**
      * Initial setup.
      * @throws Exception because of calls to reservationDao methods.
      */
     @Before
     public void setup() throws Exception {
+        MockitoAnnotations.initMocks(this);
         planDao = Mockito.mock(PlanDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
         planRpcService = Mockito.mock(PlanRpcService.class);
@@ -136,20 +179,31 @@ public class ReservationManagerTest {
     }
 
     /**
+     * Test intializeReservationStatus method with current reservation.
+     */
+    @Test
+    public void testHasReservationExpired() {
+        assertFalse(reservationManager.hasReservationExpired(testFutureReservation));
+        assertFalse(reservationManager.hasReservationExpired(testActiveNotExpiredReservation));
+        assertTrue(reservationManager.hasReservationExpired(testExpiredReservation));
+    }
+
+    /**
      * Test checkAndStartReservationPlan method with no in progress reservation.
      */
     @Test
     public void testCheckAndStartReservationPlanSuccess() {
         ReservationManager reservationManagerSpy = spy(reservationManager);
         Mockito.doNothing().when(reservationManagerSpy).runPlanForBatchReservation();
-        ArgumentCaptor<HashSet<Reservation>> captor =
-                ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
-                        .class);
-        Mockito.when(reservationDao.getAllReservations())
+        when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(unfulfilledReservation)));
         reservationManagerSpy.checkAndStartReservationPlan();
         try {
-            verify(reservationDao, times(1)).updateReservationBatch(captor.capture());
+            verify(reservationDao, times(1)).updateReservationBatch(updateBatchCaptor.capture());
+            Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
+            assertThat(updatedReservations, containsInAnyOrder(unfulfilledReservation.toBuilder()
+                .setStatus(ReservationStatus.INPROGRESS)
+                .build()));
         } catch (NoSuchObjectException e) {
             e.printStackTrace();
         }
@@ -162,11 +216,11 @@ public class ReservationManagerTest {
     public void testCheckAndStartReservationPlanFailure() {
         ReservationManager reservationManagerSpy = spy(reservationManager);
         Mockito.doNothing().when(reservationManagerSpy).runPlanForBatchReservation();
-        Mockito.when(reservationDao.getAllReservations())
+        when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(inProgressReservation1, unfulfilledReservation)));
         reservationManagerSpy.checkAndStartReservationPlan();
 
-        Mockito.when(reservationDao.getAllReservations())
+        when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(inProgressReservation1)));
         reservationManagerSpy.checkAndStartReservationPlan();
         try {
@@ -211,6 +265,32 @@ public class ReservationManagerTest {
         } catch (NoSuchObjectException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Test that a reservation plan failure marks in-progress reservations as invalid.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testPlanFailure() throws Exception {
+        when(reservationDao.getAllReservations())
+            .thenReturn(Sets.newHashSet(inProgressReservation1, unfulfilledReservation));
+
+        reservationManager.onPlanStatusChanged(PlanInstance.newBuilder()
+            .setPlanId(1)
+            .setProjectType(PlanProjectType.RESERVATION_PLAN)
+            .setStatus(PlanStatus.FAILED)
+            .build());
+
+        verify(reservationDao).updateReservationBatch(updateBatchCaptor.capture());
+
+        final Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
+
+        // We should have updated the in-progress reservation to invalid.
+        assertThat(updatedReservations, containsInAnyOrder(inProgressReservation1.toBuilder()
+            .setStatus(ReservationStatus.INVALID)
+            .build()));
     }
 
 }

@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -17,6 +18,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
@@ -50,7 +52,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
     CostNotificationConfig.class,
     CostComponentGlobalConfig.class,
     TopologyProcessorListenerConfig.class,
-    SupplyChainServiceConfig.class})
+    SupplyChainServiceConfig.class,
+    CostClientConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -113,6 +116,9 @@ public class ReservedInstanceConfig {
     @Autowired
     private SupplyChainServiceConfig supplyChainRpcServiceConfig;
 
+    @Autowired
+    private CostClientConfig costClientConfig;
+
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
@@ -163,6 +169,7 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
                 entityReservedInstanceMappingStore(), repositoryClientConfig.repositoryClient(),
                 supplyChainRpcServiceConfig.supplyChainRpcService(),
+                PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
@@ -202,9 +209,9 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-            reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
-                        entityReservedInstanceMappingStore(),
-            timeFrameCalculator());
+                        reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+                        entityReservedInstanceMappingStore(), planProjectedRICoverageAndUtilStore(),
+                        timeFrameCalculator(), realtimeTopologyContextId);
     }
 
     @Bean
@@ -294,9 +301,8 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanTopologyListener planTopologyListener() {
-        PlanTopologyListener planTopologyListener
-                = new PlanTopologyListener(planReservedInstanceStore(),
-                                                   reservedInstanceBoughtRpcService());
+        PlanTopologyListener planTopologyListener = new PlanTopologyListener(costClientConfig
+                        .costChannel(), planReservedInstanceStore());
         marketComponent.addPlanAnalysisTopologyListener(planTopologyListener);
         return planTopologyListener;
     }

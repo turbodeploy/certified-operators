@@ -78,7 +78,7 @@ public class PaginationTestUtil {
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
         Mockito.when(paginationRequest.allResultsResponse(any()))
                 .thenReturn(Mockito.mock(SearchPaginationResponse.class));
-        searchService.getMembersBasedOnFilter(query, inputDto, paginationRequest);
+        searchService.getMembersBasedOnFilter(query, inputDto, paginationRequest, null);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }

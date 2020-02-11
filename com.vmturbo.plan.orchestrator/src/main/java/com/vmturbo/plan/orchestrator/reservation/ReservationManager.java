@@ -21,6 +21,7 @@ import org.joda.time.DateTimeZone;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -38,6 +39,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
+import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
 
 /**
  * Handle reservation related stuff. This is the place where we check if the current
@@ -45,7 +47,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
  * We also kickoff a new reservation plan if no other plan is running.
  * All the state transition logic is handled by this class.
  */
-public class ReservationManager {
+public class ReservationManager implements PlanStatusListener, ReservationStatusListener {
     private final Logger logger = LogManager.getLogger();
 
     private final ReservationDao reservationDao;
@@ -70,6 +72,7 @@ public class ReservationManager {
         this.planDao = Objects.requireNonNull(planDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.planService = Objects.requireNonNull(planRpcService);
+        this.reservationDao.addListener(this);
     }
 
     public ReservationDao getReservationDao() {
@@ -84,8 +87,7 @@ public class ReservationManager {
      * Update all inprogress reservations to placement_failed on plan failure.
      * Also kick start a new reservation plan by calling checkAndStartReservationPlan.
      */
-    public void updateReservationsOnPlanFailure() {
-        logger.error("Reservation Plan failed. Updating all INPROGRESS reservations to INVALID.");
+    private void updateReservationsOnPlanFailure() {
         synchronized (reservationSetLock) {
             final Set<Reservation> inProgressSet =
                     reservationDao.getAllReservations().stream()
@@ -98,6 +100,9 @@ public class ReservationManager {
             }
             try {
                 reservationDao.updateReservationBatch(updatedReservation);
+                logger.info("Marked reservations {} as invalid.", () -> inProgressSet.stream()
+                    .map(reservation -> reservation.getId() + "(" + reservation.getName() + ")")
+                    .collect(Collectors.joining(",")));
             } catch (NoSuchObjectException e) {
                 logger.error("Reservation update failed" + e);
             }
@@ -181,6 +186,18 @@ public class ReservationManager {
         final DateTime today = DateTime.now(DateTimeZone.UTC);
         final DateTime reservationDate = new DateTime(reservation.getStartDate(), DateTimeZone.UTC);
         return reservationDate.isEqual(today) || reservationDate.isBefore(today);
+    }
+
+    /**
+     * Check if the reservation has expired.
+     * @param reservation reservation of interest
+     * @return false if the reservation has not expired.
+     *         true  otherwise.
+     */
+    public boolean hasReservationExpired(@Nonnull final ReservationDTO.Reservation reservation) {
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
+        final DateTime expirationDate = new DateTime(reservation.getExpirationDate(), DateTimeZone.UTC);
+        return expirationDate.isEqual(today) || expirationDate.isBefore(today);
     }
 
     /**
@@ -309,4 +326,22 @@ public class ReservationManager {
         return placementSettingOverrides;
     }
 
+    @Override
+    public void onPlanStatusChanged(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
+        if (plan.getProjectType() == PlanProjectType.RESERVATION_PLAN) {
+            if (plan.getStatus() == PlanStatus.FAILED) {
+                logger.error("Reservation plan {} failed. Message: {}." +
+                    " Marking reservations as INVALID.", plan.getPlanId(), plan.getStatusMessage());
+                // We know that the failed plan relates to the current in-progress
+                // reservations because successful reservations delete the plan they relate
+                // to while holding a lock.
+                updateReservationsOnPlanFailure();
+            }
+        }
+    }
+
+    @Override
+    public void onReservationDeleted(@Nonnull final Reservation reservation) {
+        checkAndStartReservationPlan();
+    }
 }

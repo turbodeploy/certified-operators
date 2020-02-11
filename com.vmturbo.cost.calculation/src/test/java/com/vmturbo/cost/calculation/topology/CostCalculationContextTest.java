@@ -8,10 +8,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
-import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.cost.calculation.CostCalculationContext;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.DiscountApplicator;
@@ -79,8 +80,8 @@ public class CostCalculationContextTest {
                 .build(infoExtractor);
         Optional<OnDemandPriceTable> onDemandPriceTable = Optional.of(accountPricingData.getPriceTable()
                 .getOnDemandPriceByRegionIdMap().get(REGION_ID));
-        Optional<SpotInstancePriceTable> spotInstancePriceTable = Optional.of(accountPricingData.getPriceTable()
-                .getSpotPriceByRegionIdMap().get(REGION_ID));
+        Optional<SpotInstancePriceTable> spotInstancePriceTable = Optional.of(accountPricingData
+                .getPriceTable().getSpotPriceByZoneOrRegionIdMap().get(REGION_ID));
         CostCalculationContext context = new CostCalculationContext(costJournal, testEntity, REGION_ID,
                 accountPricingData, onDemandPriceTable, spotInstancePriceTable);
         assert (context.getEntity().equals(testEntity));
@@ -111,8 +112,13 @@ public class CostCalculationContextTest {
                                         .addPrices(price(Unit.MONTH, 20, GB_MONTH_PRICE_20
                                                 * CostProtoUtil.HOURS_IN_MONTH)).build())
                                         .build()).build())
-                                .putSpotPriceByRegionId(REGION_ID, Pricing.SpotInstancePriceTable.newBuilder()
-                                        .putSpotPriceByInstanceId(COMPUTE_TIER_ID, price(Unit.HOURS, BASE_PRICE))
+                                .putSpotPriceByZoneOrRegionId(REGION_ID, SpotInstancePriceTable.newBuilder()
+                                        .putSpotPricesByTierOid(COMPUTE_TIER_ID, SpotPricesForTier
+                                                .newBuilder()
+                                                .addPriceForGuestOsType(PriceForGuestOsType.newBuilder()
+                                                        .setGuestOsType(OSType.LINUX)
+                                                        .setPrice(price(Unit.HOURS, BASE_PRICE)))
+                                                .build())
                                         .build())
                                 .build();
     }

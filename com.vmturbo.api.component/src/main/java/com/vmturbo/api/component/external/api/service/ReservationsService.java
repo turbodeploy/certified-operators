@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
 
+    private final int maximumPlacementCount;
 
     private final ReservationServiceBlockingStub reservationService;
 
@@ -47,9 +48,10 @@ public class ReservationsService implements IReservationsService {
 
 
     ReservationsService(@Nonnull final ReservationServiceBlockingStub reservationService,
-                               @Nonnull final ReservationMapper reservationMapper) {
+            @Nonnull final ReservationMapper reservationMapper, final int maximumPlacementCount) {
         this.reservationService = Objects.requireNonNull(reservationService);
         this.reservationMapper = Objects.requireNonNull(reservationMapper);
+        this.maximumPlacementCount = maximumPlacementCount;
     }
 
     @Override
@@ -102,6 +104,7 @@ public class ReservationsService implements IReservationsService {
             case PLACEMENT:
                 return new DemandReservationApiDTO();
             case RESERVATION:
+                validatePlacementCount(demandApiInputDTO);
                 final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
                 final CreateReservationRequest request = CreateReservationRequest.newBuilder()
                         .setReservation(reservation)
@@ -110,6 +113,23 @@ public class ReservationsService implements IReservationsService {
                 return reservationMapper.convertReservationToApiDTO(createdReservation);
             default:
                 throw new UnsupportedOperationException("Invalid action " + demandAction);
+        }
+    }
+
+    /**
+     * Restrict the maximum placement count. Consider restricting minimum count too when needed.
+     *
+     * @param inputDTO input DTO for reservation request.
+     * @throws OperationFailedException when the placement count is larger than max count.
+     */
+    private void validatePlacementCount(@Nonnull final DemandReservationApiInputDTO inputDTO)
+            throws OperationFailedException {
+        if (inputDTO.getParameters() != null && inputDTO.getParameters()
+                .stream()
+                .anyMatch(dto -> dto.getPlacementParameters().getCount() > maximumPlacementCount)) {
+            throw new OperationFailedException(
+                    "The maximum placement count is " + maximumPlacementCount +
+                            ". Please lower the placement count and try again.");
         }
     }
 

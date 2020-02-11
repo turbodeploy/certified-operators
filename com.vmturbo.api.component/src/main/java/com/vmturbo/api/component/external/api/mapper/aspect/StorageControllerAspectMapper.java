@@ -30,6 +30,6 @@ public class StorageControllerAspectMapper extends DiskCommonAspectMapper {
     @Nonnull
     @Override
     public AspectName getAspectName() {
-        return AspectName.STORAGE_CONTROLLER;
+        return AspectName.STORAGE;
     }
 }

@@ -52,9 +52,9 @@ public class VirtualMachineEntityConstructorTest {
             CommodityType.STORAGE_AMOUNT_VALUE), epsilon);
         assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
                 CommodityType.STORAGE_PROVISIONED_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             CommodityType.IO_THROUGHPUT_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+        assertEquals(400.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             CommodityType.NET_THROUGHPUT_VALUE), epsilon);
         assertEquals(40.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             CommodityType.CPU_VALUE), epsilon);

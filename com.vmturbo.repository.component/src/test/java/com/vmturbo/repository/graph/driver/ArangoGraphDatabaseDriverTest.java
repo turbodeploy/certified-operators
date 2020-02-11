@@ -61,6 +61,8 @@ public class ArangoGraphDatabaseDriverTest {
 
     private final String database = "db-test";
 
+    private final String collectionNameSuffix = "-1-S-2";
+
     @Captor
     private ArgumentCaptor<ArrayList<EdgeDefinition>> edgeDefinitionEntityCaptor;
 
@@ -68,7 +70,7 @@ public class ArangoGraphDatabaseDriverTest {
     public void setUp() {
         when(mockArangoDriver.db(database)).thenReturn(mockArangoDatabase);
         when(mockArangoDatabase.collection(any())).thenReturn(mockArangoCollection);
-        arangoGraphDatabaseDriverTest = new ArangoGraphDatabaseDriver(mockArangoDriver, database);
+        arangoGraphDatabaseDriverTest = new ArangoGraphDatabaseDriver(mockArangoDriver, database, collectionNameSuffix);
     }
 
     @Test
@@ -79,7 +81,7 @@ public class ArangoGraphDatabaseDriverTest {
         arangoGraphDatabaseDriverTest.createCollection(p);
 
         ArgumentCaptor<CollectionCreateOptions> arg = ArgumentCaptor.forClass(CollectionCreateOptions.class);
-        verify(mockArangoDatabase).createCollection(eq(name), arg.capture());
+        verify(mockArangoDatabase).createCollection(eq(name + collectionNameSuffix), arg.capture());
         assertEquals(CollectionType.DOCUMENT, arg.getValue().getType());
     }
 
@@ -91,7 +93,7 @@ public class ArangoGraphDatabaseDriverTest {
         arangoGraphDatabaseDriverTest.createCollection(p);
 
         ArgumentCaptor<CollectionCreateOptions> arg = ArgumentCaptor.forClass(CollectionCreateOptions.class);
-        verify(mockArangoDatabase).createCollection(eq(name), arg.capture());
+        verify(mockArangoDatabase).createCollection(eq(name + collectionNameSuffix), arg.capture());
         assertEquals(CollectionType.EDGES, arg.getValue().getType());
     }
 
@@ -106,7 +108,7 @@ public class ArangoGraphDatabaseDriverTest {
         BaseEdgeDocument edgeDocument = new BaseEdgeDocument(from, to);
         edgeDocument.addAttribute("type", p.getEdgeType());
 
-        verify(mockArangoDatabase).collection(edgeCollection);
+        verify(mockArangoDatabase).collection(edgeCollection + collectionNameSuffix);
         verify(mockArangoCollection).insertDocument(edgeDocument);
     }
 
@@ -121,7 +123,7 @@ public class ArangoGraphDatabaseDriverTest {
         BaseEdgeDocument edgeDocument = new BaseEdgeDocument(from, to);
         edgeDocument.addAttribute("type", p.getEdgeType());
 
-        verify(mockArangoDatabase).collection(edgeCollection);
+        verify(mockArangoDatabase).collection(edgeCollection + collectionNameSuffix);
         verify(mockArangoCollection).insertDocument(edgeDocument);
     }
 
@@ -139,7 +141,7 @@ public class ArangoGraphDatabaseDriverTest {
         arangoGraphDatabaseDriverTest.createEdgesInBatch(
                 p.withFroms(froms).withTos(tos));
 
-        verify(mockArangoDatabase).collection(edgeCollection);
+        verify(mockArangoDatabase).collection(edgeCollection + collectionNameSuffix);
 
         BaseEdgeDocument edgeDocument1 = new BaseEdgeDocument(from1, to1);
         edgeDocument1.addAttribute("type", p.getEdgeType());
@@ -159,7 +161,7 @@ public class ArangoGraphDatabaseDriverTest {
         arangoGraphDatabaseDriverTest.createEdgesInBatch(
                 p.withFroms(froms).withTos(tos));
 
-        verify(mockArangoDatabase, never()).collection(edgeCollection);
+        verify(mockArangoDatabase, never()).collection(edgeCollection + collectionNameSuffix);
         verify(mockArangoCollection, never()).insertDocuments(any());
     }
 
@@ -177,11 +179,11 @@ public class ArangoGraphDatabaseDriverTest {
 
         arangoGraphDatabaseDriverTest.createGraph(p);
 
-        verify(mockArangoDatabase).createGraph(eq(graphName), edgeDefinitionEntityCaptor.capture());
-        assertEquals(edgeCollection1, edgeDefinitionEntityCaptor.getValue().get(0).getCollection());
-        assertTrue(edgeDefinitionEntityCaptor.getValue().get(0).getFrom().contains(vertexCollection1));
-        assertEquals(edgeCollection2, edgeDefinitionEntityCaptor.getValue().get(1).getCollection());
-        assertTrue(edgeDefinitionEntityCaptor.getValue().get(1).getFrom().contains(vertexCollection2));
+        verify(mockArangoDatabase).createGraph(eq(graphName + collectionNameSuffix), edgeDefinitionEntityCaptor.capture());
+        assertEquals(edgeCollection1 + collectionNameSuffix, edgeDefinitionEntityCaptor.getValue().get(0).getCollection());
+        assertTrue(edgeDefinitionEntityCaptor.getValue().get(0).getFrom().contains(vertexCollection1 + collectionNameSuffix));
+        assertEquals(edgeCollection2 + collectionNameSuffix, edgeDefinitionEntityCaptor.getValue().get(1).getCollection());
+        assertTrue(edgeDefinitionEntityCaptor.getValue().get(1).getFrom().contains(vertexCollection2 + collectionNameSuffix));
     }
 
     @Test
@@ -192,7 +194,7 @@ public class ArangoGraphDatabaseDriverTest {
         VertexParameter p = new VertexParameter.Builder(vertexCollection).value(value).key(key).build();
         arangoGraphDatabaseDriverTest.createVertex(p);
 
-        verify(mockArangoDatabase).collection(vertexCollection);
+        verify(mockArangoDatabase).collection(vertexCollection + collectionNameSuffix);
 
         final Map<String, Object> newVertex = new HashMap<String, Object>() {{
             put("_key", key);
@@ -212,7 +214,7 @@ public class ArangoGraphDatabaseDriverTest {
         VertexParameter p = new VertexParameter.Builder(vertexCollection).build();
         arangoGraphDatabaseDriverTest.createVerticesInBatch(p.withValues(values).withKeys(keys));
 
-        verify(mockArangoDatabase).collection(vertexCollection);
+        verify(mockArangoDatabase).collection(vertexCollection + collectionNameSuffix);
 
         final Map<String, Object> newVertex1 = new HashMap<String, Object>() {{
             put("_key", "key-1");

@@ -55,7 +55,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
         final Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes =
                         getPropertyTypeToUtilizationTypes(statsFilter);
         final boolean histUtilizationRequestRequired = propertyTypeToUtilizationTypes.values().stream()
-                        .noneMatch(Collection::isEmpty);
+                .anyMatch(s -> !s.isEmpty());
         if (histUtilizationRequestRequired) {
             final List<HistUtilizationRecord> result =
                             getDataFromHistUtilization(entityIds, propertyTypeToUtilizationTypes);

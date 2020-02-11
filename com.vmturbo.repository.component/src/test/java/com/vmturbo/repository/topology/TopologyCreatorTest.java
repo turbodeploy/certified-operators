@@ -54,21 +54,19 @@ public class TopologyCreatorTest {
 
     private final GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
 
-    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
-
     private final TopologyID realtimeSourceId =
-        topologyIDFactory.createTopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
+        new TopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
     private final TopologyID realtimeProjectedId =
-        topologyIDFactory.createTopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
+        new TopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
     private final TopologyID planSourceId =
-        topologyIDFactory.createTopologyID(1L, 1L, TopologyType.SOURCE);
+        new TopologyID(1L, 1L, TopologyType.SOURCE);
     private final TopologyID planProjectedId =
-        topologyIDFactory.createTopologyID(1L, 1L, TopologyType.PROJECTED);
+        new TopologyID(1L, 1L, TopologyType.PROJECTED);
 
 
     @Before
     public void setup() {
-        when(graphDatabaseDriverBuilder.build(any())).thenReturn(mockDriver);
+        when(graphDatabaseDriverBuilder.build(any(), any())).thenReturn(mockDriver);
         when(topologyProtobufsManager.createSourceTopologyProtobufWriter(anyLong()))
             .thenReturn(protobufWriter);
         when(topologyProtobufsManager.createProjectedTopologyProtobufWriter(anyLong()))
@@ -88,7 +86,6 @@ public class TopologyCreatorTest {
                 graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(realtimeSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager, never()).createProjectedTopologyProtobufWriter(anyLong());
     }
@@ -105,7 +102,6 @@ public class TopologyCreatorTest {
                 graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(realtimeProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager, never()).createProjectedTopologyProtobufWriter(anyLong());
     }
@@ -122,7 +118,8 @@ public class TopologyCreatorTest {
                 graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(planSourceId.toDatabaseName()));
+        verify(graphDatabaseDriverBuilder).build(eq(graphDBExecutor.getArangoDatabaseName()),
+            eq(planSourceId.toCollectionNameSuffix()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager)
             .createSourceTopologyProtobufWriter(eq(planSourceId.getTopologyId()));
@@ -140,7 +137,8 @@ public class TopologyCreatorTest {
                 graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(planProjectedId.toDatabaseName()));
+        verify(graphDatabaseDriverBuilder).build(eq(graphDBExecutor.getArangoDatabaseName()),
+            eq(planProjectedId.toCollectionNameSuffix()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager)
             .createProjectedTopologyProtobufWriter(eq(planProjectedId.getTopologyId()));
@@ -188,14 +186,14 @@ public class TopologyCreatorTest {
     public void testTopologyCreatorRollback() throws Exception {
         ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.rollback();
-        verify(mockDriver).dropDatabase();
+        verify(mockDriver).dropCollections();
     }
 
     @Test
     public void testProjectedTopologyCreatorRollback() throws Exception {
         ArangoProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
         creator.rollback();
-        verify(mockDriver).dropDatabase();
+        verify(mockDriver).dropCollections();
         verify(protobufWriter).delete();
     }
 

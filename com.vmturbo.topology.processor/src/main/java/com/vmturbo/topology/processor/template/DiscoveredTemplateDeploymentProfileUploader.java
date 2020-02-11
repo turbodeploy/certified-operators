@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.plan;
+package com.vmturbo.topology.processor.template;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -11,8 +11,11 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,7 +40,6 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTem
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateTargetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
@@ -46,6 +48,8 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.deployment.profile.DeploymentProfileMapper;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Object is used to send newly available templates and deployment profile data to be stored in plan orchestrator.
@@ -71,6 +75,8 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
 
     private final EntityStore entityStore;
 
+    private final TargetStore targetStore;
+
     private final Object storeLock = new Object();
 
     // Keeping missing template to make sure we don't overflow the log.
@@ -81,7 +87,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     // Map all discovered templates to list of deployment profile which associate with, for
     // those discovered templates without deployment profiles, it will map to a empty list.
     @GuardedBy("storeLock")
-    private final Map<Long, EntityProfileToDeploymentProfileMap> DiscoveredTemplateToDeploymentProfile =
+    private final Map<Long, EntityProfileToDeploymentProfileMap> discoveredTemplateToDeploymentProfile =
         new HashMap<>();
 
     // Contains all discovered deployment profile which have no reference template. Normally, it should
@@ -96,19 +102,29 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     // per-target mapping of external to internal deployment profile identifiers
     private final Map<Long, Map<String, Long>> target2deploymentProfileId2oid = new ConcurrentHashMap<>();
 
+    private final long uploadTimeLimitMs;
+
     /**
      * Constructs templates deployment profile uploader.
      *
+     * @param entityStore Contains information about discovered entities.
+     * @param targetStore  Contains information about registered targets.
      * @param templatesDeploymentProfileService rpc service to use for upload template and deployment profile
+     * @param uploadTimeLimit Time limit to wait for the upload.
+     * @param uploadTimeUnit Time unit for the upload time limit.
      */
     public DiscoveredTemplateDeploymentProfileUploader(
-        @Nonnull EntityStore entityStore,
-        DiscoveredTemplateDeploymentProfileServiceStub templatesDeploymentProfileService) {
-        Objects.requireNonNull(entityStore);
-        this.entityStore = entityStore;
+            @Nonnull final EntityStore entityStore,
+            @Nonnull final TargetStore targetStore,
+            @Nonnull final DiscoveredTemplateDeploymentProfileServiceStub templatesDeploymentProfileService,
+            final long uploadTimeLimit,
+            @Nonnull final TimeUnit uploadTimeUnit) {
+        this.entityStore = Objects.requireNonNull(entityStore);
+        this.targetStore = Objects.requireNonNull(targetStore);
         this.nonBlockingTemplateDeploymentProfileService = Objects.requireNonNull(templatesDeploymentProfileService);
         this.loggedMissingTemplateCache = CacheBuilder.newBuilder()
             .expireAfterAccess(6, TimeUnit.HOURS).build();
+        this.uploadTimeLimitMs = uploadTimeUnit.toMillis(uploadTimeLimit);
     }
 
     /**
@@ -141,7 +157,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             getDeploymentProfileWithoutTemplate(targetId, deploymentProfileDTOs);
         // We synchronized put operation on two Maps to make sure thread safe.
         synchronized (storeLock) {
-            DiscoveredTemplateToDeploymentProfile.put(targetId, templateToDeploymentProfileMap);
+            discoveredTemplateToDeploymentProfile.put(targetId, templateToDeploymentProfileMap);
             orphanedDeploymentProfile.put(targetId, deploymentProfileNoTemplates);
         }
     }
@@ -231,7 +247,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             })
         );
         synchronized (storeLock) {
-            DiscoveredTemplateToDeploymentProfile.put(targetId,
+            discoveredTemplateToDeploymentProfile.put(targetId,
                 new EntityProfileToDeploymentProfileMap(reverseMap));
             orphanedDeploymentProfile.put(targetId,
                 profileTemplateMap.entrySet().stream()
@@ -243,19 +259,19 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     }
 
     @Override
-    public void sendTemplateDeploymentProfileData() throws CommunicationException {
+    public void sendTemplateDeploymentProfileData() throws UploadException, InterruptedException {
+
+        final CompletableFuture<Void> completionFuture = new CompletableFuture<>();
 
         StreamObserver<UpdateDiscoveredTemplateDeploymentProfileResponse> responseObserver =
             new StreamObserver<UpdateDiscoveredTemplateDeploymentProfileResponse>() {
                 @Override
                 public void onNext(final UpdateDiscoveredTemplateDeploymentProfileResponse response) {
                     for (TargetProfileIdentities identities : response.getTargetProfileIdentitiesList()) {
-                       target2profileId2oid
-                                       .computeIfAbsent(identities.getTargetOid(),
+                       target2profileId2oid.computeIfAbsent(identities.getTargetOid(),
                                                         key -> new ConcurrentHashMap<>())
                                        .putAll(identities.getProfileIdToOidMap());
-                       target2deploymentProfileId2oid
-                                       .computeIfAbsent(identities.getTargetOid(),
+                       target2deploymentProfileId2oid.computeIfAbsent(identities.getTargetOid(),
                                                         key -> new ConcurrentHashMap<>())
                                        .putAll(identities.getDeploymentProfileIdToOidMap());
                     }
@@ -265,33 +281,55 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                 public void onError(final Throwable throwable) {
                     logger.error("Error uploading discovered templates and deployment profile {}.",
                         throwable.getMessage());
+                    completionFuture.completeExceptionally(throwable);
                 }
 
                 @Override
                 public void onCompleted() {
                     logger.info("Uploaded discovered templates and deployment profile.");
+                    completionFuture.complete(null);
                 }
             };
 
-        StreamObserver<UpdateTargetDiscoveredTemplateDeploymentProfileRequest> requestObserver =
+        final StreamObserver<UpdateTargetDiscoveredTemplateDeploymentProfileRequest> requestObserver =
             nonBlockingTemplateDeploymentProfileService.updateDiscoveredTemplateDeploymentProfile(responseObserver);
+
+        final Set<Long> targetsWithoutDiscoveredTemplateData = targetStore.getAll().stream()
+            .map(Target::getId)
+            .filter(targetId -> !discoveredTemplateToDeploymentProfile.containsKey(targetId))
+            .collect(Collectors.toSet());
+
         // Synchronized map iterate operation in order to prevent other thread modify map in same time.
         synchronized (storeLock) {
-            DiscoveredTemplateToDeploymentProfile.entrySet().stream()
-                .forEach(entry -> {
-                    final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
-                        UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
-                            .setTargetId(entry.getKey());
-                    addEntityProfileToDeploymentProfile(entry.getValue(), targetRequest);
-                    Optional.ofNullable(orphanedDeploymentProfile.get(entry.getKey()))
-                        .ifPresent(targetRequest::addAllDeploymentProfileWithoutTemplates);
-                    targetRequest.build();
-                    // Sending the template
-                    requestObserver.onNext(targetRequest.build());
-                });
+            discoveredTemplateToDeploymentProfile.forEach((targetId, discoveredData) -> {
+                final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
+                    UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                        .setTargetId(targetId);
+                addEntityProfileToDeploymentProfile(discoveredData, targetRequest);
+                targetRequest.addAllDeploymentProfileWithoutTemplates(
+                    orphanedDeploymentProfile.getOrDefault(targetId, Collections.emptySet()));
+                targetRequest.build();
+                // Sending the template
+                requestObserver.onNext(targetRequest.build());
+            });
+
+            // Send information about targets that have no discovered templates (yet). This will
+            // prevent any existing data for those targets from being deleted on restart.
+            targetsWithoutDiscoveredTemplateData.forEach(targetId -> {
+                requestObserver.onNext(UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                    .setTargetId(targetId)
+                    .setDataAvailable(false)
+                    .build());
+            });
         }
         // After sending all the templates continue the logic in Plan Orchestrator
         requestObserver.onCompleted();
+
+        try {
+            completionFuture.get(uploadTimeLimitMs, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new UploadException(e.getCause());
+        }
     }
 
     /**
@@ -304,7 +342,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     public Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>>
                                                         getDiscoveredDeploymentProfilesByTarget() {
         final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> result = new HashMap<>();
-        DiscoveredTemplateToDeploymentProfile.forEach((targetId, templateToProfileMap) -> {
+        discoveredTemplateToDeploymentProfile.forEach((targetId, templateToProfileMap) -> {
             final Map<DeploymentProfileInfo, Set<EntityProfileDTO>> interior = new HashMap<>();
             templateToProfileMap.entityProfileDTOSetMap.forEach((template, profileSet) ->
                 profileSet.forEach(profile -> {
@@ -341,7 +379,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         // We synchronized delete operation on two Maps to make sure thread safe.
         synchronized (storeLock) {
             // Remove entry for targetId, templates will be deleted at next broadcast.
-            DiscoveredTemplateToDeploymentProfile.remove(targetId);
+            discoveredTemplateToDeploymentProfile.remove(targetId);
             orphanedDeploymentProfile.remove(targetId);
         }
         target2deploymentProfileId2oid.remove(targetId);
@@ -525,4 +563,13 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         }
     }
 
+
+    /**
+     * Exception thrown when the upload fails.
+     */
+    public static class UploadException extends Exception {
+        UploadException(@Nonnull final Throwable cause) {
+            super(cause);
+        }
+    }
 }

@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISett
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
@@ -132,6 +133,37 @@ public class PlanProgressListenerTest {
         assertThat(unexpectedlyAdvancedBuilder.getStatus(), is(PlanStatus.WAITING_FOR_RESULT));
         assertThat(unexpectedlyAdvancedBuilder.getPlanProgress().getSourceTopologySummary(),
             is(topologySummary));
+    }
+
+    /**
+     * Test that the plan status gets updated correctly on receipt of a notification about a
+     * topology broadcast failure in the Topology Processor.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testOnBroadcastPlanFailure() throws Exception {
+        when(planDao.updatePlanInstance(anyLong(), any())).thenReturn(PlanInstance.getDefaultInstance());
+
+        final long planId = 123;
+        final String errMsg = "problem.";
+        TopologySummary topologySummary = TopologySummary.newBuilder()
+            .setTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyContextId(planId))
+            .setFailure(TopologyBroadcastFailure.newBuilder()
+                .setErrorDescription(errMsg))
+            .build();
+        planProgressListener.onTopologySummary(topologySummary);
+
+        verify(planDao).updatePlanInstance(eq(planId), builderCaptor.capture());
+
+        final Consumer<PlanInstance.Builder> builderModifier = builderCaptor.getValue();
+        final PlanInstance.Builder constructingTopologyBuilder = PlanInstance.newBuilder()
+            // This is the initial status once broadcast is queued.
+            .setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY);
+        builderModifier.accept(constructingTopologyBuilder);
+        assertThat(constructingTopologyBuilder.getStatus(), is(PlanStatus.FAILED));
+        assertThat(constructingTopologyBuilder.getStatusMessage(), is(errMsg));
     }
 
     /**
@@ -300,10 +332,11 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeSuccess() {
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan(
-                null, null, null, null,
-                null, SUCCEEDED, null));
+        PlanInstance.Builder plan = getPlan(null, null, null, null,
+                null, SUCCEEDED, null);
+        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(plan);
         Assert.assertEquals(SUCCEEDED, planStatus);
+        Assert.assertTrue(plan.getEndTime() != 0);
     }
 
     /**
@@ -311,10 +344,12 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeFail() {
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan(
+        PlanInstance.Builder plan = getPlan(
                 null, null, null, null,
-                null, FAILED, null));
+                null, FAILED, null);
+        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(plan);
         Assert.assertEquals(FAILED, planStatus);
+        Assert.assertTrue(plan.getEndTime() != 0);
     }
 
     /**
@@ -355,8 +390,8 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChange);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
-                (getPlanProgress(null, null),
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(
+            getPlan(getPlanProgress(null, null),
                         true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
                         null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus);
@@ -382,8 +417,8 @@ public class PlanProgressListenerTest {
                 .addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
-                (getPlanProgress(FAIL, SUCCESS), true, SOURCE_TOPOLOGY_ID,
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(
+            getPlan(getPlanProgress(FAIL, SUCCESS), true, SOURCE_TOPOLOGY_ID,
                         PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, scenario));
         Assert.assertEquals(FAILED, planStatus);
     }
@@ -408,8 +443,8 @@ public class PlanProgressListenerTest {
                 .addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
-                (getPlanProgress(SUCCESS, FAIL), true, SOURCE_TOPOLOGY_ID,
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(
+            getPlan(getPlanProgress(SUCCESS, FAIL), true, SOURCE_TOPOLOGY_ID,
                         PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, scenario));
         Assert.assertEquals(FAILED, planStatus);
     }
@@ -461,8 +496,8 @@ public class PlanProgressListenerTest {
                 .addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertTrue(PlanProgressListener.isOCPOptimizeAndBuyRI(getPlan
-                (getPlanProgress(null, null),
+        Assert.assertTrue(PlanProgressListener.isOCPOptimizeAndBuyRI(
+            getPlan(getPlanProgress(null, null),
                         true, null, null,
                         null, null, scenario)));
     }
@@ -483,8 +518,8 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertFalse(PlanProgressListener.isOCPOptimizeAndBuyRI(getPlan
-                (getPlanProgress(null, null),
+        Assert.assertFalse(PlanProgressListener.isOCPOptimizeAndBuyRI(
+            getPlan(getPlanProgress(null, null),
                         true, null, null,
                         null, null, scenario)));
     }
@@ -501,8 +536,8 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChange);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertTrue(PlanProgressListener.isOCPBuyRIOnly(getPlan
-                (getPlanProgress(null, null),
+        Assert.assertTrue(PlanProgressListener.isOCPBuyRIOnly(
+            getPlan(getPlanProgress(null, null),
                         true, null, null,
                         null, null, scenario)));
     }
@@ -516,8 +551,8 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertFalse(PlanProgressListener.isOCPBuyRIOnly(getPlan
-                (getPlanProgress(null, null),
+        Assert.assertFalse(PlanProgressListener.isOCPBuyRIOnly(
+            getPlan(getPlanProgress(null, null),
                         true, null, null,
                         null, null, scenario)));
     }
@@ -547,6 +582,7 @@ public class PlanProgressListenerTest {
      *
      * @param planProgress        The plan progress
      * @param isStatsAvailable    Is the stats available
+     * @param sourceTopologyID    The source topology ID.
      * @param projectedTopologyID The projected topology ID
      * @param actionPlanID        The projected plan ID
      * @param planStatus          The plan status

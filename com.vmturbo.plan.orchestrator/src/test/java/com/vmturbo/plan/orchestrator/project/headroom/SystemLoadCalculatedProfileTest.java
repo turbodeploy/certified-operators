@@ -98,12 +98,12 @@ public class SystemLoadCalculatedProfileTest {
                         Double.valueOf(diskConsumption.get().getValue()), delta);
 
         // NET_THROUGHPUT avg = (21 + 7)/2
-        Optional<TemplateField> netThroughput = getField(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, templateInfo);
+        Optional<TemplateField> netThroughput = getField(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, templateInfo);
         assertTrue(netThroughput.isPresent());
         assertEquals(14d, Double.valueOf(netThroughput.get().getValue()), delta);
 
         // IO_THROUGHPUT avg = (8 + 24)/2
-        Optional<TemplateField> io = getField(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, templateInfo);
+        Optional<TemplateField> io = getField(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT, templateInfo);
         assertTrue(io.isPresent());
         assertEquals(16d, Double.valueOf(io.get().getValue()), delta);
 
@@ -221,12 +221,12 @@ public class SystemLoadCalculatedProfileTest {
                         Double.valueOf(diskConsumption.get().getValue()), delta);
 
         // NET_THROUGHPUT : max(21,7)
-        Optional<TemplateField> netThroughput = getField(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT_SIZE, templateInfo);
+        Optional<TemplateField> netThroughput = getField(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, templateInfo);
         assertTrue(netThroughput.isPresent());
         assertEquals(21, Double.valueOf(netThroughput.get().getValue()), delta);
 
         // IO_THROUGHPUT : max(8,24)
-        Optional<TemplateField> io = getField(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT_SIZE, templateInfo);
+        Optional<TemplateField> io = getField(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT, templateInfo);
         assertTrue(io.isPresent());
         assertEquals(24d, Double.valueOf(io.get().getValue()), delta);
 

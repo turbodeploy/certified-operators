@@ -2,13 +2,17 @@ package com.vmturbo.stitching.utilities;
 
 import static com.vmturbo.platform.common.builders.EntityBuilders.businessAccount;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -16,7 +20,10 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.common.builders.ConsumerPolicyBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.stitching.DTOFieldSpec;
 import com.vmturbo.stitching.StitchingEntity;
@@ -46,8 +53,22 @@ public class EntityFieldMergersTest {
             .profileId("barProfile")
             .build().toBuilder();
 
+    private final String virtualVolume1Oid = "volume1";
+    private final String virtualVolume2Oid = "volume2";
+    private final String virtualVolume1DisplayName = "volume1display";
+    private final String virtualVolume2DisplayName = "volume2display";
+    private final String[] virtualVolume1Filepaths = {"unique1", "unique2", "shared1", "shared2"};
+    private final String[] virtualVolume2Filepaths = {"shared1", "shared2", "unique3"};
+
     private final StitchingEntity foo = new TestStitchingEntity(vmFoo);
     private final StitchingEntity bar = new TestStitchingEntity(vmBar);
+
+    private final StitchingEntity virtualVolume1 =
+        new TestStitchingEntity(createVirtualVolumeBuilder(virtualVolume1Oid,
+            virtualVolume1DisplayName, virtualVolume1Filepaths));
+    private final StitchingEntity virtualVolume2 =
+        new TestStitchingEntity(createVirtualVolumeBuilder(virtualVolume2Oid,
+            virtualVolume2DisplayName, virtualVolume2Filepaths));
 
     @Test
     public void testMergeDisplayName() {
@@ -57,6 +78,21 @@ public class EntityFieldMergersTest {
 
         // After merging the displayName should now be "bar" because it comes before "foo" in the alphabet.
         assertEquals("bar", foo.getDisplayName());
+    }
+
+    /**
+     * Test that when we merge virtual volumes, we take the intersection of their filelists.
+     */
+    @Test
+    public void testMergeFilelists() {
+        // merge from one shared volume onto another
+        EntityFieldMergers.VIRTUAL_VOLUME_FILELIST_INTERSECTION
+            .merge(virtualVolume1, virtualVolume2);
+        assertEquals(2,
+            virtualVolume2.getEntityBuilder().getVirtualVolumeData().getFileCount());
+        assertThat(virtualVolume2.getEntityBuilder().getVirtualVolumeData().getFileList().stream()
+            .map(VirtualVolumeFileDescriptor::getPath)
+            .collect(Collectors.toList()), containsInAnyOrder("shared1", "shared2"));
     }
 
     @Test
@@ -182,5 +218,19 @@ public class EntityFieldMergersTest {
         assertEquals(0, ba1.getEntityBuilder().getConsistsOfCount());
         consistsOfMerger.merge(ba2, ba1);
         assertEquals(2, ba1.getEntityBuilder().getConsistsOfCount());
+    }
+
+    private EntityDTO.Builder createVirtualVolumeBuilder(String oid,
+                                                       String displayName,
+                                                       String[] files) {
+        return EntityDTO.newBuilder()
+            .setId(oid)
+            .setDisplayName(displayName)
+            .setEntityType(EntityType.VIRTUAL_VOLUME)
+            .setVirtualVolumeData(VirtualVolumeData.newBuilder()
+                .addAllFile(Arrays.stream(files)
+                    .map(path -> VirtualVolumeFileDescriptor.newBuilder().setPath(path).build())
+                    .collect(Collectors.toList()))
+                .build());
     }
 }

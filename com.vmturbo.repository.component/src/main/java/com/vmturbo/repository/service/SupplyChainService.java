@@ -1,6 +1,5 @@
 package com.vmturbo.repository.service;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -15,11 +14,7 @@ import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javaslang.collection.HashMap;
-import javaslang.collection.Iterator;
-import javaslang.collection.List;
 import javaslang.control.Either;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -28,8 +23,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
-import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.topology.GlobalSupplyChainFilter;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyID;
@@ -145,35 +138,5 @@ public class SupplyChainService {
                 return e.getOrElse(Collections.emptyMap());
             });
         }
-    }
-
-    /**
-     * Return the entities related to the given scoped entity ID.
-     *
-     * @param contextID The topology to compute the scoped entities.
-     * @param startId The entity id to scope for.
-     * @param entityTypes The types that we are interested in.
-     *
-     * @return The {@link ScopedEntity}.
-     */
-    public Flux<ScopedEntity> scopedEntities(final long contextID,
-                                             final String startId,
-                                             final Collection<String> entityTypes) {
-        return lifecycleManager.databaseOf(contextID, TopologyType.SOURCE)
-            .map(database -> getSupplyChainInternal(contextID, startId, Optional.empty())
-                .flatMap(m -> {
-                    final Map<String, Set<Long>> filteredMap = HashMap.ofAll(m)
-                            .filter(entry -> entityTypes.contains(entry._1)).toJavaMap();
-                    final List<Long> oids = List.ofAll(filteredMap.values()).flatMap(List::ofAll);
-                    final Iterator<Flux<ScopedEntity>> oidPublishers = oids.grouped(OID_CHUNK_SIZE)
-                            .map(oidChunk -> executor.fetchScopedEntities(database,
-                                graphDefinition.getServiceEntityVertex(), oidChunk));
-                    return Flux.merge(oidPublishers);
-                }))
-            .orElseGet(() -> {
-                LOGGER.error("Unable to find database with topology context {}." +
-                        " Returning empty list of scoped entities.", contextID);
-                return Flux.empty();
-            });
     }
 }

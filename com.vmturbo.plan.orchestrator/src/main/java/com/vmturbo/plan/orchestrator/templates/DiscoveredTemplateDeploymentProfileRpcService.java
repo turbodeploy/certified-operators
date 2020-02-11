@@ -66,7 +66,7 @@ public class DiscoveredTemplateDeploymentProfileRpcService extends DiscoveredTem
                     final Map<Long, TemplateInfoToDeploymentProfileMap> targetProfileMap = new HashMap<>();
                     final Map<Long, List<DeploymentProfileInfo>> orphanedDeploymentProfile = new HashMap<>();
                     for (UpdateTargetDiscoveredTemplateDeploymentProfileRequest targetRequest : requestSet) {
-                        final TemplateInfoToDeploymentProfileMap templateInfoSetMap = new TemplateInfoToDeploymentProfileMap();
+                        final TemplateInfoToDeploymentProfileMap templateInfoSetMap = new TemplateInfoToDeploymentProfileMap(targetRequest.getDataAvailable());
                         for (EntityProfileToDeploymentProfile profile : targetRequest.getEntityProfileToDeploymentProfileList()) {
                             try {
                                 final TemplateInfo templateInfo = TemplatesMapper.createTemplateInfo(profile.getEntityProfile(),

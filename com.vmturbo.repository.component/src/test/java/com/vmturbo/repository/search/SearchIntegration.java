@@ -201,7 +201,7 @@ public class SearchIntegration {
                                     .build();
                 };
 
-        final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory);
+        final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory, db);
 
         final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()

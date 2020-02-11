@@ -62,7 +62,6 @@ import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
@@ -71,6 +70,7 @@ import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 
 /**
  * Handle diagnostics for {@link TopologyProcessorComponent}.

@@ -7,7 +7,6 @@ import static javaslang.Patterns.Failure;
 import static javaslang.Patterns.Success;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,7 +42,6 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 
 /**
@@ -185,11 +183,9 @@ public class SearchHandler {
     public Either<Throwable, Collection<ServiceEntityRepoDTO>> getEntitiesByOids(
             @Nonnull final Set<Long> entityOids,
             @Nonnull final TopologyID topologyID) {
-        final TopologyDatabase database = topologyID.database();
         final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-                graphDefinition.getServiceEntityVertex(),
-                entityOids,
-                database);
+                graphDefinition.getSEVertexCollection(topologyID),
+                entityOids);
         final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
 
         return Match(seResults).of(

@@ -11,10 +11,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.immutables.value.Value;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
@@ -47,6 +47,11 @@ public class PolicyApplicator {
 
     private final PolicyFactory policyFactory;
 
+    /**
+     * Public constructor.
+     *
+     * @param policyFactory Factory class for policies.
+     */
     public PolicyApplicator(@Nonnull final PolicyFactory policyFactory) {
         this.policyFactory = policyFactory;
     }
@@ -57,7 +62,7 @@ public class PolicyApplicator {
      *
      * @param policies The policies to apply.
      * @param groupResolver The {@link GroupResolver} to use to resolve groups.
-     * @param topologyGraph The {@link TopologyGraph<TopologyEntity>} for the currently constructed topology.
+     * @param topologyGraph The {@link TopologyGraph} for the currently constructed topology.
      * @return A {@link Results} object containing the results of the bulk application.
      */
     @Nonnull
@@ -69,7 +74,7 @@ public class PolicyApplicator {
                 .collect(Collectors.groupingBy(policy ->
                     policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase()));
 
-        final ImmutableResults.Builder resultsBldr = ImmutableResults.builder();
+        final Results results = new Results();
         final Map<CommodityDTO.CommodityType, MutableInt> totalAddedCommodities = new HashMap<>();
 
         APPLICATION_ORDER.forEach(policyClass -> {
@@ -82,8 +87,8 @@ public class PolicyApplicator {
 
                     final PolicyApplicationResults res =
                         application.apply(policiesOfClass);
-                    resultsBldr.putAllErrors(res.errors());
-                    resultsBldr.putAppliedCounts(policyClass, policiesOfClass.size() - res.errors().size());
+                    results.putAllErrors(res.errors());
+                    results.putAppliedCounts(policyClass, policiesOfClass.size() - res.errors().size());
 
                     res.addedCommodities().forEach((commType, numAdded) ->
                         totalAddedCommodities.computeIfAbsent(commType, k -> new MutableInt(0))
@@ -93,35 +98,115 @@ public class PolicyApplicator {
         });
 
         totalAddedCommodities.forEach((commType, totalNumAdded) -> {
-            resultsBldr.putAddedCommodityCounts(commType, totalNumAdded.toInteger());
+            results.putAddedCommodityCounts(commType, totalNumAdded.toInteger());
         });
 
         // Go through the remaining policies, regardless of the order.
-        return resultsBldr.build();
+        return results;
     }
 
     /**
      * The results of applying a collection of policies.
+     * Used to help print summary information about policy application in a broadcast.
      */
-    @Value.Immutable
-    public interface Results {
+    public static class Results {
 
         /**
          * The number of policies successfully applied, broken down by the type of policy.
          */
-        Map<PolicyDetailCase, Integer> appliedCounts();
+        private final Map<PolicyDetailCase, Integer> appliedCounts = new HashMap<>();
 
         /**
          * The number of commodities added to the topology, broken down by the type of commodity.
          */
-        Map<CommodityDTO.CommodityType, Integer> addedCommodityCounts();
+        private final Map<CommodityDTO.CommodityType, Integer> addedCommodityCounts = new HashMap<>();
 
         /**
          * (Any policies that encountered errors) -> (error encountered by the policy).
          */
-        Map<PlacementPolicy, PolicyApplicationException> errors();
+        private final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
+
+        private int invalidPolicyCount = 0;
+
+        /**
+         * Record the number of commodities of a particular type added by policies.
+         *
+         * @param commType The commodity type.
+         * @param commodityCount The number of commodities added.
+         */
+        public void putAddedCommodityCounts(@Nonnull final CommodityType commType,
+                                            final int commodityCount) {
+            addedCommodityCounts.put(commType, commodityCount);
+        }
+
+        /**
+         * Add error information about applied policies.
+         *
+         * @param errors Map of failed policy -> exception that caused the failure.
+         */
+        public void putAllErrors(@Nonnull final Map<PlacementPolicy, PolicyApplicationException> errors) {
+            this.errors.putAll(errors);
+        }
+
+        /**
+         * Record the number of policies applied for a particular {@link PolicyDetailCase}.
+         *
+         * @param policyClass The {@link PolicyDetailCase}.
+         * @param count The number of policies of the policy class that were applied.
+         */
+        public void putAppliedCounts(@Nonnull final PolicyDetailCase policyClass, final int count) {
+            this.appliedCounts.put(policyClass, count);
+        }
+
+        /**
+         * Get errors encountered during policy application.
+         *
+         * @return Map from failed policy to the exception that the policy failed with.
+         */
+        public Map<PlacementPolicy, PolicyApplicationException> getErrors() {
+            return errors;
+        }
+
+        /**
+         * Get counts of successfully applied policies.
+         *
+         * @return Map from the type of policy to the number of applied policies of that type.
+         */
+        public Map<PolicyDetailCase, Integer> getAppliedCounts() {
+            return appliedCounts;
+        }
+
+        /**
+         * Get counts of commodities added by all policies, broken down by commodity type.
+         *
+         * @return Map of commodity type -> number of commodities of that type added by policies.
+         */
+        public Map<CommodityDTO.CommodityType, Integer> getAddedCommodityCounts() {
+            return addedCommodityCounts;
+        }
+
+        /**
+         * Get the number of invalid policies in this round of policy applications.
+         *
+         * @return The number of invalid policies.
+         */
+        public int getInvalidPolicyCount() {
+            return invalidPolicyCount;
+        }
+
+        /**
+         * Record the number of invalid policies in this round of policy application.
+         *
+         * @param invalidPolicyCount The number of invalid policies.
+         */
+        public void addInvalidPolicyCount(final int invalidPolicyCount) {
+            this.invalidPolicyCount += invalidPolicyCount;
+        }
     }
 
+    /**
+     * Metrics used for policy application.
+     */
     private static class Metrics {
 
         static final DataMetricSummary POLICY_APPLICATION_SUMMARY = DataMetricSummary.builder()

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.communication;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -16,6 +17,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections.CollectionUtils;
+
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -26,6 +29,10 @@ import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccou
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
@@ -281,7 +288,8 @@ public class RepositoryApi {
 
         @Nonnull
         Map<Long, ServiceEntityApiDTO> getSEMap(final long contextId,
-                                                @Nullable EntityAspectMapper aspectMapper) {
+                                                @Nullable EntityAspectMapper aspectMapper,
+                                                @Nullable Collection<String> requestedAspects) {
             final Map<Long, ServiceEntityApiDTO> entities;
             if (aspectMapper == null) {
                 // Do the conversion in bulk.
@@ -291,7 +299,9 @@ public class RepositoryApi {
                 entities = getFullEntities()
                     .collect(Collectors.toMap(
                         TopologyEntityDTO::getOid,
-                        entity -> entityWithAspects(entity, aspectMapper)));
+                        entity -> entityWithAspects(entity, aspectMapper, requestedAspects)));
+
+                setEntitiesCost(entities.values().stream().collect(Collectors.toList()));
             }
             severityPopulator.populate(contextId, entities);
             return entities;
@@ -299,16 +309,20 @@ public class RepositoryApi {
 
         @Nonnull
         List<ServiceEntityApiDTO> getSEList(final long contextId,
-                                            @Nullable EntityAspectMapper aspectMapper) {
+                                            @Nullable EntityAspectMapper aspectMapper,
+                                            @Nullable Collection<String> requestedAspects) {
             final List<ServiceEntityApiDTO> entities;
+
             if (aspectMapper == null) {
                 entities = getEntities()
                     .map(serviceEntityMapper::toServiceEntityApiDTO)
                     .collect(Collectors.toList());
             } else {
                 entities = getFullEntities()
-                    .map(entity -> entityWithAspects(entity, aspectMapper))
+                    .map(entity -> entityWithAspects(entity, aspectMapper, requestedAspects))
                     .collect(Collectors.toList());
+
+                setEntitiesCost(entities);
             }
             severityPopulator.populate(contextId, entities);
             return entities;
@@ -316,12 +330,61 @@ public class RepositoryApi {
 
         @Nonnull
         private ServiceEntityApiDTO entityWithAspects(@Nonnull final TopologyEntityDTO entity,
-                                                      @Nonnull EntityAspectMapper aspectMapper) {
+                                                      @Nonnull EntityAspectMapper aspectMapper,
+                                                      @Nullable Collection<String> requestedAspects) {
             final ServiceEntityApiDTO se = serviceEntityMapper.toServiceEntityApiDTO(entity);
-            se.setAspectsByName(aspectMapper.getAspectsByEntity(entity));
+            if (CollectionUtils.isNotEmpty(requestedAspects)) {
+                final Map<AspectName, EntityAspect> aspectsByName = new HashMap<>();
+                final TemplateApiDTO template = new TemplateApiDTO();
+                BaseApiDTO cloudTemplate = null;
+
+                for (String requestedAspect: requestedAspects) {
+                    final AspectName aspectName = AspectName.fromString(requestedAspect);
+                    final EntityAspect entityAspect = aspectMapper.getAspectByEntity(entity, aspectName);
+                    aspectsByName.put(aspectName, entityAspect);
+
+                    if (entityAspect instanceof CloudAspectApiDTO) {
+                        CloudAspectApiDTO cloudAspect = (CloudAspectApiDTO)entityAspect;
+                        if (cloudTemplate == null) {
+                            cloudTemplate = cloudAspect.getTemplate();
+                        }
+                    }
+                }
+
+                if (cloudTemplate != null) {
+                    template.setUuid(cloudTemplate.getUuid());
+                    template.setDisplayName(cloudTemplate.getDisplayName());
+                    se.setTemplate(template);
+                }
+
+                se.setAspectsByName(aspectsByName);
+            } else {
+                se.setAspectsByName(aspectMapper.getAspectsByEntity(entity));
+            }
+
             return se;
         }
 
+        /**
+         * Set the cost price for entity from the input list, if available.
+         *
+         * @param entities The input list of service entities.
+         */
+        private void setEntitiesCost(List<ServiceEntityApiDTO> entities) {
+            Map<Long, Double>  entityCostMap = serviceEntityMapper.computeCostPriceByEntity(
+                    entities.stream()
+                        .map(entity -> Long.valueOf(entity.getUuid()))
+                        .collect(Collectors.toSet()));
+
+                for (ServiceEntityApiDTO entity : entities) {
+                    Double costPrice = entityCostMap.get(Long.valueOf(entity.getUuid()));
+                    if (costPrice == null) {
+                        entity.setCostPrice(0.0f);
+                    } else {
+                        entity.setCostPrice(costPrice.floatValue());
+                    }
+                }
+        }
     }
 
     /**
@@ -431,7 +494,7 @@ public class RepositoryApi {
          */
         @Nonnull
         public Map<Long, ServiceEntityApiDTO> getSEMap() {
-            return retriever.getSEMap(realtimeContextId, aspectMapper);
+            return retriever.getSEMap(realtimeContextId, aspectMapper, null);
         }
 
         /**
@@ -442,7 +505,7 @@ public class RepositoryApi {
          */
         @Nonnull
         public List<ServiceEntityApiDTO> getSEList() {
-            return retriever.getSEList(realtimeContextId, aspectMapper);
+            return retriever.getSEList(realtimeContextId, aspectMapper, null);
         }
 
     }
@@ -501,7 +564,7 @@ public class RepositoryApi {
          */
         @Nonnull
         public Optional<ServiceEntityApiDTO> getSE() {
-            return retriever.getSEList(getContextId(), aspectMapper).stream().findFirst();
+            return retriever.getSEList(getContextId(), aspectMapper, aspects).stream().findFirst();
         }
     }
 
@@ -555,7 +618,7 @@ public class RepositoryApi {
          */
         @Nonnull
         public Map<Long, ServiceEntityApiDTO> getSEMap() {
-            return retriever.getSEMap(getContextId(), aspectMapper);
+            return retriever.getSEMap(getContextId(), aspectMapper, aspects);
         }
 
         /**
@@ -566,7 +629,7 @@ public class RepositoryApi {
          */
         @Nonnull
         public List<ServiceEntityApiDTO> getSEList() {
-            return retriever.getSEList(getContextId(), aspectMapper);
+            return retriever.getSEList(getContextId(), aspectMapper, aspects);
         }
     }
 
@@ -582,6 +645,8 @@ public class RepositoryApi {
         private Long contextId = null;
 
         protected EntityAspectMapper aspectMapper = null;
+
+        protected Collection<String> aspects = null;
 
         private Set<Integer> restrictedTypes = new HashSet<>();
 
@@ -668,7 +733,24 @@ public class RepositoryApi {
         }
 
         /**
-         * Restrict the request to a set of entity types
+         * Use a particular {@link EntityAspectMapper} when converting the entities returned by
+         * this request to {@link ServiceEntityApiDTO}s.
+         *
+         * @param aspectMapper The input aspect mapper.
+         * @param aspectNames The input list of aspect names.
+         *
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public REQ useAspectMapper(EntityAspectMapper aspectMapper,
+                @Nonnull Collection<String> aspectNames) {
+            this.aspectMapper = aspectMapper;
+            this.aspects = aspectNames;
+            return clazz.cast(this);
+        }
+
+        /**
+         * Restrict the request to a set of entity types.
          *
          * @param types The entity types.
          * @return The request, for chaining.
