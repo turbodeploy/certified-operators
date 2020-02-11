@@ -86,7 +86,7 @@ public class ApplicationEntitiesConverter {
             TemplateDTO.Builder newTemplateBuilder = TemplateDTO.newBuilder(template);
 
             // Changing commodities bought from apps or app servers
-            if (doesBuyApps(template)) {
+            if (isBuyingFromOldApplicationEntity(template)) {
                 updateAppBoughtCommodities(newTemplateBuilder, template);
             }
 
@@ -166,7 +166,7 @@ public class ApplicationEntitiesConverter {
      * @param template old-format entity template
      * @return whether entity buys apps or app servers
      */
-    private boolean doesBuyApps(final TemplateDTO template) {
+    private boolean isBuyingFromOldApplicationEntity(final TemplateDTO template) {
         return template.getCommodityBoughtList()
                 .stream()
                 .anyMatch(c -> c.hasKey() && isOldApplicationEntity(c.getKey().getTemplateClass()));
