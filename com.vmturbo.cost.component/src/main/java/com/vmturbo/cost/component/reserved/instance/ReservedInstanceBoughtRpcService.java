@@ -110,7 +110,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                                         request.getTopologyContextId() : realtimeTopologyContextId;
             // If getSaved is true, get the saved plan RIs, else get them from real-time.
             // When plan is still being configured, for instance, there will be no saved RIs.
-            boolean getSaved = !request.hasGetSaved();
+            boolean getSaved = request.getGetSaved();
             // Retrieve the RIs selected by user to include in the plan.
             if (getSaved && topologyContextId != realtimeTopologyContextId) {
                 final GetPlanReservedInstanceBoughtRequest planSavedRiRequest =

@@ -1,11 +1,16 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -17,14 +22,19 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**
  * Tests for the {@link PlanReservedInstanceRpcService}.
@@ -48,6 +58,44 @@ public class PlanReservedInstanceRpcServiceTest {
 
     private PlanReservedInstanceRpcService service = new PlanReservedInstanceRpcService(
                     planReservedInstanceStore, buyReservedInstanceStore);
+
+    private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(123L)
+                    .setProbeReservedInstanceId("bar")
+                    .setReservedInstanceSpec(101L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(10)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .setDisplayName("t101.small")
+                    .build();
+
+    private static final ReservedInstanceBoughtInfo RI_INFO_2 = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(456L)
+                    .setProbeReservedInstanceId("foo")
+                    .setReservedInstanceSpec(102L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(20)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .setDisplayName("t102.large")
+                    .build();
+
+    private static final ReservedInstanceBoughtInfo RI_INFO_3 = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(456L)
+                    .setProbeReservedInstanceId("foo")
+                    .setReservedInstanceSpec(103L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(20)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .setDisplayName("m3.large")
+                    .build();
 
     /**
      * Set up a test GRPC server.
@@ -153,5 +201,48 @@ public class PlanReservedInstanceRpcServiceTest {
         Assert.assertEquals(90.0, projectedStats.getFixedCost(), DELTA);
         Assert.assertEquals(0.2, projectedStats.getRecurringCost(), DELTA);
         Assert.assertEquals(0.30213, projectedStats.getAmortizedCost(), DELTA);
+    }
+
+    /**
+     * Tests retrieval of RIs/Coupons included in OCP plans.
+     */
+    @Test
+    public void testGetSavedIncludedReservedInstanceBought() {
+        final long planId = 1234567L;
+        final List<ReservedInstanceBought> planReservedInstanceBought =
+                        Arrays.asList(ReservedInstanceBought.newBuilder()
+                                      .setReservedInstanceBoughtInfo(RI_INFO_1).build(),
+                    ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_2)
+                                    .build());
+
+        // insert the plan RIs to plan data store.
+        final UploadRIDataRequest insertRiRequest =
+                        UploadRIDataRequest
+                                        .newBuilder()
+                                        .setTopologyId(planId)
+                                        .addAllReservedInstanceBought(planReservedInstanceBought)
+                                        .build();
+
+        client.insertPlanReservedInstanceBought(insertRiRequest);
+
+        // The added RIs have Region ID == 101L and 102L.
+        Set<Long> scopeIds = new HashSet<>();
+        scopeIds.add(101L);
+        scopeIds.add(102L);
+        scopeIds.add(103L);
+
+        // setup what's expected to be returned on going through the plan path.
+        when(planReservedInstanceStore.getReservedInstanceBoughtByPlanId(planId))
+                    .thenReturn(planReservedInstanceBought);
+
+        // The RIs stored in db by plan id are the plan included RIs/ Coupons (2 in this case).
+        // When getSaved is true, the plan RIs are fetched.
+        List<ReservedInstanceBought> riBought1 = client
+                        .getPlanReservedInstanceBought(GetPlanReservedInstanceBoughtRequest
+                                        .newBuilder()
+                                        .setPlanId(planId)
+                                        .build()).getReservedInstanceBoughtsList();
+
+        assertEquals(2, riBought1.size());
     }
 }
