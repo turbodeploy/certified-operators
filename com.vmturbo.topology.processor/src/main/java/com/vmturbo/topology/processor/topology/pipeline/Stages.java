@@ -850,7 +850,8 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
-                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
+                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes,
+                    getContext().getTopologyInfo());
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;

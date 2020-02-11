@@ -408,12 +408,12 @@ public class StagesTest {
         when(results.getAppliedCounts()).thenReturn(Collections.emptyMap());
         when(results.getAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
-        when(policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList()))
+        when(policyManager.applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any()))
             .thenReturn(results);
 
         policyStage.execute(topologyGraph);
 
-        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()));
+        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any());
     }
 
     /**

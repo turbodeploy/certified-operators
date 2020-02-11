@@ -196,25 +196,30 @@ public class ReservationRpcService extends ReservationServiceImplBase {
     public void updateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest request,
                                         StreamObserver<Reservation> responseObserver) {
         try {
-            Set<Reservation> allReservations = reservationDao.getAllReservations();
-            Set<Reservation> futureReservations =
-                    allReservations.stream()
-                            .filter(res -> res.getStatus() == ReservationStatus.FUTURE &&
-                                    reservationManager.isReservationActiveNow(res))
-                    .collect(Collectors.toSet());
-            Set<Reservation> expiredReservation = allReservations.stream()
-                    .filter(res -> reservationManager.hasReservationExpired(res))
-                    .collect(Collectors.toSet());
-            Set<Reservation> updatedFutureReservation = new HashSet<>();
-            for (Reservation reservation: futureReservations) {
-                updatedFutureReservation.add(reservationManager
-                        .intializeReservationStatus(reservation));
+            final Set<Reservation> reservationsToStart = new HashSet<>();
+            final Set<Reservation> reservationsToRemove = new HashSet<>();
+            reservationDao.getAllReservations().forEach(reservation -> {
+                // Check for expiration first.
+                if (reservationManager.hasReservationExpired(reservation)) {
+                    reservationsToRemove.add(reservation);
+                } else if (reservation.getStatus() == ReservationStatus.FUTURE && reservationManager.isReservationActiveNow(reservation)) {
+                    reservationsToStart.add(reservation);
+                } else if (reservation.getStatus() == ReservationStatus.INVALID) {
+                    // Reservations that are invalid may have become valid (e.g. if the entity
+                    // they are constrained by was temporarily absent from the Topology).
+                    reservationsToStart.add(reservation);
+                }
+            });
+
+            for (Reservation reservation : reservationsToStart) {
+                reservationManager.intializeReservationStatus(reservation);
             }
-            for (Reservation reservation : expiredReservation) {
+            for (Reservation reservation : reservationsToRemove) {
                 reservationDao.deleteReservationById(reservation.getId());
                 logger.info("Deleted Expired Reservation: " + reservation.getName());
             }
-            if (updatedFutureReservation.size() > 0) {
+
+            if (reservationsToStart.size() > 0) {
                 reservationManager.checkAndStartReservationPlan();
             }
             responseObserver.onCompleted();

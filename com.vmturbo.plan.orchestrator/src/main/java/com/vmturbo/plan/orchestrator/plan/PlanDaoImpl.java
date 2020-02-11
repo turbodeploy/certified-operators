@@ -397,8 +397,12 @@ public class PlanDaoImpl implements PlanDao {
 
         if (!plan.getActionPlanIdList().isEmpty()) {
             // Deletes all entries from the action context ri buy table for a plan.
-            riStub.deleteRIBuyContextData(DeleteRIBuyContextDataRequest.newBuilder()
+            try {
+                riStub.deleteRIBuyContextData(DeleteRIBuyContextDataRequest.newBuilder()
                     .setTopologyContextId(topologyContextId).build());
+            } catch (StatusRuntimeException e) {
+                errors.add("Failed to delete related RI data. Error: " + e.getMessage());
+            }
         }
 
         final DeletePlanEntityCostsRequest deleteCostsRequest =
