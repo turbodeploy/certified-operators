@@ -224,6 +224,9 @@ public class CommodityConverter {
                                   topologyCommSold.hasHistoricalPeak()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
+        if (peak < used) {
+            peak = used;
+        }
         final Builder soldCommBuilder = CommoditySoldTO.newBuilder();
         soldCommBuilder.setPeakQuantity(peak)
                 .setCapacity(capacity)

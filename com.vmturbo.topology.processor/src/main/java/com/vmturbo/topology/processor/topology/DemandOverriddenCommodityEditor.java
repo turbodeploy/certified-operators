@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +28,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -87,7 +90,7 @@ public class DemandOverriddenCommodityEditor {
                 findUsageOverriddenWorkload(groupResolver, utilizationLevels, graph);
         // workloadsUsageAdjustmentMap keeps track of a given entity and its commodity
         // bought type to the adjusted quantity difference mapping
-        Map<TopologyEntity, Map<Integer, Double>> workloadsUsageAdjustmentMap =
+        Map<TopologyEntity, Map<Integer, List<Double>>> workloadsUsageAdjustmentMap =
                 overrideWorkloadsUsage(workloadsToBeOverriddenMap);
         // use the workloadsUsageAdjustmentMap to update the provider commodity sold
         overrideProviderUsage(workloadsUsageAdjustmentMap);
@@ -99,30 +102,122 @@ public class DemandOverriddenCommodityEditor {
      *
      * @param workloadsUsageAdjustmentMap a map stores the VM and its commodity bought type to adjusted quantity mapping
      */
-    private void overrideProviderUsage(@Nonnull final Map<TopologyEntity, Map<Integer, Double>> workloadsUsageAdjustmentMap) {
-        for (Map.Entry<TopologyEntity, Map<Integer, Double>> entry : workloadsUsageAdjustmentMap.entrySet()) {
+    private void overrideProviderUsage(@Nonnull final Map<TopologyEntity, Map<Integer, List<Double>>> workloadsUsageAdjustmentMap) {
+        for (Map.Entry<TopologyEntity, Map<Integer, List<Double>>> entry : workloadsUsageAdjustmentMap.entrySet()) {
             TopologyEntity vm = entry.getKey();
-            Map<Integer, Double> adjustmentByCommodityType = entry.getValue();
+            Map<Integer, List<Double>> adjustmentByCommodityType = entry.getValue();
             for (TopologyEntity provider : vm.getProviders()) {
                 for (CommoditySoldDTO.Builder commSold : provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
                     // when we find a value mapped to the provider commodity sold type in
                     // vmUsageAdjustmentMap, it means that commodity sold has to be adjusted
                     // using the same quantity
                     int commSoldType = commSold.getCommodityType().getType();
-                    Double difference = adjustmentByCommodityType.get(commSoldType);
-                    if (difference != null) {
+                    if (adjustmentByCommodityType.get(commSoldType) == null) {
+                        continue;
+                    }
+                    Double usedDiff = adjustmentByCommodityType.get(commSoldType).get(0);
+                    if (usedDiff != null) {
                         // change the commodity sold hisUtilization if it exist, otherwise
                         // change the commodity sold used
                         if (commSold.hasHistoricalUsed()) {
                             double oldUsed = commSold.getHistoricalUsed().getHistUtilization();
-                            commSold.getHistoricalUsedBuilder().setHistUtilization(oldUsed + difference);
+                            commSold.getHistoricalUsedBuilder().setHistUtilization(oldUsed + usedDiff);
                         } else {
                             double oldUsed = commSold.getUsed();
-                            commSold.setUsed(oldUsed + difference);
+                            commSold.setUsed(oldUsed + usedDiff);
+                        }
+                    }
+                    Double peakDiff = adjustmentByCommodityType.get(commSoldType).get(1);
+                    if (peakDiff != null) {
+                        // change the commodity sold peak hisUtilization if it exist, otherwise
+                        // change the commodity sold peak
+                        if (commSold.hasHistoricalPeak()) {
+                            double oldPeak = commSold.getHistoricalPeak().getHistUtilization();
+                            commSold.getHistoricalPeakBuilder().setHistUtilization(oldPeak + peakDiff);
+                        } else {
+                            double oldPeak = commSold.getPeak();
+                            commSold.setPeak(oldPeak + peakDiff);
                         }
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Utility method to apply changes on CommoditySoldDTO.
+     *
+     * @param commSold the dto to be changed
+     * @param percentage percentage level to be changed
+     * @param isPeak whether apply change on used or peak
+     *
+     * @return the amount difference
+     */
+    private double applyChangeOnCommoditySold(@Nonnull CommoditySoldDTO.Builder commSold,
+                                              int percentage, boolean isPeak) {
+        double difference;
+        if (commSold.hasHistoricalUsed() && !isPeak) {
+            HistoricalValues.Builder builder = commSold.getHistoricalUsedBuilder();
+            difference = applyChangeOnHistoricalBuilder(commSold, builder, percentage);
+        } else if (commSold.hasHistoricalPeak() && isPeak) {
+            HistoricalValues.Builder builder = commSold.getHistoricalPeakBuilder();
+            difference = applyChangeOnHistoricalBuilder(commSold, builder, percentage);
+        } else if (isPeak) {
+            double newPeak = Math.max(0, Math.min(commSold.getCapacity(),
+                commSold.getPeak() * (percentage / 100d + 1)));
+            difference = newPeak - commSold.getPeak();
+            commSold.setPeak(Math.max(0, newPeak));
+        } else {
+            double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
+                commSold.getUsed() * (percentage / 100d + 1)));
+            difference = newUsed - commSold.getUsed();
+            commSold.setUsed(Math.max(0, newUsed));
+        }
+        return difference;
+    }
+
+    /**
+     * Utility method to apply change on historical values.
+     *
+     * @param commSold the dto to be changed
+     * @param builder the historical value builder
+     * @param percentage percentage level to be changed
+     *
+     * @return the amount difference
+     */
+    private double applyChangeOnHistoricalBuilder(@Nonnull CommoditySoldDTO.Builder commSold,
+                                                @Nonnull HistoricalValues.Builder builder,
+                                                int percentage) {
+        double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
+            builder.getHistUtilization() * (percentage / 100d + 1)));
+        double difference = newUsed - builder.getHistUtilization();
+        builder.setHistUtilization(Math.max(0, newUsed));
+        return difference;
+    }
+
+    /**
+     * Utility method to apply changes on CommodityBoughtDTO.
+     *
+     * @param commBought the dto to be changed
+     * @param diff the difference to be applied
+     * @param isPeak whether apply change on used or peak
+     */
+    private void applyChangeOnCommodityBought(@Nonnull CommodityBoughtDTO.Builder commBought,
+                                              double diff, boolean isPeak) {
+        if (commBought.hasHistoricalUsed() && !isPeak) {
+            HistoricalValues.Builder builder = commBought.getHistoricalUsedBuilder();
+            double oldUsed = builder.getHistUtilization();
+            builder.setHistUtilization(Math.max(0, oldUsed + diff));
+        } else if (commBought.hasHistoricalPeak() && isPeak) {
+            HistoricalValues.Builder builder = commBought.getHistoricalPeakBuilder();
+            double oldUsed =  builder.getHistUtilization();
+            builder.setHistUtilization(Math.max(0, oldUsed + diff));
+        } else if (isPeak) {
+            double oldPeak = commBought.getPeak();
+            commBought.setPeak(Math.max(0, oldPeak + diff));
+        } else {
+            double oldUsed = commBought.getUsed();
+            commBought.setUsed(Math.max(0, oldUsed + diff));
         }
     }
 
@@ -134,37 +229,30 @@ public class DemandOverriddenCommodityEditor {
      * @param workloadsToBeOverriddenMap the map of VM sets grouped by utilization configurations
      * @return a map of VM and its commodity bought type to adjusted amount mapping
      */
-    private Map<TopologyEntity, Map<Integer, Double>> overrideWorkloadsUsage(
+    private Map<TopologyEntity, Map<Integer, List<Double>>> overrideWorkloadsUsage(
             @Nonnull final Map<UtilizationLevel, Set<TopologyEntity>> workloadsToBeOverriddenMap) {
         // a map to keep track of workloads commodity bought type and its adjusted quantity difference
-        Map<TopologyEntity, Map<Integer, Double>> workloadsBoughtUsageAdjustmentMap = new HashMap<>();
+        Map<TopologyEntity, Map<Integer, List<Double>>> workloadsBoughtUsageAdjustmentMap = new HashMap<>();
         for (Map.Entry<UtilizationLevel, Set<TopologyEntity>> entry : workloadsToBeOverriddenMap.entrySet()) {
             int percentage = entry.getKey().getPercentage();
             Set<TopologyEntity> wls = entry.getValue();
             wls.stream().forEach(v ->  {
-                Map<Integer, Double> usageChangebycommSoldType = new HashMap<>();
+                Map<Integer, List<Double>> usageChangebycommSoldType = new HashMap<>();
                 for (CommoditySoldDTO.Builder commSold : v.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
-                    double difference = 0;
+                    double usedDifference = 0;
+                    double peakDifference = 0;
                     int soldType = commSold.getCommodityType().getType();
                     if (USAGE_OVERRIDDEN_COMMODITY_SET.contains(soldType)) {
                         // change the commodity sold hisUtilization if it exist, otherwise
                         // change the commodity sold used
-                        if (commSold.hasHistoricalUsed()) {
-                            double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
-                                    commSold.getHistoricalUsed().getHistUtilization() * (percentage / 100d + 1)));
-                            difference = newUsed - commSold.getHistoricalUsed().getHistUtilization();
-                            commSold.getHistoricalUsedBuilder().setHistUtilization(newUsed);
-                        } else {
-                            double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
-                                    commSold.getUsed() * (percentage / 100d + 1)));
-                            difference = newUsed - commSold.getUsed();
-                            commSold.setUsed(newUsed);
-                        }
+                        usedDifference = applyChangeOnCommoditySold(commSold, percentage, false);
+                        peakDifference = applyChangeOnCommoditySold(commSold, percentage, true);
                         // keep track of the adjusted quantity of a commodity sold
-                        usageChangebycommSoldType.put(soldType, difference);
+                        usageChangebycommSoldType.put(soldType,
+                                new ArrayList<>(Arrays.asList(usedDifference, peakDifference)));
                     }
                 }
-                Map<Integer, Double> usageChangebycommBoughtType = new HashMap<>();
+                Map<Integer, List<Double>> usageChangebycommBoughtType = new HashMap<>();
                 workloadsBoughtUsageAdjustmentMap.put(v, usageChangebycommBoughtType);
                 for (CommoditiesBoughtFromProvider.Builder boughtFromProvider
                         : v.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()) {
@@ -178,18 +266,18 @@ public class DemandOverriddenCommodityEditor {
                                 // commodity bought.
                                 // Note: user requirement is to adjust the commodity bought by the
                                 // same quantity, not by the same percentage
-                                double difference = usageChangebycommSoldType.get(soldMappingType);
+                                if (usageChangebycommSoldType.get(soldMappingType) == null) {
+                                    continue;
+                                }
+                                double usedDiff = usageChangebycommSoldType.get(soldMappingType).get(0);
+                                double peakDiff = usageChangebycommSoldType.get(soldMappingType).get(1);
                                 // change the commodity bought hisUtilization if it exist, otherwise
                                 // change the commodity bought used
-                                if (commBought.hasHistoricalUsed()) {
-                                    double oldUsed = commBought.getHistoricalUsed().getHistUtilization();
-                                    commBought.getHistoricalUsedBuilder().setHistUtilization(oldUsed + difference);
-                                } else {
-                                    double oldUsed = commBought.getUsed();
-                                    commBought.setUsed(oldUsed + difference);
-                                }
+                                applyChangeOnCommodityBought(commBought, usedDiff, false);
+                                applyChangeOnCommodityBought(commBought, peakDiff, true);
                                 // keep track of VM commodity bought and its adjusted quantity
-                                usageChangebycommBoughtType.put(boughtType, difference);
+                                usageChangebycommBoughtType.put(boughtType,
+                                        new ArrayList<>(Arrays.asList(usedDiff, peakDiff)));
                             }
                         }
                     }

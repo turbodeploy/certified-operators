@@ -54,15 +54,19 @@ public class DemandOverriddenCommodityEditorTest {
                     .setCommodityType(CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.MEM_VALUE))
                     .setUsed(15)
+                    .setPeak(20)
                     .setHistoricalUsed(HistoricalValues.newBuilder()
-                            .setHistUtilization(10))));
+                            .setHistUtilization(10))
+                    .setHistoricalPeak(HistoricalValues.newBuilder()
+                            .setHistUtilization(15))));
     TopologyEntity.Builder pm2 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
             .setOid(1112)
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setCommodityType(CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.MEM_VALUE))
-                    .setUsed(20)));
+                    .setUsed(20)
+                    .setPeak(30)));
     TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
             .setOid(0001)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -73,11 +77,16 @@ public class DemandOverriddenCommodityEditorTest {
                             .setCommodityType(CommodityType.newBuilder()
                                     .setType(CommodityDTO.CommodityType.MEM_VALUE))
                             .setUsed(10)
-                    .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(15)).build()).build())
+                            .setPeak(20)
+                    .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(15))
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(25))
+                            .build()).build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setUsed(5)
+                    .setPeak(10)
                     .setCapacity(10000)
                     .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(8).build())
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(18).build())
                     .setCommodityType(CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.VMEM_VALUE)).build()));
     TopologyEntity.Builder vm2 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
@@ -89,9 +98,10 @@ public class DemandOverriddenCommodityEditorTest {
             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.MEM_VALUE))
-                .setUsed(5).build()))
+                .setUsed(5).setPeak(8).build()))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setUsed(5)
+            .setPeak(8)
             .setCapacity(10000)
             .setCommodityType(CommodityType.newBuilder()
                 .setType(CommodityDTO.CommodityType.VMEM_VALUE)).build()));
@@ -127,20 +137,37 @@ public class DemandOverriddenCommodityEditorTest {
         globalChange.add(ScenarioChange.newBuilder().setPlanChanges(PlanChanges.newBuilder()
             .setUtilizationLevel(UtilizationLevel.newBuilder().setPercentage(50))).build());
         editor.applyDemandUsageChange(topologyGraph, groupResolver, globalChange);
-        // vm1 has the historical used, so increasing util by 50% is vm1 historicalUsed increase by 50% -> 8 * 1.5 = 12
-        Assert.assertTrue(vm1.getEntityBuilder().getCommoditySoldListList().get(0).getHistoricalUsed().getHistUtilization() == 12);
-        // vm1 vmem increased by 4 so the vm1 mem bought increase by 4 as well -> 15 + 4 = 19
+        // vm1 has the historical used, so vm1 historicalUsed increase by
+        // 50% -> 8 * 1.5 = 12, historical peak increase by 50% -> 18* 1.5 = 27
+        Assert.assertTrue(vm1.getEntityBuilder().getCommoditySoldListList().get(0).getHistoricalUsed()
+                .getHistUtilization() == 12);
+        Assert.assertTrue(vm1.getEntityBuilder().getCommoditySoldListList().get(0).getHistoricalPeak()
+                .getHistUtilization() == 27);
+        // vm1 vmem used increased by 4 so the vm1 mem bought used increase by 4 as well -> 15 + 4 = 19
+        // vmem peak increased by 9 so the mem bought peak increase by 9 -> 25 + 9 = 34
         Assert.assertTrue(vm1.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
                 .getCommodityBought(0).getHistoricalUsed().getHistUtilization() == 19);
-        // pm1 hosts the vm1, so pm1 mem increase by 4 -> 10 + 4 = 14
-        Assert.assertTrue(pm1.getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed().getHistUtilization() == 14);
-        // vm2 has no historical used, so increasing util by 50% is vm1 used increase by 50% -> 5 * 1.5 = 7.5
+        Assert.assertTrue(vm1.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
+            .getCommodityBought(0).getHistoricalPeak().getHistUtilization() == 34);
+        // pm1 hosts the vm1, so pm1 mem used increase by 4 -> 10 + 4 = 14, peak increase by 9 -> 15 + 9 = 24
+        Assert.assertTrue(pm1.getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed()
+                .getHistUtilization() == 14);
+        Assert.assertTrue(pm1.getEntityBuilder().getCommoditySoldList(0).getHistoricalPeak()
+                .getHistUtilization() == 24);
+        // vm2 has no historical used, so increasing util by 50% is vm2 used increase by 50% -> 5 * 1.5 = 7.5
+        // vm2 peak increase by 50% -> 8 * 1.5 = 12
         Assert.assertTrue(vm2.getEntityBuilder().getCommoditySoldListList().get(0).getUsed() == 7.5);
-        // vm2 vmem increased by 2.5 so the vm1 mem bought increase by 2.5 as well -> 5 + 2.5 = 7.5
+        Assert.assertTrue(vm2.getEntityBuilder().getCommoditySoldListList().get(0).getPeak() == 12);
+        // vm2 vmem increased by 2.5 so the vm1 mem bought used increase by 2.5 as well -> 5 + 2.5 = 7.5
+        // vmem peak increased by 4 so mem bought peak increase by 4 -> 8 + 4 = 12
         Assert.assertTrue(vm2.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
             .getCommodityBought(0).getUsed() == 7.5);
-        // pm2 hosts the vm2, so pm2 mem increase by 2.5 -> 20 + 2.5 = 22.5
+        Assert.assertTrue(vm2.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
+            .getCommodityBought(0).getPeak() == 12);
+        // pm2 hosts the vm2, so pm2 mem used increase by 2.5 -> 20 + 2.5 = 22.5, mem peak increase by 4 ->
+        // 30 + 4 = 34
         Assert.assertTrue(pm2.getEntityBuilder().getCommoditySoldList(0).getUsed() == 22.5);
+        Assert.assertTrue(pm2.getEntityBuilder().getCommoditySoldList(0).getPeak() == 34);
     }
 
     /**
@@ -173,10 +200,21 @@ public class DemandOverriddenCommodityEditorTest {
             .setUtilizationLevel(UtilizationLevel.newBuilder().setPercentage(50).setGroupOid(groupOid))).build());
         editor.applyDemandUsageChange(topologyGraph, groupResolver, groupChange);
         // vm1 has the historical used, so increasing util by 50% is vm1 historicalUsed increase by 50% -> 8 * 1.5 = 12
-        Assert.assertTrue(vm1.getEntityBuilder().getCommoditySoldListList().get(0).getHistoricalUsed().getHistUtilization() == 12);
-        // vm1 has the historical used, so increasing util by 50% is vm1 historicalUsed increase by 50% -> 8 * 1.5 = 12
+        // historicalPeak increase by 50% -> 18 * 1.5 = 27
+        Assert.assertTrue(vm1.getEntityBuilder().getCommoditySoldListList().get(0).getHistoricalUsed()
+                .getHistUtilization() == 12);
+        Assert.assertTrue(vm1.getEntityBuilder().getCommoditySoldListList().get(0).getHistoricalPeak()
+                .getHistUtilization() == 27);
+        // vm1 vmem increased 4 so the vm1 mem bought used increase 4 as well -> 15 + 4 = 19
+        // vmem peak increased 9 so mem bought peak increase 9 -> 25 + 9 = 34
         Assert.assertTrue(vm1.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
             .getCommodityBought(0).getHistoricalUsed().getHistUtilization() == 19);
-        Assert.assertTrue(pm1.getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed().getHistUtilization() == 14);
+        Assert.assertTrue(vm1.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().get(0)
+            .getCommodityBought(0).getHistoricalPeak().getHistUtilization() == 34);
+        // pm1 hosts the vm1, so pm1 mem used increase 4 -> 10 + 4 = 14, mem peak increase 9 -> 15 + 9 = 24
+        Assert.assertTrue(pm1.getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed()
+                .getHistUtilization() == 14);
+        Assert.assertTrue(pm1.getEntityBuilder().getCommoditySoldList(0).getHistoricalPeak()
+            .getHistUtilization() == 24);
     }
 }
