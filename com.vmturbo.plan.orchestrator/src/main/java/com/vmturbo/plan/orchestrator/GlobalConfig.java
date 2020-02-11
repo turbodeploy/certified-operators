@@ -1,5 +1,7 @@
 package com.vmturbo.plan.orchestrator;
 
+import java.time.Clock;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -96,5 +98,15 @@ public class GlobalConfig {
         final MarketComponent market = marketClientConfig.marketComponent(
             MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisStatusNotification));
         return market;
+    }
+
+    /**
+     * The common clock used throughout this component.
+     *
+     * @return The {@link Clock}.
+     */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 }
