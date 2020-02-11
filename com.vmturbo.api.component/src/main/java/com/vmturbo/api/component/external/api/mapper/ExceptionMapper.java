@@ -34,7 +34,7 @@ public class ExceptionMapper {
     public static Exception translateStatusException(@Nonnull StatusRuntimeException statusException) {
         switch (statusException.getStatus().getCode()) {
             case NOT_FOUND:
-                return new UnknownObjectException(statusException.getCause());
+                return new UnknownObjectException(statusException.getMessage(), statusException.getCause());
             case UNAUTHENTICATED:
                 return new UnauthorizedObjectException(statusException.getMessage());
             case PERMISSION_DENIED:
