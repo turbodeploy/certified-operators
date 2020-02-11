@@ -154,23 +154,23 @@ public class ReservationManagerTest {
             .build();
 
     private Reservation testReservationForBroadcast1 = Reservation.newBuilder()
-        .setId(1000)
+        .setId(1008)
         .setName("test-reservation1")
         .setStatus(ReservationStatus.RESERVED)
         .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
             .addReservationTemplate(ReservationTemplate.newBuilder()
-                .setCount(1L)
-                .setTemplateId(234L)))
+                .setCount(10L)
+                .setTemplateId(4444L)))
         .build();
 
     private Reservation testReservationForBroadcast2 = Reservation.newBuilder()
-        .setId(1000)
+        .setId(1009)
         .setName("test-reservation2")
         .setStatus(ReservationStatus.PLACEMENT_FAILED)
         .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
             .addReservationTemplate(ReservationTemplate.newBuilder()
-                .setCount(1L)
-                .setTemplateId(234L)))
+                .setCount(20L)
+                .setTemplateId(5555L)))
         .build();
 
     /**
@@ -344,10 +344,21 @@ public class ReservationManagerTest {
         final ReservationChanges resChanges = resChangesCaptor.getValue();
 
         assertEquals(2, resChanges.getReservationChangeCount());
-        assertEquals(testReservationForBroadcast1.getId(), resChanges.getReservationChange(0).getId());
-        assertEquals(testReservationForBroadcast1.getStatus().toString(), resChanges.getReservationChange(0).getStatus().toString());
-        assertEquals(testReservationForBroadcast2.getId(), resChanges.getReservationChange(1).getId());
-        assertEquals(testReservationForBroadcast2.getStatus().toString(), resChanges.getReservationChange(1).getStatus().toString());
+
+        Set<Long> reservedReservations =
+            resChanges.getReservationChangeList().stream()
+                .filter(a -> ReservationStatus.RESERVED == a.getStatus())
+                .map(a -> a.getId())
+                .collect(Collectors.toSet());
+        Set<Long> failedReservations =
+            resChanges.getReservationChangeList().stream()
+                .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
+                .map(a -> a.getId())
+                .collect(Collectors.toSet());
+        assert (reservedReservations.size() == 1);
+        assert (reservedReservations.contains(1008L));
+        assert (failedReservations.size() == 1);
+        assert (failedReservations.contains(1009L));
     }
 
 }
