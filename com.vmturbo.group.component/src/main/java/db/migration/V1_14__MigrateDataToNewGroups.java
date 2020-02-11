@@ -275,7 +275,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
             @Nonnull StaticGroupMembers staticMembers) throws SQLException {
         final Collection<Long> members = staticMembers.getStaticMemberOidsList();
         final PreparedStatement membersStmt = connection.prepareStatement(
-                "INSERT INTO group_static_members_entities (group_id, entity_type, entity_id) VALUES (?, ?, ?)");
+                "INSERT IGNORE INTO group_static_members_entities (group_id, entity_type, " +
+                    "entity_id) VALUES (?, ?, ?)");
         for (Long member : members) {
             membersStmt.setLong(1, oid);
             membersStmt.setInt(2, entityType);
@@ -289,7 +290,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
             @Nonnull StaticGroupMembers staticMembers) throws SQLException {
         final Collection<Long> members = staticMembers.getStaticMemberOidsList();
         final PreparedStatement membersStmt = connection.prepareStatement(
-                "INSERT INTO group_static_members_groups (parent_group_id, child_group_id) VALUES (?, ?)");
+                "INSERT IGNORE INTO group_static_members_groups (parent_group_id, child_group_id) " +
+                    "VALUES (?, ?)");
         for (Long member : members) {
             membersStmt.setLong(1, oid);
             membersStmt.setLong(2, member);
