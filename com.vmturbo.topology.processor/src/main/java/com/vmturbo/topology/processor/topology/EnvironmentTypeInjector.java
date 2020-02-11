@@ -3,21 +3,25 @@ package com.vmturbo.topology.processor.topology;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
-import com.google.common.collect.ImmutableSet;
+import gnu.trove.set.TLongSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -80,15 +84,16 @@ public class EnvironmentTypeInjector {
         final Set<Long> appContainerTargetIds = targets.stream()
             .map(Target::getId)
             .filter(targetId -> targetStore.getProbeCategoryForTarget(targetId)
-                .map(probeCategory -> ProbeCategory.isAppOrContainerCategory(probeCategory))
+                .map(ProbeCategory::isAppOrContainerCategory)
                 .orElse(false))
             .collect(Collectors.toSet());
+        final EntityTypeCache cache = new EntityTypeCache();
         topologyGraph.entities().forEach(topoEntity -> {
             final EnvironmentType envType;
             final boolean discoveredByAppOrContainer = topoEntity.getDiscoveringTargetIds()
                 .anyMatch(appContainerTargetIds::contains);
             if (discoveredByAppOrContainer) {
-                envType = computeEnvironmentTypeByProviders(topoEntity, cloudTargetIds);
+                envType = computeEnvironmentTypeByProviders(topoEntity, cloudTargetIds, cache);
             } else {
                 envType = getEnvironmentType(topoEntity, cloudTargetIds);
             }
@@ -154,10 +159,6 @@ public class EnvironmentTypeInjector {
                 if (discoveredByCloud) {
                     return EnvironmentType.CLOUD;
                 } else {
-                    // TODO (roman, Oct 25 2018): The type of probe that discovered the entity
-                    // may not be enough. For example, an application discovered on a VM in AWS
-                    // may not be discovered by a cloud probe, but it should still be considered
-                    // a cloud application.
                     return EnvironmentType.ON_PREM;
                 }
             case RESERVATION_ORIGIN:
@@ -191,40 +192,87 @@ public class EnvironmentTypeInjector {
      *   entity has HYBRID env. type.
      * @param entity - target entity
      * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
+     * @param cache - Cache to avoid multiple traversals of the same providers.
      * @return an environment type of the target entity.
      */
     @Nonnull
     private EnvironmentType computeEnvironmentTypeByProviders(@Nonnull TopologyEntity entity,
-                                                              @Nonnull Set<Long> cloudTargetIds) {
-        Set<EnvironmentType> leafProvidersTypes = new HashSet<>();
-        getLeafProvidersTypes(entity, cloudTargetIds, leafProvidersTypes);
-        if (leafProvidersTypes.size() == 1) {
-            return leafProvidersTypes.iterator().next();
-        }
-        if (leafProvidersTypes.contains(EnvironmentType.HYBRID) ||
-                (leafProvidersTypes.contains(EnvironmentType.ON_PREM) &&
-                        leafProvidersTypes.contains(EnvironmentType.CLOUD))) {
-            return EnvironmentType.HYBRID;
-        }
-        return EnvironmentType.UNKNOWN_ENV;
+                                                              @Nonnull Set<Long> cloudTargetIds,
+                                                              @Nonnull EntityTypeCache cache) {
+        return cache.computeIfAbsent(entity.getOid(), () -> {
+            final EnvironmentType ret;
+            if (entity.getProviders().size() == 0) {
+                ret = getEnvironmentType(entity, cloudTargetIds);
+            } else {
+                EnvironmentType combinedType = null;
+                for (TopologyEntity p : entity.getProviders()) {
+                    final EnvironmentType providerEnvType =
+                        computeEnvironmentTypeByProviders(p, cloudTargetIds, cache);
+                    if (combinedType == null || combinedType == EnvironmentType.UNKNOWN_ENV) {
+                        // If the combined type is unset or UNKNOWN, override it completely.
+                        combinedType = providerEnvType;
+                    } else if (combinedType != providerEnvType && providerEnvType != EnvironmentType.UNKNOWN_ENV) {
+                        // If this provider's type is not UNKNOWN and not the same as the current
+                        // combined type, that means the entity has a HYBRID environment.
+                        combinedType = EnvironmentType.HYBRID;
+                        // Once we know it's hybrid we don't care about the rest of the providers.
+                        break;
+                    }
+                }
+                ret = combinedType;
+            }
+            return ret;
+        });
     }
 
     /**
-     * The method populates environment types from all leaf providers of an entity to a set.
-     *
-     * @param entity         - target entity.
-     * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
-     * @param types          - a set of environment types for leaf providers
+     * A cache for already-computed environment types.
+     * We use this to avoid repeating traversals when recursively traversing providers to calculate
+     * an entity's environment type
+     * (see {@link EnvironmentTypeInjector#computeEnvironmentTypeByProviders(TopologyEntity, Set, EntityTypeCache)}.
      */
-    private void getLeafProvidersTypes(@Nonnull TopologyEntity entity,
-                                       @Nonnull Set<Long> cloudTargetIds,
-                                       @Nonnull Set<EnvironmentType> types) {
-        if (entity.getProviders().size() == 0) {
-            types.add(getEnvironmentType(entity, cloudTargetIds));
-            return;
+    private static class EntityTypeCache {
+
+        /**
+         * Map from (EnvironmentType) -> (oid set).
+         * The "oid set" represents the entities that have that entity type.
+         *
+         * <p>We use a roaring bitmap to reduce the memory
+         * footprint. The memory required to cache 200k entries is ~13.5MB when using a {@link Set},
+         * 3.7MB when using a {@link TLongSet}, and 0.5MB when using the bitmap.
+         */
+        private final EnumMap<EnvironmentType, Roaring64NavigableMap> providersByEnv;
+
+        EntityTypeCache() {
+            providersByEnv = new EnumMap<>(EnvironmentType.class);
         }
-        for (TopologyEntity p : entity.getProviders()) {
-            getLeafProvidersTypes(p, cloudTargetIds, types);
+
+        /**
+         * Check the cache for the environment type, populating the cache
+         * if no existing entry is present.
+         *
+         * @param id The id of the entity.
+         * @param envTypeSupplier A supplier that will calculate the environment type for the entity
+         *                        if it's not already cached.
+         * @return The {@link EnvironmentType} for the entity.
+         */
+        public EnvironmentType computeIfAbsent(final long id,
+                                     @Nonnull final Supplier<EnvironmentType> envTypeSupplier) {
+            // We iterate over all keys and search each one. This is fast, because the total number
+            // of possible keys is 3-4.
+            for (Entry<EnvironmentType, Roaring64NavigableMap> entry : providersByEnv.entrySet()) {
+                if (entry.getValue().contains(id)) {
+                    return entry.getKey();
+                }
+            }
+
+            // If not found in the cache, calculate the environment type, and then
+            // update the cache.
+            final EnvironmentType envTypeSet = envTypeSupplier.get();
+            final Roaring64NavigableMap mapForEnv =
+                providersByEnv.computeIfAbsent(envTypeSet, k -> new Roaring64NavigableMap());
+            mapForEnv.addLong(id);
+            return envTypeSet;
         }
     }
 
