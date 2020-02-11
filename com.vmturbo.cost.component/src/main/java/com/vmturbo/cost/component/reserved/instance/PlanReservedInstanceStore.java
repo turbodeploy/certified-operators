@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
+import static org.jooq.impl.DSL.isoDayOfWeek;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
@@ -59,17 +60,19 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
                         getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(newReservedInstanceBoughtInfos);
 
         final DSLContext dsl = getDsl();
-        for (ReservedInstanceBoughtInfo reservedInstanceInfo : newReservedInstanceBoughtInfos) {
+        for (ReservedInstanceBought reservedInstanceBought : newReservedInstances) {
+            final Long id = reservedInstanceBought.getId();
+            final ReservedInstanceBoughtInfo reservedInstanceInfo = reservedInstanceBought.getReservedInstanceBoughtInfo();
             records.add(dsl.newRecord(Tables.PLAN_RESERVED_INSTANCE_BOUGHT,
-                            new PlanReservedInstanceBoughtRecord(
-                                            getIdentityProvider().next(),
-                                            planId,
-                                            reservedInstanceInfo.getReservedInstanceSpec(),
-                                            reservedInstanceInfo,
-                                            reservedInstanceInfo.getNumBought(),
-                                            reservedInstanceInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(),
-                                            reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
-                                            probeRIIDToAmortizedCost.getOrDefault(reservedInstanceInfo.getProbeReservedInstanceId(), 0D))));
+                    new PlanReservedInstanceBoughtRecord(
+                            id,
+                            planId,
+                            reservedInstanceInfo.getReservedInstanceSpec(),
+                            reservedInstanceInfo,
+                            reservedInstanceInfo.getNumBought(),
+                            reservedInstanceInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(),
+                            reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
+                            probeRIIDToAmortizedCost.getOrDefault(reservedInstanceInfo.getProbeReservedInstanceId(), 0D))));
         }
         dsl.batchInsert(records).execute();
     }
