@@ -1748,6 +1748,9 @@ public class TopologyConverter {
                     if (originalCommodityBoughtDTO.isPresent()) {
                         currentUsage = (float)originalCommodityBoughtDTO.get().getUsed();
                     }
+                } else if (providerDTO.isEmpty()) {
+                    logger.warn("{} has no provider of type {} in the topology.",
+                        originalEntity.getDisplayName(), EntityType.forNumber(providerType));
                 }
             } else if (cloudTc.getMarketTier(supplierOid).getTier() == null) {
                 logger.warn("Unable to find providerType to retrieve original" +

@@ -284,11 +284,12 @@ public class CloudTopologyConverter {
     Set<TopologyEntityDTO> getTopologyEntityDTOProvidersOfType(
             @Nonnull TopologyEntityDTO entity, int providerType) {
         return entity.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == providerType)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .map(topology::get)
-                .collect(Collectors.toCollection(HashSet::new));
+            .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+            .filter(commBought -> commBought.getProviderEntityType() == providerType)
+            .map(CommoditiesBoughtFromProvider::getProviderId)
+            .filter(topology::containsKey)
+            .map(topology::get)
+            .collect(Collectors.toCollection(HashSet::new));
     }
 
     /**
