@@ -994,9 +994,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
-                                          @Nonnull final DiscoveryResponse oldFormatResponse) {
-        final boolean success = !hasGeneralCriticalError(oldFormatResponse.getErrorDTOList());
-        final DiscoveryResponse response = new ApplicationEntitiesConverter().convertResponse(oldFormatResponse);
+                                          @Nonnull final DiscoveryResponse sourceResponse) {
+        final boolean success = !hasGeneralCriticalError(sourceResponse.getErrorDTOList());
+        final DiscoveryResponse response = new ApplicationEntitiesConverter().convertResponse(sourceResponse);
         // Discovery response changed since last discovery
         final boolean change = !response.hasNoChange();
         final long targetId = discovery.getTargetId();
