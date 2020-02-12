@@ -8,21 +8,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
@@ -32,6 +24,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
@@ -194,7 +187,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     @Override
     public void updateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest request,
-                                        StreamObserver<Reservation> responseObserver) {
+                                        StreamObserver<UpdateFutureAndExpiredReservationsResponse> responseObserver) {
         try {
             final Set<Reservation> reservationsToStart = new HashSet<>();
             final Set<Reservation> reservationsToRemove = new HashSet<>();
@@ -211,17 +204,22 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                 }
             });
 
-            for (Reservation reservation : reservationsToStart) {
-                reservationManager.intializeReservationStatus(reservation);
-            }
             for (Reservation reservation : reservationsToRemove) {
                 reservationDao.deleteReservationById(reservation.getId());
                 logger.info("Deleted Expired Reservation: " + reservation.getName());
             }
 
             if (reservationsToStart.size() > 0) {
+                for (Reservation reservation : reservationsToStart) {
+                    reservationManager.intializeReservationStatus(reservation);
+                }
+                logger.info("Starting {} newly active reservations.", reservationsToStart.size());
                 reservationManager.checkAndStartReservationPlan();
             }
+            responseObserver.onNext(UpdateFutureAndExpiredReservationsResponse.newBuilder()
+                .setActivatedReservations(reservationsToStart.size())
+                .setExpiredReservationsRemoved(reservationsToRemove.size())
+                .build());
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL

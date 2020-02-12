@@ -14,7 +14,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -147,15 +148,16 @@ public class ReservationManager {
                     }
                 });
 
-
         // update the future, expired and invalid reservations.
         if (topologyType == TopologyType.REALTIME) {
-            reservationService.updateFutureAndExpiredReservations(
+            final UpdateFutureAndExpiredReservationsResponse resp = reservationService.updateFutureAndExpiredReservations(
                 UpdateFutureAndExpiredReservationsRequest.newBuilder()
                 .build());
+            if (resp.getActivatedReservations() > 0 || resp.getExpiredReservationsRemoved() > 0) {
+                logger.info("Activated {} reservations. Expired {} reservations.",
+                    resp.getActivatedReservations(), resp.getExpiredReservationsRemoved());
+            }
         }
-
-
 
         // Validate BEFORE adding entities to the topology.
         final ValidationErrors validationErrors = reservationValidator.validateReservations(
@@ -187,8 +189,10 @@ public class ReservationManager {
             });
             final UpdateReservationsRequest req = updateReqBldr.build();
             try {
-                reservationService.updateReservations(req);
-                logger.info("Marked {} failed reservations as invalid.", req.getReservationCount());
+                final MutableLong updatedCount = new MutableLong(0);
+                // Important to drain the iterator.
+                reservationService.updateReservations(req).forEachRemaining(updated -> updatedCount.increment());
+                logger.info("Marked {}/{} failed reservations as invalid.", updatedCount, req.getReservationCount());
             } catch (StatusRuntimeException e) {
                 // Maybe the plan orchestrator crashed, or there was a DB error.
                 // We don't want to fail the pipeline here. The reservations will continue to be
