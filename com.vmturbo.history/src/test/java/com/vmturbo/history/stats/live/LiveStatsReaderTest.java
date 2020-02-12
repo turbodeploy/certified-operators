@@ -313,7 +313,8 @@ public class LiveStatsReaderTest {
         when(mockHistorydbIO.execute(eq(Style.FORCED), isA(Query.class))).thenReturn(result);
 
         final Record processedRecord = mock(Record.class);
-        when(ratioProcessor.processResults(result)).thenReturn(Collections.singletonList(processedRecord));
+        when(ratioProcessor.processResults(result, TIMESTAMP))
+            .thenReturn(Collections.singletonList(processedRecord));
 
         final DSLContext jooqBuilderSpy = spy(DSL.using(SQLDialect.MARIADB));
         when(mockHistorydbIO.JooqBuilder()).thenReturn(jooqBuilderSpy);
@@ -338,7 +339,7 @@ public class LiveStatsReaderTest {
         verify(statsQueryFactory).environmentTypeCond(EnvironmentType.CLOUD, Tables.MARKET_STATS_LATEST);
         verify(statsQueryFactory).entityTypeCond(Sets.newHashSet(StringConstants.PHYSICAL_MACHINE), Tables.MARKET_STATS_LATEST);
         verify(mockHistorydbIO).execute(eq(Style.FORCED), isA(Query.class));
-        verify(ratioProcessor).processResults(result);
+        verify(ratioProcessor).processResults(result, TIMESTAMP);
 
         // The returned record should be the one coming out of the ratio processor.
         assertThat(records, contains(processedRecord));
