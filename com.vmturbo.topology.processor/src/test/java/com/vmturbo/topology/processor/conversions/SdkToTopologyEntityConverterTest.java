@@ -68,6 +68,7 @@ public class SdkToTopologyEntityConverterTest {
     private static final long VM_OID = 100L;
     private static final long DS_OID = 205L;
     private static final long POD_OID = 105L;
+    private static final long APPLICATION_OID = 305L;
 
     private static final double DELTA = 1e-8;
 
@@ -713,4 +714,28 @@ public class SdkToTopologyEntityConverterTest {
           }
     }
 
+    /**
+     * Test when application DTO does not provided action eligibility, the suspendable flag should
+     * be respected to the definition of `checkAppSuspendability`.
+     * @throws IOException
+     *      reading from file exception
+     */
+    @Test
+    public void testApplicationSuspendWithoutActionEligibility() throws IOException {
+        // Application DTO containing no info
+        CommonDTO.EntityDTO applicationProbeDTO = messageFromJsonFile("protobuf/messages/aws_engineering_entity_application.dto.json");
+
+        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap();
+        probeDTOs.put(APPLICATION_OID, applicationProbeDTO);
+        final List<TopologyEntityDTO> topologyDTOs =
+            SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
+                .map(TopologyEntityDTO.Builder::build)
+                .collect(Collectors.toList());
+
+        // APPICATION
+        TopologyEntityDTO applicationTopologyDTO = findEntity(topologyDTOs, APPLICATION_OID);
+        // has suspendable setting and is disabled
+        assertTrue(applicationTopologyDTO.getAnalysisSettings().hasSuspendable());
+        assertFalse(applicationTopologyDTO.getAnalysisSettings().getSuspendable());
+    }
 }

@@ -300,14 +300,17 @@ public class SdkToTopologyEntityConverter {
             // Keep the suspendable setting from the entityDTO
             if (actionEligibility.hasSuspendable()) {
                 suspendable = Optional.of(actionEligibility.getSuspendable());
-            } else {
-                suspendable = calculateSuspendabilityWithStitchingEntity(entity);
             }
 
             // Keep the provisionable setting from the entityDTO
             if (actionEligibility.hasCloneable()) {
                 cloneable = Optional.of(actionEligibility.getCloneable());
             }
+        }
+
+        // Calculate suspendable flag if no info is provided from ActionEligibility
+        if (!suspendable.isPresent()) {
+            suspendable = calculateSuspendabilityWithStitchingEntity(entity);
         }
 
         // Either monitored or controllable is false, set XL controllable to false.
@@ -488,14 +491,17 @@ public class SdkToTopologyEntityConverter {
             // Keep the suspendable setting from the entityDTO
             if (actionEligibility.hasSuspendable()) {
                 suspendable = Optional.of(actionEligibility.getSuspendable());
-            } else {
-                suspendable = calculateSuspendability(dto);
             }
 
             // Keep the provisionable setting from the entityDTO
             if (actionEligibility.hasCloneable()) {
                 cloneable = Optional.of(actionEligibility.getCloneable());
             }
+        }
+
+        // Calculate suspendable flag if no info is provided from ActionEligibility
+        if (!suspendable.isPresent()) {
+            suspendable = calculateSuspendability(dto);
         }
 
         // Either monitored or controllable is false, set XL controllable to false.

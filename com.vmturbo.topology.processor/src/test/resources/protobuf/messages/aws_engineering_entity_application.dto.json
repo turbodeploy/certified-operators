@@ -1,0 +1,40 @@
+{
+  "entityType" : "APPLICATION",
+  "id" : "aws::us-west-2::APP::E74E98EA-E7AF-3DBD-B97A-A5AEE84B02E8",
+  "displayName" : "TG-ELB[app/ae53e7e1068f211e88a600642242ca87/spcm1m8owi-worker-1::8080]",
+  "commoditiesSold" : [
+    {
+      "commodityType" : "TRANSACTION",
+      "key" : "Application::app/ae53e7e1068f211e88a600642242ca87-760991725.us-west-2.elb.amazonaws.com/i-0431eb0a177e78bce::8080",
+      "used" : 0.0008333333333333334,
+      "capacity" : 1000,
+      "resizable" : false
+    }
+  ],
+  "commoditiesBought" : [
+    {
+      "providerId" : "aws::us-west-2::VM::i-0431eb0a177e78bce",
+      "bought" : [
+        {
+          "commodityType" : "VCPU",
+          "used" : 519.4500000000696,
+          "vcpuData" : {}
+        },
+        {
+          "commodityType" : "APPLICATION",
+          "key" : "VirtualMachine::aws::us-west-2::VM::i-0431eb0a177e78bce",
+          "used" : 1
+        },
+        {
+          "commodityType" : "VMEM",
+          "vmemData" : {}
+        }
+      ]
+    }
+  ],
+  "origin" : "PROXY",
+  "powerState" : "POWERED_ON",
+  "applicationData" : {
+    "type" : "Layer 4/7-TCP"
+  }
+}
