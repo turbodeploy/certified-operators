@@ -108,7 +108,10 @@
     },
 
     "BusinessTransaction" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"}]
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "businessTransactionByBusinessApplication"}
+        ]
     },
 
     "Service" : {
