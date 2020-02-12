@@ -426,16 +426,22 @@ public class SdkToTopologyEntityConverterTest {
     public void testCommodityUsedPercentage() {
         final long appOid = 1L;
         final long vmOid = 2L;
-        final double appVcpuUsed = 10;
+        final double appVcpuUsed = 10; // percentage
         final double appVmemUsed = 1024;
-        final double appVcpuPeak = 20;
+        final double appVStorageUsed = 40; // percentage
+        final double appVcpuPeak = 20; // percentage
         final double appVmemPeak = 1600;
-        final double vmVcpuUsed = 30;
+        final double appVStoragePeak = 5000;
+
+        final double vmVcpuUsed = 30; // percentage
         final double vmVmemUsed = 1500;
-        final double vmVcpuPeak = 50;
+        final double vmVStorageUsed = 5000;
+        final double vmVcpuPeak = 50; // percentage
         final double vmVmemPeak = 1800;
+        final double vmVStoragePeak = 70; // percentage
         final double vmVcpuCapacity = 2000;
         final double vmVmemCapacity = 2048;
+        final double vmVStorageCapacity = 10000;
 
         EntityDTO.Builder appBuilder = EntityDTO.newBuilder()
             .setEntityType(EntityType.APPLICATION)
@@ -446,11 +452,18 @@ public class SdkToTopologyEntityConverterTest {
                     .setCommodityType(CommodityType.VCPU)
                     .setUsed(appVcpuUsed)
                     .setPeak(appVcpuPeak)
-                    .setIsUsedPct(true))
+                    // both used and peak are percentage
+                    .setIsUsedPct(true)
+                    .setIsPeakPct(true))
                 .addBought(CommodityDTO.newBuilder()
                     .setCommodityType(CommodityType.VMEM)
                     .setUsed(appVmemUsed)
-                    .setPeak(appVmemPeak)));
+                    .setPeak(appVmemPeak))
+                .addBought(CommodityDTO.newBuilder()
+                    .setCommodityType(CommodityType.VSTORAGE)
+                    .setUsed(appVStorageUsed)
+                    .setPeak(appVStoragePeak)
+                    .setIsUsedPct(true)));
 
         EntityDTO.Builder vmBuilder = EntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
@@ -460,12 +473,22 @@ public class SdkToTopologyEntityConverterTest {
                 .setUsed(vmVcpuUsed)
                 .setPeak(vmVcpuPeak)
                 .setCapacity(vmVcpuCapacity)
-                .setIsUsedPct(true))
+                // both used and peak are percentage
+                .setIsUsedPct(true)
+                .setIsPeakPct(true))
             .addCommoditiesSold(CommodityDTO.newBuilder()
                 .setCommodityType(CommodityType.VMEM)
                 .setUsed(vmVmemUsed)
                 .setPeak(vmVmemPeak)
-                .setCapacity(vmVmemCapacity));
+                .setCapacity(vmVmemCapacity))
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VSTORAGE)
+                .setUsed(vmVStorageUsed)
+                .setPeak(vmVStoragePeak)
+                .setCapacity(vmVStorageCapacity)
+                // only peak is percentage
+                .setIsPeakPct(true)
+            );
 
         TopologyStitchingEntity appStitchingEntity = new TopologyStitchingEntity(
             StitchingEntityData.newBuilder(appBuilder).oid(appOid).build());
@@ -475,10 +498,8 @@ public class SdkToTopologyEntityConverterTest {
         appStitchingEntity.addProviderCommodityBought(vmStitchingEntity, new CommoditiesBought(
             appBuilder.getCommoditiesBoughtBuilder(0).getBoughtBuilderList()));
 
-        vmStitchingEntity.addCommoditySold(vmBuilder.getCommoditiesSoldBuilder(0),
-            Optional.empty());
-        vmStitchingEntity.addCommoditySold(vmBuilder.getCommoditiesSoldBuilder(1),
-            Optional.empty());
+        vmBuilder.getCommoditiesSoldBuilderList()
+            .forEach(commSold -> vmStitchingEntity.addCommoditySold(commSold, Optional.empty()));
 
         final TopologyEntityDTO.Builder appTopologyDTO =
             SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity);
@@ -494,12 +515,15 @@ public class SdkToTopologyEntityConverterTest {
 
         CommodityBoughtDTO appVMEM = commodityBoughtMap.get(CommodityType.VMEM_VALUE);
         CommodityBoughtDTO appVCPU = commodityBoughtMap.get(CommodityType.VCPU_VALUE);
+        CommodityBoughtDTO appVST = commodityBoughtMap.get(CommodityType.VSTORAGE_VALUE);
 
         // check app bought commodities
         assertEquals(appVmemUsed, appVMEM.getUsed(), DELTA);
         assertEquals(appVcpuUsed * vmVcpuCapacity / 100, appVCPU.getUsed(), DELTA);
+        assertEquals(appVStorageUsed * vmVStorageCapacity / 100, appVST.getUsed(), DELTA);
         assertEquals(appVmemPeak, appVMEM.getPeak(), DELTA);
         assertEquals(appVcpuPeak * vmVcpuCapacity / 100, appVCPU.getPeak(), DELTA);
+        assertEquals(appVStoragePeak, appVST.getPeak(), DELTA);
 
         final TopologyEntityDTO.Builder vmTopologyDTO =
             SdkToTopologyEntityConverter.newTopologyEntityDTO(vmStitchingEntity);
@@ -510,12 +534,15 @@ public class SdkToTopologyEntityConverterTest {
 
         CommoditySoldDTO vmVMEM = commoditySoldMap.get(CommodityType.VMEM_VALUE);
         CommoditySoldDTO vmVCPU = commoditySoldMap.get(CommodityType.VCPU_VALUE);
+        CommoditySoldDTO vmVST = commoditySoldMap.get(CommodityType.VSTORAGE_VALUE);
 
         // check vm sold commodities
         assertEquals(vmVmemUsed, vmVMEM.getUsed(), DELTA);
         assertEquals(vmVcpuUsed * vmVcpuCapacity / 100, vmVCPU.getUsed(), DELTA);
+        assertEquals(vmVStorageUsed, vmVST.getUsed(), DELTA);
         assertEquals(vmVmemPeak, vmVMEM.getPeak(), DELTA);
         assertEquals(vmVcpuPeak * vmVcpuCapacity / 100, vmVCPU.getPeak(), DELTA);
+        assertEquals(vmVStoragePeak * vmVStorageCapacity / 100, vmVST.getPeak(), DELTA);
 
         // create a vm provider which doesn't sell vcpu commodity
         vmStitchingEntity.getTopologyCommoditiesSold().clear();
