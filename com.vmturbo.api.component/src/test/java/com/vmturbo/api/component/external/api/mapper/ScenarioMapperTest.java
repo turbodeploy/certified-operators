@@ -1658,8 +1658,12 @@ public class ScenarioMapperTest {
 
         final Scenario scenario = buildScenario(cpuUtilizationGroupChange,
             memUtilizationHostsChange, cpuUtilizationHostsChange, storageUtilizationStoragesChange);
+        ScenarioInfo newScenarioInfo = scenarioMapper.toApiChanges(scenario).getScenarioInfo();
         List<ScenarioChange> changes =
-            scenarioMapper.toApiChanges(scenario).getScenarioInfo().getChangesList();
+            newScenarioInfo.getChangesList();
+        // Make sure the name and the type haven't changed
+        assertEquals(scenario.getScenarioInfo().getName(), newScenarioInfo.getName());
+        assertEquals(scenario.getScenarioInfo().getType(), newScenarioInfo.getType());
         // We should get three settings overrides: one for the group, one for hosts and one for the
         // storages
         assertEquals(3, changes.size());

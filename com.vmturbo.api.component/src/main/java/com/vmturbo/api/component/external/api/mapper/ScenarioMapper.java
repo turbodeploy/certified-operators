@@ -676,8 +676,9 @@ public class ScenarioMapper {
             changes.add(createMaxUtilizationScenarioChange(groupIdToMaxUtilization.get(groupId)));
         }
         return scenario.toBuilder()
-            .setScenarioInfo(ScenarioInfo
-                .newBuilder().addAllChanges(changes).setName(scenario.getScenarioInfo().getName()))
+            .setScenarioInfo(scenario
+                .getScenarioInfo().toBuilder().clearChanges()
+                .addAllChanges(changes))
             .build();
     }
 
