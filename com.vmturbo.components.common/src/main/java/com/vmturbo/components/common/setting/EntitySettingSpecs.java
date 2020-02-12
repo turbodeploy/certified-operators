@@ -734,9 +734,9 @@ public enum EntitySettingSpecs {
         string(), true),
 
     /**
-     * Response Time Capacity used by Application and Database.
+     * Response Time SLO used by Application and Database.
      */
-    ResponseTimeCapacity("responseTimeCapacity", "Response Time Capacity [ms]",
+    ResponseTimeCapacity("responseTimeCapacity", "Response Time SLO [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
@@ -744,6 +744,19 @@ public enum EntitySettingSpecs {
             EntityType.DATABASE_SERVER, EntityType.SERVICE,
             EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            true),
+
+    /**
+     * Indicates whether to auto set the response time SLO of an entity's commodity to the value
+     * of the ResponseTimeCapacity setting or to calculate it as the max of the commodity's capacity,
+     * used value, and the ResponseTimeCapacity setting.
+     * Used by Application and Database.
+     */
+    AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Response Time (auto scaled range)",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.BUSINESS_APPLICATION),
+            new BooleanSettingDataType(true),
             true),
 
     /**
@@ -759,9 +772,9 @@ public enum EntitySettingSpecs {
             true),
 
     /**
-     * Transactions Capacity used by Application and Database.
+     * Transaction SLO used by Application and Database.
      */
-    TransactionsCapacity("transactionsCapacity", "Transactions Capacity",
+    TransactionsCapacity("transactionsCapacity", "Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
@@ -777,13 +790,13 @@ public enum EntitySettingSpecs {
      * used value, and the TransactionsCapacity setting.
      * Used by Application and Database.
      */
-    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Auto Set Transactions Capacity",
+    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Transaction (auto scaled range)",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
                     EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION,
                     EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.APPLICATION_COMPONENT),
-            new BooleanSettingDataType(false),
+            new BooleanSettingDataType(true),
             true),
 
     /**
