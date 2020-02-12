@@ -121,12 +121,12 @@ public class RemoteProbeStore implements ProbeStore {
      * {@inheritDoc}
      */
     @Override
-    public boolean registerNewProbe(@Nonnull ProbeInfo oldProbeInfo,
+    public boolean registerNewProbe(@Nonnull ProbeInfo sourceProbeInfo,
                     @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport)
                     throws ProbeException {
-        Objects.requireNonNull(oldProbeInfo, "Probe info should not be null");
+        Objects.requireNonNull(sourceProbeInfo, "Source probe info should not be null");
         Objects.requireNonNull(transport, "Transport should not be null");
-        final ProbeInfo probeInfo = new ApplicationEntitiesConverter().convertProbeInfo(oldProbeInfo);
+        final ProbeInfo probeInfo = new ApplicationEntitiesConverter().convertProbeInfo(sourceProbeInfo);
 
         synchronized (dataLock) {
             final long probeId;
