@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
@@ -74,6 +73,11 @@ public class SMAInput {
      * Dictionary for SMACSP by region.  Only regions where VMs were found.
      */
     private CspFromRegion cspFromRegion = new CspFromRegion();
+
+    /*
+     * if Azure, then OS type agnostic and use UNKNOWN_OS
+     */
+    private static final Set<OSType> UNKNOWN_OS_SINGLETON_SET = Collections.singleton(OSType.UNKNOWN_OS);
 
     // map to convert commodity sold key to OSType.
     static Map<String, OSType> nameToOSType = new HashMap<>();
@@ -573,7 +577,7 @@ public class SMAInput {
          * but use UNKNOWN_OS as place holder.
          */
         Set<OSType> osTypes = computeOsTypes(computeTier);
-        Set<OSType> osTypesForContext = SMAUtils.UNKNOWN_OS_SINGLETON_SET;
+        Set<OSType> osTypesForContext = UNKNOWN_OS_SINGLETON_SET;
         if (csp != SMACSP.AZURE) {
             osTypesForContext = osTypes;
         }
@@ -744,7 +748,7 @@ public class SMAInput {
                         oid, name, hourlyRate, businessAccountId, context);
                 }
                 // For AWS, hourly rate is zero.
-                template.setDiscountedCost(businessAccountId, osType, new SMACost(SMAUtils.NO_COST, (float)hourlyRate));
+                template.setDiscountedCost(businessAccountId, osType, new SMACost(0f, (float)hourlyRate));
             }
         }
     }
@@ -972,16 +976,13 @@ public class SMAInput {
                                     CloudTopology<TopologyEntityDTO> cloudTopology,
                                     CloudCostData cloudCostData,
                                     SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
-        Pair<Long, Float> currentRICoverage = null;
+        Pair<Long, Float> currentRICoverage = new Pair(SMAUtils.NO_CURRENT_RI, SMAUtils.NO_RI_COVERAGE);
         Optional<EntityReservedInstanceCoverage> coverageOptional = cloudCostData.getRiCoverageForEntity(vmOid);
         if (coverageOptional.isPresent()) {
             EntityReservedInstanceCoverage coverage = coverageOptional.get();
             currentRICoverage = computeCoverage(coverage, reservedInstanceKeyIDGenerator);
         } else {
             logger.error("processVirtualMachine: could not coverage VM ID={}", vmOid);
-        }
-        if (currentRICoverage == null) {
-            return SMAUtils.NO_COMPUTE_RI_COVERAGE;
         }
         return currentRICoverage;
     }
@@ -992,7 +993,6 @@ public class SMAInput {
      * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @return RI coverage of the VM as RIKeyID,Coverage pair.
      */
-    @Nullable
     private Pair<Long, Float> computeCoverage(EntityReservedInstanceCoverage riCoverage,
                                               SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
         Map<Long, Double> riToCoupons = riCoverage.getCouponsCoveredByRi();
@@ -1001,12 +1001,8 @@ public class SMAInput {
         for (Entry<Long, Double> coupons : riToCoupons.entrySet()) {
             utilization += coupons.getValue();
             if (coupons.getValue() > SMAUtils.EPSILON) {
-                Long riKeyIDLong = reservedInstanceKeyIDGenerator.getRIKeyIDFromRIBoughtID(coupons.getKey());
-                if (riKeyIDLong == null) {
-                    logger.error("computeCoverage key={} not found in getRIKeyIDFromRIBoughtID",
-                        coupons.getKey());
-                    return null;
-                }
+                riKeyID =  reservedInstanceKeyIDGenerator
+                        .getRIKeyIDFromRIBoughtID(coupons.getKey());
             }
         }
         return new Pair(riKeyID, utilization);
