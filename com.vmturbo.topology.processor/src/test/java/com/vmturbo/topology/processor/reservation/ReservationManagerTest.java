@@ -44,8 +44,10 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -184,10 +186,10 @@ public class ReservationManagerTest {
         when(errors.isEmpty()).thenReturn(false);
 
         when(validator.validateReservations(any(), any())).thenReturn(errors);
-
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanProjectType(PlanProjectType.RESERVATION_PLAN)).build();
         reservationManager.applyReservation(Collections.emptyMap(),
-            TopologyType.REALTIME,
-            PlanProjectType.RESERVATION_PLAN);
+                topologyInfo);
 
         final ArgumentCaptor<UpdateReservationsRequest> updateCaptor =
             ArgumentCaptor.forClass(UpdateReservationsRequest.class);
@@ -210,8 +212,9 @@ public class ReservationManagerTest {
         ArgumentCaptor<UpdateReservationsRequest> updateRequestCaptor =
                 ArgumentCaptor.forClass(UpdateReservationsRequest.class);
         topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
-
-        reservationManager.applyReservation(topology, TopologyType.REALTIME, PlanProjectType.USER);
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanProjectType(PlanProjectType.USER)).build();
+        reservationManager.applyReservation(topology, topologyInfo);
         assertEquals(3L, topology.size());
         assertTrue(topology.containsKey(1L));
         assertTrue(topology.containsKey(2L));

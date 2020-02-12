@@ -70,11 +70,12 @@ public class ReservationPlacementHandler {
     public void updateReservations(final long contextId, final long topologyId, boolean isReservationPlan) {
         // Get all RESERVED reservations, only RESERVED reservations have entities.
         Set<Reservation> reservationSet = new HashSet<>();
+        // We should update the inprogress reservation only in reservationPlan and
+        // we should update the reserved and placement_failed only in realtime.
+        // Note that updateReservations is only called for reservationPlan and real-time.
         if (isReservationPlan) {
             reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
-                    .filter(res -> res.getStatus() == ReservationStatus.RESERVED ||
-                            res.getStatus() == ReservationStatus.PLACEMENT_FAILED ||
-                            res.getStatus() == ReservationStatus.INPROGRESS)
+                    .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
                     .collect(Collectors.toSet());
         } else {
             reservationSet = reservationManager.getReservationDao().getAllReservations().stream()

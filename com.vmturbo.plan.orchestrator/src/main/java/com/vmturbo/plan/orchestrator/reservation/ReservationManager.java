@@ -2,8 +2,11 @@ package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,6 +34,10 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
@@ -39,6 +46,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -314,10 +322,21 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
             final List<ScenarioChange> settingOverrides = createPlacementActionSettingOverride();
             ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
                     .build();
+            Map<Long, String> scopeIds = getAllScopeEntities();
+            PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
+            if (!scopeIds.isEmpty()) {
+                for (Entry<Long, String> scopeid : scopeIds.entrySet()) {
+                    PlanScopeEntry planScopeEntry = PlanScopeEntry
+                            .newBuilder().setScopeObjectOid(scopeid.getKey())
+                            .setClassName(scopeid.getValue()).build();
+                    planScopeBuilder.addScopeEntries(planScopeEntry);
+                }
+            }
             final Scenario scenario = Scenario.newBuilder()
                     .setScenarioInfo(ScenarioInfo.newBuilder(scenarioInfo)
                             .clearChanges()
-                            .addAllChanges(settingOverrides))
+                            .addAllChanges(settingOverrides)
+                            .setScope(planScopeBuilder))
                     .build();
 
             final PlanInstance planInstance = planDao
@@ -388,6 +407,49 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 updateReservationsOnPlanFailure();
             }
         }
+    }
+
+    /**
+     * Get all the constraint ids of inprogress reservation.
+     * If one of the in-progress reservation is un -constrained (full scope) the return empty list.
+     *
+     * @return Map of constraint id and the type of constraint.
+     */
+    private Map<Long, String> getAllScopeEntities() {
+        Map<Long, String> scope = new HashMap<>();
+        final Set<Reservation> reservations =
+                reservationDao.getAllReservations().stream()
+                        .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                        .collect(Collectors.toSet());
+        for (Reservation reservation : reservations) {
+            if (!reservation.hasConstraintInfoCollection() ||
+                    reservation
+                            .getConstraintInfoCollection()
+                            .getReservationConstraintInfoList() == null ||
+                    reservation.getConstraintInfoCollection()
+                            .getReservationConstraintInfoList().isEmpty()) {
+                return new HashMap<>();
+            } else {
+                List<ReservationConstraintInfo> reservationConstraintInfos = reservation
+                        .getConstraintInfoCollection().getReservationConstraintInfoList();
+                for (ReservationConstraintInfo reservationConstraintInfo
+                        : reservationConstraintInfos) {
+                    if (reservationConstraintInfo.getType() == Type.CLUSTER) {
+                        scope.put(reservationConstraintInfo
+                                .getConstraintId(), StringConstants.CLUSTER);
+                    } else if (reservationConstraintInfo.getType() ==
+                            Type.VIRTUAL_DATA_CENTER) {
+                        scope.put(reservationConstraintInfo
+                                .getConstraintId(), StringConstants.VDC);
+                    } else if (reservationConstraintInfo
+                            .getType() == Type.DATA_CENTER) {
+                        scope.put(reservationConstraintInfo
+                                .getConstraintId(), StringConstants.DATA_CENTER);
+                    }
+                }
+            }
+        }
+        return scope;
     }
 
     @Override

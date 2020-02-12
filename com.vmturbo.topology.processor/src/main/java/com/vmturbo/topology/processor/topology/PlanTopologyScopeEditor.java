@@ -25,10 +25,12 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.InvertedIndex;
@@ -215,14 +217,17 @@ public class PlanTopologyScopeEditor {
      * @param topology the topology entity graph the topology entity graph
      * @param groupResolver the group resolver
      * @param planScope the user defined plan scope
+     * @param planProjectType the type of plan.
      * @return scoped {@link TopologyGraph}
-     * @throws PipelineStageException
+     * @throws PipelineStageException if the pipeline has errors.
      **/
-    public TopologyGraph<TopologyEntity> indexBasedScoping(@Nonnull final InvertedIndex<TopologyEntity,
-            TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
-                                  @Nonnull final TopologyGraph<TopologyEntity> topology,
-                                  @Nonnull final GroupResolver groupResolver,
-                                  @Nonnull final PlanScope planScope) throws PipelineStageException {
+    public TopologyGraph<TopologyEntity> indexBasedScoping(
+            @Nonnull final InvertedIndex<TopologyEntity,
+                    CommoditiesBoughtFromProvider> index,
+            @Nonnull final TopologyGraph<TopologyEntity> topology,
+            @Nonnull final GroupResolver groupResolver,
+            @Nonnull final PlanScope planScope,
+            PlanProjectType planProjectType) throws PipelineStageException {
 
         logger.info("Entering scoping stage for on-prem topology .....");
         // record a count of the number of entities by their entity type in the context.
@@ -271,6 +276,25 @@ public class PlanTopologyScopeEditor {
                     .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
                             !suppliersToExpand.contains(customerOid))
                     .collect(Collectors.toList());
+            // For reservation plan we remove all vms..so the cluster is empty.
+            // so we have to add the storages explicitly.
+            if (planProjectType == PlanProjectType.RESERVATION_PLAN &&
+                    entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                boolean ishostEmpty =
+                        !entity.getConsumers().stream().anyMatch(a -> (a.getEntityType()
+                                == EntityType.VIRTUAL_MACHINE_VALUE));
+                if (ishostEmpty) {
+                    suppliersToExpand
+                            .addAll(entity.getProviders().stream()
+                                    .filter(a -> a.getEntityType()
+                                            == EntityType.STORAGE_VALUE)
+                                    .map(b -> b.getOid())
+                                    .collect(Collectors.toSet()));
+                }
+            }
+
+
+
             // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
             // that doesnt buy/sell commodities
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -349,7 +373,8 @@ public class PlanTopologyScopeEditor {
                     .setClonedFromEntityOid(topology.getEntity(oid).get().getClonedFromEntityOid())));
         // including addedEntities into the scope
         topology.entities().filter(entity -> entity.getTopologyEntityDtoBuilder().hasOrigin() &&
-                                             entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin())
+                (entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ||
+                entity.getTopologyEntityDtoBuilder().getOrigin().hasReservationOrigin()))
                 .forEach(entity -> scopingResult.put(entity.getOid(),
                         TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())));
         logger.info("Completed scoping stage for on-prem topology .....");

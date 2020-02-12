@@ -30,6 +30,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -198,7 +199,8 @@ public class StagesTest {
                         .setTopologyContextId(2)
                         .setTopologyId(2)
                         .setTopologyType(TopologyType.PLAN)
-                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("CUSTOM").build())
+                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("CUSTOM")
+                                .setPlanProjectType(PlanProjectType.USER).build())
                         .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
@@ -213,13 +215,13 @@ public class StagesTest {
         TopologyGraph<TopologyEntity> result = mock(TopologyGraph.class);
         when(onpremScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
-        when(scopeEditor.indexBasedScoping(eq(index), eq(graph), any(), eq(scope))).thenReturn(result);
+        when(scopeEditor.indexBasedScoping(eq(index), eq(graph), any(), eq(scope), eq(PlanProjectType.USER))).thenReturn(result);
         when(scopeEditor.createInvertedIndex()).thenReturn(index);
         when(graph.entities()).thenReturn(Stream.empty());
         when(result.size()).thenReturn(0);
         when(graph.size()).thenReturn(0);
         onpremScopingStage.execute(graph);
-        verify(scopeEditor).indexBasedScoping(eq(index), eq(graph), any(), eq(scope));
+        verify(scopeEditor).indexBasedScoping(eq(index), eq(graph), any(), eq(scope), eq(PlanProjectType.USER));
     }
 
     @Test

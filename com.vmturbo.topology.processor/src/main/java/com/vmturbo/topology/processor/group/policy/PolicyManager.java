@@ -215,30 +215,36 @@ public class PolicyManager {
         }
     }
 
+    /**
+     * Get the reservation status set that are active for the current topology.
+     * @param topologyInfo the topologyInfo for which we need to find the active reservation status.
+     * @return the set of active reservation statuses.
+     */
     @Nonnull
     private Set<ReservationStatus> activeReservationTypes(@Nonnull final TopologyInfo topologyInfo) {
         final Set<ReservationStatus> ret;
-        if (topologyInfo.getTopologyType() == TopologyType.PLAN) {
-            if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
-                // In the reservation plan we only want to look at the constraints of the in-progress
-                // reservations.
-                ret = ImmutableSet.of(ReservationStatus.INPROGRESS);
-            } else if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLUSTER_HEADROOM) {
-                // In the cluster headroom plan we only want to consider already-placed reservations,
-                // because they don't count as "placed".
-                ret = ImmutableSet.of(ReservationStatus.RESERVED);
-            } else {
-                // In other plans, we don't want to account for reservations at all.
-                ret = Collections.emptySet();
-            }
-        } else {
+        if (topologyInfo.getTopologyType() == TopologyType.REALTIME
+                || topologyInfo.getPlanInfo().getPlanProjectType() ==
+                PlanProjectType.CLUSTER_HEADROOM) {
+            // In the cluster headroom plan we only want to consider already-placed reservations,
+            // because they don't count as "placed".
             ret = ImmutableSet.of(
-                // We want to account for existing already-placed reservations...
-                ReservationStatus.RESERVED,
-                // As well as reservations that couldn't be placed earlier, but MAY be able to
-                // be placed now.
-                ReservationStatus.PLACEMENT_FAILED);
+                    // We want to account for existing already-placed reservations...
+                    ReservationStatus.RESERVED,
+                    // As well as reservations that couldn't be placed earlier, but MAY be able to
+                    // be placed now.
+                    ReservationStatus.PLACEMENT_FAILED);
+
+        } else if (topologyInfo.getPlanInfo().getPlanProjectType() ==
+                PlanProjectType.RESERVATION_PLAN) {
+            // In the reservation plan we only want to look at the constraints of the in-progress
+            // reservations.
+            ret = ImmutableSet.of(ReservationStatus.INPROGRESS);
+        } else {
+            // In other plans, we don't want to account for reservations at all.
+            ret = Collections.emptySet();
         }
+
         return ret;
     }
 
