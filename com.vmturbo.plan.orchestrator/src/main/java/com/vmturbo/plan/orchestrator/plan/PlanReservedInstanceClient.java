@@ -63,12 +63,6 @@ public class PlanReservedInstanceClient {
      */
      public void savePlanIncludedCoupons(@Nonnull PlanInstance planInstance) {
         ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
-        String planSubType = PlanRpcServiceUtil.getPlanSubType(scenarioInfo);
-        // OCP Option #3 has to do with New Buy RI recommendations only, hence there's no
-        // point in including or saving existing RIs to db
-        if (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)) {
-            return;
-        }
         List<Long> includedCouponOidsList = new ArrayList<>();
         boolean includeAll = parsePlanIncludedCoupons(planInstance, includedCouponOidsList);
         Long topologyContextId = planInstance.getPlanId();

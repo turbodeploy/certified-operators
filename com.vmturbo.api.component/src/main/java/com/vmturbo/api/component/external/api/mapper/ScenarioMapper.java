@@ -860,14 +860,19 @@ public class ScenarioMapper {
         // based on whether there are constraints to remove.  Possibly Combine logic.
         final IncludedCouponsApiDTO includedCoupons = configChanges.getIncludedCoupons();
         if (includedCoupons != null) {
-            final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
-            planChangesBuilder.setIncludedCoupons(IncludedCoupons.newBuilder()
-                                     .addAllIncludedCouponOids(
-                                           includedCoupons.getIncludedCouponOidsList())
-                                     .setIsWhiteList(includedCoupons.isIswhiteList())
-                                     .build());
-            scenarioChanges.add(ScenarioChange.newBuilder()
-                                .setPlanChanges(planChangesBuilder.build()).build());
+            final List<Long> includedCouponOidsList = includedCoupons.getIncludedCouponOidsList();
+            // The UI send a null OIDs list if the user hasn't made any selections from the
+            // RI Inventory to differentiate from an empty set of OIDS to represent not
+            // including any RIs.
+            if (includedCouponOidsList != null) {
+                final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
+                planChangesBuilder.setIncludedCoupons(IncludedCoupons.newBuilder()
+                                         .addAllIncludedCouponOids(includedCouponOidsList)
+                                         .setIsWhiteList(includedCoupons.isIswhiteList())
+                                         .build());
+                scenarioChanges.add(ScenarioChange.newBuilder()
+                                    .setPlanChanges(planChangesBuilder.build()).build());
+            }
         }
 
         return scenarioChanges.build();
@@ -1282,9 +1287,14 @@ public class ScenarioMapper {
         if (includedCoupons.isPresent()) {
             final IncludedCouponsApiDTO includedCouponsDto = new IncludedCouponsApiDTO();
             IncludedCoupons includedCouponsMsg = includedCoupons.get();
-            includedCouponsDto.setIncludedCouponOidsList(includedCouponsMsg.getIncludedCouponOidsList());
-            includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList() ?
-                            includedCouponsMsg.getIsWhiteList() : true);
+            final List<Long> includedCouponOidsList =
+                                                    includedCouponsMsg.getIncludedCouponOidsList();
+            if (includedCouponOidsList != null) {
+                includedCouponsDto.setIncludedCouponOidsList(includedCouponOidsList);
+                includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList()
+                                ? includedCouponsMsg.getIsWhiteList()
+                                : true);
+            }
             outputChanges.setIncludedCoupons(includedCouponsDto);
         }
 
