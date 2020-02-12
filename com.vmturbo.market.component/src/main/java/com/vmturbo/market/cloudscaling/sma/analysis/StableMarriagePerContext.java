@@ -677,7 +677,7 @@ public class StableMarriagePerContext {
             return (oldRI.getOid() - newRI.getOid() > 0);
 
         } catch (Exception e) {
-            logger.error("*** preference(vm={}, profile={}, newRI={}, oldRI={}) e={}",
+            logger.error("preference(vm={}, profile={}, newRI={}, oldRI={}) e={}",
                     (vm == null ? "null" : vm.getName()),
                     (vm == null || vm.getCurrentTemplate() == null ? "null" : vm.getCurrentTemplate()),
                     (newEngagement == null ? "null" : newEngagement),
