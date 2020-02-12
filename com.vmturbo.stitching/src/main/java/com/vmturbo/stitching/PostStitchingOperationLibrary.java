@@ -26,6 +26,7 @@ import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOpe
 import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ProtectSharedStorageWastedFilesPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
@@ -263,10 +264,11 @@ public class PostStitchingOperationLibrary {
                     "autoSetTransactionsCapacity"),
 
             // Set capacity from settings for entities coming from Turbo APM or 3rd party APM
-            new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.BUSINESS_APPLICATION,
+            new SetAutoSetCommodityCapacityPostStitchingOperation(EntityType.BUSINESS_APPLICATION,
                     ProbeCategory.GUEST_OS_PROCESSES,
                     CommodityType.RESPONSE_TIME,
-                    "responseTimeCapacity"),
+                    "responseTimeCapacity",
+                    "autoSetResponseTimeCapacity"),
             new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.BUSINESS_APPLICATION,
                     ProbeCategory.GUEST_OS_PROCESSES,
                     CommodityType.SLA_COMMODITY,
@@ -275,14 +277,6 @@ public class PostStitchingOperationLibrary {
                     ProbeCategory.GUEST_OS_PROCESSES,
                     "transactionsCapacity",
                     "autoSetTransactionsCapacity"),
-                new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.BUSINESS_TRANSACTION,
-                        ProbeCategory.GUEST_OS_PROCESSES,
-                        CommodityType.RESPONSE_TIME,
-                        "responseTimeCapacity"),
-                new SetTransactionsCapacityPostStitchingOperation(EntityType.BUSINESS_TRANSACTION,
-                        ProbeCategory.GUEST_OS_PROCESSES,
-                        "transactionsCapacity",
-                        "autoSetTransactionsCapacity"),
             new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.APPLICATION_SERVER,
                     ProbeCategory.GUEST_OS_PROCESSES,
                     CommodityType.RESPONSE_TIME,
