@@ -339,7 +339,7 @@ public class CostFunctionFactory {
      *         If some commodity does not fit, returns the boughtIndex of the first commodity in that shopping list's
      *         basket that cannot fit within the seller.
      */
-    private static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller, int couponCommodityBaseType) {
+    public static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller, int couponCommodityBaseType) {
         // check if the commodities bought comply with capacity limitation on seller
         if (!sl.getBasket().isSatisfiedBy(seller.getBasketSold())) {
             // buyer basket not satisfied by seller providing quote
