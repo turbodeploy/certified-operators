@@ -1075,16 +1075,15 @@ public class UsersService implements IUsersService {
     }
 
     /**
-     * Validate that the active directory api dto specified has a valid domain name and login provider url.
+     * Validate that the active directory api dto specified has a valid domain name or login provider url.
      *
      * @param apiDTO dto representing the active directory,
      */
     private void validateActiveDirectoryInput(@Nonnull final ActiveDirectoryApiDTO apiDTO) {
-        if (StringUtils.isBlank(apiDTO.getDomainName())) {
-            throw new IllegalArgumentException("No domain name specified for active directory.");
-        }
-        if (StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
-            throw new IllegalArgumentException("No login provider URL specified for active directory.");
+        if (StringUtils.isBlank(apiDTO.getDomainName()) &&
+                StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
+            throw new IllegalArgumentException("Both domain name and login provider URL are" +
+                    " not specified for active directory.");
         }
     }
 }
