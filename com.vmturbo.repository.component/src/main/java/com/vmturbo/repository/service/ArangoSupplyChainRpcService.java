@@ -53,6 +53,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChain;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChainException;
 import com.vmturbo.repository.service.SupplyChainMerger.SingleSourceSupplyChain;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
  * An implementation of SupplyChainService that uses arango to retrieve the supply chain.
@@ -84,6 +85,11 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
 
     // the entity types to ignore when traversing the topology to construct global supply chain,
     // currently these are cloud entity types which we don't want to show in global supply chain
+    /**
+     * @deprecated Use {@link GlobalSupplyChainCalculator#IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN}
+     * instead.
+     */
+    @Deprecated
     public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE,
             EntityType.STORAGE_TIER_VALUE,
@@ -92,11 +98,12 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             EntityType.BUSINESS_ACCOUNT_VALUE,
             EntityType.CLOUD_SERVICE_VALUE,
             EntityType.HYPERVISOR_SERVER_VALUE,
-            EntityType.PROCESSOR_POOL_VALUE
+            EntityType.PROCESSOR_POOL_VALUE,
+            EntityType.SERVICE_PROVIDER_VALUE
     );
 
     // the entity types to ignore when traversing the topology to construct account supply chain,
-    // BUSINESS_ACCOUNT should be inclueded since it is the starting vertex
+    // BUSINESS_ACCOUNT should be included since it is the starting vertex
     public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN =
             IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.stream()
                     .filter(entityType -> entityType != EntityType.BUSINESS_ACCOUNT_VALUE)
