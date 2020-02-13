@@ -15,7 +15,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzerRateAndRIs.ReservedInstanceSpecKey;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -255,19 +254,6 @@ public class ReservedInstanceAnalyzerConstantsTest {
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
             regionOhio);
 
-
-    /*
-     * ReservedInstanceSpecKey
-     */
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_1 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_2 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2);
-
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_3 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_4 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2);
     /*
      * ReservedInstanceSpecInfo
      */

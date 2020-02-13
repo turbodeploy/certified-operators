@@ -215,4 +215,48 @@ public class ReservedInstanceAnalysisScope {
     public TopologyInfo getTopologyInfo() {
         return topologyInfo;
     }
+
+    /**
+     * Determines whether {@code accountOid} is in scope.
+     *
+     * @param accountOid The target account OID
+     * @return True, if the account is in scope or if account analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isAccountInScope(long accountOid) {
+        return accounts.isEmpty() || accounts.contains(accountOid);
+    }
+
+    /**
+     * Determines whether {@code regionOid} is in scope.
+     *
+     * @param regionOid The target region OID
+     * @return True, if the region is in scope or if region analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isRegionInScope(long regionOid) {
+        return regions.isEmpty() || regions.contains(regionOid);
+    }
+
+    /**
+     * Determines whether {@code platofrm} is in scope.
+     *
+     * @param platform The target platform
+     * @return True, if the platform is in scope or if platform analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isPlatformInScope(@Nonnull OSType platform) {
+        return platforms.isEmpty() || platforms.contains(platform);
+    }
+
+    /**
+     * Determines whether {@code tenancy} is in scope.
+     *
+     * @param tenancy The target tenancy
+     * @return True, if the tenancy is in scope or if tenancy analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isTenancyInScope(@Nonnull Tenancy tenancy) {
+        return tenancies.isEmpty() || tenancies.contains(tenancy);
+    }
 }

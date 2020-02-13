@@ -15,11 +15,79 @@ import com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKeyCreator.C
  */
 public class ReservedInstanceCoverageRulesFactory {
 
+    /**
+     * An ordered set of RI coverage rule configurations for AWS. These rules are based on
+     * https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/apply_ri.html
+     */
+    public static final List<RICoverageRuleConfig> AWS_RI_COVERAGE_RULE_CONFIGS = ImmutableList.of(
+            // First AWS rule is zonal RIs within the same account
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(false)
+                    .isZoneScoped(true)
+                    .isPlatformFlexible(false)
+                    .isSizeFlexible(false)
+                    .build(),
+            // Second AWS rule is zonal RIs within the same billing family
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(true)
+                    .isZoneScoped(true)
+                    .isPlatformFlexible(false)
+                    .isSizeFlexible(false)
+                    .build(),
+            // Third AWS rule is regional RIs within the same account. We do not set
+            // isSizeFlexible, given RIs at this scope can be size flexible or non-size
+            // flexible. Therefore, VMs should be able to match to either ISF or non-ISF RIs
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(false)
+                    .isZoneScoped(false)
+                    .isPlatformFlexible(false)
+                    .build(),
+            // Fourth/last AWS rule is regional RIs within the billing family. We do not
+            // set isSizeFlexible here for the same reason as above
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(true)
+                    .isZoneScoped(false)
+                    .isPlatformFlexible(false)
+                    .build());
+
+    /**
+     * An ordered set of RI coverage rule configurations for Azure.
+     */
+    public static final List<RICoverageRuleConfig> AZURE_RI_COVERAGE_RULE_CONFIGS = ImmutableList.of(
+            // First Azure rule is non-size flexible RIs in the same account
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(false)
+                    .isZoneScoped(false)
+                    .isPlatformFlexible(true)
+                    .isSizeFlexible(false)
+                    .build(),
+            // Second Azure rule is non-size flexible RIs in the billing family (EA family)
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(true)
+                    .isZoneScoped(false)
+                    .isPlatformFlexible(true)
+                    .isSizeFlexible(false)
+                    .build(),
+            // Third Azure rule is size flexible RIs in the same account
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(false)
+                    .isZoneScoped(false)
+                    .isPlatformFlexible(true)
+                    .isSizeFlexible(true)
+                    .build(),
+            // Last Azure rule is size flexible RIs in the billing family (EA family)
+            RICoverageRuleConfig.builder()
+                    .isSharedScope(true)
+                    .isZoneScoped(false)
+                    .isPlatformFlexible(true)
+                    .isSizeFlexible(true)
+                    .build());
+
     private ReservedInstanceCoverageRulesFactory() {}
 
     /**
      * Creates an ordered list of {@link ReservedInstanceCoverageRule} instances, based on the CSP
-     * of {@code coverageContext}
+     * of {@code coverageContext}.
      *
      * @param coverageContext An instance of {@link CloudProviderCoverageContext}. The generated rules
      *                        will be specific to the CSP of the context
@@ -38,81 +106,25 @@ public class ReservedInstanceCoverageRulesFactory {
                         coverageJournal,
                         coverageKeyCreatorFactory);
 
+        final ImmutableList.Builder<ReservedInstanceCoverageRule> ruleListBuilder =
+                ImmutableList.<ReservedInstanceCoverageRule>builder()
+                        .add(FirstPassCoverageRule.newInstance(coverageContext, coverageJournal));
+
         switch (coverageContext.cloudServiceProvider()) {
             case AWS:
-                return ImmutableList.of(
-                        FirstPassCoverageRule.newInstance(coverageContext, coverageJournal),
-                        // First AWS rule is zonal RIs within the same account
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(false)
-                                        .isZoneScoped(true)
-                                        .isPlatformFlexible(false)
-                                        .isSizeFlexible(false)
-                                        .build()),
-                        // Second AWS rule is zonal RIs within the same billing family
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(true)
-                                        .isZoneScoped(true)
-                                        .isPlatformFlexible(false)
-                                        .isSizeFlexible(false)
-                                        .build()),
-                        // Third AWS rule is regional RIs within the same account. We do not set
-                        // isSizeFlexible, given RIs at this scope can be size flexible or non-size
-                        // flexible. Therefore, VMs should be able to match to either ISF or non-ISF RIs
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(false)
-                                        .isZoneScoped(false)
-                                        .isPlatformFlexible(false)
-                                        .build()),
-                        // Fourth/last AWS rule is regional RIs within the billing family. We do not
-                        // set isSizeFlexible here for the same reason as above
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(true)
-                                        .isZoneScoped(false)
-                                        .isPlatformFlexible(false)
-                                        .build()));
+                AWS_RI_COVERAGE_RULE_CONFIGS.stream()
+                        .map(ruleFactory::newRule)
+                        .forEach(ruleListBuilder::add);
+                break;
             case AZURE:
-                return ImmutableList.of(
-                        FirstPassCoverageRule.newInstance(coverageContext, coverageJournal),
-                        // First Azure rule is non-size flexible RIs in the same account
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(false)
-                                        .isZoneScoped(false)
-                                        .isPlatformFlexible(true)
-                                        .isSizeFlexible(false)
-                                        .build()),
-                        // Second Azure rule is non-size flexible RIs in the billing family (EA family)
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(true)
-                                        .isZoneScoped(false)
-                                        .isPlatformFlexible(true)
-                                        .isSizeFlexible(false)
-                                        .build()),
-                        // Third Azure rule is size flexible RIs in the same account
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(false)
-                                        .isZoneScoped(false)
-                                        .isPlatformFlexible(true)
-                                        .isSizeFlexible(true)
-                                        .build()),
-                        // Last Azure rule is size flexible RIs in the billing family (EA family)
-                        ruleFactory.newRule(
-                                RICoverageRuleConfig.builder()
-                                        .isSharedScope(true)
-                                        .isZoneScoped(false)
-                                        .isPlatformFlexible(true)
-                                        .isSizeFlexible(true)
-                                        .build()));
+                AZURE_RI_COVERAGE_RULE_CONFIGS.stream()
+                        .map((ruleFactory::newRule))
+                        .forEach(ruleListBuilder::add);
+                break;
             default:
                 throw new UnsupportedOperationException();
         }
 
+        return ruleListBuilder.build();
     }
 }

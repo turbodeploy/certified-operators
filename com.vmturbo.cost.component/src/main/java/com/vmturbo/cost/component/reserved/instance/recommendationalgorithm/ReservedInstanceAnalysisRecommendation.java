@@ -24,17 +24,17 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzerRateAndRIs.PricingProviderResult;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.RIBuyRateProvider.PricingProviderResult;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyRegionalContext;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -48,33 +48,13 @@ public class ReservedInstanceAnalysisRecommendation {
 
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * Possible actions that might be taken with respect to a reserved instance,
-     * eg BUY, SELL, MODIFY, CONVERT, EXCHANGE. Currently only BUY.
-     */
-    public enum Action {
-        BUY("Buy");
-
-        private String label;
-
-        Action(String label) {
-            this.label = label;
-        }
-
-        public String getLabel() { return label; }
-    };
-
     // The Id of the buy RI record in the buy_reserved_instance table.
     private long buyRiId;
 
     // What is the context in which this reserved instance was bought; e.g. instanceType, region, platform, tenancy
-    private final ReservedInstanceRegionalContext context;
+    private final RIBuyRegionalContext regionalContext;
 
-    // What are the purchasing constraints; e.g. offeringClass, years, payment option
-    private final ReservedInstancePurchaseConstraints constraints;
-
-    // Recommended action with respect to the reservation, eg BUY some, SELL some, etc. Currently only BUY.
-    private final Action action;
+    private final long purchasingAccountOid;
 
     // How many reservations to do the action with, eg BUY 17 of them.
     private final int count;
@@ -152,9 +132,8 @@ public class ReservedInstanceAnalysisRecommendation {
 
     public ReservedInstanceAnalysisRecommendation(@Nonnull String logTag,
                                                   @Nonnull String actionGoal,
-                                                  @Nonnull ReservedInstanceRegionalContext context,
-                                                  @Nonnull ReservedInstancePurchaseConstraints contraints,
-                                                  @Nonnull Action action,
+                                                  @Nonnull RIBuyRegionalContext regionalContext,
+                                                  long purchasingAccountOid,
                                                   int count,
                                                   @Nonnull PricingProviderResult pricing,
                                                   float hourlyCostSavings,
@@ -163,25 +142,23 @@ public class ReservedInstanceAnalysisRecommendation {
                                                   int activeHours,
                                                   int riNormalizedCouponsCoupons,
                                                   float riNormalizedCouponsUsed,
-                                                  @Nonnull ReservedInstanceSpec riSpec,
                                                   TopologyInfo topologyInfo) {
         this.logTag = Objects.requireNonNull(logTag);
         this.actionGoal = Objects.requireNonNull(actionGoal);
-        this.context = Objects.requireNonNull(context);
-        this.constraints = Objects.requireNonNull(contraints);
-        this.action = Objects.requireNonNull(action);
+        this.regionalContext = Objects.requireNonNull(regionalContext);
+        this.purchasingAccountOid = purchasingAccountOid;
         this.count = count;
-        this.onDemandHourlyCost = pricing.getOnDemandRate();
-        this.riHourlyCost = pricing.getReservedInstanceRate();
-        this.riUpFrontRate = pricing.getReservedInstanceUpfrontRate();
-        this.riRecurringRate = pricing.getReservedInstanceRecurringRate();
+        this.onDemandHourlyCost = pricing.onDemandRate();
+        this.riHourlyCost = pricing.reservedInstanceRate();
+        this.riUpFrontRate = pricing.reservedInstanceUpfrontRate();
+        this.riRecurringRate = pricing.reservedInstanceRecurringRate();
         this.hourlyCostSavings = hourlyCostSavings;
         this.averageCouponDemand = averageCouponDemand;
         this.numberOfHours = numberOfHours;
         this.activeHours = activeHours;
         this.riNormalizedCoupons = riNormalizedCouponsCoupons;
         this.riNormalizedCouponsUsed = riNormalizedCouponsUsed;
-        this.riSpec = Objects.requireNonNull(riSpec);
+        this.riSpec = Objects.requireNonNull(regionalContext.riSpecToPurchase());
         this.riBoughtInfo = createRiBoughtInfo(Objects.requireNonNull(topologyInfo));
     }
 
@@ -197,7 +174,7 @@ public class ReservedInstanceAnalysisRecommendation {
 
     private static final String csvHeader = ",Log Key,Buy Type,Master Account,Instance Type,"
                                             + "Location,Location OID,Platform,Tenancy,Offering Class,Term,Payment Option,"
-                    + "Action,Count,hourly onDemand cost,hourly RI cost,hourly savings,"
+                    + "Count,hourly onDemand cost,hourly RI cost,hourly savings,"
                     + "discount cost,discount %,savings %,# hours,active hours,avg coupon demand,"
                     + "RI coupons,RI coupons used,RI utilization";
 
@@ -209,9 +186,6 @@ public class ReservedInstanceAnalysisRecommendation {
     public String toCSVString() {
         // None of the fields currently can contain a comma.
         // If this changes, consider switching to using Apache Commons CSV.
-
-        // From context get master account
-        long masterAccountId = context.getMasterAccountId();
 
         // is riHourlyCost known, unknown is sent as Float.MAX_VALUE
         boolean isRiHourlyCostKnown = riHourlyCost != Float.MAX_VALUE;
@@ -228,20 +202,21 @@ public class ReservedInstanceAnalysisRecommendation {
 
         StringJoiner joiner = new StringJoiner(",");
 
+        final ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
+        final ReservedInstanceType riSpecType = riSpec.getReservedInstanceSpecInfo().getType();
         // initial comma allows adding log snippet into Excel as a csv, ignoring the first field,
         // which is inserted by the logger and delimited by this initial comma.
         joiner.add("," + logTag)
                 .add(actionGoal)
-                .add(Long.toString(masterAccountId))
-                .add(context.getComputeTier().getDisplayName())
-                .add(context.getRegionDisplayName())
-                        .add(Long.toString(context.getRegionId()))
-                .add(context.getPlatform().toString())
-                .add(context.getTenancy().name())
-                .add(constraints.getOfferingClass().toString())
-                .add(Integer.toString(constraints.getTermInYears()))
-                .add(constraints.getPaymentOption().name())
-                .add(action.toString())
+                .add(Long.toString(purchasingAccountOid))
+                .add(regionalContext.computeTier().getDisplayName())
+                .add(regionalContext.region().getDisplayName())
+                .add(Long.toString(regionalContext.regionOid()))
+                .add(riSpecInfo.getOs().toString())
+                .add(riSpecInfo.getTenancy().name())
+                .add(riSpecType.getOfferingClass().toString())
+                .add(Integer.toString(riSpecType.getTermYears()))
+                .add(riSpecType.getPaymentOption().name())
                 .add(Integer.toString(count))
                 .add(String.format(Locale.ROOT, "%.5f", onDemandHourlyCost))
                 .add(riHourlyCostString)
@@ -262,41 +237,26 @@ public class ReservedInstanceAnalysisRecommendation {
 
     @Nonnull
     public TopologyEntityDTO getComputeTier() {
-        return context.getComputeTier();
+        return regionalContext.computeTier();
     }
 
     @Nonnull
     public long getRegion() {
-        return context.getRegionId();
+        return regionalContext.regionOid();
     }
 
     @Nonnull
     public OSType getPlatform() {
-        return context.getPlatform();
+        return riSpec.getReservedInstanceSpecInfo().getOs();
     }
 
     @Nonnull
     public Tenancy getTenancy() {
-        return context.getTenancy();
-    }
-
-    @Nonnull
-    public OfferingClass getOfferingClass() {
-        return constraints.getOfferingClass();
+        return riSpec.getReservedInstanceSpecInfo().getTenancy();
     }
 
     public int getTermInYears() {
-        return constraints.getTermInYears();
-    }
-
-    @Nonnull
-    public PaymentOption getPaymentOption() {
-        return constraints.getPaymentOption();
-    }
-
-    @Nonnull
-    public Action getAction() {
-        return action;
+        return riSpec.getReservedInstanceSpecInfo().getType().getTermYears();
     }
 
     public int getCount() {
@@ -396,7 +356,7 @@ public class ReservedInstanceAnalysisRecommendation {
 
         ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder()
             .setFixedCost(CurrencyAmount.newBuilder().setAmount(riUpFrontRate *
-                    ReservedInstanceAnalyzerRateAndRIs.HOURS_IN_A_MONTH * 12 * getTermInYears()).build())
+                    RIBuyRateProvider.HOURS_IN_A_MONTH * 12 * getTermInYears()).build())
             .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(riRecurringRate).build())
             .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build());
 
@@ -411,8 +371,7 @@ public class ReservedInstanceAnalysisRecommendation {
                                 .build())
                 .build();
 
-        final int numOfCoupons = context.getComputeTier().getTypeSpecificInfo().getComputeTier()
-                .getNumCoupons();
+        final int numOfCoupons = regionalContext.couponsPerRecommendedInstance();
 
         ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
             .setNumberOfCoupons(riNormalizedCoupons * numOfCoupons);
@@ -432,7 +391,7 @@ public class ReservedInstanceAnalysisRecommendation {
         }
 
         ReservedInstanceBoughtInfo.Builder riBoughtInfoBuilder = ReservedInstanceBoughtInfo.newBuilder()
-                .setBusinessAccountId(context.getMasterAccountId())
+                .setBusinessAccountId(purchasingAccountOid)
                 .setNumBought(getCount())
                 .setReservedInstanceSpec(getRiSpec().getId())
                 .setReservedInstanceBoughtCost(riBoughtCost)
@@ -459,14 +418,13 @@ public class ReservedInstanceAnalysisRecommendation {
                     .setType(EntityType.REGION_VALUE)
                     .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                     .build())
-            .setMasterAccount(ActionEntity.newBuilder().setId(context.getMasterAccountId())
+            .setMasterAccount(ActionEntity.newBuilder().setId(purchasingAccountOid)
                     .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
                     .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                     .build())
             .build();
 
-        final ComputeTierInfo computeTier = context.getComputeTier().getTypeSpecificInfo().getComputeTier();
-        int instanceTypeCoupons = computeTier.getNumCoupons();
+        final int instanceTypeCoupons = regionalContext.couponsPerRecommendedInstance();
         final float totalAverageDemand = averageCouponDemand * instanceTypeCoupons;
         float coveredAverageDemand = getRiUtilization() * count * instanceTypeCoupons;
         float estimatedOnDemandCost = getEstimatedOnDemandCost();

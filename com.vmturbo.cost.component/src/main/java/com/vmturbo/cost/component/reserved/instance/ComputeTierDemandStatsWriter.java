@@ -339,7 +339,7 @@ public class ComputeTierDemandStatsWriter {
                             (byte)topologyForDay,
                             statsRecord.targetId,
                             statsRecord.instanceType,
-                            statsRecord.availabilityZone,
+                            statsRecord.regionOrZone,
                             statsRecord.platform,
                             statsRecord.tenancy,
                             newCountFromSourceTopology,
@@ -351,7 +351,7 @@ public class ComputeTierDemandStatsWriter {
                     (byte)topologyForDay,
                     statsRecord.targetId,
                     statsRecord.instanceType,
-                    statsRecord.availabilityZone,
+                    statsRecord.regionOrZone,
                     statsRecord.platform,
                     statsRecord.tenancy,
                     newCountFromSourceTopology,
@@ -400,7 +400,7 @@ public class ComputeTierDemandStatsWriter {
                 riDemandStatsMap.put(
                         new ComputeTierDemandStatsRecord(riStatRecord.getAccountId(),
                                 riStatRecord.getComputeTierId(),
-                                riStatRecord.getAvailabilityZone(),
+                                riStatRecord.getRegionOrZoneId(),
                                 riStatRecord.getPlatform(),
                                 riStatRecord.getTenancy()),
                         new WeightedCounts(
@@ -459,7 +459,7 @@ public class ComputeTierDemandStatsWriter {
 
         private final long targetId;
 
-        private final long availabilityZone;
+        private final long regionOrZone;
 
         private final long instanceType;
 
@@ -469,12 +469,12 @@ public class ComputeTierDemandStatsWriter {
 
         ComputeTierDemandStatsRecord(long targetId,
                             long instanceType,
-                            long availabilityZone,
+                            long regionOrZone,
                             byte platform,
                             byte tenancy) {
             this.targetId = targetId;
             this.instanceType = instanceType;
-            this.availabilityZone = availabilityZone;
+            this.regionOrZone = regionOrZone;
             this.platform = platform;
             this.tenancy = tenancy;
         }
@@ -494,7 +494,7 @@ public class ComputeTierDemandStatsWriter {
 
             return (otherRec.targetId == this.targetId &&
                     otherRec.instanceType == this.instanceType &&
-                    otherRec.availabilityZone == this.availabilityZone &&
+                    otherRec.regionOrZone == this.regionOrZone &&
                     otherRec.platform == this.platform &&
                     otherRec.tenancy == this.tenancy);
         }
@@ -502,7 +502,7 @@ public class ComputeTierDemandStatsWriter {
         @Override
         public int hashCode() {
             return Objects.hash(targetId, instanceType,
-                    availabilityZone, platform, tenancy);
+                    regionOrZone, platform, tenancy);
         }
     }
 

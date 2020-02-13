@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
+package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator;
 
 import java.util.Objects;
 
