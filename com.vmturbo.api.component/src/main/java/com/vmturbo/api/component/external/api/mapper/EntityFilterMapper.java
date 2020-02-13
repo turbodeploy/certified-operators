@@ -73,6 +73,8 @@ public class EntityFilterMapper {
     public static final String MEMBER_OF_RESOURCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
     /** Key of the criteria to query resource groups by ids. */
     public static final String OWNER_OF_RESOURCE_GROUP_OID = "OwnerOf:ResourceGroup:uuid";
+    /** Key of the criteria to query billing families by ids. */
+    public static final String MEMBER_OF_BILLING_FAMILY_OID = "MemberOf:BillingFamily:uuid";
 
     public static final String STATE = "state";
     public static final String NETWORKS = "networks";
@@ -229,7 +231,6 @@ public class EntityFilterMapper {
                 entityToGroupType = EntityToGroupType.MEMBER_OF;
                 break;
         }
-        boolean isOwnerFilter = currentToken.equals(OWNER_OF);
         String groupTypeToken;
         if (currentToken.equals(MEMBER_OF) || currentToken.equals(OWNER_OF)) {
             groupTypeToken = context.getIterator().next();
