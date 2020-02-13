@@ -3,6 +3,8 @@ package com.vmturbo.plan.orchestrator.plan;
 import static com.vmturbo.plan.orchestrator.db.tables.PlanInstance.PLAN_INSTANCE;
 import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,14 +13,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
@@ -27,12 +33,13 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
@@ -81,10 +88,19 @@ import com.vmturbo.repository.api.RepositoryClient;
  */
 public class PlanDaoImpl implements PlanDao {
 
+    /**
+     * If a plan is in these states we do not apply timeout logic to it. This is because these states
+     * indicate a plan that is not in-progress.
+     */
+    private static final Set<String> STATES_NOT_ELIGIBLE_FOR_TIMEOUT = ImmutableSet.of(
+        PlanStatus.READY.name(), PlanStatus.QUEUED.name(), PlanStatus.FAILED.name(),
+        PlanStatus.SUCCEEDED.name(), PlanStatus.STOPPED.name());
+
+
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
-    private final Logger logger = LoggerFactory.getLogger(PlanDaoImpl.class);
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Database access context.
@@ -113,7 +129,7 @@ public class PlanDaoImpl implements PlanDao {
 
     private final SettingServiceBlockingStub settingService;
 
-    private final int planTimeOutHours;
+    private final Clock clock;
 
     private final UserSessionContext userSessionContext;
 
@@ -128,22 +144,11 @@ public class PlanDaoImpl implements PlanDao {
 
     private final CostServiceBlockingStub costService;
 
-    /**
-     * Constructs plan DAO.
-     *
-     * @param dsl database access context
-     * @param repositoryClient gRPC client for the repository component
-     * @param actionOrchestratorClient gRPC client for action orchestrator
-     * @param statsClient gRPC client for the stats/history component
-     * @param groupChannel group channel
-     * @param userSessionContext user session context
-     * @param searchServiceBlockingStub gRPC client for search service
-     * @param riStub RI buy context fetching service
-     * @param planRIService plan RI service
-     * @param costService cost service
-     * @param planTimeOutHours plan time out hours
-     */
-    public PlanDaoImpl(@Nonnull final DSLContext dsl,
+    private final ScheduledExecutorService cleanupExecutor;
+
+    private final OldPlanCleanup oldPlanCleanup;
+
+    PlanDaoImpl(@Nonnull final DSLContext dsl,
                        @Nonnull final RepositoryClient repositoryClient,
                        @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
                        @Nonnull final StatsHistoryServiceBlockingStub statsClient,
@@ -153,7 +158,12 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                        @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
                        @Nonnull final CostServiceBlockingStub costService,
-                       final int planTimeOutHours) {
+                       @Nonnull final Clock clock,
+                       @Nonnull final ScheduledExecutorService cleanupExecutor,
+                       final long planTimeout,
+                       @Nonnull final TimeUnit planTimeoutUnit,
+                       final long cleanupInterval,
+                       @Nonnull final TimeUnit cleanupIntervalUnit) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
@@ -163,9 +173,12 @@ public class PlanDaoImpl implements PlanDao {
         this.riStub = riStub;
         this.planRIService = planRIService;
         this.costService = costService;
-        this.planTimeOutHours = planTimeOutHours;
+        this.clock = clock;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
                 GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
+        this.cleanupExecutor = cleanupExecutor;
+        this.oldPlanCleanup = new OldPlanCleanup(clock, this, planTimeout, planTimeoutUnit);
+        this.cleanupExecutor.scheduleAtFixedRate(this.oldPlanCleanup, cleanupInterval, cleanupInterval, cleanupIntervalUnit);
     }
 
     @Override
@@ -205,7 +218,7 @@ public class PlanDaoImpl implements PlanDao {
         final PlanDTO.PlanInstance plan = builder.build();
         checkPlanConsistency(plan);
 
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         final PlanInstance dbRecord = new PlanInstance(plan.getPlanId(), curTime, curTime, plan,
                 plan.getProjectType().name(), PlanStatus.READY.name());
         dsl.newRecord(PLAN_INSTANCE, dbRecord).store();
@@ -236,7 +249,7 @@ public class PlanDaoImpl implements PlanDao {
         final PlanDTO.PlanInstance planInstance = planInstanceBuilder.build();
         checkPlanConsistency(planInstance);
 
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         final PlanInstance dbRecord =
                 new PlanInstance(planInstance.getPlanId(), curTime, curTime, planInstance,
                         planProjectType.name(), PlanStatus.READY.name());
@@ -260,11 +273,7 @@ public class PlanDaoImpl implements PlanDao {
     @Nonnull
     @Override
     public Set<PlanDTO.PlanInstance> getAllPlanInstances() {
-        final List<PlanInstance> records = dsl.transactionResult(configuration -> {
-            final DSLContext context = DSL.using(configuration);
-            return dsl.selectFrom(PLAN_INSTANCE).fetch().into(PlanInstance.class);
-        });
-        return records.stream()
+        return getPlans(dsl).stream()
             .map(PlanInstance::getPlanInstance)
             .collect(Collectors.toSet());
     }
@@ -275,15 +284,10 @@ public class PlanDaoImpl implements PlanDao {
         return getPlanInstance(dsl, id);
     }
 
-    private static Optional<PlanDTO.PlanInstance> getPlanInstance(@Nonnull final DSLContext dsl,
+    private Optional<PlanDTO.PlanInstance> getPlanInstance(@Nonnull final DSLContext dsl,
             final long id) {
-        final PlanInstanceRecord planInstance =
-                dsl.selectFrom(PLAN_INSTANCE).where(PLAN_INSTANCE.ID.eq(id)).fetchOne();
-        if (planInstance == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(planInstance.into(PlanInstance.class).getPlanInstance());
-        }
+        return getPlans(dsl, PLAN_INSTANCE.ID.eq(id)).stream().findFirst()
+            .map(PlanInstance::getPlanInstance);
     }
 
     @Override
@@ -393,8 +397,12 @@ public class PlanDaoImpl implements PlanDao {
 
         if (!plan.getActionPlanIdList().isEmpty()) {
             // Deletes all entries from the action context ri buy table for a plan.
-            riStub.deleteRIBuyContextData(DeleteRIBuyContextDataRequest.newBuilder()
+            try {
+                riStub.deleteRIBuyContextData(DeleteRIBuyContextDataRequest.newBuilder()
                     .setTopologyContextId(topologyContextId).build());
+            } catch (StatusRuntimeException e) {
+                errors.add("Failed to delete related RI data. Error: " + e.getMessage());
+            }
         }
 
         final DeletePlanEntityCostsRequest deleteCostsRequest =
@@ -456,6 +464,18 @@ public class PlanDaoImpl implements PlanDao {
         return new NoSuchObjectException("Plan with id " + id + " not found");
     }
 
+    @Nonnull
+    private List<PlanInstance> getPlans(@Nullable DSLContext context,
+                                        @Nonnull Condition... condition) {
+        DSLContext targetCtxt = context;
+        if (context == null) {
+            targetCtxt = dsl;
+        }
+        return targetCtxt.selectFrom(PLAN_INSTANCE).where(condition)
+            .fetch()
+            .into(PlanInstance.class);
+    }
+
     @Override
     public PlanDTO.PlanInstance updatePlanInstance(final long planId,
             @Nonnull final Consumer<Builder> updater)
@@ -475,10 +495,13 @@ public class PlanDaoImpl implements PlanDao {
                             PlanDTO.PlanInstance.newBuilder(src);
                     updater.accept(newBuilder);
                     final PlanDTO.PlanInstance planInstance = newBuilder.build();
-                    logger.info("Updating planInstance : {} from {} to {}", planId, src.getStatus().name(), planInstance.getStatus().name());
+                    logger.info("Updating planInstance : {} from {} to {}. {}",
+                        planId, src.getStatus().name(), planInstance.getStatus().name(),
+                        src.getStatusMessage().equals(planInstance.getStatusMessage()) ? "" :
+                            "New status message: " + planInstance.getStatusMessage());
                     checkPlanConsistency(planInstance);
                     final int numRows = context.update(PLAN_INSTANCE)
-                            .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                            .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
                             .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
                             .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
                             .where(PLAN_INSTANCE.ID.eq(planId))
@@ -564,7 +587,7 @@ public class PlanDaoImpl implements PlanDao {
      *
      * @return true if max number of concurrent plan instances has not reached, false otherwise.
      */
-    private boolean isPlanExecutionCapacityAvailable(DSLContext dslContext, final int timeOutHours) {
+    private boolean isPlanExecutionCapacityAvailable() {
         // get maximum number of concurrent plan instance allowed
         GetGlobalSettingResponse response = settingService.getGlobalSetting(
             GetSingleGlobalSettingRequest.newBuilder()
@@ -581,8 +604,7 @@ public class PlanDaoImpl implements PlanDao {
                         .getNumericSettingValueType().getDefault();
         }
 
-        LocalDateTime expirationHour = LocalDateTime.now().minusHours(timeOutHours);
-        cleanUpFailedInstance(expirationHour);
+        oldPlanCleanup.run();
 
         // get number of running plan instances
         Integer numRunningInstances = getNumberOfRunningPlanInstances();
@@ -595,27 +617,6 @@ public class PlanDaoImpl implements PlanDao {
     }
 
     /**
-     * Clean up plan instances if instances are running for more than timeoutHours hours.
-     * Since plan instances status could be not be updated, if some components were down
-     * during their execution.
-     *
-     * @param timeOutHours plan time out hours
-     * @throws DataAccessException db access exception
-     */
-    private void cleanUpFailedInstance(final LocalDateTime timeOutHours) throws DataAccessException {
-        dsl.update(PLAN_INSTANCE)
-                .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
-                .set(PLAN_INSTANCE.STATUS, PlanStatus.FAILED.name())
-                .where(PLAN_INSTANCE.UPDATE_TIME.lt(timeOutHours),
-                        PLAN_INSTANCE.STATUS.notIn(
-                                PlanStatus.READY.name(),
-                                PlanStatus.SUCCEEDED.name(),
-                                PlanStatus.FAILED.name()))
-                .and(PLAN_INSTANCE.STATUS.isNotNull())
-                .execute();
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -625,7 +626,7 @@ public class PlanDaoImpl implements PlanDao {
             final DSLContext context = DSL.using(configuration);
 
             // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-            if (isPlanExecutionCapacityAvailable(context, planTimeOutHours)) {
+            if (isPlanExecutionCapacityAvailable()) {
                 // Select the instance record that is in READY state and has the oldest creation time
                 // Call "forUpdate()" to lock the record for subsequent update.
                 final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
@@ -660,7 +661,7 @@ public class PlanDaoImpl implements PlanDao {
 
                 // Proceed only if the maximum number of concurrent plan instances have not been exceeded
                 if (isUserOrInitialPlacementPlan(planInstance)
-                        || isPlanExecutionCapacityAvailable(context, planTimeOutHours)) {
+                        || isPlanExecutionCapacityAvailable()) {
                     // Select the instance record that is in READY state and has the given ID.
                     // Call "forUpdate()" to lock the record for subsequent update.
                     final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
@@ -687,7 +688,7 @@ public class PlanDaoImpl implements PlanDao {
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof IntegrityException) {
-                throw (IntegrityException) e.getCause();
+                throw (IntegrityException)e.getCause();
             } else {
                 throw e;
             }
@@ -713,13 +714,13 @@ public class PlanDaoImpl implements PlanDao {
                 .getPlanInstance();
         PlanDTO.PlanInstance updatedInst = PlanDTO.PlanInstance.newBuilder(originalInst)
                 .setStatus(PlanStatus.QUEUED)
-                .setStartTime(System.currentTimeMillis())
+                .setStartTime(clock.millis())
                 .build();
         checkPlanConsistency(updatedInst);
         // do not update planStatus if the status is already STOPPED
         if (originalInst.getStatus() != PlanStatus.STOPPED) {
             context.update(PLAN_INSTANCE)
-                    .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                    .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
                     .set(PLAN_INSTANCE.PLAN_INSTANCE_, updatedInst)
                     .set(PLAN_INSTANCE.STATUS, updatedInst.getStatus().name())
                     .where(PLAN_INSTANCE.ID.eq(planId))
@@ -824,10 +825,10 @@ public class PlanDaoImpl implements PlanDao {
     /**
      * {@inheritDoc}
      *
-     * This method retrieves all plan instances and serializes them as JSON strings.
+     * <p>This method retrieves all plan instances and serializes them as JSON strings.
      *
      * @return a list of serialized plan instances
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException If there is an error collecting diagnostics.
      */
     @Nonnull
     @Override
@@ -844,7 +845,7 @@ public class PlanDaoImpl implements PlanDao {
     /**
      * {@inheritDoc}
      *
-     * This method clears all existing plan instances, then deserializes and adds a list of
+     * <p>This method clears all existing plan instances, then deserializes and adds a list of
      * serialized plan instances from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
@@ -910,14 +911,14 @@ public class PlanDaoImpl implements PlanDao {
     /**
      * Convert a PlanDTO.PlanInstance to a jooq PlanInstance and add it to the database.
      *
-     * This is used when restoring serialized PlanDTO.PlanInstances from diagnostics and should
+     * <p>This is used when restoring serialized PlanDTO.PlanInstances from diagnostics and should
      * not be used for normal operations.
      *
      * @param planInstance the PlanDTO.PlanInstance to convert and add.
      * @return an optional of a string representing any error that may have occurred
      */
     private Optional<String> restorePlanInstance(@Nonnull final PlanDTO.PlanInstance planInstance) {
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         final PlanInstance record = new PlanInstance(planInstance.getPlanId(), curTime, curTime,
             planInstance, planInstance.getProjectType().name(), planInstance.getStatus().name());
         try {
@@ -925,7 +926,7 @@ public class PlanDaoImpl implements PlanDao {
             return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan instance " + planInstance);
         } catch (DataAccessException e) {
             return Optional.of("Could not restore plan instance " + planInstance +
-                " because of DataAccessException "+ e.getMessage());
+                " because of DataAccessException " + e.getMessage());
         }
     }
 
@@ -940,6 +941,79 @@ public class PlanDaoImpl implements PlanDao {
             return dsl.deleteFrom(PLAN_INSTANCE).execute();
         } catch (DataAccessException e) {
             return 0;
+        }
+    }
+
+    /**
+     * Cleans up plan instances if instances are running for more than timeoutHours hours.
+     * Since plan instances status could be not be updated, if some components were down
+     * during their execution.
+     */
+    static class OldPlanCleanup implements Runnable {
+
+        private static final Logger logger = LogManager.getLogger();
+
+        private final Clock clock;
+
+        private final PlanDaoImpl planDao;
+
+        private final long planTimeoutSec;
+
+        OldPlanCleanup(@Nonnull final Clock clock,
+                       @Nonnull final PlanDaoImpl planDao,
+                       final long planTimeout,
+                       @Nonnull final TimeUnit planTimeoutUnit) {
+            this.clock = clock;
+            this.planTimeoutSec = planTimeoutUnit.toSeconds(planTimeout);
+            this.planDao = planDao;
+        }
+
+        @VisibleForTesting
+        long getPlanTimeoutSec() {
+            return planTimeoutSec;
+        }
+
+        @Override
+        public void run() {
+            try {
+                final LocalDateTime now = LocalDateTime.now(clock);
+                final LocalDateTime threshold = now.minusSeconds(planTimeoutSec);
+                final List<PlanInstance> expiredInstances = planDao.getPlans(null,
+                    PLAN_INSTANCE.STATUS.notIn(STATES_NOT_ELIGIBLE_FOR_TIMEOUT)
+                        .and(PLAN_INSTANCE.UPDATE_TIME.lt(threshold)));
+
+                for (PlanInstance expiredInstance : expiredInstances) {
+                    try {
+                        logger.info("Plan {} has no updates since {}," +
+                            " exceeding the timeout threshold of {}. Marking it as failed.",
+                            expiredInstance.getId(), expiredInstance.getUpdateTime(),
+                            Duration.ofSeconds(planTimeoutSec));
+                        planDao.updatePlanInstance(expiredInstance.getId(), (bldr) -> {
+                            // It's possible that another operation between the expired instance
+                            // query and this update already set the plan to FAILED.
+                            if (bldr.getStatus() != PlanStatus.FAILED) {
+                                bldr.setStatus(PlanStatus.FAILED);
+                                final Duration timeSinceUpdate = Duration.between(expiredInstance.getUpdateTime(), now);
+                                bldr.setStatusMessage("Failed due to timeout. No updates for " + timeSinceUpdate.toString());
+                            }
+                        });
+                    } catch (IntegrityException e) {
+                        // This shouldn't happen, because we're not changing anything that would violate
+                        // integrity. Is the plan already somehow corrupted?
+                        logger.warn("Failed to delete expired plan {} because it is no longer valid. Error: {}",
+                            expiredInstance.getId(), e.getMessage());
+                    } catch (NoSuchObjectException e) {
+                        // This may happen if the plan gets deleted on another thread while cleaning up.
+                        logger.warn("Failed to delete expired plan {} because it no longer exists.", expiredInstance.getId());
+                    }
+                }
+            } catch (DataAccessException e) {
+                logger.error("Failed to clean up expired instances due to SQL exception.", e);
+            } catch (RuntimeException e) {
+                // We catch runtime exceptions because we don't want a single failed expiration loop
+                // to stop subsequent executions of this method in the scheduled executor.
+                logger.error("Failed to clean up expired instances due to unexpected exception.", e);
+            }
         }
     }
 }

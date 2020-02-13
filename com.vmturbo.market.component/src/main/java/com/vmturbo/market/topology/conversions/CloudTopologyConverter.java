@@ -17,13 +17,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -66,16 +66,13 @@ public class CloudTopologyConverter {
     private final ReservedInstanceConverter riConverter;
     private final StorageTierConverter storageTierConverter;
     private final Map<Integer, TierConverter> converterMap;
-    private TopologyInfo topologyInfo;
     private final BiCliquer pmBasedBicliquer;
     private final BiCliquer dsBasedBicliquer;
-    private final CommodityConverter commodityConverter;
     private final Map<Long, TopologyEntityDTO> topology;
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
-    private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -102,9 +99,6 @@ public class CloudTopologyConverter {
              @Nonnull TierExcluder tierExcluder,
              @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
          this.topology = topology;
-         this.topologyInfo = topologyInfo;
-         this.cloudTopology = cloudTopology;
-         this.commodityConverter = commodityConverter;
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
@@ -267,8 +261,7 @@ public class CloudTopologyConverter {
             return providerOids;
         }
         for (TopologyEntityDTO connectedEntity : connectedEntities) {
-            MarketTier provider = null;
-            provider = new OnDemandMarketTier(connectedEntity);
+            MarketTier provider = new OnDemandMarketTier(connectedEntity);
             Long oid = getTraderTOOid(provider);
             if (oid != null) {
                 providerOids.add(oid);
@@ -293,9 +286,8 @@ public class CloudTopologyConverter {
         return entity.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
                 .filter(commBought -> commBought.getProviderEntityType() == providerType)
-                .filter(Objects::nonNull)
-                .map(commBought -> commBought.getProviderId())
-                .map(providerOid -> topology.get(providerOid))
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .map(topology::get)
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
@@ -326,8 +318,9 @@ public class CloudTopologyConverter {
         if (primaryMarketTiers.size() != 1) {
             logger.error("Trader {} is connected to {} primary tiers - {}",
                     trader.getDebugInfoNeverUseInCode(), primaryMarketTiers.size(),
-                    primaryMarketTiers.stream().map(t ->
-                            t.getDisplayName()).collect(Collectors.joining(",")));
+                    primaryMarketTiers.stream()
+                            .map(MarketTier::getDisplayName)
+                            .collect(Collectors.joining(",")));
             return null;
         }
         return primaryMarketTiers.get(0);
@@ -382,7 +375,10 @@ public class CloudTopologyConverter {
      * @return the Integer corresponding to the region comm type
      */
     public Long getRegionCommTypeIntFromShoppingList(TraderTO trader) {
-        Optional<ShoppingListTO> shoppingListTO = trader.getShoppingListsList().stream().filter(s -> s.hasContext()).findFirst();
+        Optional<ShoppingListTO> shoppingListTO = trader.getShoppingListsList()
+                .stream()
+                .filter(ShoppingListTO::hasContext)
+                .findFirst();
         if (shoppingListTO.isPresent()) {
             return shoppingListTO.get().getContext().getRegionId();
         }
@@ -457,13 +453,14 @@ public class CloudTopologyConverter {
     }
 
     /**
-     * Returns {@link ReservedInstanceData} for a given riId
+     * Get the {@link ReservedInstanceData} by id.
      *
-     * @param riId
-     * @return ReservedInstanceData corresponding to that riId
+     * @param reservedInstanceId reserved instance id
+     * @return the {@link ReservedInstanceData}
      */
-    public ReservedInstanceData getRiDataById(long riId) {
-        return riConverter.getRiDataById(riId);
+    @Nullable
+    public ReservedInstanceData getRiDataById(long reservedInstanceId) {
+        return riConverter.getRiDataById(reservedInstanceId);
     }
 
     /**

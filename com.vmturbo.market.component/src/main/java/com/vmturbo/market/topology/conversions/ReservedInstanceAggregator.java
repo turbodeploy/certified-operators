@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,7 +31,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class is responsible for converting all the RI related data into groups that are
- * distinguished by a unique set of keys
+ * distinguished by a unique set of keys.
  *
  */
 class ReservedInstanceAggregator {
@@ -78,8 +79,11 @@ class ReservedInstanceAggregator {
                 .filter(dto -> dto.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
                 .collect(Collectors.groupingBy(dto -> dto.getTypeSpecificInfo()
                         .getComputeTier().getFamily(), Collectors.toList()));
-        familyToComputeTiers.values().forEach(tiers -> tiers.sort(new CouponCountComparator()));
-
+        familyToComputeTiers.values()
+                .forEach(tiers -> tiers.sort(Comparator.comparingInt(
+                        (TopologyEntityDTO t) -> t.getTypeSpecificInfo()
+                                .getComputeTier()
+                                .getNumCoupons()).reversed()));
         final Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates
                 = new HashMap<>();
         final Map<Long, Double> couponsUsedByRi = cloudCostData.getCurrentRiCoverage().values()
@@ -90,23 +94,40 @@ class ReservedInstanceAggregator {
         for (ReservedInstanceData riData : riCollection) {
             final long businessAccountId = riData.getReservedInstanceBought()
                     .getReservedInstanceBoughtInfo().getBusinessAccountId();
-            final GroupAndMembers billingFamilyGroup = cloudTopology
-                    .getBillingFamilyForEntity(businessAccountId).orElse(null);
-            if (riData.isValid(topology) && billingFamilyGroup != null) {
+            final Optional<GroupAndMembers> billingFamilyGroup =
+                    cloudTopology.getBillingFamilyForEntity(businessAccountId);
+            if (riData.isValid(topology)) {
                 final String family = topology.get(riData.getReservedInstanceSpec()
                         .getReservedInstanceSpecInfo().getTierId()).getTypeSpecificInfo()
                         .getComputeTier().getFamily();
-                final ReservedInstanceKey riKey = new ReservedInstanceKey(riData, family,
-                        billingFamilyGroup.group().getId());
+                final long billingFamilyId = billingFamilyGroup.map(bfg -> bfg.group().getId())
+                        .orElse(businessAccountId);
+                final ReservedInstanceKey riKey =
+                        new ReservedInstanceKey(riData, family, billingFamilyId);
                 final Optional<TopologyEntityDTO> computeTier = findComputeTier(riKey, riData,
                         familyToComputeTiers);
                 if (computeTier.isPresent()) {
                     final long riBoughtId = riData.getReservedInstanceBought().getId();
                     riDataMap.put(riBoughtId, riData);
-                    final ReservedInstanceAggregate riAggregate = riAggregates
-                            .computeIfAbsent(riKey, key -> new ReservedInstanceAggregate(riData,
-                                    riKey, computeTier.get(),
-                                    getApplicableBusinessAccounts(riData, billingFamilyGroup)));
+                    final ReservedInstanceAggregate riAggregate =
+                            riAggregates.computeIfAbsent(riKey, key -> {
+                                final ReservedInstanceScopeInfo reservedInstanceScopeInfo =
+                                        riData.getReservedInstanceBought()
+                                                .getReservedInstanceBoughtInfo()
+                                                .getReservedInstanceScopeInfo();
+                                final Set<Long> applicableBusinessAccounts = new HashSet<>();
+                                if (reservedInstanceScopeInfo.getShared()) {
+                                    applicableBusinessAccounts.addAll(
+                                            billingFamilyGroup.map(GroupAndMembers::members)
+                                                    .orElse(Collections.singleton(
+                                                            businessAccountId)));
+                                } else {
+                                    applicableBusinessAccounts.addAll(
+                                            reservedInstanceScopeInfo.getApplicableBusinessAccountIdList());
+                                }
+                                return new ReservedInstanceAggregate(riData, riKey,
+                                        computeTier.get(), applicableBusinessAccounts);
+                            });
                     final double usedCoupons = couponsUsedByRi.getOrDefault(riBoughtId, 0d);
                     logger.trace("Adding constituent RI: {} with usedCoupons: {} to RI Aggregate:" +
                                     " {}", riData::getReservedInstanceBought, () -> usedCoupons,
@@ -120,17 +141,6 @@ class ReservedInstanceAggregator {
             }
         }
         return riAggregates.values();
-    }
-
-    private Set<Long> getApplicableBusinessAccounts(final ReservedInstanceData riData,
-                                                    final GroupAndMembers billingFamilyGroup) {
-        final ReservedInstanceScopeInfo scopeInfo = riData.getReservedInstanceBought()
-                .getReservedInstanceBoughtInfo().getReservedInstanceScopeInfo();
-        if (scopeInfo.getShared()) {
-            return new HashSet<>(billingFamilyGroup.members());
-        } else {
-            return new HashSet<>(scopeInfo.getApplicableBusinessAccountIdList());
-        }
     }
 
     /**
@@ -204,21 +214,7 @@ class ReservedInstanceAggregator {
     }
 
     /**
-     * Comparator to sort computeTiers based on the number of coupons
-     *
-     */
-    static class CouponCountComparator implements Comparator<TopologyEntityDTO> {
-
-        @Override
-        public int compare(TopologyEntityDTO tier1, TopologyEntityDTO tier2) {
-            return tier2.getTypeSpecificInfo().getComputeTier().getNumCoupons() -
-                    tier1.getTypeSpecificInfo().getComputeTier().getNumCoupons();
-        }
-    }
-
-    /**
      * @return the mapping between the riId and the {@link ReservedInstanceData}
-     *
      */
     Map<Long, ReservedInstanceData> getRIDataMap() {
         return riDataMap;

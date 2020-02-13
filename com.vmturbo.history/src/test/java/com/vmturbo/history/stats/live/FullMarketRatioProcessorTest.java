@@ -1,6 +1,7 @@
 package com.vmturbo.history.stats.live;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.jooq.Record;
@@ -121,7 +123,8 @@ public class FullMarketRatioProcessorTest {
         Record fakeRecord = mock(Record.class);
         when(ratioRecordFactory.makeRatioRecord(any(), any(), any())).thenReturn(fakeRecord);
         final List<Record> result = processor.processResults(
-            Arrays.asList(ts1NumVmsRecord, ts2NumVmsRecord, ts1NumHostsRecord, ts2NumHostsRecord));
+            Arrays.asList(ts1NumVmsRecord, ts2NumVmsRecord, ts1NumHostsRecord, ts2NumHostsRecord),
+            TIMESTAMP_2);
 
         verify(ratioRecordFactory).makeRatioRecord(TIMESTAMP_1,
             StringConstants.NUM_VMS_PER_HOST,
@@ -177,7 +180,8 @@ public class FullMarketRatioProcessorTest {
         Record fakeRecord = mock(Record.class);
         when(ratioRecordFactory.makeRatioRecord(any(), any(), any())).thenReturn(fakeRecord);
         final List<Record> result = processor.processResults(
-            Arrays.asList(onPremVmRecord, cloudVmRecord, onPremHostRecord, cloudHostRecord));
+            Arrays.asList(onPremVmRecord, cloudVmRecord, onPremHostRecord, cloudHostRecord),
+            TIMESTAMP_2);
 
         verify(ratioRecordFactory).makeRatioRecord(TIMESTAMP_1,
             StringConstants.NUM_VMS_PER_HOST,
@@ -221,11 +225,31 @@ public class FullMarketRatioProcessorTest {
         when(ratioRecordFactory.makeRatioRecord(any(), any(), any())).thenReturn(fakeRecord);
 
         final List<Record> result = processor.processResults(
-            Arrays.asList(ts1NumVmsRecord, ts1NumHostsRecord));
+            Arrays.asList(ts1NumVmsRecord, ts1NumHostsRecord),
+            TIMESTAMP_2);
 
         // The result should have the fake record, but also the VM record, since it was explicitly
         // asked for.
         assertThat(result, containsInAnyOrder(fakeRecord, ts1NumVmsRecord));
+    }
+
+    @Test
+    public void testProcessResultFillsInMissingEntityCounts() {
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+            // Ask for num vms explicitly.
+            .addCommodityRequests(CommodityRequest.newBuilder()
+                .setCommodityName(StringConstants.NUM_VMS)
+                .addPropertyValueFilter(PropertyValueFilter.newBuilder()
+                    .setProperty(StringConstants.ENVIRONMENT_TYPE)
+                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+            .build();
+        final FullMarketRatioProcessor processor = processorFactory.newProcessor(statsFilter);
+
+        final List<Record> result = processor.processResults(Collections.emptyList(), TIMESTAMP_2);
+
+        // The result should have a VM record with a count of zero, since it was explicitly
+        // asked for.
+        assertEquals(1, result.size());
     }
 
 }

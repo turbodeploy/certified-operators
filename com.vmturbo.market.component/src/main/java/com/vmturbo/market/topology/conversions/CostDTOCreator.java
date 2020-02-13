@@ -103,8 +103,8 @@ public class CostDTOCreator {
 
                 Map<OSType, ComputePrice> pricesForBa = computePrices.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - BA {}",
-                            tier.getDisplayName(), region.getDisplayName(), accountPricingData);
+                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
+                            tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                 }
                 for (CommodityType licenseCommodity : licenseCommoditySet) {
                     double price = Double.POSITIVE_INFINITY;
@@ -199,8 +199,8 @@ public class CostDTOCreator {
 
                 Map<String, DatabasePrice> pricesForBa = databasePriceMap.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - BA {}",
-                            tier.getDisplayName(), region.getDisplayName());
+                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
+                            tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                     continue;
                 }
                 for (CommodityType licenseCommodity : licenseCommoditySet) {
@@ -217,8 +217,9 @@ public class CostDTOCreator {
                             price = databasePrice.getHourlyPrice();
                         } else {
                             // MULTL-AZ licenses are going to be given INFINITE cost
-                            logger.trace("Cost not found for tier {} - region {} - BA - license {}",
-                                    tier.getDisplayName(), region.getDisplayName(), licenseId);
+                            logger.trace("Cost not found for tier {} - region {} - AccountPricingDataOid {} - license {}",
+                                tier.getDisplayName(), region.getDisplayName(),
+                                accountPricingData.getAccountPricingDataOid(), licenseId);
                         }
                     } else {
                         // License is for BYOL, return INFINITE price

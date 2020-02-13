@@ -43,9 +43,11 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 @ContextConfiguration(classes = {TestSQLDatabaseConfig.class})
 @TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanReservedInstanceStoreTest {
-    private static final long PLAN_ID = 12345L;
+    private static final long PLAN_ID = 112345L;
     private static final double DELTA = 0.01;
 
+    private static final long riId_1 = 1L;
+    private static final long riId_2 = 2L;
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(123L)
                     .setProbeReservedInstanceId("bar")
@@ -102,8 +104,8 @@ public class PlanReservedInstanceStoreTest {
         planReservedInstanceStore = new PlanReservedInstanceStore(dsl, new IdentityProvider(0), reservedInstanceCostCalculator);
         insertDefaultReservedInstanceSpec();
         final List<ReservedInstanceBought> reservedInstanceBoughtInfos =
-                        Arrays.asList(ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_1).build(),
-                                        ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_2)
+                        Arrays.asList(ReservedInstanceBought.newBuilder().setId(riId_1).setReservedInstanceBoughtInfo(RI_INFO_1).build(),
+                                        ReservedInstanceBought.newBuilder().setId(riId_2).setReservedInstanceBoughtInfo(RI_INFO_2)
                                                         .build());
         planReservedInstanceStore.insertPlanReservedInstanceBought(reservedInstanceBoughtInfos, PLAN_ID);
     }

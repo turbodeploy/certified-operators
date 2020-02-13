@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import org.junit.Assert;
 import org.junit.Before;
@@ -606,7 +607,7 @@ public class PlanTopologyScopeEditorTest {
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-                .indexBasedScoping(index, graph, groupResolver, planScope);
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         assertEquals(11, result.size());
     }
 
@@ -630,7 +631,7 @@ public class PlanTopologyScopeEditorTest {
         // The app doesnt get pulled in because it isnt connected to the BApp. We just pull in the AS's.
         // When processing the VMs as buyersToSatisfy we just go down to its providers and not up to the apps.
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-                .indexBasedScoping(index, graph, groupResolver, planScope);
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         // THE APP THAT IS NOT CONNECTED TO BAPP WILL NOT GET PULLED INTO THE SCOPE
         assertEquals(15, result.size());
     }
@@ -652,7 +653,7 @@ public class PlanTopologyScopeEditorTest {
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-                .indexBasedScoping(index, graph, groupResolver, planScope);
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
         assertEquals(7, result.size());
     }
@@ -674,7 +675,7 @@ public class PlanTopologyScopeEditorTest {
         graph.entities().forEach(entity -> index.add(entity));
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
-                .indexBasedScoping(index, graph, groupResolver, planScope);
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
         assertEquals(6, result.size());
     }

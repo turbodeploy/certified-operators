@@ -22,11 +22,45 @@ public class StoragesSumCapacities {
         return storage_access;
     }
 
+    /**
+     * Get the STORAGE ACCESS capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getStorageAccess(long slice) {
+        return nullIfMissing(storage_access.get(slice));
+    }
+
     public TLongDoubleMap getStorageProvisioned() {
         return storage_provisioned;
     }
 
+    /**
+     * Get the STORAGE PROVISIONED capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getStorageProvisioned(long slice) {
+        return nullIfMissing(storage_provisioned.get(slice));
+    }
+
     public TLongDoubleMap getStorageAmount() {
         return storage_amount;
+    }
+
+    /**
+     * Get the STORAGE AMOUNT capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getStorageAmount(long slice) {
+        return nullIfMissing(storage_amount.get(slice));
+    }
+
+    private Double nullIfMissing(double value) {
+        return Double.isNaN(value) ? null : value;
     }
 }

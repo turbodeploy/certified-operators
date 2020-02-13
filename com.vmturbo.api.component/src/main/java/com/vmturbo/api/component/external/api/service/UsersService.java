@@ -168,6 +168,7 @@ public class UsersService implements IUsersService {
         this.invalidScopes.add(UIEntityType.BUSINESS_ACCOUNT.displayName());
         this.invalidScopes.add(UIEntityType.REGION.displayName());
         this.invalidScopes.add(UIEntityType.AVAILABILITY_ZONE.displayName());
+        this.invalidScopes.add("ResourceGroup");
     }
 
     /**

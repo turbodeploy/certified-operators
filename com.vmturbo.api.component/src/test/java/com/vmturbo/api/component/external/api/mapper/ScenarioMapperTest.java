@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.ScenarioMapper.MAX_UTILIZATION_SETTING_SPECS;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
@@ -27,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -65,6 +67,7 @@ import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -114,7 +117,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
     private static final long SCENARIO_ID = 0xdeadbeef;
-
     private static final String CUSTOM_SCENARIO_TYPE = "CUSTOM";
     private static final String DECOMMISSION_HOST_SCENARIO_TYPE = "DECOMMISSION_HOST";
     private static final String DISABLED = "DISABLED";
@@ -818,6 +820,25 @@ public class ScenarioMapperTest {
     }
 
     /**
+     * Test toApiChanges by passing changes with cpu utilization as setting overrides that need to
+     * be converted into a general maxUtilizationSetting.
+     */
+    @Test
+    public void testToApiChangesConversion() {
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+            .setSettingOverride(SettingOverride.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.CpuUtilization.getSettingName())
+                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100).build())
+                    .build())
+                .build()).build());
+
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        List<ScenarioChangeApiDTO> changes = dto.getChanges();
+        assertEquals(1, dto.getLoadChanges().getMaxUtilizationList().size());
+    }
+
+    /**
      * Convert {@link TopologyAddition} to {@link AddObjectApiDTO}.
      * Null targetEntityType should not throw error
      */
@@ -1309,14 +1330,14 @@ public class ScenarioMapperTest {
      * All dto fields have values
      */
     @Test
-    public void testGetMaxUtilizationChanges() {
+    public void testConvertMaxUtilizationToSettingOverride() {
         //GIVEN
         BaseApiDTO baseApiDTO = new BaseApiDTO();
         baseApiDTO.setUuid("23");
 
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
         maxUtil.setMaxPercentage(100);
-        maxUtil.setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        maxUtil.setSelectedEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         maxUtil.setTarget(baseApiDTO);
 
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
@@ -1324,14 +1345,17 @@ public class ScenarioMapperTest {
         }};
 
         //WHEN
-        List<ScenarioChange> scenarioChanges = scenarioMapper.getMaxUtilizationChanges(maxUtilizations);
+        List<ScenarioChange> scenarioChanges = scenarioMapper.convertMaxUtilizationToSettingOverride(maxUtilizations);
 
         //THEN
-        assertEquals(1, scenarioChanges.size());
-        MaxUtilizationLevel mLevel = scenarioChanges.get(0).getPlanChanges().getMaxUtilizationLevel();
-        assertEquals(100, mLevel.getPercentage());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), mLevel.getSelectedEntityType());
-        assertEquals(baseApiDTO.getUuid(), String.valueOf(mLevel.getGroupOid()));
+        int numberUtilizationSettings =
+            calculateNumberOfConvertedSettings(UIEntityType.PHYSICAL_MACHINE.typeNumber());
+        assertEquals(numberUtilizationSettings, scenarioChanges.size());
+        NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
+        assertEquals(100, (int)mLevel.getValue());
+        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(),
+            scenarioChanges.get(0).getSettingOverride().getEntityType());
+        assertEquals(23, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
 
     /**
@@ -1339,24 +1363,26 @@ public class ScenarioMapperTest {
      * Target object missing
      */
     @Test
-    public void testGetMaxUtilizationChangesWithNullGroup() {
+    public void testConvertMaxUtilizationToSettingOverrideWithNullGroup() {
         //GIVEN
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
         maxUtil.setMaxPercentage(100);
-        maxUtil.setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        maxUtil.setSelectedEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
             add(maxUtil);
         }};
 
         //WHEN
-        List<ScenarioChange> scenarioChanges = scenarioMapper.getMaxUtilizationChanges(maxUtilizations);
+        List<ScenarioChange> scenarioChanges = scenarioMapper.convertMaxUtilizationToSettingOverride(maxUtilizations);
 
         //THEN
-        assertEquals(1, scenarioChanges.size());
-        MaxUtilizationLevel mLevel = scenarioChanges.get(0).getPlanChanges().getMaxUtilizationLevel();
-        assertEquals(100, mLevel.getPercentage());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), mLevel.getSelectedEntityType());
-        assertEquals(0, mLevel.getGroupOid());
+        int numberUtilizationSettings = calculateNumberOfConvertedSettings(UIEntityType.PHYSICAL_MACHINE.typeNumber());
+        assertEquals(numberUtilizationSettings, scenarioChanges.size());
+        assertEquals(numberUtilizationSettings, scenarioChanges.size());
+        NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
+        assertEquals(100, (int)mLevel.getValue());
+        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(), scenarioChanges.get(0).getSettingOverride().getEntityType());
+        assertEquals(0, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
 
     /**
@@ -1364,28 +1390,34 @@ public class ScenarioMapperTest {
      * Tests conversion with targetEntityType null
      */
     @Test
-    public void testGetMaxUtilizationChangesWithNullTargetEntityType() {
+    public void testConvertMaxUtilizationToSettingOverrideTargetEntityType() {
         //GIVEN
+        final int maxPercentage = 100;
+        final String uuid = "23";
         BaseApiDTO baseApiDTO = new BaseApiDTO();
-        baseApiDTO.setUuid("23");
+        baseApiDTO.setUuid(uuid);
 
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
-        maxUtil.setMaxPercentage(100);
+        maxUtil.setMaxPercentage(maxPercentage);
         maxUtil.setTarget(baseApiDTO);
-        maxUtil.setMaxPercentage(100);
+        maxUtil.setMaxPercentage(maxPercentage);
 
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
             add(maxUtil);
         }};
 
         //WHEN
-        List<ScenarioChange> scenarioChanges = scenarioMapper.getMaxUtilizationChanges(maxUtilizations);
+        List<ScenarioChange> scenarioChanges = scenarioMapper.convertMaxUtilizationToSettingOverride(maxUtilizations);
 
         //THEN
-        assertEquals(1, scenarioChanges.size());
-        MaxUtilizationLevel mLevel = scenarioChanges.get(0).getPlanChanges().getMaxUtilizationLevel();
-        assertEquals(100, mLevel.getPercentage());
-        assertEquals(baseApiDTO.getUuid(), String.valueOf(mLevel.getGroupOid()));
+        //Since no entity type is specified it will be converted to all the possibile utilization
+        // settings
+        int numberUtilizationSettings = MAX_UTILIZATION_SETTING_SPECS.size();
+        assertEquals(numberUtilizationSettings, scenarioChanges.size());
+        NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
+        assertEquals(maxPercentage, (int)mLevel.getValue());
+        assertEquals((int)Integer.valueOf(uuid),
+            scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
 
 
@@ -1601,5 +1633,69 @@ public class ScenarioMapperTest {
                 .findAny()
                 .isPresent();
         assertTrue(perGroupSettingMapped);
+    }
+
+    /**
+     * Test the conversion from setting overrides for utilization for entity types and groups,
+     * into corresponding maxUtilization settings for groups and entities.
+     */
+    @Test
+    public void testToApiChanges() {
+        Long groupId = 1L;
+        ScenarioChange cpuUtilizationGroupChange =
+            createScenarioChange(EntityType.PHYSICAL_MACHINE_VALUE,
+                EntitySettingSpecs.CpuUtilization, 100, Optional.of(groupId));
+
+        ScenarioChange memUtilizationHostsChange = createScenarioChange(EntityType.PHYSICAL_MACHINE_VALUE,
+            EntitySettingSpecs.MemoryUtilization, 30, Optional.ofNullable(null));
+
+        ScenarioChange cpuUtilizationHostsChange = createScenarioChange(EntityType.PHYSICAL_MACHINE_VALUE,
+            EntitySettingSpecs.CpuUtilization, 30, Optional.ofNullable(null));
+
+        ScenarioChange storageUtilizationStoragesChange =
+            createScenarioChange(EntityType.STORAGE_VALUE,
+            EntitySettingSpecs.StorageAmountUtilization, 20, Optional.ofNullable(null));
+
+        final Scenario scenario = buildScenario(cpuUtilizationGroupChange,
+            memUtilizationHostsChange, cpuUtilizationHostsChange, storageUtilizationStoragesChange);
+        List<ScenarioChange> changes =
+            scenarioMapper.toApiChanges(scenario).getScenarioInfo().getChangesList();
+        // We should get three settings overrides: one for the group, one for hosts and one for the
+        // storages
+        assertEquals(3, changes.size());
+    }
+
+    private ScenarioChange createScenarioChange(int entityType,
+                                                EntitySettingSpecs entitySettingSpec,
+                                                int percentage,
+                                                Optional<Long> groupId) {
+        SettingOverride.Builder settingOverride = SettingOverride.newBuilder();
+        groupId.ifPresent(settingOverride::setGroupOid);
+        settingOverride.setEntityType(entityType).setSetting(Setting.newBuilder()
+            .setSettingSpecName(entitySettingSpec.getSettingSpec().getName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(percentage))
+            .build());
+
+        return ScenarioChange.newBuilder().setSettingOverride(settingOverride.build())
+            .build();
+
+    }
+
+    /**
+     * Test the util function isSettingSpecForEntityType.
+     */
+    @Test
+    public void testIsSettingSpecForEntityType() {
+        assertTrue(scenarioMapper.isSettingSpecForEntityType(EntitySettingSpecs.CpuUtilization.getSettingSpec(), EntityType.PHYSICAL_MACHINE_VALUE));
+        assertFalse(scenarioMapper.isSettingSpecForEntityType(EntitySettingSpecs.CpuUtilization.getSettingSpec(), EntityType.VIRTUAL_MACHINE_VALUE));
+    }
+
+    private int calculateNumberOfConvertedSettings(int entityType) {
+
+        return (int)MAX_UTILIZATION_SETTING_SPECS.stream()
+            .map(EntitySettingSpecs::getSettingByName)
+            .filter(Optional::isPresent)
+            .filter(spec -> scenarioMapper.isSettingSpecForEntityType(spec.get().getSettingSpec(), entityType))
+            .count();
     }
 }

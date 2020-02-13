@@ -487,7 +487,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         logger.debug("Running query... {}", query);
         final Result<? extends Record> result = historydbIO.execute(Style.FORCED, query);
 
-        final List<Record> answer = ratioProcessor.processResults(result);
+        // Fill in the ratio counts and add/remove entity counts based on the requested commodities
+        final List<Record> answer = ratioProcessor.processResults(result, timeRange.getMostRecentSnapshotTime());
 
         answer.addAll(histUtilizationReader.getRecords(Collections.emptySet(), statsFilter));
         final Duration overallElapsed = Duration.between(overallStart, Instant.now());
