@@ -45,7 +45,7 @@ public class UtilizationCountStoreTest {
                                               4857L, CommodityField.USED);
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
-        store = new UtilizationCountStore(new PercentileBuckets(), ref, 30);
+        store = new UtilizationCountStore(new PercentileBuckets(), ref);
         graph = Mockito.mock(GraphWithSettings.class);
         context = new HistoryAggregationContext(graph, false);
     }
@@ -186,7 +186,7 @@ public class UtilizationCountStoreTest {
                         currentTime - Duration.ofDays(1).toMillis() - 100);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d,
                         currentTime - Duration.ofHours(1).toMillis() - 100);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(false));
+        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(true));
         final long newCurrentTime = currentTime + Duration.ofDays(1).toMillis() + 100;
         Mockito.when(clock.millis()).thenReturn(newCurrentTime);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, newCurrentTime + 50);

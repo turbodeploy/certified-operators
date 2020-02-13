@@ -9,6 +9,7 @@ import java.util.concurrent.ThreadFactory;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -48,8 +49,6 @@ public class HistoryAggregationConfig {
     private boolean percentileEnabled = true;
     @Value("${historyAggregation.percentileMaintenanceWindowHours}")
     private int percentileMaintenanceWindowHours = PercentileHistoricalEditorConfig.defaultMaintenanceWindowHours;
-    @Value("${historyAggregation.corruptedDataPeriodInMins:60}")
-    private int corruptedDataPeriodInMins = 60;
     @Value("${historyAggregation.percentileBuckets.VCPU:}")
     private String percentileBucketsVcpu;
     @Value("${historyAggregation.percentileBuckets.VMEM:}")
@@ -145,7 +144,7 @@ public class HistoryAggregationConfig {
     @Bean
     public PercentileHistoricalEditorConfig percentileEditorConfig() {
         return new PercentileHistoricalEditorConfig(historyAggregationCalculationChunkSize,
-                        corruptedDataPeriodInMins, percentileMaintenanceWindowHours,
+                        percentileMaintenanceWindowHours,
                 grpcStreamTimeoutSec,
                 blobReadWriteChunkSizeKb,
                 ImmutableMap.of(CommodityType.VCPU, percentileBucketsVcpu,
