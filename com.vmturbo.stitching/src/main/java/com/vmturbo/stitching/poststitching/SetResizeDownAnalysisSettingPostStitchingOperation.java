@@ -76,9 +76,13 @@ public class SetResizeDownAnalysisSettingPostStitchingOperation implements PostS
      */
     private boolean isEligibleForResizeDown(@Nonnull final TopologyEntity entity) {
         // only set resize down to true for active entities.
-        if (entity.getTopologyEntityDtoBuilder().getEntityState() != EntityState.POWERED_ON) {
+        if (entity.getTopologyEntityDtoBuilder().getEntityState() != EntityState.POWERED_ON
+                // It is possible that resize down flag was already set due to action execution.
+                // If it was entity becomes ineligible for setting of this flag again.
+                || entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().hasIsEligibleForResizeDown()) {
             return false;
         }
+
         final long entityDiscoveredTime = IdentityGenerator.toMilliTime(entity.getOid());
         final long diffMillis = clock.millis() - entityDiscoveredTime;
         return Duration.ofMillis(diffMillis).toMinutes() >= resizeDownWarmUpIntervalHours * 60;

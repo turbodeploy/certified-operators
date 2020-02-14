@@ -594,9 +594,12 @@ public class Stages {
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final int controllableModified = controllableManager.applyControllable(input);
             final int suspendableModified = controllableManager.applySuspendable(input);
-            return Status.success("Marked " + controllableModified +
-                    " entities as non-controllable and " + suspendableModified +
-                    " entities as non-suspendable.");
+            final int resizeModified = controllableManager.applyScaleEligibility(input);
+            final int resizeDownModified = controllableManager.applyResizeDownEligibility(input);
+            return Status.success("Marked " + controllableModified + " entities as non-controllable. "
+                    + "Marked " + suspendableModified + " entities as non-suspendable. "
+                    + "Marked " + resizeModified + " entities as not resizeable. "
+                    + "Marked " + resizeDownModified + " entities as not eligible for resize down.");
         }
     }
 

@@ -61,7 +61,7 @@ import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
-import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -196,12 +196,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * Map that contain an action id with the respective affected entities. This is used only for
      * controllable actions, other actions should not have an entry in this map.
      */
-    private final HashMap<Long, Set<Long>> actionToControlAffectedEntities = new HashMap<>();
+    private final HashMap<Long, Set<Long>> actionToAffectedEntities = new HashMap<>();
 
-    private static final ImmutableSet<ActionItemDTO.ActionType> CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES
+    private static final ImmutableSet<ActionItemDTO.ActionType> ACTION_TYPES_AFFECTING_ENTITIES
             = ImmutableSet.of(ActionItemDTO.ActionType.MOVE, ActionItemDTO.ActionType.CHANGE,
             ActionItemDTO.ActionType.CROSS_TARGET_MOVE, ActionItemDTO.ActionType.MOVE_TOGETHER,
-            ActionItemDTO.ActionType.START);
+            ActionItemDTO.ActionType.START, ActionType.RIGHT_SIZE, ActionType.RESIZE, ActionType.SCALE);
 
     private static final DataMetricGauge ONGOING_OPERATION_GAUGE = DataMetricGauge.builder()
         .withName("tp_ongoing_operation_total")
@@ -1212,7 +1212,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             if (shouldInsertEntityActionTable(actionType, entities)) {
                 logger.info("Insert controllable flag for action {} which is of type {}", actionId,
                     actionType);
-                actionToControlAffectedEntities.put(actionId, entities);
+                actionToAffectedEntities.put(actionId, entities);
                 entityActionDao.insertAction(actionId, actionType, entities);
             }
         } catch (DataAccessException | IllegalArgumentException e) {
@@ -1228,7 +1228,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return if the action should be stored.
      */
     private boolean shouldInsertEntityActionTable(ActionType actionType, Set<Long> entities) {
-        return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(actionType) && entities.size() > 0;
+        return ACTION_TYPES_AFFECTING_ENTITIES.contains(actionType) && entities.size() > 0;
     }
 
     /**
@@ -1237,8 +1237,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return if the action should be updated.
      */
     private boolean shouldUpdateEntityActionTable(Action action) {
-        return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(action.getActionType())
-            && this.actionToControlAffectedEntities.containsKey(action.getActionId());
+        return ACTION_TYPES_AFFECTING_ENTITIES.contains(action.getActionType())
+            && this.actionToAffectedEntities.containsKey(action.getActionId());
     }
 
     /**
@@ -1255,7 +1255,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         } catch (DataAccessException e) {
             logger.error("Failed to update controllable table for action {}: {}",
                     action.getActionId(), e.getMessage());
-        } catch (ControllableRecordNotFoundException e) {
+        } catch (ActionRecordNotFoundException e) {
             logger.error("Action with id {} does not exist. Failed to update controllable table.", action.getActionId());
         }
     }
