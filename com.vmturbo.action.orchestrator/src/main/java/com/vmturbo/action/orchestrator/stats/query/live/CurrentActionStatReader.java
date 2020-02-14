@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,7 +29,9 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.ScopeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
@@ -158,12 +161,15 @@ public class CurrentActionStatReader {
         if (queriesByScopeCase.containsKey(ScopeCase.ENTITY_LIST)
                 && queriesByScopeCase.keySet().size() == 1) {
             // Actions are indexed by entity ID, so here we can run each query separately.
-            candidateActionViews = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
-                .flatMap(queryInfo -> {
-                    final List<Long> desiredEntityIds =
-                        queryInfo.query().getScopeFilter().getEntityList().getOidsList();
-                    return actionViews.getByEntity(desiredEntityIds);
-                });
+            Set<Long> entityOids = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
+                .map(QueryInfo::query)
+                .map(CurrentActionStatsQuery::getScopeFilter)
+                .map(ScopeFilter::getEntityList)
+                .map(EntityScope::getOidsList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+
+            candidateActionViews = actionViews.getByEntity(entityOids);
         } else {
             candidateActionViews = actionViews.getAll();
         }
