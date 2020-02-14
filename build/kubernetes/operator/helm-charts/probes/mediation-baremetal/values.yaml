@@ -2,14 +2,13 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-annotations: {}
-
 replicaCount: 1
 
 image:
   repository: turbonomic
   tag: latest
   pullPolicy: IfNotPresent
+
 
 javaComponentOptions: "-Dorg.eclipse.jetty.websocket.jsr356.ssl-trust-all=true
     -DLog4jContextSelector=com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector"

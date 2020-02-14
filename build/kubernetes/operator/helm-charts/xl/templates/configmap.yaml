@@ -377,10 +377,8 @@ data:
             identityGeneratorPrefix: 1
             # This should be in sync with the schema in the Topology Processor s pom.xml
             dbSchemaName: topology_processor
-            inProgressActionExpiredSeconds: 3600
+            activateOrMoveInProgressRecordExpiredSeconds: 3600
             moveSucceedRecordExpiredSeconds: 1800
-            resizeSucceedRecordExpiredSeconds: 14400
-            scaleSucceedRecordExpiredSeconds: 21600
             activateSucceedRecordExpiredSeconds: 14400
             # cloud probe discovery involves downloading some large files, so we are setting the discovery
             # timeout to 120 seconds, instead of using the default of 30 seconds.

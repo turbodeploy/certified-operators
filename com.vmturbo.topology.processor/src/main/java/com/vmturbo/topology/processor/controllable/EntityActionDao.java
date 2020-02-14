@@ -5,8 +5,10 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.NotSupportedActionStateException;
 
 /**
  * Data access object for creating, updating, deleting MOVE or ACTIVATE actions record tables.
@@ -41,10 +43,10 @@ public interface EntityActionDao {
      *
      * @param actionId id of action.
      * @param newState new state of action.
-     * @throws ActionRecordNotFoundException if there is no records with actionId.
+     * @throws ControllableRecordNotFoundException if there is no records with actionId.
      */
     void updateActionState(final long actionId, @Nonnull final ActionState newState)
-            throws ActionRecordNotFoundException;
+            throws ControllableRecordNotFoundException;
 
     /**
      * First it will delete all expired action records, for different status records, it may has different expired
@@ -61,20 +63,4 @@ public interface EntityActionDao {
      * @return a set of entity ids which are not suspendable due to activate actions
      */
     Set<Long> getNonSuspendableEntityIds();
-
-
-    /**
-     * Check in the action tables to get a set of entities that has scale actions records in the table.
-     * @return entity ids not eligible for scale (Currently these entities include VMs (and its providers)
-     * on cloud for which 'SCALE' action was executed recently)
-     * TODO : Remove providers of such VMs and keep VMs only.
-     */
-    Set<Long> ineligibleForScaleEntityIds();
-
-    /**
-     * Check in the action tables to get a set of entities that has resize actions records in the table.
-     * @return entity ids not eligible for resize down (Currently these entities include VMs on premise
-     * for which 'RIGHT_SIZE' action was executed recently)
-     */
-    Set<Long> ineligibleForResizeDownEntityIds();
 }

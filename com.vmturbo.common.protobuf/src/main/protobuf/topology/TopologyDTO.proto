@@ -621,10 +621,6 @@ message TopologyEntityDTO {
         // Whether the Market can delete this entity. Default is true.
         // If false, Market will not generate Delete Actions.
         optional bool deletable = 10 [default = true];
-
-        // If true, it means we can consider resize up
-        // and down for entity.
-        optional bool is_eligible_for_scale = 11 [default = true];
     }
 
     optional Origin origin = 10;

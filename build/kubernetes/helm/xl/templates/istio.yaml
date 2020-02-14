@@ -19,7 +19,6 @@ spec:
       protocol: HTTP
     tls:
       httpsRedirect: true
-      minProtocolVersion: TLSV1_2
   - hosts:
     - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
     port:
