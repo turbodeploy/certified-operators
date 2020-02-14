@@ -8,8 +8,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +24,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,6 +35,8 @@ import org.mockito.stubbing.Answer;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
+import com.vmturbo.action.orchestrator.store.EntitySeverityCache.OrderOidBySeverity;
+import com.vmturbo.action.orchestrator.store.EntitySeverityCache.SeverityCount;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -309,6 +314,116 @@ public class EntitySeverityCacheTest {
             Optional.of(Severity.MAJOR), 1L,
             Optional.of(Severity.NORMAL), 3L),
             actualSeverityCounts);
+    }
+
+
+    /**
+     * The comparator should result in the below ascending order.
+     * 1. An entity without severity and without severity breakdown
+     * 2. An entity with severity but without severity breakdown
+     * 3. An entity with severity but with empty severity breakdown map
+     * 4. An entity with lowest severity break down
+     * 5. An entity with same proportion, but a higher count of that severity
+     * 6. An entity with the same highest severity, but the proportion is higher
+     * 7. An entity with a higher severity in the breakdown.
+     * 8. An entity with an even higher severity in the breakdown but the entity does not have a
+     *    a severity (edge case).
+     */
+    @Test
+    public void testBreakdownOrderBy() {
+        long id = 0;
+        EntitySeverityCache mockedEntitySeverityCache = spy(entitySeverityCache);
+        // both not found
+        long bothNotFound = id++;
+        when(mockedEntitySeverityCache.getSeverity(bothNotFound)).thenReturn(Optional.empty());
+        when(mockedEntitySeverityCache.getSeverityBreakdown(bothNotFound)).thenReturn(Optional.empty());
+        // only has entity level severity
+        long onlyHasEntityLevelSeverity = id++;
+        when(mockedEntitySeverityCache.getSeverity(onlyHasEntityLevelSeverity)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(onlyHasEntityLevelSeverity)).thenReturn(Optional.empty());
+        // only has entity level severity, and empty severity breakdown
+        long emptyBreakdown = id++;
+        when(mockedEntitySeverityCache.getSeverity(emptyBreakdown)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(emptyBreakdown)).thenReturn(Optional.of(new SeverityCount()));
+        // has entity level severity, and lowest severity
+        long lowestSeverityBreakdown = id++;
+        when(mockedEntitySeverityCache.getSeverity(lowestSeverityBreakdown)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(lowestSeverityBreakdown)).thenReturn(Optional.of(makeSeverityCount(
+            ImmutableMap.of(Severity.MINOR, 2L,
+                Severity.NORMAL, 2L)
+        )));
+        // exact same severity as previous should be tied
+        long exactSameSeverity = 99L;
+        when(mockedEntitySeverityCache.getSeverity(exactSameSeverity)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(exactSameSeverity)).thenReturn(Optional.of(makeSeverityCount(
+            ImmutableMap.of(Severity.MINOR, 2L,
+                Severity.NORMAL, 2L)
+        )));
+        // same proportion but higher count
+        long sameProportionHigherCount = id++;
+        when(mockedEntitySeverityCache.getSeverity(sameProportionHigherCount)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(sameProportionHigherCount)).thenReturn(Optional.of(makeSeverityCount(
+            ImmutableMap.of(Severity.MINOR, 4L,
+                Severity.NORMAL, 4L)
+        )));
+        // higher proportion
+        long higherProportion = id++;
+        when(mockedEntitySeverityCache.getSeverity(higherProportion)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(higherProportion)).thenReturn(Optional.of(makeSeverityCount(
+            ImmutableMap.of(Severity.MINOR, 3L,
+                Severity.NORMAL, 2L)
+        )));
+        // higher severity
+        long higherSeverity = id++;
+        when(mockedEntitySeverityCache.getSeverity(higherSeverity)).thenReturn(Optional.of(Severity.MAJOR));
+        when(mockedEntitySeverityCache.getSeverityBreakdown(higherSeverity)).thenReturn(Optional.of(makeSeverityCount(
+            ImmutableMap.of(Severity.MINOR, 2L,
+                Severity.NORMAL, 2L,
+                Severity.MAJOR, 2L)
+        )));
+        // even higher severity, but no entity level severity
+        long evenHigherSeverityButNoEntitySeverity = id++;
+        when(mockedEntitySeverityCache.getSeverity(evenHigherSeverityButNoEntitySeverity)).thenReturn(Optional.empty());
+        when(mockedEntitySeverityCache.getSeverityBreakdown(evenHigherSeverityButNoEntitySeverity)).thenReturn(Optional.of(makeSeverityCount(
+            ImmutableMap.of(Severity.MINOR, 2L,
+                Severity.NORMAL, 2L,
+                Severity.CRITICAL, 2L)
+        )));
+
+        List<Long> ascendingOrder = new ArrayList<>();
+        for (long i = 0; i < id; i++) {
+            ascendingOrder.add(i);
+        }
+        List<Long> descendingOrder = new ArrayList<>(ascendingOrder);
+        Collections.reverse(descendingOrder);
+        List<Long> randomOrder = new ArrayList<>(ascendingOrder);
+        Collections.shuffle(randomOrder);
+
+        Comparator<Long> desc = new OrderOidBySeverity(mockedEntitySeverityCache).reversed();
+        Assert.assertEquals(0, desc.compare(lowestSeverityBreakdown, exactSameSeverity));
+
+        checkSortedByComparator(ascendingOrder, desc, descendingOrder);
+        checkSortedByComparator(randomOrder, desc, descendingOrder);
+        Comparator<Long> asc = new OrderOidBySeverity(mockedEntitySeverityCache);
+        checkSortedByComparator(descendingOrder, asc, ascendingOrder);
+        checkSortedByComparator(randomOrder, asc, ascendingOrder);
+    }
+
+    private SeverityCount makeSeverityCount(Map<Severity, Long> severityBreakdown) {
+        SeverityCount severityCount = new SeverityCount();
+        for (Map.Entry<Severity, Long> entry : severityBreakdown.entrySet()) {
+            severityCount.addSeverity(entry.getKey(), entry.getValue());
+        }
+        return severityCount;
+    }
+
+    private void checkSortedByComparator(
+        @Nonnull List<Long> thingsToSort,
+        @Nonnull Comparator<Long> comparator,
+        @Nonnull List<Long> expectedOrder) {
+        List<Long> actual = new ArrayList<>(thingsToSort);
+        Collections.sort(actual, comparator);
+        Assert.assertEquals(expectedOrder, actual);
     }
 
     private static GetMultiSupplyChainsResponse makeGetMultiSupplyChainsResponse(long seedOid, long...oids) {
