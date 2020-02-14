@@ -445,6 +445,8 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                             .getType() == Type.DATA_CENTER) {
                         scope.put(reservationConstraintInfo
                                 .getConstraintId(), StringConstants.DATA_CENTER);
+                    } else {
+                        return new HashMap<>();
                     }
                 }
             }

@@ -284,7 +284,7 @@ public class PlanTopologyScopeEditor {
                         !entity.getConsumers().stream().anyMatch(a -> (a.getEntityType()
                                 == EntityType.VIRTUAL_MACHINE_VALUE));
                 if (ishostEmpty) {
-                    suppliersToExpand
+                    scopedTopologyOIDs
                             .addAll(entity.getProviders().stream()
                                     .filter(a -> a.getEntityType()
                                             == EntityType.STORAGE_VALUE)
@@ -343,6 +343,24 @@ public class PlanTopologyScopeEditor {
                                 !suppliersToExpand.contains(entityOid))
                         .collect(Collectors.toCollection(() -> sellersAndConnectionsOids));
             }
+
+            // For reservation plan we remove all vms..so the cluster is empty.
+            // so we have to add the storages explicitly.
+            if (planProjectType == PlanProjectType.RESERVATION_PLAN &&
+                    buyer.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                boolean ishostEmpty =
+                        !buyer.getConsumers().stream().anyMatch(a -> (a.getEntityType()
+                                == EntityType.VIRTUAL_MACHINE_VALUE));
+                if (ishostEmpty) {
+                    scopedTopologyOIDs
+                            .addAll(buyer.getProviders().stream()
+                                    .filter(a -> a.getEntityType()
+                                            == EntityType.STORAGE_VALUE)
+                                    .map(b -> b.getOid())
+                                    .collect(Collectors.toSet()));
+                }
+            }
+
             // if thisTrader is a bapp that is not a seed, bring in just the apps that we have already scoped in
             if (ENTITY_TYPES_TO_SKIP.contains(thisTrader.getEntityType())) {
                 if (!seedOids.contains(traderOid)) {
