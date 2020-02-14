@@ -421,9 +421,11 @@ public class PolicyManager {
                     reservationResults.addPolicy(policy);
                 } catch (RuntimeException e) {
                     // We don't expect failures here, because the reservation constraints should
-                    // have been validated by the ReservationManager. But if a single reservation
+                    // have been validated by the ReservationManager. We may still get errors if the
+                    // topology is modified between the reservation stage and the policy stage in
+                    // a way that makes previously-valid constraints invalid. But if a single reservation
                     // fails we don't want to stop the whole broadcast!
-                    logger.warn("Failed to generate policy for reservation " + reservation.getId(), e);
+                    logger.error("Failed to generate policy for reservation " + reservation.getId(), e);
                     reservationResults.recordError(reservation.getId(), e.getMessage());
                 }
             });
