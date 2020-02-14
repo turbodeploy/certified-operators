@@ -377,6 +377,7 @@ data:
             identityGeneratorPrefix: 1
             # This should be in sync with the schema in the Topology Processor s pom.xml
             dbSchemaName: topology_processor
+            activateOrMoveInProgressRecordExpiredSeconds: 3600
             inProgressActionExpiredSeconds: 3600
             moveSucceedRecordExpiredSeconds: 1800
             resizeSucceedRecordExpiredSeconds: 14400
