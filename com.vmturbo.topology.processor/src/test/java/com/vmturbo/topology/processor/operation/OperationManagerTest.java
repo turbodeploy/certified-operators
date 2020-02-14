@@ -172,8 +172,7 @@ public class OperationManagerTest {
     @Before
     public void setup() throws Exception {
         dsl = dbConfig.prepareDatabase();
-        entityActionDao = new EntityActionDaoImp(dsl, 100, 300,
-                360, 360, 360);
+        entityActionDao = new EntityActionDaoImp(dsl, 100, 300, 360);
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
