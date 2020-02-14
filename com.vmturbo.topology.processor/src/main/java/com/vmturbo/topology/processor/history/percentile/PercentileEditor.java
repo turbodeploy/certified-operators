@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -82,8 +83,9 @@ public class PercentileEditor extends
      * PercentileEditor#REQUIRED_SOLD_COMMODITY_TYPES} and
      * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES}
      */
-    private static final Set<EntityType> APPLICABLE_ENTITY_TYPES =
-        Sets.immutableEnumSet(EntityType.VIRTUAL_MACHINE, EntityType.BUSINESS_USER);
+    private static final Set<EntityType> NOT_APPLICABLE_ENTITY_TYPES =
+            ImmutableSet.of(EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.CONTAINER,
+                EntityType.CONTAINER_POD);
     private static final DataMetricSummary SETTINGS_CHANGE_SUMMARY_METRIC =
                 DataMetricSummary.builder()
                                 .withName("tp_historical_percentile_window_change")
@@ -155,7 +157,7 @@ public class PercentileEditor extends
 
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
-        return APPLICABLE_ENTITY_TYPES.contains(EntityType.forNumber(entity.getEntityType()));
+        return !NOT_APPLICABLE_ENTITY_TYPES.contains(EntityType.forNumber(entity.getEntityType()));
     }
 
     @Override

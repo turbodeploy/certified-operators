@@ -82,7 +82,9 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long VIRTUAL_MACHINE_OID = 1;
     private static final long BUSINESS_USER_OID = 10;
     private static final long DATABASE_SERVER_OID = 100;
-    private static final long DATABASE_OID = 200;
+    private static final long DATABASE_OID = 500;
+    private static final long CONTAINER_OID = 1000;
+    private static final long CONTAINER_POD_OID = 2000;
     private static final long DESKTOP_POOL_PROVIDER_OID = 3;
     private static final long PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD = 2;
     private static final long NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD = 4;
@@ -185,11 +187,24 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                 TopologyEntityDTO.newBuilder()
                         .setOid(DATABASE_SERVER_OID)
                         .setEntityType(EntityType.DATABASE_SERVER_VALUE)).build()));
+
         // Percentile should not be set for database entities
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(DATABASE_OID)
                 .setEntityType(EntityType.DATABASE_VALUE)).build()));
+
+        // Percentile should not be set for container entities
+        Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(CONTAINER_OID)
+                .setEntityType(EntityType.CONTAINER_VALUE)).build()));
+
+        // Percentile should not be set for container pod entities
+        Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(CONTAINER_POD_OID)
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)).build()));
 
         // Percentile should be set for virtual machine entities
         Assert.assertTrue(percentileEditor.isEntityApplicable(
