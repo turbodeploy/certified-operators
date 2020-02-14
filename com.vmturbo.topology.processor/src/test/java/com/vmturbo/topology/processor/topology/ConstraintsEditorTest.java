@@ -139,6 +139,9 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(1, getActiveCommodities(graph).count());
+        // Ignore all sets shop together to true, otherwise false.
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).noneMatch(
+                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
 
     @Test
@@ -164,6 +167,9 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(4, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(0, getActiveCommodities(graph).count());
+        // Ignore all sets shop together to true, otherwise false.
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).noneMatch(
+                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
 
     @Test
@@ -193,6 +199,9 @@ public class ConstraintsEditorTest {
         // As 2 out of the 3 commodities has a key, we should have only 2 commodities whose
         // active flag is set to false and 1 is set to true
         Assert.assertEquals(1, getActiveCommodities(graph).count());
+        // Ignore all sets shop together to true, otherwise false.
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
+                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
     @Test
     public void testIgnoreConstraintAllVMEntities() throws IOException {
@@ -228,6 +237,9 @@ public class ConstraintsEditorTest {
         // commodities in the entire graph which have active set to false. The
         // remaining 3 entitues should have commoditbought as active.
         Assert.assertEquals(3, getActiveCommodities(graph).count());
+        // Ignore all sets shop together to true, otherwise false.
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
+                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
 
     @Test
