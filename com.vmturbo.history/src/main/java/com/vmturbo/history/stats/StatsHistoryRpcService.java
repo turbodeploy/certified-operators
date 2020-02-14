@@ -69,6 +69,8 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingReq
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
@@ -107,6 +109,7 @@ import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.writers.PercentileWriter;
 
@@ -136,6 +139,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final SystemLoadReader systemLoadReader;
     private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader;
+    private final MostRecentLiveStatReader mostRecentLiveStatReader;
     private final ExecutorService statsWriterExecutorService;
 
     private final int systemLoadRecordsPerChunk;
@@ -178,19 +182,20 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         .register();
 
     StatsHistoryRpcService(final long realtimeContextId,
-                    @Nonnull final LiveStatsReader liveStatsReader,
-                    @Nonnull final PlanStatsReader planStatsReader,
-                    @Nonnull final ClusterStatsReader clusterStatsReader,
-                    @Nonnull final ClusterStatsWriter clusterStatsWriter,
-                    @Nonnull final HistorydbIO historydbIO,
-                    @Nonnull final ProjectedStatsStore projectedStatsStore,
-                    @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
-                    @Nonnull final StatSnapshotCreator statSnapshotCreator,
-                    @Nonnull final StatRecordBuilder statRecordBuilder,
-                    @Nonnull final SystemLoadReader systemLoadReader,
-                    final int systemLoadRecordsPerChunk,
-                    @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
-                    @Nonnull ExecutorService statsWriterExecutorService) {
+                           @Nonnull final LiveStatsReader liveStatsReader,
+                           @Nonnull final PlanStatsReader planStatsReader,
+                           @Nonnull final ClusterStatsReader clusterStatsReader,
+                           @Nonnull final ClusterStatsWriter clusterStatsWriter,
+                           @Nonnull final HistorydbIO historydbIO,
+                           @Nonnull final ProjectedStatsStore projectedStatsStore,
+                           @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
+                           @Nonnull final StatSnapshotCreator statSnapshotCreator,
+                           @Nonnull final StatRecordBuilder statRecordBuilder,
+                           @Nonnull final SystemLoadReader systemLoadReader,
+                           final int systemLoadRecordsPerChunk,
+                           @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
+                           @Nonnull ExecutorService statsWriterExecutorService,
+                           @Nonnull MostRecentLiveStatReader mostRecentLiveStatReader) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -205,6 +210,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.systemLoadRecordsPerChunk = systemLoadRecordsPerChunk;
         this.percentileReader = Objects.requireNonNull(percentileReader);
         this.statsWriterExecutorService = Objects.requireNonNull(statsWriterExecutorService);
+        this.mostRecentLiveStatReader = Objects.requireNonNull(mostRecentLiveStatReader);
     }
 
     /**
@@ -1191,5 +1197,29 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getMostRecentStat(GetMostRecentStatRequest request,
+                                  StreamObserver<GetMostRecentStatResponse> responseObserver) {
+        final Optional<GetMostRecentStatResponse.Builder> response = mostRecentLiveStatReader
+                .getMostRecentStat(request.getEntityType(), request.getCommodityName(),
+                        request.getCommodityKey());
+
+        final GetMostRecentStatResponse returnObject = response.map(stat -> {
+            final String entityDisplayName = liveStatsReader
+                    .getEntityDisplayNameForId(stat.getEntityUuid());
+            if (entityDisplayName != null) {
+                stat.setEntityDisplayName(entityDisplayName);
+            }
+            return stat.build();
+        }).orElse(GetMostRecentStatResponse.newBuilder().build());
+        logger.debug("Most recent stat response for request {}, is {}", () -> request,
+                () -> returnObject);
+        responseObserver.onNext(returnObject);
+        responseObserver.onCompleted();
     }
 }

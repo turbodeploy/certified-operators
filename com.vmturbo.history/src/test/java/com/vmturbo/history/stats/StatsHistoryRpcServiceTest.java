@@ -1,7 +1,8 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.components.common.utils.StringConstants.STORAGE_AMOUNT;
 import static com.vmturbo.components.common.utils.StringConstants.USED;
-import static com.vmturbo.components.common.utils.StringConstants.UTILIZATION;
+import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.schema.RelationType.COMMODITIES;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecord;
 import static junit.framework.TestCase.assertTrue;
@@ -49,6 +50,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.jooq.Record;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -71,6 +73,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
@@ -105,6 +108,7 @@ import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 
 /**
@@ -150,7 +154,8 @@ public class StatsHistoryRpcServiceTest {
 
     private RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
             = mock(RequestBasedReader.class);
-
+    private MostRecentLiveStatReader mostRecentLiveStatReader =
+            mock(MostRecentLiveStatReader.class);
     private ExecutorService threadPool = mock(ExecutorService.class);
 
     private StatsHistoryRpcService statsHistoryRpcService =
@@ -162,7 +167,7 @@ public class StatsHistoryRpcServiceTest {
                     statSnapshotCreatorSpy,
                     statRecordBuilderSpy,
                     systemLoadReader, 100,
-                    percentileReader, threadPool));
+                    percentileReader, threadPool, mostRecentLiveStatReader));
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
@@ -171,7 +176,6 @@ public class StatsHistoryRpcServiceTest {
 
     @Before
     public void setup() {
-
         clientStub = StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
     }
 
@@ -971,6 +975,32 @@ public class StatsHistoryRpcServiceTest {
         assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse());
         assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse());
         assertTrue(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse().getTotalRecordCount() == 2);
+    }
+
+    /**
+     * Test that GetMostRecentStat returns response with entityDisplayName set.
+     */
+    @Test
+    public void testGetMostRecentStat() {
+        // given
+        final long vmId = 11111L;
+        final String vmName = "vm-1";
+        final GetMostRecentStatResponse.Builder stubbedResponse = GetMostRecentStatResponse
+                .newBuilder().setEntityUuid(vmId);
+        when(mostRecentLiveStatReader.getMostRecentStat(VIRTUAL_MACHINE, STORAGE_AMOUNT, "vol-1"))
+                .thenReturn(Optional.of(stubbedResponse));
+        when(mockLivestatsreader.getEntityDisplayNameForId(vmId)).thenReturn(vmName);
+        Stats.GetMostRecentStatRequest request = Stats.GetMostRecentStatRequest.newBuilder()
+                .setEntityType(VIRTUAL_MACHINE)
+                .setCommodityName(STORAGE_AMOUNT)
+                .setCommodityKey("vol-1")
+                .build();
+
+        // when
+        final Stats.GetMostRecentStatResponse response = clientStub.getMostRecentStat(request);
+
+        // then
+        Assert.assertEquals(vmName, response.getEntityDisplayName());
     }
 
     private static SystemLoadRecord newSystemLoadInfo(@Nonnull final String clusterId) {
