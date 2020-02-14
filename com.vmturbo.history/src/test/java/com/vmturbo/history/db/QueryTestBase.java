@@ -63,7 +63,10 @@ public class QueryTestBase {
      */
     private void checkSelectFields(String sql, boolean distinct, String... fields) {
         if (fields.length > 0) {
-            assertThat(sql, matchesPattern(makePattern(new String[]{"SELECT", distinct ? "DISTINCT" : null}, fields)));
+            assertThat(sql, matchesPattern(makePattern(
+                    singleton("SELECT"),
+                    opt(distinct, "DISTINCT"),
+                    commas(fields))));
         }
     }
 
@@ -75,9 +78,9 @@ public class QueryTestBase {
      */
     private void checkTables(String sql, String... tables) {
         if (tables.length > 0) {
-            assertThat(sql, matchesPattern(makePattern(new String[]{"FROM"}, tables)));
+            assertThat(sql, matchesPattern(makePattern(singleton("FROM"), commas(tables))));
         } else {
-            assertThat(sql, not(matchesPattern(makePattern(new String[]{"FROM"}))));
+            assertThat(sql, not(matchesPattern(makePattern(singleton("FROM")))));
         }
     }
 
@@ -98,9 +101,12 @@ public class QueryTestBase {
             boolean paren = conditions.length > 1;
             String conjunction = String.join("\\s+AND\\s+", conditions);
             assertThat(sql, matchesPattern(makePattern(
-                    new String[]{"WHERE", paren ? "\\(" : null, conjunction, paren ? "\\)" : null})));
+                    singleton("WHERE"),
+                    opt(paren, "\\("),
+                    singleton(conjunction),
+                    opt(paren, "\\)"))));
         } else {
-            assertThat(sql, not(matchesPattern(makePattern(new String[]{"WHERE"}))));
+            assertThat(sql, not(matchesPattern(makePattern(singleton("WHERE")))));
         }
     }
 
@@ -112,9 +118,21 @@ public class QueryTestBase {
      */
     private void checkOrderBy(String sql, String... sortFields) {
         if (sortFields.length > 0) {
-            assertThat(sql, matchesPattern(makePattern(new String[]{"ORDER BY"}, sortFields)));
+            assertThat(sql, matchesPattern(makePattern(
+                    singleton("ORDER BY"),
+                    commas(sortFields))));
         } else {
-            assertThat(sql, not(matchesPattern(makePattern(new String[]{"ORDER BY"}))));
+            assertThat(sql, not(matchesPattern(makePattern(singleton("ORDER BY")))));
+        }
+    }
+
+    private void checkGroupBy(String sql, String... groupByFields) {
+        if (groupByFields.length > 0) {
+            assertThat(sql, matchesPattern(makePattern(
+                    singleton("GROUP BY"),
+                    commas(groupByFields))));
+        } else {
+            assertThat(sql, not(matchesPattern(makePattern(singleton("GROUP BY")))));
         }
     }
 
@@ -126,9 +144,11 @@ public class QueryTestBase {
      */
     private void checkLimit(String sql, int limit) {
         if (limit > 0) {
-            assertThat(sql, matchesPattern(makePattern(new String[]{"LIMIT", Integer.toString(limit)})));
+            assertThat(sql, matchesPattern(makePattern(
+                    singleton("LIMIT"),
+                    singleton(Integer.toString(limit)))));
         } else {
-            assertThat(sql, not(matchesPattern(makePattern(new String[]{"LIMIT"}))));
+            assertThat(sql, not(matchesPattern(makePattern(singleton("LIMIT")))));
         }
     }
 
@@ -164,8 +184,21 @@ public class QueryTestBase {
                 .map(g -> Stream.of(g)
                         .filter(Objects::nonNull)
                         .collect(Collectors.joining("\\s+")))
+                .filter(s -> !s.isEmpty())
                 .collect(Collectors.joining("\\s+"));
         return "(^|\\s)" + content + "(\\s|$)";
+    }
+
+    private static String[] singleton(String string) {
+        return new String[]{string};
+    }
+
+    private static String[] opt(boolean enabled, String... group) {
+        return enabled ? group : new String[0];
+    }
+
+    private static String[] commas(String... strings) {
+        return new String[]{String.join(",\\s*", strings)};
     }
 
 
@@ -215,6 +248,7 @@ public class QueryTestBase {
         private String[] tables = new String[0];
         private String[] conditions = new String[0];
         private String[] sortFields = new String[0];
+        private String[] groupByFields = new String[0];
         private int limit = 0;
 
         /**
@@ -296,6 +330,19 @@ public class QueryTestBase {
         }
 
         /**
+         * Specify fields expected to appear in the GROUP BY clause.
+         *
+         * <p>This method replaces any previously specified GROUP BY fields.</p>
+         *
+         * @param groupByFields fields to appear in GROUP BY clause.
+         * @return this query checker
+         */
+        public QueryChecker withGroupByFields(String... groupByFields) {
+            this.groupByFields = groupByFields;
+            return this;
+        }
+
+        /**
          * Specify an expected LIMIT value for the query.
          *
          * @param limit limit value, or 0 for no LIMIT
@@ -317,6 +364,7 @@ public class QueryTestBase {
             checkTables(sql, tables);
             checkConditions(sql, conditions);
             checkOrderBy(sql, sortFields);
+            checkGroupBy(sql, groupByFields);
             checkLimit(sql, limit);
         }
     }

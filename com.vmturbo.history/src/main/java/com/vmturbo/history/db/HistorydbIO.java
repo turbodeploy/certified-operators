@@ -17,7 +17,6 @@ import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDateOrTimestampField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
-import static com.vmturbo.history.db.jooq.JooqUtils.getField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
@@ -71,6 +70,7 @@ import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Result;
+import org.jooq.ResultQuery;
 import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
@@ -96,6 +96,9 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.db.queries.AvailableEntityTimestampsQuery;
+import com.vmturbo.history.db.queries.AvailableTimestampsQuery;
+import com.vmturbo.history.db.queries.EntityCommoditiesMaxValuesQuery;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -615,12 +618,15 @@ public class HistorydbIO extends BasedbIO {
 
         final Query query;
         if (specificEntityType.isPresent() && specificEntityOid.isPresent()) {
-            query = Queries.getAvailableEntityTimestampsQuery(
+            query = new AvailableEntityTimestampsQuery(
                     timeFrame, specificEntityType.get(), specificEntityOid.get(), 1,
-                    new Timestamp(startTime), new Timestamp(endTime), false);
+                    new Timestamp(startTime), new Timestamp(endTime), false
+            ).getQuery();
         } else {
-            query = Queries.getAvailableSnapshotTimesQuery(
-                    timeFrame, HistoryVariety.ENTITY_STATS, 0, new Timestamp(startTime), new Timestamp(endTime));
+            query = new AvailableTimestampsQuery(
+                    timeFrame, HistoryVariety.ENTITY_STATS, 0,
+                    new Timestamp(startTime), new Timestamp(endTime)
+            ).getQuery();
         }
         return (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
     }
@@ -674,9 +680,10 @@ public class HistorydbIO extends BasedbIO {
             }
 
             // create select query
-            final Query query = Queries.getAvailableEntityTimestampsQuery(
+            final Query query = new AvailableEntityTimestampsQuery(
                     TimeFrame.LATEST, entityTypeOpt.orElse(null), specificEntityOidOpt.orElse(null), 1,
-                    null, exclusiveUpperTimeBound, excludeProperties, propertyTypes);
+                    null, exclusiveUpperTimeBound, excludeProperties, propertyTypes
+            ).getQuery();
             final List<Timestamp> snapshotTimeRecords
                     = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
 
@@ -1347,39 +1354,44 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * The stats in the db get rolled-up every 10 minutes from latest->hourly, hourly->daily and
-     * daily -> monthly. So the monthly table will have all the max values. Querying the monthly
-     * table should suffice.
-     * As the stats table stores all historic stats(until the retention period), we may return
+     * Compute max values aggregated over all monthly stats records for each entity-id/sold-commodity
+     * combination.
+     *
+     * <p>We're really after all the max values across all entity stats records. But since the max
+     * values get rolled up approximately every hour to monthly stats, querying monthly tables
+     * suffices.</p>
+     *
+     * <p>As the stats table stores all historic stats(until the retention period), we may return
      * entries which may not be relevant to the current environment(because targets could be removed).
-     * We leave the filtering of the entities to the clients.
-     * The access commodities are already filtered as we store stats only for non-access commodities.
-     * TODO:karthikt - Do batch selects(paginate) from the DB.
+     * We leave the filtering of the entities to the clients.</p>
+     *
+     * <p>The access commodities are not of interest, but stats are not stored for them, so no need
+     * to filter here.</p>
+     *
+     * <p>TODO:karthikt - Do batch selects(paginate) from the DB.</p>
+     *
+     * @param entityTypeNo entity type number
+     * @return query results, transformed into  {@link EntityCommoditiesMaxValues} strucures
+     * @throws VmtDbException on DB exceptions
+     * @throws SQLException on DB exceptions
      */
-    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityType)
-        throws VmtDbException, SQLException {
+    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityTypeNo)
+            throws VmtDbException, SQLException {
 
-        // Get the name of the table in the db associated with the entityType.
-        Table<?> tbl = getMonthStatsDbTableForEntityType(entityType);
-        if (tbl == null) {
-            logger.warn("No table for entityType: {}", entityType);
+        final Optional<EntityType> entityType = getEntityType(entityTypeNo);
+        Table<?> table = entityType.map(type -> type.getMonthTable()).orElse(null);
+        if (table == null) {
+            logger.error("No monthly stats table for entityType: {}",
+                    entityType.map(EntityType::name).orElse("Entity type #" + entityTypeNo));
             return Collections.emptyList();
         }
         // Query for the max of the max values from all the days in the DB for
         // each commodity in each entity.
         try (Connection conn = connection()) {
-            Result<? extends Record> statsRecords =
-                using(conn)
-                    .select(getField(tbl, UUID), getField(tbl, PROPERTY_TYPE), getField(tbl, COMMODITY_KEY),
-                        DSL.max(getField(tbl, MAX_VALUE)))
-                    .from(tbl)
-                    // only interested in used and sold commodities
-                    .where(getStringField(tbl, PROPERTY_SUBTYPE).eq(PropertySubType.Used.getApiParameterName()).and(
-                        (getRelationTypeField(tbl, RELATION)).eq(RelationType.COMMODITIES)))
-                    .groupBy(getField(tbl, UUID), getField(tbl, PROPERTY_TYPE))
-                    .fetch(); //TODO:karthikt - check if fetchLazy would help here.
-            logger.debug("Number of records fetched for table {} = {}", tbl, statsRecords.size());
-            return convertToEntityCommoditiesMaxValues(tbl, statsRecords);
+            final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(table).getQuery();
+            Result<? extends Record> statsRecords = using(conn).fetch(query);
+            logger.debug("Number of records fetched for table {} = {}", table, statsRecords.size());
+            return convertToEntityCommoditiesMaxValues(table, statsRecords);
         }
     }
 
