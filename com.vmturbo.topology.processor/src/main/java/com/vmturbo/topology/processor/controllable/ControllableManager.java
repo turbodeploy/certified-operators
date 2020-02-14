@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 
 /**
@@ -86,6 +87,69 @@ public class ControllableManager {
                 logger.trace("Applying suspendable false for entity {}.",
                         entityBuilder.getDisplayName());
             });
+        return numModified.get();
+    }
+
+    /**
+     * If entity has an SCALE (resize actions on cloud) action in the table, it means the entity is about or
+     * has been scaled. It should not be resizeable in analysis.
+     *
+     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
+     *                 {@link TopologyEntity.Builder}.
+     * @return Number of modified entities.
+     */
+    public int applyScaleEligibility(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final AtomicInteger numModified = new AtomicInteger(0);
+        final Set<Long> ineligibleForResizeEntityIds =
+                entityActionDao.ineligibleForScaleEntityIds();
+        ineligibleForResizeEntityIds.stream()
+                .filter(topology::containsKey)
+                .map(topology::get)
+                .map(TopologyEntity.Builder::getEntityBuilder)
+                // Set flag only for VMs
+                .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
+                .forEach(entityBuilder -> {
+                    if (entityBuilder.getAnalysisSettingsBuilder().getIsEligibleForScale()
+                            && entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue()) {
+                        // It's currently eligible for scale, and about to be marked
+                        // ineligible.
+                        numModified.incrementAndGet();
+                    }
+                    entityBuilder.getAnalysisSettingsBuilder().setIsEligibleForScale(false);
+                    logger.trace("Applying is eligible for scale false for entity {}.",
+                            entityBuilder.getDisplayName());
+                });
+        return numModified.get();
+    }
+
+    /**
+     * If entity has an RIGHT_SIZE (resize actions on prem) action in the table, it means the entity is about or
+     * has been resized. It should not be to resize down in analysis.
+     *
+     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
+     *                 {@link TopologyEntity.Builder}.
+     * @return Number of modified entities.
+     */
+    public int applyResizeDownEligibility(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final AtomicInteger numModified = new AtomicInteger(0);
+        final Set<Long> ineligibleForResizeEntityIds =
+                entityActionDao.ineligibleForResizeDownEntityIds();
+        ineligibleForResizeEntityIds.stream()
+                .filter(topology::containsKey)
+                .map(topology::get)
+                .map(TopologyEntity.Builder::getEntityBuilder)
+                // Set flag only for VMs
+                .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
+                .forEach(entityBuilder -> {
+                    if (entityBuilder.getAnalysisSettingsBuilder().getIsEligibleForResizeDown()) {
+                        // It's currently eligible for resize down, and about to be marked
+                        // ineligible.
+                        numModified.incrementAndGet();
+                    }
+                    entityBuilder.getAnalysisSettingsBuilder().setIsEligibleForResizeDown(false);
+                    logger.trace("Applying IsEligibleForResizeDown false for entity {}.",
+                            entityBuilder.getDisplayName());
+                });
         return numModified.get();
     }
 }
