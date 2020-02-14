@@ -380,6 +380,19 @@ public class SearchProtoUtil {
     }
 
     /**
+     * Creates a property filter that finds business accounts which have set associatedTargetId
+     * property (monitored by probe).
+     *
+     * @return the filter
+     */
+    public static PropertyFilter associatedTargetFilter() {
+        return PropertyFilter.newBuilder()
+                .setNumericFilter(NumericFilter.getDefaultInstance())
+                .setPropertyName(SearchableProperties.ASSOCIATED_TARGET_ID)
+                .build();
+    }
+
+    /**
      * Create a traversal filter that searches for instances of the provided type
      * in the given direction.
      *

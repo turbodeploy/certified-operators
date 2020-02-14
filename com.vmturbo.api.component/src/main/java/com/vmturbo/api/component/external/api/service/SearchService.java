@@ -954,9 +954,12 @@ public class SearchService implements ISearchService {
     @Nonnull
     private List<CriteriaOptionApiDTO> getAccountOptions() {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
-        // get all business accounts
+        // get all business accounts which have associated target (monitored by probe)
         repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
                 SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.apiStr()))
+                .addSearchFilter(SearchFilter.newBuilder()
+                        .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
+                        .build())
                 .build())
                 .getMinimalEntities()
                 .forEach(ba -> {

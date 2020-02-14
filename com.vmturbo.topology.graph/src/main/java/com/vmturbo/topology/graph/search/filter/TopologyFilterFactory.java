@@ -147,6 +147,19 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                         numericCriteria.getComparisonOperator(),
                         entity -> entity.getEntityState().getNumber()
                 ));
+            case SearchableProperties.ASSOCIATED_TARGET_ID:
+                return new PropertyFilter<>(entity -> {
+                    if (entity.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE) {
+                        throw new IllegalArgumentException(
+                                "Numeric filter for property " + propertyName +
+                                        " is not supported for entity type - " +
+                                        entity.getEntityType());
+                    }
+                    return entity.getTypeSpecificInfo().hasBusinessAccount() &&
+                            entity.getTypeSpecificInfo()
+                                    .getBusinessAccount()
+                                    .hasAssociatedTargetId();
+                });
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
         }
