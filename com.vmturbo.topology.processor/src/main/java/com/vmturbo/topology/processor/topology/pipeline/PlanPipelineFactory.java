@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
@@ -53,6 +54,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.OverrideWorkLoadD
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
@@ -104,6 +106,8 @@ public class PlanPipelineFactory {
 
     private final PlanTopologyScopeEditor planTopologyScopeEditor;
 
+    private final ProbeActionCapabilitiesApplicatorEditor applicatorEditor;
+
     private final HistoricalEditor historicalEditor;
 
     private final MatrixInterface matrix;
@@ -131,6 +135,7 @@ public class PlanPipelineFactory {
                                @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                @Nonnull final CommoditiesEditor commoditiesEditor,
                                @Nonnull final PlanTopologyScopeEditor planTopologyScopeEditor,
+                               @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
                                @Nonnull final HistoricalEditor historicalEditor,
                                @Nonnull final MatrixInterface matrix,
                                @Nonnull final CachedTopology constructTopologyStageCache,
@@ -154,6 +159,7 @@ public class PlanPipelineFactory {
         this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
         this.planTopologyScopeEditor = planTopologyScopeEditor;
+        this.applicatorEditor = applicatorEditor;
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
         this.matrix = Objects.requireNonNull(matrix);
         this.constructTopologyStageCache = Objects.requireNonNull(constructTopologyStageCache);
@@ -223,6 +229,7 @@ public class PlanPipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
+                .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
     }
