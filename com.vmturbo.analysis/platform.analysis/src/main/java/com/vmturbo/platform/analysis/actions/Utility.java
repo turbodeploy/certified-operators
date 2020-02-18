@@ -62,9 +62,9 @@ public final class Utility {
                     Economy economy) {
         int soldIndex = 0;
         for (CommoditySpecification specSold : provisionedSeller.getBasketSold()) {
-            double overhead = calculateCommodityOverhead(modelSeller, specSold, economy);
+            double[] overheads = calculateCommodityOverhead(modelSeller, specSold, economy);
             CommoditySold cs = provisionedSeller.getCommoditiesSold().get(soldIndex);
-            cs.setQuantity(overhead).setPeakQuantity(overhead);
+            cs.setQuantity(overheads[0]).setPeakQuantity(overheads[1]);
             soldIndex++;
         }
     }
@@ -75,25 +75,30 @@ public final class Utility {
      * @param trader this is the {@link Trader} for whom the overhead is to be calculated
      * @param specSold the spec for which the overhead is to be calculated
      * @param economy  that the Trader is a part of
+     *
+     * @return avg and peak overheads.
      */
-    public static double calculateCommodityOverhead(Trader trader, CommoditySpecification specSold,
+    public static double[] calculateCommodityOverhead(Trader trader, CommoditySpecification specSold,
                     Economy economy) {
         double overhead = 0;
+        double overHeadPeak = 0;
         if (economy.getCommsToAdjustOverhead().contains(specSold)) {
             int soldIndex = trader.getBasketSold().indexOf(specSold);
             if (soldIndex != -1) {
                 // Overhead is the seller's comm sold quantity - sum of quantities of all the
                 // customers of this seller
                 overhead = trader.getCommoditiesSold().get(soldIndex).getQuantity();
+                overHeadPeak = trader.getCommoditiesSold().get(soldIndex).getPeakQuantity();
                 for(ShoppingList sl : trader.getCustomers()) {
                     int boughtIndex = sl.getBasket().indexOf(specSold);
                     if (boughtIndex != -1) {
                         overhead -= sl.getQuantity(boughtIndex);
+                        overHeadPeak -= sl.getPeakQuantity(boughtIndex);
                     }
                 }
             }
         }
-        return Math.max(overhead, 0);
+        return new double[] {Math.max(overhead, 0), Math.max(overHeadPeak, 0)};
     }
 
     /**

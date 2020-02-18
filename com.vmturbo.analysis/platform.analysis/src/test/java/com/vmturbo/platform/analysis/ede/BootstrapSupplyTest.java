@@ -1084,32 +1084,38 @@ public class BootstrapSupplyTest {
         // the last clique it will be moved to the end so that we can do provision by demand.
         Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true,"PM2");
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 600, false,"DS2");
+        Trader vm0 = TestUtils.createVM(economy,"VM0");
+        ShoppingList sl0 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm0, new double[]{90, 0}, pm1);
+        ShoppingList sl00 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm0, new double[]{100}, st1);
         Trader vm1 = TestUtils.createVM(economy,"VM1");
         Trader dc1 = TestUtils.createDC(economy, "DC1");
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{90, 0}, pm1);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         Trader vm2 = TestUtils.createVM(economy,"VM2");
         ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{90, 0}, pm1);
         ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         Trader vm3 = TestUtils.createVM(economy,"VM3");
         ShoppingList sl5 = TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{60, 0}, pm1);
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{90, 0}, pm1);
         ShoppingList sl6 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm3, new double[]{100}, st1);
         // vm4 does not fit on any host. so needs provisionbydemand.
         Trader vm4 = TestUtils.createVM(economy,"VM4");
         ShoppingList sl7 = TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{160, 0}, pm1);
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{110, 0}, pm1);
         ShoppingList sl8 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm4, new double[]{100}, st1);
         ShoppingList sl9 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.POWER, TestUtils.SPACE, TestUtils.COOLING), pm1, new double[]{1, 1, 1}, dc1);
         ShoppingList sl10 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.POWER, TestUtils.SPACE, TestUtils.COOLING), pm2, new double[]{1, 1, 1}, dc1);
+        economy.getModifiableShopTogetherTraders().add(vm0);
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
         economy.getModifiableShopTogetherTraders().add(vm3);

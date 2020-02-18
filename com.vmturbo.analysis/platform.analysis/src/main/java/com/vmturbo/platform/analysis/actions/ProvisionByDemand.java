@@ -152,13 +152,15 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
             int indexOfCommBought = getModelBuyer().getBasket().indexOf(commSpec);
             CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(indexOfCommSold);
             double initialCapSold = modelCommSold.getCapacity();
-            double overhead = Utility.calculateCommodityOverhead(getModelSeller(), commSpec,
+            double[] overheads = Utility.calculateCommodityOverhead(getModelSeller(), commSpec,
                             getEconomy());
             // the new capacity should be equal to the old capacity or scaled capacity which
             // considers overhead that is a factor of the bought commodity
-            double newCapacity = Math.max((getModelBuyer().getPeakQuantity(indexOfCommBought) + overhead) /
-                            (desiredUtil * modelCommSold.getSettings().getUtilizationUpperBound()),
-                            initialCapSold);
+            double newCapacity = Math.max(Math.max(
+                            getModelBuyer().getPeakQuantity(indexOfCommBought) + overheads[1],
+                                getModelBuyer().getQuantity(indexOfCommBought) + overheads[0])
+                            / (desiredUtil * modelCommSold.getSettings().getUtilizationUpperBound()),
+                        initialCapSold);
             if (newCapacity > initialCapSold) {
                 // commodityNewCapacityMap_  keeps information about commodity sold and its
                 // new capacity, if there are several commodities of same base type, pick the
