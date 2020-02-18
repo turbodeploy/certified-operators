@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,11 +40,11 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -709,24 +708,13 @@ public class MarketStatsAccumulator {
      * @param entityByOid entities by oid, potentially including volume(s)
      * @return key generated from volume information, if any is present/relevant
      */
-    @VisibleForTesting
-    Optional<String> extractVolumeKey(@Nonnull final TopologyEntityDTO entityDTO,
+    private Optional<String> extractVolumeKey(@Nonnull final TopologyEntityDTO entityDTO,
             @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
             @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
         if (HistoryStatsUtils.isCloudEntity(entityDTO) && commoditiesBought.hasVolumeId()
                 && entityByOid.containsKey(commoditiesBought.getVolumeId())) {
             final TopologyEntityDTO volumeEntity = entityByOid.get(commoditiesBought.getVolumeId());
-            if (volumeEntity.hasOrigin() && volumeEntity.getOrigin().hasDiscoveryOrigin()) {
-                final String vendorIds = volumeEntity.getOrigin().getDiscoveryOrigin()
-                    .getDiscoveredTargetDataMap().values().stream()
-                    .map(PerTargetEntityInformation::getVendorId)
-                    .filter(vendorId -> !vendorId.equals(volumeEntity.getDisplayName()))
-                    .collect(Collectors.joining(", "));
-                return Optional.of(volumeEntity.getDisplayName() +
-                    (vendorIds.isEmpty() ? "" : " - " + vendorIds));
-            } else {
-                return Optional.of(volumeEntity.getDisplayName());
-            }
+            return Optional.of(TopologyDTOUtil.createVolumeKey(volumeEntity));
         }
         return Optional.empty();
     }

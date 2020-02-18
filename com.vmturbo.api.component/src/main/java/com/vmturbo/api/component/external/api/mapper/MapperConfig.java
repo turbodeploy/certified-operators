@@ -269,7 +269,7 @@ public class MapperConfig {
     @Bean
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
         return new VirtualVolumeAspectMapper(communicationConfig.costServiceBlockingStub(),
-            communicationConfig.repositoryApi());
+            communicationConfig.repositoryApi(), communicationConfig.historyRpcService());
     }
 
     @Bean

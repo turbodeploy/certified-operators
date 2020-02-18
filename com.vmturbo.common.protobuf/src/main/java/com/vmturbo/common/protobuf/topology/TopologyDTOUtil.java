@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -46,6 +47,11 @@ public final class TopologyDTOUtil {
      */
     public static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
+
+    /**
+     * Max allowable length of commodity key String.
+     */
+    public static final int MAX_KEY_LENGTH = 80;
 
     private static final Map<Integer, Integer> PRIMARY_TIER_FOR_CONSUMER_TYPE = ImmutableMap.of(
         EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE
@@ -301,5 +307,36 @@ public final class TopologyDTOUtil {
     public static boolean areEntitiesConnected(TopologyEntityDTO marketTier, long entityId) {
         return marketTier.getConnectedEntityListList().stream()
                 .map(ConnectedEntity::getConnectedEntityId).anyMatch(id -> id == entityId);
+    }
+
+    /**
+     * Creates a key for the volumeEntity by concatenating the displayName with the vendor ids.
+     *
+     * @param volumeEntity for which the volume key is being created.
+     * @return String representing volume key.
+     */
+    @Nonnull
+    public static String createVolumeKey(@Nonnull final TopologyEntityDTO volumeEntity) {
+        final String volumeKey;
+        if (volumeEntity.hasOrigin() && volumeEntity.getOrigin().hasDiscoveryOrigin()) {
+            final String vendorIds = volumeEntity.getOrigin().getDiscoveryOrigin()
+                    .getDiscoveredTargetDataMap().values().stream()
+                    .map(PerTargetEntityInformation::getVendorId)
+                    .filter(vendorId -> !vendorId.equals(volumeEntity.getDisplayName()))
+                    .collect(Collectors.joining(", "));
+            volumeKey = volumeEntity.getDisplayName() + (vendorIds.isEmpty() ? "" :
+                    " - " + vendorIds);
+        } else {
+            volumeKey = volumeEntity.getDisplayName();
+        }
+        // HistoryDbio::initializeCommodityRecord has logic to truncate commodity keys whose length
+        // *exceeds* 80 characters down to a length of 79 characters. This means that if a
+        // commodity key has a length of exactly 80 characters, truncation is *not* carried out.
+        // That logic needs to be replicated here as well.
+        if (volumeKey.length() > MAX_KEY_LENGTH) {
+            return volumeKey.substring(0, MAX_KEY_LENGTH - 1);
+        } else {
+            return volumeKey;
+        }
     }
 }
