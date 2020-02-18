@@ -314,4 +314,30 @@ public class ProvisionByDemandTest {
         assertEquals(modelSeller.getCommoditiesSold().get(2).getCapacity(),
                 provSeller.getCommoditiesSold().get(2).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
+
+    /**
+     * Check to see that we specify ProvisionByDemand reason commodity in map when peak overhead
+     * being high is what leads to the provision by demand.
+     */
+    @Test
+    public void testPeakOverHeadReason() {
+        double oldCap = 100;
+        double highPeak = 150;
+        CommoditySpecification cs = new CommoditySpecification(0);
+        Economy e = new Economy();
+        e.getCommsToAdjustOverhead().add(cs);
+        ShoppingList sl = e.addBasketBought(e.addTrader(0, TraderState.ACTIVE, EMPTY),
+                new Basket(cs));
+        sl.setQuantity(0, 10).setPeakQuantity(0, 20);
+        Trader seller = e.addTrader(0, TraderState.ACTIVE,
+                new Basket(cs));
+        seller.getCommoditiesSold().get(0).setCapacity(oldCap).setQuantity(20)
+            .setPeakQuantity(highPeak);
+        ProvisionByDemand provision = new ProvisionByDemand(e, sl, seller);
+        assertTrue(provision.getCommodityNewCapacityMap().isEmpty());
+        provision.take();
+        assertTrue(!provision.getCommodityNewCapacityMap().isEmpty());
+        double newCap = provision.getCommodityNewCapacityMap().get(0);
+        assertTrue(newCap > oldCap);
+    }
 } // end ProvisionByDemandTest class

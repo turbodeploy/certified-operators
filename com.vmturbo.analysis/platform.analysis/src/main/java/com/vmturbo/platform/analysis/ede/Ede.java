@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrot
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.ActionStats;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
@@ -81,7 +82,7 @@ public final class Ede {
                 if (tp != null) {
                     trader = tp;
                 }
-                if (ProvisionUtils.canBuyerFitInSeller(shoppingList, trader, economy)) {
+                if (CostFunctionFactory.insufficientCommodityWithinSellerCapacityQuote(shoppingList, trader, -1).isFinite()) {
                     providerList.add( economy.getTopology().getTraderOids().get(trader));
                 }
             }

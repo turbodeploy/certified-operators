@@ -339,7 +339,7 @@ public class CostFunctionFactory {
      *         If some commodity does not fit, returns the boughtIndex of the first commodity in that shopping list's
      *         basket that cannot fit within the seller.
      */
-    private static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller, int couponCommodityBaseType) {
+    public static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller, int couponCommodityBaseType) {
         // check if the commodities bought comply with capacity limitation on seller
         if (!sl.getBasket().isSatisfiedBy(seller.getBasketSold())) {
             // buyer basket not satisfied by seller providing quote
@@ -838,43 +838,46 @@ public class CostFunctionFactory {
                     MutableQuote matchingTpQuote = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy);
                     context = matchingTpQuote.getContext();
                     double currentTemplateCostForBuyer = matchingTpQuote.getQuoteValue();
-
-                    // The capacity of a coupon commodity sold by a template provider reflects the number of
-                    // coupons associated with the template it represents. This number is the requested amount
-                    // of coupons by a matching vm.
-                    int indexOfCouponCommByTp = matchingTP.getBasketSold()
+                    if (Double.isInfinite(currentTemplateCostForBuyer)) {
+                        discountedCost = Double.POSITIVE_INFINITY;
+                    } else {
+                        // The capacity of a coupon commodity sold by a template provider reflects the number of
+                        // coupons associated with the template it represents. This number is the requested amount
+                        // of coupons by a matching vm.
+                        int indexOfCouponCommByTp = matchingTP.getBasketSold()
                             .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
-                    CommoditySold couponCommSoldByTp =
+                        CommoditySold couponCommSoldByTp =
                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                    double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
-                    double singleVmTemplateCost = currentTemplateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
-                    final com.vmturbo.platform.analysis.economy.Context buyerContext
+                        double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
+                        double singleVmTemplateCost = currentTemplateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
+                        final com.vmturbo.platform.analysis.economy.Context buyerContext
                             = buyer.getBuyer().getSettings().getContext();
-                    final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
-                    final int licenseTypeKey = buyer.getBasket().get(licenseCommBoughtIndex).getType();
-                    final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, costTable, licenseTypeKey);
-                    double couponsCovered = buyer.getTotalAllocatedCoupons(economy, matchingTP);
-                    if (couponCommSoldByTp.getCapacity() != 0) {
-                        double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
-                        // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
-                        double numCouponsToPayFor = Math.max(0, (requestedCoupons - couponsCovered));
-                        if (costTuple != null && costTuple.getPrice() != 0) {
-                            discountedCost = Math.max(costTuple.getPrice(),
+                        final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
+                        final int licenseTypeKey = buyer.getBasket().get(licenseCommBoughtIndex).getType();
+                        final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, costTable, licenseTypeKey);
+                        double couponsCovered = buyer.getTotalAllocatedCoupons(economy, matchingTP);
+                        if (couponCommSoldByTp.getCapacity() != 0) {
+                            double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
+                            // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
+                            double numCouponsToPayFor = Math.max(0, (requestedCoupons - couponsCovered));
+                            if (costTuple != null && costTuple.getPrice() != 0) {
+                                discountedCost = Math.max(costTuple.getPrice(),
                                     numCouponsToPayFor * templateCostPerCoupon);
-                        } else {
-                            if (costTuple == null) {
-                                logger.error("VM {} with context {} is not in scope of discounted "
-                                                + "tier {} with context {}",
+                            } else {
+                                if (costTuple == null) {
+                                    logger.error("VM {} with context {} is not in scope of discounted "
+                                            + "tier {} with context {}",
                                         buyer.getDebugInfoNeverUseInCode(), buyerContext,
                                         cbtp.getDebugInfoNeverUseInCode(),
                                         cbtpResourceBundle.getCostTupleListList());
+                                }
+                                discountedCost = numCouponsToPayFor * templateCostPerCoupon;
                             }
-                            discountedCost = numCouponsToPayFor * templateCostPerCoupon;
-                        }
-                    } else {
-                        logger.warn("Coupon commodity sold by {} has 0 capacity.",
+                        } else {
+                            logger.warn("Coupon commodity sold by {} has 0 capacity.",
                                 matchingTP.getDebugInfoNeverUseInCode());
-                        discountedCost = Double.POSITIVE_INFINITY;
+                            discountedCost = Double.POSITIVE_INFINITY;
+                        }
                     }
                 } else {
                     discountedCost = Double.POSITIVE_INFINITY;
