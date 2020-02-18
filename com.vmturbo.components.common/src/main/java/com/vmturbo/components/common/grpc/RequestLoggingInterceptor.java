@@ -38,7 +38,7 @@ public class RequestLoggingInterceptor implements ServerInterceptor {
             @Override
             public void onComplete() {
                 final long execTime = System.currentTimeMillis() - requestFinishedTime.get();
-                logger.info("gRPC call {}.{} executed in {}ms",
+                logger.debug("gRPC call {}.{} executed in {}ms",
                         call.getMethodDescriptor().getServiceName(),
                         call.getMethodDescriptor().getFullMethodName(), execTime);
                 super.onComplete();

@@ -34,7 +34,7 @@ import com.vmturbo.history.db.QueryBase;
  *     <li>Property types that must/must not appear</li>
  * </ul>
  */
-public class AvailableEntityTimestamps extends QueryBase {
+public class AvailableEntityTimestampsQuery extends QueryBase {
 
     /**
      * Create a new query instance.
@@ -48,7 +48,7 @@ public class AvailableEntityTimestamps extends QueryBase {
      * @param excludeProperties true if listed properties must not appear, else they must appear
      * @param propertyTypes     property types that must/must not appear in stats records considered
      */
-    public AvailableEntityTimestamps(@Nonnull TimeFrame timeFrame,
+    public AvailableEntityTimestampsQuery(@Nonnull TimeFrame timeFrame,
             @Nullable EntityType entityType,
             @Nullable String entityOid,
             int limit,

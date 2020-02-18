@@ -11,20 +11,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * This class contains all the {@link ReservedInstanceData} objects with the same distinguishing
@@ -115,7 +111,7 @@ public class ReservedInstanceAggregate {
 
     public String getDisplayName() {
         if (riKey == null) return null;
-        return String.valueOf(riKey.getAccountScopeId()) + SEPARATOR +
+        return riKey.getAccountScopeId() + SEPARATOR +
                 riKey.getFamily() + SEPARATOR +
                 riKey.getOs() + SEPARATOR +
                 riKey.getRegionId() + SEPARATOR +
@@ -258,11 +254,7 @@ public class ReservedInstanceAggregate {
         private double useCoupons(double numberOfCouponsToUse) {
             double couponsOfRiUsed = 0;
             if (getRemainingCoupons() > 0) {
-                if (getRemainingCoupons() > numberOfCouponsToUse) {
-                    couponsOfRiUsed = numberOfCouponsToUse;
-                } else {
-                    couponsOfRiUsed = getRemainingCoupons();
-                }
+                couponsOfRiUsed = Math.min(getRemainingCoupons(), numberOfCouponsToUse);
                 if (couponsOfRiUsed > 0) {
                     numberOfCouponsUsed += couponsOfRiUsed;
                 }
@@ -293,5 +285,3 @@ public class ReservedInstanceAggregate {
         return applicableBusinessAccounts;
     }
 }
-
-

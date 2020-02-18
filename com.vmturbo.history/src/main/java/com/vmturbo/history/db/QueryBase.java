@@ -13,9 +13,10 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.JoinType;
-import org.jooq.Query;
 import org.jooq.Record;
+import org.jooq.ResultQuery;
 import org.jooq.SelectConditionStep;
+import org.jooq.SelectHavingStep;
 import org.jooq.SelectJoinStep;
 import org.jooq.SelectSeekStepN;
 import org.jooq.SelectSelectStep;
@@ -36,6 +37,7 @@ public abstract class QueryBase {
     private List<Field<?>> selectFields = new ArrayList<>();
     private List<Condition> conditions = new ArrayList<>();
     private List<SortField<?>> sortFields = new ArrayList<>();
+    private List<Field<?>> groupByFields = new ArrayList<>();
     private int limit = 0;
     private boolean distinct = false;
 
@@ -44,12 +46,12 @@ public abstract class QueryBase {
      *
      * @return jOOQ query object.
      */
-    public Query getQuery() {
+    public ResultQuery<?> getQuery() {
         if (selectFields.isEmpty()) {
             // no select fields were specified, so add defaults
             addDefaultSelectFields();
         }
-        SelectSelectStep<Record> fieldsQuery = distinct
+        final SelectSelectStep<Record> fieldsQuery = distinct
                 ? HistorydbIO.getJooqBuilder().selectDistinct(selectFields)
                 : HistorydbIO.getJooqBuilder().select(selectFields);
         final SelectJoinStep<Record> tablesQuery;
@@ -64,8 +66,12 @@ public abstract class QueryBase {
         } else {
             tablesQuery = (SelectJoinStep<Record>)fieldsQuery;
         }
-        SelectConditionStep<Record> whereQuery = tablesQuery.where(conditions);
-        SelectSeekStepN<Record> orderedQuery = whereQuery.orderBy(sortFields);
+        final SelectConditionStep<Record> whereQuery = tablesQuery.where(conditions);
+        final SelectHavingStep<Record> groupByQuery = groupByFields.isEmpty() ? whereQuery
+                : whereQuery.groupBy(groupByFields);
+        final SelectSeekStepN<Record> orderedQuery = sortFields.isEmpty()
+                ? (SelectSeekStepN<Record>)groupByQuery
+                : groupByQuery.orderBy(sortFields);
         return limit > 0 ? orderedQuery.limit(limit) : orderedQuery;
     }
 
@@ -229,6 +235,14 @@ public abstract class QueryBase {
             default:
                 throw new IllegalArgumentException("Unknown SortOrder: " + sortOrder.name());
         }
+    }
+
+    protected void groupBy(Field<?>... fields) {
+        groupBy(Iterators.forArray(fields));
+    }
+
+    protected void groupBy(Iterator<Field<?>> fields) {
+        fields.forEachRemaining(groupByFields::add);
     }
 
     /**

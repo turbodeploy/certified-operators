@@ -229,10 +229,10 @@ public class SearchService implements ISearchService {
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
                 .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID, (a, b, c) -> getBillingFamiliesOptions())
                 .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
                 .build();
-
     }
 
     @Override
@@ -1035,10 +1035,20 @@ public class SearchService implements ISearchService {
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getResourceGroupsOptions() throws OperationFailedException {
+        return getGroupsOptions(GroupType.RESOURCE);
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getBillingFamiliesOptions() throws OperationFailedException {
+        return getGroupsOptions(GroupType.BILLING_FAMILY);
+    }
+
+    private List<CriteriaOptionApiDTO> getGroupsOptions(GroupType groupType)
+            throws OperationFailedException {
         final List<GroupApiDTO> resourceGroups =
-                groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList());
+                groupsService.getGroupsByType(groupType, null, Collections.emptyList());
         final List<CriteriaOptionApiDTO> result = new ArrayList<>(resourceGroups.size());
-        for (GroupApiDTO group: resourceGroups) {
+        for (GroupApiDTO group : resourceGroups) {
             final CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
             option.setDisplayName(group.getDisplayName());
             option.setValue(group.getUuid());

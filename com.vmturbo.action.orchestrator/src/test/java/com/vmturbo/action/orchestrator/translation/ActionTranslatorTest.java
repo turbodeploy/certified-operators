@@ -15,18 +15,24 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.Context;
 import io.grpc.Status;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -34,10 +40,12 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -249,6 +257,45 @@ public class ActionTranslatorTest {
 
         assertNotEquals(action.getRecommendation(), spec.getRecommendation());
         assertEquals(translatedRecommendation, spec.getRecommendation());
+    }
+
+    /**
+     * Test case when the user has an observer role, all actions should be dropped to RECOMMEND as
+     * the highest mode (DISABLED are generally filtered out, but if they are returned from AO,
+     * their mode can stay DISABLED).
+     */
+    @Test
+    public void testUserHasObserverRoleAllActionsDroppedToRecommend() {
+        SecurityContextHolder.getContext().setAuthentication(null);
+        final Action action = Mockito.spy(
+                new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId,
+                        actionModeCalculator));
+        // Roles, initial action mode, expected action mode.
+        Stream.of(new Object[][]{
+                {null, ActionMode.DISABLED, ActionMode.DISABLED},
+                {Collections.singletonList(SecurityConstant.ADMINISTRATOR), ActionMode.AUTOMATIC,
+                        ActionMode.AUTOMATIC},
+                {Collections.singletonList(SecurityConstant.SITE_ADMIN), ActionMode.RECOMMEND,
+                        ActionMode.RECOMMEND},
+                {Collections.singletonList(SecurityConstant.AUTOMATOR), ActionMode.MANUAL,
+                        ActionMode.MANUAL},
+                {Collections.singletonList(SecurityConstant.OBSERVER), ActionMode.MANUAL,
+                        ActionMode.RECOMMEND},
+                {Collections.singletonList(SecurityConstant.ADVISOR), ActionMode.MANUAL,
+                        ActionMode.RECOMMEND},
+                {Collections.singletonList(SecurityConstant.OBSERVER), ActionMode.DISABLED,
+                        ActionMode.DISABLED}}).forEach(data -> {
+            final Context testContext = Context.current()
+                    .withValue(SecurityConstant.USER_ROLES_KEY, (List<String>)data[0]);
+            final Context previous = testContext.attach();
+            try {
+                Mockito.when(action.getMode()).thenReturn((ActionMode)data[1]);
+                final ActionSpec actionSpec = translator.translateToSpec(action);
+                Assert.assertEquals("expected action mode", data[2], actionSpec.getActionMode());
+            } finally {
+                testContext.detach(previous);
+            }
+        });
     }
 
     /**

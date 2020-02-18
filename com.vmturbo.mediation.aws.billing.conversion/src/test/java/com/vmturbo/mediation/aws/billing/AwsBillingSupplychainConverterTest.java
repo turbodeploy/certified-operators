@@ -21,7 +21,7 @@ public class AwsBillingSupplychainConverterTest {
     public void testConvert() {
         final AwsBillingConversionProbe probe = new AwsBillingConversionProbe();
         final Set<TemplateDTO> templates = probe.getSupplyChainDefinition();
-        Assert.assertEquals(3, templates.size());
+        Assert.assertEquals(4, templates.size());
 
         TemplateDTO vmTemplate = templates.stream()
                 .filter(t -> t.getTemplateClass() == EntityType.VIRTUAL_MACHINE)

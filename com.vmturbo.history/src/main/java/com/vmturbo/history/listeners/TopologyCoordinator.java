@@ -208,17 +208,19 @@ public class TopologyCoordinator extends TopologyListenerBase
         // thread for plan topologies topic)
         awaitStartup();
         try {
-            if (info.hasPlanInfo()
-                    && info.getPlanInfo().hasPlanProjectType()
-                    && info.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
-                return;
-            }
-            final Pair<Integer, BulkInserterFactoryStats> result
+            if (info.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
+                // For the reservation plan we don't save stats, because we only care about the
+                // projected topology, as parsed by the ReservationManager in the plan orhestrator.
+                logger.info("Ignoring plan source topology for reservation plan {}",
+                    info.getTopologyContextId());
+            } else {
+                final Pair<Integer, BulkInserterFactoryStats> result
                     = planTopologyIngester.processBroadcast(info, topology);
-            SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
+                SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
-                            SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
+                        SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
                     .observe((double)result.getLeft());
+            }
         } catch (Exception e) {
             logger.error("Plan topology ingestion failed", e);
         } finally {
@@ -251,12 +253,19 @@ public class TopologyCoordinator extends TopologyListenerBase
             // these have no impact on rollups, so we can just perform ingestion as they arrive (in the listener
             // thread for the projected topologies topic)
             try {
-                final Pair<Integer, BulkInserterFactoryStats> result
+                if (info.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
+                    // For reservation plans we don't care about saving stats, because we just need
+                    // the raw projected topology for processing in the Plan Orchestrator.
+                    logger.info("Ignoring projected topology for reservation plan {}",
+                        info.getTopologyContextId());
+                } else {
+                    final Pair<Integer, BulkInserterFactoryStats> result
                         = projectedPlanTopologyIngester.processBroadcast(info, topology);
-                SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
+                    SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                         .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL,
-                                SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                        .observe((double)result.getLeft());
+                            SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
+                        .observe((double) result.getLeft());
+                }
             } catch (Exception e) {
                 logger.error("Projected plan topology ingestion failed", e);
             } finally {

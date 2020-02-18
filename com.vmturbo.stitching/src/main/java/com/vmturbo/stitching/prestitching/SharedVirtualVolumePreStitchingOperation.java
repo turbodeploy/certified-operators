@@ -2,27 +2,13 @@ package com.vmturbo.stitching.prestitching;
 
 import static com.vmturbo.stitching.utilities.MergeEntities.mergeEntity;
 
-import java.util.List;
-import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.Preconditions;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingScope;
-import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
-import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
-import com.vmturbo.stitching.utilities.EntityScopeFilters;
 
 /**
  * Prestitching operation that merges VirtualVolumes that are shared by more than one VC
@@ -33,7 +19,6 @@ import com.vmturbo.stitching.utilities.EntityScopeFilters;
  */
 public class SharedVirtualVolumePreStitchingOperation extends
     SharedEntityDefaultPreStitchingOperation {
-    private static final Logger logger = LogManager.getLogger();
 
     public SharedVirtualVolumePreStitchingOperation() {
         super(stitchingScopeFactory -> stitchingScopeFactory.probeCategoryEntityTypeScope(ProbeCategory.STORAGE_BROWSING,

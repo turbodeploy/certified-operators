@@ -34,6 +34,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -103,8 +104,11 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -166,6 +170,16 @@ public class ScenarioMapper {
         MARKET_PLAN_SCOPE.setDisplayName("Global Environment");
         MARKET_PLAN_SCOPE.setClassName(MARKET_PLAN_SCOPE_CLASSNAME);
     }
+
+    /** this set is used for creating settings based on max utilization plan configurations. The
+     * list
+     * of settings chosen is based on the classic implementation for this plan configuration, which
+     * is hardcoded to set commodity utilization thresholds for these three commodity types.
+     */
+    public static final Set<String> MAX_UTILIZATION_SETTING_SPECS = ImmutableSet.of(
+        EntitySettingSpecs.CpuUtilization.getSettingName(), EntitySettingSpecs.MemoryUtilization.getSettingName(),
+        EntitySettingSpecs.StorageAmountUtilization.getSettingName()
+    );
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -374,7 +388,7 @@ public class ScenarioMapper {
         // get max utilization changes
         List<MaxUtilizationApiDTO> maxUtilizationList = loadChangesApiDTO.getMaxUtilizationList();
         if (CollectionUtils.isNotEmpty(maxUtilizationList)) {
-            changes.addAll(getMaxUtilizationChanges(maxUtilizationList));
+            changes.addAll(convertMaxUtilizationToSettingOverride(maxUtilizationList));
         }
 
         // Set baseline changes
@@ -435,32 +449,84 @@ public class ScenarioMapper {
      */
     @VisibleForTesting
     @Nonnull
-    List<ScenarioChange> getMaxUtilizationChanges(@Nonnull final List<MaxUtilizationApiDTO> maxUtilizations) {
+    List<ScenarioChange> convertMaxUtilizationToSettingOverride(@Nonnull final List<MaxUtilizationApiDTO> maxUtilizations) {
         List<ScenarioChange> scenarioChanges = new ArrayList<>(maxUtilizations.size());
+
         for (MaxUtilizationApiDTO maxUtilization : maxUtilizations) {
-            final Builder maxUtilLevelBuilder = MaxUtilizationLevel.newBuilder();
-            maxUtilLevelBuilder.setPercentage(maxUtilization.getMaxPercentage());
+            SettingOverride.Builder settingBuilder = SettingOverride.newBuilder();
+            final Integer maxUtilizationPercentage = maxUtilization.getMaxPercentage();
             // if the UUID is null or "Market", we don't set the Group OID, since by default the scope is "Market"
             if (maxUtilization.getTarget() != null
-                    && maxUtilization.getTarget().getUuid() != null
-                    && !(MarketMapper.MARKET.equals(maxUtilization.getTarget().getUuid()))) {
+                && maxUtilization.getTarget().getUuid() != null
+                && !(MarketMapper.MARKET.equals(maxUtilization.getTarget().getUuid()))) {
                 // get the target oid for this change
-                maxUtilLevelBuilder.setGroupOid(Long.parseLong(maxUtilization.getTarget().getUuid()));
+                settingBuilder.setGroupOid(Long.parseLong(maxUtilization.getTarget().getUuid()));
             }
 
             if (maxUtilization.getSelectedEntityType() != null) {
-                maxUtilLevelBuilder.setSelectedEntityType(
-                        UIEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
+                settingBuilder.setEntityType(
+                    UIEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
             }
-
-            scenarioChanges.add(ScenarioChange.newBuilder()
-                    .setPlanChanges(PlanChanges.newBuilder()
-                            .setMaxUtilizationLevel(maxUtilLevelBuilder))
-                    .build());
+            // We need to map from the UI general max utilization setting to the more specific
+            // max utilization settings contained in MAX_UTILIZATION_SETTING_SPECS.
+            for (String settingName : MAX_UTILIZATION_SETTING_SPECS) {
+                if (!EntitySettingSpecs.getSettingByName(settingName).isPresent()) {
+                    continue;
+                }
+                SettingSpec spec =
+                    EntitySettingSpecs.getSettingByName(settingName).get().getSettingSpec();
+                if (maxUtilization.getSelectedEntityType() == null
+                    || isSettingSpecForEntityType(EntitySettingSpecs.getSettingByName(settingName).get().getSettingSpec(),
+                    settingBuilder.getEntityType())) {
+                    final Setting setting = createMaxUtilizationSetting(settingName,
+                        maxUtilizationPercentage);
+                    scenarioChanges.add(ScenarioChange.newBuilder()
+                        .setSettingOverride(settingBuilder.setSetting(setting).build())
+                        .build());
+                }
+            }
         }
         return scenarioChanges;
     }
 
+    /**
+     * Create a max utilization setting given a name and a percentage.
+     *
+     * @param settingName the name of the setting
+     * @param percentage of the utilization level
+     * @return the new Setting
+     */
+    private Setting createMaxUtilizationSetting(String settingName, float percentage) {
+        return Setting.newBuilder()
+            .setSettingSpecName(settingName)
+            .setNumericSettingValue(NumericSettingValue.newBuilder()
+                .setValue(percentage).build())
+            .build();
+    }
+
+    /**
+     * Given an entity and a settings the method will return if the setting can be applied to that
+     * entity.
+     *
+     * @param settingSpec the setting
+     * @param entityType the entity
+     * @return if the setting can applied to the entity
+     */
+    public boolean isSettingSpecForEntityType(SettingSpec settingSpec, Integer entityType) {
+        EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
+        // if scope is "all entity type" then we are true
+        if (scope.hasAllEntityType()) {
+            return true;
+        }
+
+        // otherwise scope may be a set of entity types.
+        if (scope.hasEntityTypeSet()) {
+            // return true if the entity type is in the entity type set.
+            return scope.getEntityTypeSet().getEntityTypeList().contains(entityType);
+        }
+        // default = no
+        return false;
+    }
     /**
      * Extract all the policy changes, both in the enable list and in the disable list,
      * from a {@link ConfigChangesApiDTO}, and convert them to a list of {@link
@@ -535,40 +601,92 @@ public class ScenarioMapper {
     @Nonnull
     public ScenarioApiDTO toScenarioApiDTO(@Nonnull final Scenario scenario) {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
-
-        final List<ScenarioChange> changes = scenario.getScenarioInfo().getChangesList();
+        Scenario convertedScenario = toApiChanges(scenario);
         final ScenarioChangeMappingContext context = new ScenarioChangeMappingContext(repositoryApi,
-                templatesUtils, groupRpcService, groupMapper, changes);
-
+                templatesUtils, groupRpcService, groupMapper, convertedScenario.getScenarioInfo().getChangesList());
         boolean isAlleviatePressurePlan = false;
-        dto.setUuid(Long.toString(scenario.getId()));
-        dto.setDisplayName(scenario.getScenarioInfo().getName());
-        if (scenario.getScenarioInfo().hasType()) {
-            dto.setType(scenario.getScenarioInfo().getType());
-            isAlleviatePressurePlan = scenario.getScenarioInfo().getType()
+        dto.setUuid(Long.toString(convertedScenario.getId()));
+        dto.setDisplayName(convertedScenario.getScenarioInfo().getName());
+        if (convertedScenario.getScenarioInfo().hasType()) {
+            dto.setType(convertedScenario.getScenarioInfo().getType());
+            isAlleviatePressurePlan = convertedScenario.getScenarioInfo().getType()
                 .equals(ALLEVIATE_PRESSURE_PLAN_TYPE);
         } else {
             dto.setType(CUSTOM_SCENARIO_TYPE);
         }
-
-        dto.setScope(buildApiScopeObjects(scenario));
+        dto.setScope(buildApiScopeObjects(convertedScenario));
         dto.setProjectionDays(buildApiProjChanges());
-        dto.setTopologyChanges(buildApiTopologyChanges(changes, context));
+        dto.setTopologyChanges(buildApiTopologyChanges(convertedScenario.getScenarioInfo().getChangesList(),
+            context));
 
         if (isAlleviatePressurePlan) {
             // Show cluster info in UI for Alleviate pressure plan.
-            updateApiDTOForAlleviatePressurePlan(scenario.getScenarioInfo()
+            updateApiDTOForAlleviatePressurePlan(convertedScenario.getScenarioInfo()
                 .getScope().getScopeEntriesList(), dto);
         } else {
             // Show configuration settings in UI when it is not Alleviate pressure plan.
-            dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo()
-                            .getChangesList(), context));
+            dto.setConfigChanges(buildApiConfigChanges(convertedScenario.getScenarioInfo().getChangesList(), context));
         }
-
-        dto.setLoadChanges(buildLoadChangesApiDTO(changes, context));
+        dto.setLoadChanges(buildLoadChangesApiDTO(convertedScenario.getScenarioInfo().getChangesList(), context));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
         return dto;
+    }
+
+    /**
+     * Transform changes into a consistent format used by the UI/API. This is needed because some
+     * settings that in the backend are considered settings override, in the api and then in the
+     * ui are considered different fields. One example is the maxUtilizationSettings, which is
+     * defined as a setting override in the backend, but not in the ui/api.
+     *
+     * @param scenario The scenario to be converted.
+     * @return The converted scenario.
+     */
+    @VisibleForTesting
+    protected Scenario toApiChanges(@Nonnull final Scenario scenario) {
+        final Map<Integer, MaxUtilizationLevel> entityTypeToMaxUtilization = new HashMap<>();
+        final HashMap<Long, MaxUtilizationLevel> groupIdToMaxUtilization = new HashMap<>();
+        final List<ScenarioChange> changes = new ArrayList<>();
+        for (ScenarioChange change : scenario.getScenarioInfo().getChangesList()) {
+            if (change.hasSettingOverride() && MAX_UTILIZATION_SETTING_SPECS
+                    .contains(change.getSettingOverride().getSetting().getSettingSpecName())) {
+                int entityType = change.getSettingOverride().getEntityType();
+                Builder maxUtilizationLevelBuilder =
+                    MaxUtilizationLevel.newBuilder()
+                        .setSelectedEntityType(entityType)
+                        .setPercentage((int)change
+                            .getSettingOverride().getSetting().getNumericSettingValue().getValue());
+                if (change.getSettingOverride().hasGroupOid()) {
+                    Long groupId = change.getSettingOverride().getGroupOid();
+                    maxUtilizationLevelBuilder.setGroupOid(groupId);
+                    groupIdToMaxUtilization.put(groupId, maxUtilizationLevelBuilder.build());
+                } else if (!entityTypeToMaxUtilization.containsKey(entityType)) {
+                    entityTypeToMaxUtilization.put(entityType, maxUtilizationLevelBuilder.build());
+                }
+            } else {
+                changes.add(change);
+            }
+        }
+        // The UI needs one maxUtilization setting per entity type
+        for (int entityType : entityTypeToMaxUtilization.keySet()) {
+            changes.add(createMaxUtilizationScenarioChange(entityTypeToMaxUtilization.get(entityType)));
+        }
+        // The UI needs one maxUtilization setting per group
+        for (Long groupId : groupIdToMaxUtilization.keySet()) {
+            changes.add(createMaxUtilizationScenarioChange(groupIdToMaxUtilization.get(groupId)));
+        }
+        return scenario.toBuilder()
+            .setScenarioInfo(scenario
+                .getScenarioInfo().toBuilder().clearChanges()
+                .addAllChanges(changes))
+            .build();
+    }
+
+    private ScenarioChange createMaxUtilizationScenarioChange(MaxUtilizationLevel maxUtilizationLevel) {
+        return ScenarioChange.newBuilder()
+            .setPlanChanges(PlanChanges.newBuilder()
+                .setMaxUtilizationLevel(maxUtilizationLevel)
+            .build()).build();
     }
 
     private void updateApiDTOForAlleviatePressurePlan(List<PlanScopeEntry> scopeEntriesList,
@@ -743,14 +861,19 @@ public class ScenarioMapper {
         // based on whether there are constraints to remove.  Possibly Combine logic.
         final IncludedCouponsApiDTO includedCoupons = configChanges.getIncludedCoupons();
         if (includedCoupons != null) {
-            final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
-            planChangesBuilder.setIncludedCoupons(IncludedCoupons.newBuilder()
-                                     .addAllIncludedCouponOids(
-                                           includedCoupons.getIncludedCouponOidsList())
-                                     .setIsWhiteList(includedCoupons.isIswhiteList())
-                                     .build());
-            scenarioChanges.add(ScenarioChange.newBuilder()
-                                .setPlanChanges(planChangesBuilder.build()).build());
+            final List<Long> includedCouponOidsList = includedCoupons.getIncludedCouponOidsList();
+            // The UI send a null OIDs list if the user hasn't made any selections from the
+            // RI Inventory to differentiate from an empty set of OIDS to represent not
+            // including any RIs.
+            if (includedCouponOidsList != null) {
+                final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
+                planChangesBuilder.setIncludedCoupons(IncludedCoupons.newBuilder()
+                                         .addAllIncludedCouponOids(includedCouponOidsList)
+                                         .setIsWhiteList(includedCoupons.isIswhiteList())
+                                         .build());
+                scenarioChanges.add(ScenarioChange.newBuilder()
+                                    .setPlanChanges(planChangesBuilder.build()).build());
+            }
         }
 
         return scenarioChanges.build();
@@ -1165,9 +1288,14 @@ public class ScenarioMapper {
         if (includedCoupons.isPresent()) {
             final IncludedCouponsApiDTO includedCouponsDto = new IncludedCouponsApiDTO();
             IncludedCoupons includedCouponsMsg = includedCoupons.get();
-            includedCouponsDto.setIncludedCouponOidsList(includedCouponsMsg.getIncludedCouponOidsList());
-            includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList() ?
-                            includedCouponsMsg.getIsWhiteList() : true);
+            final List<Long> includedCouponOidsList =
+                                                    includedCouponsMsg.getIncludedCouponOidsList();
+            if (includedCouponOidsList != null) {
+                includedCouponsDto.setIncludedCouponOidsList(includedCouponOidsList);
+                includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList()
+                                ? includedCouponsMsg.getIsWhiteList()
+                                : true);
+            }
             outputChanges.setIncludedCoupons(includedCouponsDto);
         }
 

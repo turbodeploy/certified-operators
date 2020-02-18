@@ -101,10 +101,12 @@ public class ProducerIdVisitor extends BasePropertyVisitor<Record, Long, Object>
             if (whetherToSet(builder.hasProviderUuid(), record)) {
                 builder.setProviderUuid(producerIdString);
             }
-            final String displayName = liveStatsReader.getEntityDisplayNameForId(producerId);
-            if (StringUtils.isNotBlank(displayName) && whetherToSet(
+            if (producerId != null) {
+                final String displayName = liveStatsReader.getEntityDisplayNameForId(producerId);
+                if (StringUtils.isNotBlank(displayName) && whetherToSet(
                             builder.hasProviderDisplayName(), record)) {
-                builder.setProviderDisplayName(displayName);
+                    builder.setProviderDisplayName(displayName);
+                }
             }
         }
     }

@@ -151,7 +151,7 @@ public class ReservationPlacementHandlerTest {
                 .thenReturn(ImmutableList.of(PartialEntityBatch.newBuilder()
                         .addEntities(PartialEntity.newBuilder().setFullEntity(providerEntity))
                         .build()));
-        reservationPlacementHandler.updateReservations(contextId, topologyId, true);
+        reservationPlacementHandler.updateReservations(contextId, topologyId, false);
         Mockito.verify(reservationManager, Mockito.times(1))
                 .updateReservationResult(ImmutableSet.of(newReservation));
     }

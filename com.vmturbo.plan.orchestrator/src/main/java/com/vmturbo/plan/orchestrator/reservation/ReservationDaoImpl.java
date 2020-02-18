@@ -54,7 +54,7 @@ public class ReservationDaoImpl implements ReservationDao {
 
     private final DSLContext dsl;
 
-    private final List<ReservationStatusListener> listeners =
+    private final List<ReservationDeletedListener> listeners =
             Collections.synchronizedList(new ArrayList<>());
 
     public ReservationDaoImpl(@Nonnull final DSLContext dsl) {
@@ -516,7 +516,7 @@ public class ReservationDaoImpl implements ReservationDao {
      * {@inheritDoc}
      */
     @Override
-    public void addListener(@Nonnull ReservationStatusListener listener) {
+    public void addListener(@Nonnull ReservationDeletedListener listener) {
         listeners.add(Objects.requireNonNull(listener));
     }
 }

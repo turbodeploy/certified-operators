@@ -1,16 +1,21 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import static com.vmturbo.plan.orchestrator.db.tables.PlanInstance.PLAN_INSTANCE;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -19,6 +24,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -60,6 +67,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.plan.orchestrator.plan.PlanDaoImpl.OldPlanCleanup;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -83,6 +91,12 @@ public class PlanDaoImplTest {
 
     @Autowired
     private SettingServiceMole settingServer;
+
+    @Autowired
+    private ScheduledExecutorService planCleanupExecutor;
+
+    @Autowired
+    private Clock clock;
 
     private DSLContext dsl;
 
@@ -113,6 +127,21 @@ public class PlanDaoImplTest {
         assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
 
         assertEquals(id1, inst.get().getPlanId());
+    }
+
+    /**
+     * Test that the cleanup thread gets scheduled with the right parameters.
+     */
+    @Test
+    public void testScheduledCleanup() {
+        final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(planCleanupExecutor).scheduleAtFixedRate(runnableCaptor.capture(),
+            // These values are set in PlanTestConfig's PlanDao constructor.
+            eq(1L), eq(1L), eq(TimeUnit.HOURS));
+        // This cast should succeed.
+        final OldPlanCleanup maid = (OldPlanCleanup)runnableCaptor.getValue();
+        // The timeout value is set in PlanTestConfig's planDao constructor.
+        assertThat(maid.getPlanTimeoutSec(), is(TimeUnit.HOURS.toSeconds(1)));
     }
 
     @Test
@@ -224,7 +253,7 @@ public class PlanDaoImplTest {
         assertEquals(Optional.empty(), inst);
         // the default time out value is set in factoryInstalledComponents.yml, if it's updated
         // we need to change the defaultTimeOut value here too
-        final int defaultTimeOutHour = 6;
+        final int defaultTimeOutHour = 1;
         //avoid failing for daylight savings
         final LocalDateTime createdTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(GENERATION_TIME),
         TimeZone.getDefault().toZoneId()).minusHours(defaultTimeOutHour + 1);
@@ -345,7 +374,7 @@ public class PlanDaoImplTest {
 
     @Test
     public void testListeners() throws Exception {
-        PlanInstanceQueue planInstanceQueue = Mockito.mock(PlanInstanceQueue.class);
+        PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
         PlanInstanceCompletionListener listener = Mockito.spy(
                 new PlanInstanceCompletionListener(planInstanceQueue));
         planDao.addStatusListener(listener);
@@ -451,7 +480,7 @@ public class PlanDaoImplTest {
         builder.setProjectType(PlanProjectType.CLUSTER_HEADROOM);
         final PlanDTO.PlanInstance plan = builder.build();
 
-        final LocalDateTime curTime = createdTime == null ? LocalDateTime.now() : createdTime;
+        final LocalDateTime curTime = createdTime == null ? LocalDateTime.now(clock) : createdTime;
         final com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance dbRecord =
                 new com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance(
                         plan.getPlanId(), curTime, curTime, plan,

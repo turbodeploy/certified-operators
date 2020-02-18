@@ -174,7 +174,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             .collect(Collectors.toSet());
 
         final List<TemplateRecord> existingRecords = dsl.selectFrom(TEMPLATE)
-            .where(TEMPLATE.TARGET_ID.eq(targetId).and(TEMPLATE.TARGET_ID.isNotNull()))
+            .where(TEMPLATE.TARGET_ID.eq(targetId).and(TEMPLATE.TARGET_ID.isNotNull())
+                .and(TEMPLATE.TYPE.eq(TemplateDTO.Template.Type.DISCOVERED.name())))
             .fetch();
 
         final Set<String> existingTemplateProbeIds = existingRecords.stream()

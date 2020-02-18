@@ -7,6 +7,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -38,7 +40,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-
 
 public class ReservedInstanceAggregatorTest {
 
@@ -168,5 +169,56 @@ public class ReservedInstanceAggregatorTest {
         topology.put(TIER_1, computeTier);
         topology.put(REGION_1, computeTier);
         assertEquals(1, ria.aggregate(topoInfo).size());
+    }
+
+    /**
+     * Test AWS reserved instances can be supported without a billing family.
+     * Related bug: OM-55309.
+     */
+    @Test
+    public void testAWSReservedInstancesWithoutBillingFamily() {
+        topology.put(TIER_1, TopologyEntityDTO.newBuilder()
+                .setOid(TIER_1)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setComputeTier(ComputeTierInfo.newBuilder().setFamily(FAMILY_1)))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.REGION_VALUE)
+                        .setConnectedEntityId(REGION_1)
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                .build());
+        topology.put(REGION_1, TopologyEntityDTO.newBuilder()
+                .setOid(REGION_1)
+                .setEntityType(EntityType.REGION_VALUE)
+                .build());
+
+        final CloudCostData<TopologyEntityDTO> cloudCostData = Mockito.mock(CloudCostData.class);
+        Mockito.when(cloudCostData.getExistingRiBought())
+                .thenReturn(Collections.singletonList(riData1));
+
+        final TopologyEntityCloudTopology topologyEntityCloudTopology =
+                Mockito.mock(TopologyEntityCloudTopology.class);
+        Mockito.when(topologyEntityCloudTopology.getBillingFamilyForEntity(
+                riData1.getReservedInstanceBought()
+                        .getReservedInstanceBoughtInfo()
+                        .getBusinessAccountId())).thenReturn(Optional.empty());
+
+        final ReservedInstanceAggregator reservedInstanceAggregator =
+                new ReservedInstanceAggregator(cloudCostData, topology,
+                        topologyEntityCloudTopology);
+
+        final Collection<ReservedInstanceAggregate> reservedInstanceAggregates =
+                reservedInstanceAggregator.aggregate(TopologyInfo.newBuilder().build());
+        final Map<Long, ReservedInstanceData> riDataMap = reservedInstanceAggregator.getRIDataMap();
+        Assert.assertEquals(1, riDataMap.size());
+        Assert.assertEquals(riData1, riDataMap.get(riData1.getReservedInstanceBought().getId()));
+
+        Assert.assertEquals(1, reservedInstanceAggregates.size());
+        final ReservedInstanceAggregate reservedInstanceAggregate =
+                reservedInstanceAggregates.iterator().next();
+        Assert.assertEquals(new ReservedInstanceKey(riData1, FAMILY_1, ACCOUNT_1),
+                reservedInstanceAggregate.getRiKey());
+        Assert.assertEquals(Collections.singleton((long)ACCOUNT_1),
+                reservedInstanceAggregate.getApplicableBusinessAccount());
     }
 }

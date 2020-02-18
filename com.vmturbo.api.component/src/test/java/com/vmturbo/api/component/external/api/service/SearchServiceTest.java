@@ -83,6 +83,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
@@ -1208,6 +1209,40 @@ public class SearchServiceTest {
         Assert.assertEquals("111", result1.get(0).getValue());
         Assert.assertEquals("Gryffindor", result1.get(1).getDisplayName());
         Assert.assertEquals("222", result1.get(1).getValue());
+    }
+
+    /**
+     * Test that all billing families exist in criteria options list.
+     *
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testBillingFamiliesOptions() throws Exception {
+        final String bf1Name = "BillingFamily1";
+        final String bf1Uuid = "1";
+        final String bf2Name = "BillingFamily2";
+        final String bf2Uuid = "2";
+
+        final BillingFamilyApiDTO billingFamily1 = new BillingFamilyApiDTO();
+        billingFamily1.setDisplayName(bf1Name);
+        billingFamily1.setUuid(bf1Uuid);
+        final BillingFamilyApiDTO billingFamily2 = new BillingFamilyApiDTO();
+        billingFamily2.setDisplayName(bf2Name);
+        billingFamily2.setUuid(bf2Uuid);
+
+        Mockito.when(groupsService.getGroupsByType(GroupType.BILLING_FAMILY, null,
+                Collections.emptyList())).thenReturn(Arrays.asList(billingFamily1, billingFamily2));
+        final List<CriteriaOptionApiDTO> result =
+                searchService.getCriteriaOptions(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID,
+                        null, null, null);
+        final Set<String> optionsValues =
+                result.stream().map(CriteriaOptionApiDTO::getValue).collect(Collectors.toSet());
+        final Set<String> optionsNames = result.stream()
+                .map(CriteriaOptionApiDTO::getDisplayName)
+                .collect(Collectors.toSet());
+        Assert.assertEquals(2, result.size());
+        Assert.assertEquals(Sets.newHashSet(bf1Uuid, bf2Uuid), optionsValues);
+        Assert.assertEquals(Sets.newHashSet(bf1Name, bf2Name), optionsNames);
     }
 
     /**

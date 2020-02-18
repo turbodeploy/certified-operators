@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.api.server;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,11 +28,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyExtension;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.communication.chunking.ProtobufChunkCollector;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -332,13 +333,13 @@ public class TopologyProcessorNotificationSender
          * Collection to store chunk data.
          */
         @GuardedBy("lock")
-        private final Collection<TopologyEntityDTO> chunk;
+        private final ProtobufChunkCollector<TopologyEntityDTO> chunk;
 
         /**
          * Collection to store extension chunk data.
          */
         @GuardedBy("lock")
-        private final Collection<TopologyDTO.TopologyExtension> extensionChunk;
+        private final ProtobufChunkCollector<TopologyExtension> extensionChunk;
 
         /**
          * Sequential number of current chunk, wich will be sent later.
@@ -365,8 +366,8 @@ public class TopologyProcessorNotificationSender
             Preconditions.checkArgument(topologyInfo.hasCreationTime());
             Preconditions.checkArgument(topologyInfo.hasTopologyType());
             this.topologyInfo = topologyInfo;
-            this.chunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
-            this.extensionChunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
+            this.chunk = new ProtobufChunkCollector<>();
+            this.extensionChunk = new ProtobufChunkCollector<>();
             this.postBroadcastCommand = postBroadcastCommand;
             final Topology subMessage = Topology.newBuilder()
                     .setTopologyId(getTopologyId())
@@ -420,8 +421,12 @@ public class TopologyProcessorNotificationSender
             awaitInitialMessage();
             synchronized (lock) {
                 finished = true;
-                sendChunk();
-                sendExtensionsChunk();
+                if (chunk.count() > 0) {
+                    sendChunk(chunk.takeCurrentChunk());
+                }
+                if (extensionChunk.count() > 0) {
+                    sendExtensionsChunk(extensionChunk.takeCurrentChunk());
+                }
                 final Topology subMessage = Topology.newBuilder()
                         .setTopologyId(getTopologyId())
                         .setEnd(End.newBuilder().setTotalCount(totalCount))
@@ -444,10 +449,10 @@ public class TopologyProcessorNotificationSender
                     throw new IllegalStateException("Broadcast " + getTopologyId() + " is already " +
                             "finished. It does not accept new entities");
                 }
-                chunk.add(entity);
-                if (chunk.size() >= MessageChunker.CHUNK_SIZE) {
-                    sendChunk();
-                    chunk.clear();
+
+                final Collection<TopologyEntityDTO> chunkToSend = chunk.addToCurrentChunk(entity);
+                if (chunkToSend != null) {
+                    sendChunk(chunkToSend);
                 }
             }
         }
@@ -473,20 +478,19 @@ public class TopologyProcessorNotificationSender
                         "finished. It does not accept new extensions");
                 }
                 // Send the entities first.
-                if (chunk.size() > 0) {
-                    sendChunk();
-                    chunk.clear();
+                if (chunk.count() > 0) {
+                    sendChunk(chunk.takeCurrentChunk());
                 }
-                extensionChunk.add(extension);
-                if (extensionChunk.size() >= MessageChunker.CHUNK_SIZE) {
-                    sendExtensionsChunk();
-                    extensionChunk.clear();
+                Collection<TopologyExtension> chunkToSend = extensionChunk.addToCurrentChunk(extension);
+                if (chunkToSend != null) {
+                    sendExtensionsChunk(chunkToSend);
                 }
             }
         }
 
-        private void sendChunk() throws CommunicationException, InterruptedException {
-            Collection<Topology.DataSegment> segments = chunk.stream().map(dto -> {
+        private void sendChunk(final Collection<TopologyEntityDTO> chunkToSend)
+                throws CommunicationException, InterruptedException {
+            Collection<Topology.DataSegment> segments = chunkToSend.stream().map(dto -> {
                 return Topology.DataSegment.newBuilder().setEntity(dto).build();
             }).collect(Collectors.toList());
             final Topology subMessage = Topology.newBuilder()
@@ -494,11 +498,11 @@ public class TopologyProcessorNotificationSender
                     .setTopologyId(getTopologyId())
                     .build();
             sendTopologySegment(subMessage);
-            totalCount += chunk.size();
+            totalCount += chunkToSend.size();
         }
 
-        private void sendExtensionsChunk() throws CommunicationException, InterruptedException {
-            Collection<Topology.DataSegment> segments = extensionChunk.stream().map(ext -> {
+        private void sendExtensionsChunk(final Collection<TopologyExtension> chunkToSend) throws CommunicationException, InterruptedException {
+            Collection<Topology.DataSegment> segments = chunkToSend.stream().map(ext -> {
                 return Topology.DataSegment.newBuilder().setExtension(ext).build();
             }).collect(Collectors.toList());
             final Topology subMessage = Topology.newBuilder()
@@ -506,7 +510,7 @@ public class TopologyProcessorNotificationSender
                                                 .setTopologyId(getTopologyId())
                                                 .build();
             sendTopologySegment(subMessage);
-            totalCount += extensionChunk.size();
+            totalCount += chunkToSend.size();
         }
 
         private void sendTopologySegment(final @Nonnull Topology segment)

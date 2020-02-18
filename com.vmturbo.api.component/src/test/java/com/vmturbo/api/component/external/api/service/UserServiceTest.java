@@ -278,13 +278,18 @@ public class UserServiceTest {
             fail("IllegalArgumentException should have thrown.");
         } catch (IllegalArgumentException e) {
         }
+
+        // set domain name
         inputDto.setDomainName(CORP_VMTURBO_COM);
-        try {
-            usersService.createActiveDirectory(inputDto);
-            fail("IllegalArgumentException should have thrown.");
-        } catch (IllegalArgumentException e) {
-        }
+        // it should pass since we only need either domain name or login provider URL
+        usersService.createActiveDirectory(inputDto);
+
+        // unset domain name
+        inputDto.setDomainName(null);
+
+        // set login provider URL only
         inputDto.setLoginProviderURI(LDAP_DELL_1_VMTURBO_COM);
+        // it should also pass
         usersService.createActiveDirectory(inputDto);
     }
 

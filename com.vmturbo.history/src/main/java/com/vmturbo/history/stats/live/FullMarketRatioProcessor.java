@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 
 /**
@@ -147,15 +149,14 @@ public class FullMarketRatioProcessor {
      *
      * @param results The results retrieved from the database using the filter returned by
      *                {@link FullMarketRatioProcessor#getFilterWithCounts()}.
+     * @param defaultTimeStamp The default time stamp, used to generate relevant timestamps
+     *                         in the case missing entries need to be filled in.
      * @return A (shallow) copy of the results with the extra "fake" ratio properties, and
      *         without the non-user-requested "count" properties.
      */
     @Nonnull
-    public List<Record> processResults(@Nonnull final List<? extends Record> results) {
-        if (requestedRatioProps.isEmpty()) {
-            return new ArrayList<>(results);
-        }
-
+    public List<Record> processResults(@Nonnull final List<? extends Record> results,
+                                       @Nonnull final Timestamp defaultTimeStamp) {
         // The results we get back from the query above contain multiple entity counts
         // associated with snapshot times. We want, for every snapshot that has entity
         // counts, to create the ratio properties. The resulting data structure
@@ -213,6 +214,12 @@ public class FullMarketRatioProcessor {
             }
         });
 
+        // Handle the case where no records were found -- we want to initialize all requested
+        // entity counts and ratio counts to zero in this case!
+        if (entityCountsByTimeAndType.isEmpty()) {
+            entityCountsByTimeAndType.put(defaultTimeStamp, Collections.emptyMap());
+        }
+
         // Go through the entity counts by time, and for each timestamp create
         // ratio properties based on the various counts.
         entityCountsByTimeAndType.forEach((snapshotTime, entityCounts) ->
@@ -220,11 +227,43 @@ public class FullMarketRatioProcessor {
                 final Record ratioRecord =
                     ratioRecordFactory.makeRatioRecord(snapshotTime, ratioPropName, entityCounts);
                 answer.add(ratioRecord);
-        }));
+            }));
+
+        // Determine the list of entity type count commodities requested
+        final Set<String> requestedCountComms =
+            Sets.intersection(requestedComms, HistoryStatsUtils.countSEsMetrics.values());
+        // Go through the entity counts by time, and for each timestamp check if any commodity
+        // count stats are missing--fill these in with a stat set to zero.
+        entityCountsByTimeAndType.forEach((snapshotTime, entityCounts) ->
+            requestedCountComms.forEach(requestedCountComm -> {
+                final String entityTypeToCount =
+                    HistoryStatsUtils.countSEsMetrics.inverse().get(requestedCountComm);
+                if (!entityCounts.containsKey(entityTypeToCount)) {
+                    answer.add(createEmptyEntityCountRecord(snapshotTime, requestedCountComm));
+                }
+            }));
 
         return answer;
     }
 
+    /**
+     * Create a stat record to represent an entity type count of zero.
+     *
+     * <p>This is used in place of simply omitting the entity stat count.</p>
+     *
+     * @param snapshotTimestamp the snapshot time to use for this record
+     * @param commodityName the entity type count commodity name requested
+     * @return  a stat record represeting an entity type count of zero
+     */
+    private Record createEmptyEntityCountRecord(@Nonnull final Timestamp snapshotTimestamp,
+                                                @Nonnull final String commodityName) {
+        final PmStatsLatestRecord record = new PmStatsLatestRecord();
+        record.setSnapshotTime(snapshotTimestamp);
+        record.setPropertyType(commodityName);
+        record.setAvgValue(0D);
+        record.setRelation(RelationType.METRICS);
+        return record;
+    }
 
     /**
      * Factory class for {@link FullMarketRatioProcessor}s, for dependency injection/isolation

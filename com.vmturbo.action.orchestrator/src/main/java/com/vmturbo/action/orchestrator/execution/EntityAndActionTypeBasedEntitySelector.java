@@ -12,11 +12,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Selects a service entity to execute an action against
+ * Selects a service entity to execute an action against.
  */
 public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEntitySelector {
 
@@ -54,15 +53,8 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
         mapForSpecificEntityType.put(actionType, chooserFunction);
     }
 
-    private boolean doesSpecialCaseApply(final Action action,
-                                         final int entityType) {
-        return entitySelectionMap.containsKey(entityType) &&
-                entitySelectionMap.get(entityType)
-                        .containsKey(action.getInfo().getActionTypeCase());
-    }
-
     /**
-     * Choose an entity to execute an action against
+     * Choose an entity to execute an action against.
      *
      * @param action the action to be executed
      * @return the entity to execute the action against
@@ -71,10 +63,15 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
     public Optional<ActionEntity> getEntity(@Nonnull final Action action)
             throws UnsupportedActionException {
         final ActionEntity defaultEntity = ActionDTOUtil.getPrimaryEntity(action);
-        if (doesSpecialCaseApply(action, defaultEntity.getType())) {
-            return Optional.of(entitySelectionMap.get(defaultEntity.getType())
-                    .get(action.getInfo().getActionTypeCase())
-                    .apply(action));
+        final Map<ActionTypeCase, Function<Action, ActionEntity>> actionTypeCaseToEntityGetter =
+                entitySelectionMap.get(defaultEntity.getType());
+        if (actionTypeCaseToEntityGetter != null) {
+            final Function<Action, ActionEntity> entityGetter =
+                    actionTypeCaseToEntityGetter.get(action.getInfo().getActionTypeCase());
+            if (entityGetter != null) {
+                // A special case has been found and is being applied.
+                return Optional.of(entityGetter.apply(action));
+            }
         }
         return Optional.of(defaultEntity);
     }

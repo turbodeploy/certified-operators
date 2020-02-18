@@ -1,22 +1,29 @@
 package com.vmturbo.topology.processor.reservation;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,6 +35,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -37,9 +45,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.processor.reservation.ReservationValidator.ValidationErrors;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.template.TemplatesNotFoundException;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
@@ -68,10 +80,14 @@ public class ReservationManager {
 
     private final ReservationServiceBlockingStub reservationService;
 
+    private final ReservationValidator reservationValidator;
+
     public ReservationManager(@Nonnull final ReservationServiceBlockingStub reservationService,
-                              @Nonnull final TemplateConverterFactory templateConverterFactory) {
+                              @Nonnull final TemplateConverterFactory templateConverterFactory,
+                              @Nonnull final ReservationValidator reservationValidator) {
         this.reservationService = Objects.requireNonNull(reservationService);
         this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
+        this.reservationValidator = Objects.requireNonNull(reservationValidator);
     }
 
     /**
@@ -79,41 +95,125 @@ public class ReservationManager {
      * topology.
      *
      * @param topology a Map contains live discovered topologyEntity.
-     * @param planType the current planProjectType. Used to differentiate normal plan and
-     *                 reservation plan
-     * @param topologyType the current type. Used to differentiate realtime and plan
+     * @param topologyInfo Information about the topology under construction.
      * @return The number of reservation entities
      */
     public int applyReservation(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                                TopologyType topologyType,
-                                PlanProjectType planType) {
+                                TopologyInfo topologyInfo) {
+        TopologyType topologyType = topologyInfo.getTopologyType();
+        PlanProjectType planType  = topologyInfo.getPlanInfo().getPlanProjectType();
+        // all entities above vm in supply chain should be removed for reservation plan.
+        if (planType == PlanProjectType.RESERVATION_PLAN) {
+            Set<Long> entiesToRemove = new HashSet<>();
+            for (Entry<Long, Builder> entry : topology.entrySet()) {
+                TopologyEntity.Builder entity = entry.getValue();
+                Long oid = entry.getKey();
+                if (entity.getEntityType() == EntityType.APPLICATION_SERVER.getValue() ||
+                        entity.getEntityType() == EntityType.DATABASE_SERVER.getValue() ||
+                        entity.getEntityType() == EntityType.BUSINESS_APPLICATION.getValue() ||
+                        entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue() ||
+                        entity.getEntityType() == EntityType.APPLICATION.getValue() ||
+                        entity.getEntityType() == EntityType.CONTAINER.getValue() ||
+                        entity.getEntityType() == EntityType.CONTAINER_POD.getValue()) {
+                    entiesToRemove.add(oid);
+                }
+            }
+            for (Long oid : entiesToRemove) {
+                topology.remove(oid);
+            }
+        }
         final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest.newBuilder()
                 .build();
         final Iterable<Reservation> allReservations = () ->
                 reservationService.getAllReservations(allReservationsRequest);
-        // Retrieve all active reservations.
-        final Set<Reservation> reservedReservations =
-                StreamSupport.stream(allReservations.spliterator(), false)
-                        .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED ||
-                                reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED)
-                        .collect(Collectors.toSet());
-        // Retrieve potential active reservations which start day is today or before and status is FUTURE.
-        Set<Reservation> todayActiveReservations = new HashSet<>();
-        if (topologyType == TopologyType.REALTIME) {
-            reservationService.updateFutureAndExpiredReservations(
-                    UpdateFutureAndExpiredReservationsRequest.newBuilder()
-                    .build());
-        }
-        if (planType == PlanProjectType.RESERVATION_PLAN) {
-            todayActiveReservations.addAll(StreamSupport.stream(allReservations.spliterator(), false)
-                    .filter(reservation -> reservation.getStatus() == ReservationStatus.INPROGRESS)
-                    .collect(Collectors.toSet()));
-        }
-        final List<TopologyEntity.Builder> reservationTopologyEntities = new ArrayList<>();
 
+        // Retrieve all active reservations. The ones which has already been
+        // taken care of by a previous reservation plan.
+        final Map<Long, Reservation> reservedReservations = new HashMap<>();
+        // Reservations which the current reservation_plan is taking care of. (inprogress ones)
+        final Map<Long, Reservation> currentReservations = new HashMap<>();
+
+        reservationService.getAllReservations(GetAllReservationsRequest.getDefaultInstance())
+                .forEachRemaining(reservation -> {
+                    if (planType == PlanProjectType.RESERVATION_PLAN || topologyType == TopologyType.REALTIME
+                            || planType == PlanProjectType.CLUSTER_HEADROOM) {
+                        if (reservation.getStatus() == ReservationStatus.RESERVED ||
+                                        reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED) {
+                            reservedReservations.put(reservation.getId(), reservation);
+                        }
+                    }
+
+                    if (planType == PlanProjectType.RESERVATION_PLAN && reservation.getStatus() == ReservationStatus.INPROGRESS) {
+                        currentReservations.put(reservation.getId(), reservation);
+                    }
+                });
+
+        // update the future, expired and invalid reservations.
+        if (topologyType == TopologyType.REALTIME) {
+            final UpdateFutureAndExpiredReservationsResponse resp = reservationService.updateFutureAndExpiredReservations(
+                UpdateFutureAndExpiredReservationsRequest.newBuilder()
+                .build());
+            if (resp.getActivatedReservations() > 0 || resp.getExpiredReservationsRemoved() > 0) {
+                logger.info("Activated {} reservations. Expired {} reservations.",
+                    resp.getActivatedReservations(), resp.getExpiredReservationsRemoved());
+            }
+        }
+
+        // Validate BEFORE adding entities to the topology.
+        final ValidationErrors validationErrors = reservationValidator.validateReservations(
+            // Concatenate the reserved and active reservations, because validation requires
+            // RPC calls.
+            Stream.concat(reservedReservations.values().stream(), currentReservations.values().stream()),
+            topology::containsKey);
+        if (!validationErrors.isEmpty()) {
+            logger.error("Invalid reservations detected! These reservations will not be in the topology: {}",
+                validationErrors);
+            final UpdateReservationsRequest.Builder updateReqBldr = UpdateReservationsRequest.newBuilder();
+            // Remove the invalid reservations from the "reserved" and "active" sets, and
+            // mark them as invalid in the reservation service.
+            validationErrors.getErrorsByReservation().forEach((reservationId, errors) -> {
+                final Reservation existing = MoreObjects.firstNonNull(
+                    reservedReservations.remove(reservationId),
+                    currentReservations.remove(reservationId));
+                if (existing != null) {
+                    updateReqBldr.addReservation(existing.toBuilder()
+                        // We mark them as invalid here.
+                        // On the next broadcast, in the ReservationManager, we will trigger a call to
+                        // mark invalid reservations as unfulfilled, which will trigger another
+                        // reservation plan. We don't mark them as UNFULFILLED here because that will trigger
+                        // an immediate reservation plan, and if the reservation continues to be invalid
+                        // we will just continue running the reservation plan ad infinitum!
+                        .setStatus(ReservationStatus.INVALID)
+                        .build());
+                }
+            });
+            final UpdateReservationsRequest req = updateReqBldr.build();
+            try {
+                final MutableLong updatedCount = new MutableLong(0);
+                // Important to drain the iterator.
+                reservationService.updateReservations(req).forEachRemaining(updated -> updatedCount.increment());
+                logger.info("Marked {}/{} failed reservations as invalid.", updatedCount, req.getReservationCount());
+            } catch (StatusRuntimeException e) {
+                // Maybe the plan orchestrator crashed, or there was a DB error.
+                // We don't want to fail the pipeline here. The reservations will continue to be
+                // considered "active", and we will try to add them again on the next cycle.
+                // We won't actually add the entities that represent the reservations, and that's
+                // the important part.
+                logger.error("Failed to mark {} failed reservations as invalid due to RPC error: {}",
+                    req.getReservationCount(), e.getMessage());
+            }
+        }
+
+        // create entities for the new ones and update utilization of the host/storages for the
+        // old ones.
+        final List<TopologyEntity.Builder> inProgressReservationTopologyEntities = new ArrayList<>();
+        final List<TopologyEntity.Builder> reservedReservationTopologyEntities = new ArrayList<>();
         final List<Reservation> updateReservations =
-                handlePotentialActiveReservation(todayActiveReservations, reservationTopologyEntities, topology);
-        handleReservedReservation(reservedReservations, reservationTopologyEntities, topology);
+                handlePotentialActiveReservation(currentReservations.values(), inProgressReservationTopologyEntities, topology);
+
+
+        handleReservedReservation(reservedReservations.values(), reservedReservationTopologyEntities, topology);
+
         // Update reservations which have just become active.
         if (!updateReservations.isEmpty()) {
             final UpdateReservationsRequest request = UpdateReservationsRequest.newBuilder()
@@ -124,12 +224,25 @@ public class ReservationManager {
 
         //TODO: (OM-29676) update existing topologyEntity utilization based on placement information
         // and only buy provision commodities.
+
         int numAdded = 0;
-        for (TopologyEntity.Builder reservedEntity : reservationTopologyEntities) {
-            final TopologyEntity.Builder existingEntity =
-                    topology.putIfAbsent(reservedEntity.getOid(), reservedEntity);
-            if (existingEntity == null) {
-                numAdded++;
+        if (topologyType == TopologyType.REALTIME || planType == PlanProjectType.CLUSTER_HEADROOM) {
+            // For real time and headroom plan we send all the reserved and placement_failed reservations.
+            for (TopologyEntity.Builder reservedEntity : reservedReservationTopologyEntities) {
+                final TopologyEntity.Builder existingEntity =
+                        topology.putIfAbsent(reservedEntity.getOid(), reservedEntity);
+                if (existingEntity == null) {
+                    numAdded++;
+                }
+            }
+        } else if (planType == PlanProjectType.RESERVATION_PLAN) {
+            // inProgressReservationTopologyEntities will be populated only for reservation plan.
+            for (TopologyEntity.Builder reservedEntity : inProgressReservationTopologyEntities) {
+                final TopologyEntity.Builder existingEntity =
+                        topology.putIfAbsent(reservedEntity.getOid(), reservedEntity);
+                if (existingEntity == null) {
+                    numAdded++;
+                }
             }
         }
         return numAdded;
@@ -143,7 +256,7 @@ public class ReservationManager {
      * @param topology a Map contains live discovered topologyEntity.
      */
     private void handleReservedReservation(
-            @Nonnull final Set<Reservation> reservedReservations,
+            @Nonnull final Collection<Reservation> reservedReservations,
             @Nonnull final List<TopologyEntity.Builder> reservationTopologyEntities,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         for (Reservation reservation : reservedReservations) {
@@ -411,14 +524,14 @@ public class ReservationManager {
      */
     @VisibleForTesting
     List<Reservation> handlePotentialActiveReservation(
-            @Nonnull final Set<Reservation> todayActiveReservations,
+            @Nonnull final Collection<Reservation> todayActiveReservations,
             @Nonnull final List<TopologyEntity.Builder> reservationTopologyEntities,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final List<Reservation> updateReservationsWithEntityOid = new ArrayList<>();
         // handle reservations which have just become active.
-        final Set<Reservation.Builder> reservationsBuilder = todayActiveReservations.stream()
+        final List<Reservation.Builder> reservationsBuilder = todayActiveReservations.stream()
                 .map(Reservation::toBuilder)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
         for (Reservation.Builder reservationBuilder : reservationsBuilder) {
             long instanceCount = 0;
             for (ReservationTemplate.Builder reservationTemplate : reservationBuilder

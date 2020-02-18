@@ -1,9 +1,13 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -31,10 +35,10 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -57,8 +61,6 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceI
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -180,7 +182,7 @@ public class PlanTestConfig {
 
     @Bean
     public UserSessionContext userSessionContext() {
-        UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
+        UserSessionContext userSessionContext = mock(UserSessionContext.class);
         return userSessionContext;
     }
 
@@ -198,7 +200,7 @@ public class PlanTestConfig {
 
     @Bean
     public RepositoryClient repositoryClient() {
-        RepositoryClient reposOkClient = Mockito.mock(RepositoryClient.class);
+        RepositoryClient reposOkClient = mock(RepositoryClient.class);
         Mockito
                 .when(reposOkClient.deleteTopology(Mockito.anyLong(), Mockito.anyLong(), Mockito.any()))
                 .thenReturn(OK);
@@ -213,19 +215,19 @@ public class PlanTestConfig {
      */
     @Bean
     public SearchServiceBlockingStub searchClient() {
-        return SearchServiceGrpc.newBlockingStub(Mockito.mock(Channel.class));
+        return SearchServiceGrpc.newBlockingStub(mock(Channel.class));
     }
 
     @Bean
     public ActionsServiceBlockingStub actionServiceClient() {
         return ActionsServiceGrpc.newBlockingStub(
-                Mockito.mock(Channel.class));
+                mock(Channel.class));
     }
 
     @Bean
     public StatsHistoryServiceBlockingStub statsServiceClient() {
         return StatsHistoryServiceGrpc.newBlockingStub(
-                Mockito.mock(Channel.class));
+                mock(Channel.class));
     }
 
     @Bean
@@ -255,14 +257,37 @@ public class PlanTestConfig {
     public PlanDao planDao() throws IOException {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
-                        actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
-                        userSessionContext(), searchClient(), riBuyContextService(), planRIService(),
-                        costService(), 6));
+                    actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
+                    userSessionContext(), searchClient(),
+                    riBuyContextService(), planRIService(), costService(),
+                    clock(),
+                    planCleanupExecutor(),
+                    1, TimeUnit.HOURS, 1, TimeUnit.HOURS));
+    }
+
+    /**
+     * Clock.
+     *
+     * @return {@link Clock}.
+     */
+    @Bean
+    public Clock clock () {
+        return Clock.systemUTC();
+    }
+
+    /**
+     * {@link ScheduledExecutorService} mock for plan cleanup.
+     *
+     * @return The {@link ScheduledExecutorService}.
+     */
+    @Bean
+    public ScheduledExecutorService planCleanupExecutor() {
+        return mock(ScheduledExecutorService.class);
     }
 
     @Bean
     public RepositoryServiceBlockingStub repositoryServiceBlockingStub() {
-        return RepositoryServiceGrpc.newBlockingStub(Mockito.mock(Channel.class));
+        return RepositoryServiceGrpc.newBlockingStub(mock(Channel.class));
     }
 
     @Bean
@@ -277,7 +302,7 @@ public class PlanTestConfig {
 
     @Bean
     public ReservationManager reservationManager() {
-        return Mockito.mock(ReservationManager.class);
+        return mock(ReservationManager.class);
     }
 
     @Bean

@@ -12,8 +12,6 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
@@ -32,28 +30,30 @@ import com.vmturbo.stitching.prestitching.StorageVolumePreStitchingOperation;
 @Immutable
 public class PreStitchingOperationLibrary {
     private final ImmutableList<PreStitchingOperation> preStitchingOperations;
+
     /**
      * Entity types from AWS that need to be merged.
      */
     private static final List<EntityType> AWS_ENTITY_TYPES = ImmutableList.of(
-        EntityType.AVAILABILITY_ZONE,
+        EntityType.SERVICE_PROVIDER,
         EntityType.CLOUD_SERVICE,
         EntityType.COMPUTE_TIER,
         EntityType.DATABASE_SERVER_TIER,
+        EntityType.STORAGE_TIER,
         EntityType.REGION,
-        EntityType.STORAGE_TIER);
+        EntityType.AVAILABILITY_ZONE);
 
     /**
      * Entity types from Azure that need to be merged.
      */
     private static final List<EntityType> AZURE_ENTITY_TYPES = ImmutableList.of(
+        EntityType.SERVICE_PROVIDER,
         EntityType.CLOUD_SERVICE,
         EntityType.COMPUTE_TIER,
         EntityType.DATABASE_TIER,
+        EntityType.STORAGE_TIER,
         EntityType.REGION,
-        EntityType.RESERVED_INSTANCE,
-        EntityType.STORAGE_TIER);
-
+        EntityType.RESERVED_INSTANCE);
 
     /**
      * Create a new {@link PreStitchingOperation} library.

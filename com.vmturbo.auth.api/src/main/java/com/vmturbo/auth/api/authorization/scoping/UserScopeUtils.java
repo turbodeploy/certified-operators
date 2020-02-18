@@ -25,7 +25,7 @@ import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
 import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 
 /**
- * Static utility methods for finding user scope info from the current security / grpc context
+ * Static utility methods for finding user scope info from the current security / grpc context.
  */
 public class UserScopeUtils {
     private static Logger logger = LogManager.getLogger();
@@ -126,7 +126,7 @@ public class UserScopeUtils {
         }
         // if no user, check if there is something in the grpc context.
         List<Long> grpcScopeGroups = SecurityConstant.USER_SCOPE_GROUPS_KEY.get();
-        return (grpcScopeGroups == null) ? Collections.EMPTY_LIST : grpcScopeGroups;
+        return (grpcScopeGroups == null) ? Collections.emptyList() : grpcScopeGroups;
     }
 
     /**

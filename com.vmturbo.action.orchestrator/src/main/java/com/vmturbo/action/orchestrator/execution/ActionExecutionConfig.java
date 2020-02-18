@@ -62,11 +62,6 @@ public class ActionExecutionConfig {
     }
 
     @Bean
-    public ActionExecutionEntitySelector actionExecutionTargetEntitySelector() {
-        return new EntityAndActionTypeBasedEntitySelector();
-    }
-
-    @Bean
     public ActionConstraintStoreFactory actionConstraintStoreFactory() {
         return new ActionConstraintStoreFactory();
     }
@@ -86,12 +81,9 @@ public class ActionExecutionConfig {
 
     @Bean
     public ActionTargetSelector actionTargetSelector() {
-        final ActionTargetSelector actionTargetSelector =
-                new ActionTargetSelector(targetCapabilityCache(),
-                    actionConstraintStoreFactory(),
-                    actionExecutionTargetEntitySelector(),
-                    globalConfig.repositoryProcessorChannel(),
-                    globalConfig.realtimeTopologyContextId());
-        return actionTargetSelector;
+        return new ActionTargetSelector(targetCapabilityCache(),
+                actionConstraintStoreFactory(),
+                globalConfig.repositoryProcessorChannel(),
+                globalConfig.realtimeTopologyContextId());
     }
 }

@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -44,6 +45,7 @@ import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -573,8 +575,7 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final int numAdded = reservationManager.applyReservation(input,
-                    this.getContext().getTopologyInfo().getTopologyType(),
-                    this.getContext().getTopologyInfo().getPlanInfo().getPlanProjectType());
+                    this.getContext().getTopologyInfo());
             return Status.success("Added " + numAdded + " reserved entities to the topology.");
         }
     }
@@ -593,9 +594,12 @@ public class Stages {
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final int controllableModified = controllableManager.applyControllable(input);
             final int suspendableModified = controllableManager.applySuspendable(input);
-            return Status.success("Marked " + controllableModified +
-                    " entities as non-controllable and " + suspendableModified +
-                    " entities as non-suspendable.");
+            final int resizeModified = controllableManager.applyScaleEligibility(input);
+            final int resizeDownModified = controllableManager.applyResizeDownEligibility(input);
+            return Status.success("Marked " + controllableModified + " entities as non-controllable. "
+                    + "Marked " + suspendableModified + " entities as non-suspendable. "
+                    + "Marked " + resizeModified + " entities as not resizeable. "
+                    + "Marked " + resizeDownModified + " entities as not eligible for resize down.");
         }
     }
 
@@ -850,7 +854,8 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
-                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
+                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes,
+                    getContext().getTopologyInfo());
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
@@ -1294,15 +1299,30 @@ public class Stages {
             final Iterator<TopologyEntityDTO> topology)
             throws InterruptedException, CommunicationException {
             final TopologyInfo topologyInfo = getContext().getTopologyInfo();
+            boolean isReservationPlan = (topologyInfo.hasPlanInfo()
+                    && topologyInfo.getPlanInfo().hasPlanProjectType()
+                    && topologyInfo.getPlanInfo().getPlanProjectType()
+                    == PlanProjectType.RESERVATION_PLAN);
             final List<TopologyBroadcast> broadcasts = broadcastFunctions.stream()
                 .map(function -> function.apply(topologyInfo))
                 .collect(Collectors.toList());
             for (Iterator<TopologyEntityDTO> it = topology; it.hasNext(); ) {
                 final TopologyEntityDTO entity = it.next();
-                counts.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
-                    k -> new MutableInt(0)).increment();
-                for (TopologyBroadcast broadcast : broadcasts) {
-                    broadcast.append(entity);
+                boolean includeEntityInBroadcast =
+                        // all entities if not reservation_plan
+                        // only the reservation vms if reservation plan
+                        // all host and storages should be sent for reservation plan.
+                        !isReservationPlan ||
+                                (entity.hasOrigin() && entity.getOrigin().hasReservationOrigin()) ||
+                                entity.getEntityType() == EntityType.STORAGE_VALUE ||
+                                entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
+
+                if (includeEntityInBroadcast) {
+                    counts.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
+                            k -> new MutableInt(0)).increment();
+                    for (TopologyBroadcast broadcast : broadcasts) {
+                        broadcast.append(entity);
+                    }
                 }
             }
             // Export Matrix.
@@ -1401,8 +1421,9 @@ public class Stages {
                 InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
                         index = planTopologyScopeEditor.createInvertedIndex();
                 graph.entities().forEach(entity -> index.add(entity));
+                PlanProjectType planProjectType = topologyInfo.getPlanInfo().getPlanProjectType();
                 // scope using inverted index
-                result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope);
+                result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope, planProjectType);
                 return StageResult.withResult(result).andStatus(Status.success("PlanScopingStage:"
                                 + " Constructed a scoped topology of size " + result.size() +
                                 " from topology of size " + graph.size()));

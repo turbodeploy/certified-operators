@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -66,23 +67,25 @@ public class PercentileEditor extends
     private static final Logger logger = LogManager.getLogger();
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
-    private static final Set<CommodityType> REQUIRED_SOLD_COMMODITY_TYPES = ImmutableSet
-                    .of(CommodityDTO.CommodityType.VCPU,
+    private static final Set<CommodityType> REQUIRED_SOLD_COMMODITY_TYPES = Sets.immutableEnumSet(
+                        CommodityDTO.CommodityType.VCPU,
                         CommodityDTO.CommodityType.VMEM);
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
-    private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = ImmutableSet
-                    .of(CommodityDTO.CommodityType.IMAGE_CPU,
-                        CommodityDTO.CommodityType.IMAGE_MEM,
-                        CommodityDTO.CommodityType.IMAGE_STORAGE);
+    private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = Sets.immutableEnumSet(
+                    CommodityDTO.CommodityType.IMAGE_CPU,
+                    CommodityDTO.CommodityType.IMAGE_MEM,
+                    CommodityDTO.CommodityType.IMAGE_STORAGE);
+
     /**
-     * For entities with type from set the percentile editor will not be applied.
+     * Entity types for which percentile calculation is supported.
      * These entities trade commodities with the types listed in {@link
-     * PercentileEditor#REQUIRED_SOLD_COMMODITY_TYPES} and {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES},
-     * but for which percentile from real-time usage calculation is not required.
+     * PercentileEditor#REQUIRED_SOLD_COMMODITY_TYPES} and
+     * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES}
      */
     private static final Set<EntityType> NOT_APPLICABLE_ENTITY_TYPES =
-            ImmutableSet.of(EntityType.DATABASE_SERVER, EntityType.DATABASE);
+            ImmutableSet.of(EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.CONTAINER,
+                EntityType.CONTAINER_POD);
     private static final DataMetricSummary SETTINGS_CHANGE_SUMMARY_METRIC =
                 DataMetricSummary.builder()
                                 .withName("tp_historical_percentile_window_change")

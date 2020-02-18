@@ -1,19 +1,28 @@
 package com.vmturbo.topology.processor.reservation;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
+
+import com.google.common.collect.Lists;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -22,48 +31,39 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Lists;
-
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByIdRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.processor.reservation.ReservationValidator.ValidationErrors;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
 public class ReservationManagerTest {
     private double epsilon = 1e-5;
 
-    private TestReservationService reservationService = Mockito.spy(new TestReservationService());
+    private ReservationServiceMole reservationService = Mockito.spy(ReservationServiceMole.class);
 
     private TemplateConverterFactory templateConverterFactory =
-            Mockito.mock(TemplateConverterFactory.class);
+            mock(TemplateConverterFactory.class);
 
     private ReservationManager reservationManager;
 
@@ -162,28 +162,59 @@ public class ReservationManagerTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(reservationService);
 
+    private ReservationValidator validator = mock(ReservationValidator.class);
+
     @Before
     public void setup() {
         reservationManager = new ReservationManager(
-                ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                templateConverterFactory);
+            ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            templateConverterFactory,
+            validator);
+    }
+
+    /**
+     * Verify that invalid reservations get marked as INVALID in the reservation service.
+     */
+    @Test
+    public void testMarkInvalidReservations() {
+        doReturn(Collections.singletonList(reservation))
+            .when(reservationService).getAllReservations(any());
+
+        final ValidationErrors errors = mock(ValidationErrors.class);
+        when(errors.getErrorsByReservation())
+            .thenReturn(Collections.singletonMap(reservation.getId(), Collections.singletonList("BAD")));
+        when(errors.isEmpty()).thenReturn(false);
+
+        when(validator.validateReservations(any(), any())).thenReturn(errors);
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanProjectType(PlanProjectType.RESERVATION_PLAN)).build();
+        reservationManager.applyReservation(Collections.emptyMap(),
+                topologyInfo);
+
+        final ArgumentCaptor<UpdateReservationsRequest> updateCaptor =
+            ArgumentCaptor.forClass(UpdateReservationsRequest.class);
+        verify(reservationService).updateReservations(updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getReservationList(), containsInAnyOrder(reservation.toBuilder()
+            .setStatus(ReservationStatus.INVALID)
+            .build()));
     }
 
     @Ignore
     @Test
     public void testApplyReservationReservedAndFuture() {
-        Mockito.when(templateConverterFactory.generateReservationEntityFromTemplates(
+        when(templateConverterFactory.generateReservationEntityFromTemplates(
                 (Map<Long, Long>) argThat(hasEntry(456L, 1L)), anyMap()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
-        Mockito.when(templateConverterFactory.generateReservationEntityFromTemplates(
+        when(templateConverterFactory.generateReservationEntityFromTemplates(
                 (Map<Long, Long>) argThat(hasEntry(567L, 1L)), anyMap()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuildFuture).stream());
         final Map<Long, Builder> topology = new HashMap<>();
         ArgumentCaptor<UpdateReservationsRequest> updateRequestCaptor =
                 ArgumentCaptor.forClass(UpdateReservationsRequest.class);
         topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
-
-        reservationManager.applyReservation(topology, TopologyType.REALTIME, PlanProjectType.USER);
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanProjectType(PlanProjectType.USER)).build();
+        reservationManager.applyReservation(topology, topologyInfo);
         assertEquals(3L, topology.size());
         assertTrue(topology.containsKey(1L));
         assertTrue(topology.containsKey(2L));
@@ -208,8 +239,8 @@ public class ReservationManagerTest {
         assertEquals(2L, builderFuture.getCommoditiesBoughtFromProvidersCount());
         assertTrue(builderFuture.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .allMatch(commoditiesBought -> !commoditiesBought.hasProviderId()));
-        Mockito.verify(reservationService, Mockito.times(1))
-                .updateReservations(updateRequestCaptor.capture(), Mockito.any());
+        verify(reservationService, Mockito.times(1))
+                .updateReservations(updateRequestCaptor.capture(), any());
         final UpdateReservationsRequest updateReservationsRequest = updateRequestCaptor.getValue();
         assertEquals(1, updateReservationsRequest.getReservationCount());
     }
@@ -234,59 +265,5 @@ public class ReservationManagerTest {
                 commodityBoughtBuilder);
         assertEquals(300.0, providerBuilder.getEntityBuilder().getCommoditySoldList(0)
                 .getUsed(), 0.00001);
-    }
-
-    private class TestReservationService extends ReservationServiceImplBase {
-
-
-        @Override
-        public void getAllReservations(GetAllReservationsRequest request,
-                                       StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(reservation);
-            responseObserver.onNext(futureReservation);
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getReservationById(GetReservationByIdRequest request,
-                                       StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(Reservation.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getReservationByStatus(GetReservationByStatusRequest request,
-                                           StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(Reservation.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void createReservation(CreateReservationRequest request,
-                                      StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(Reservation.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void deleteReservationById(DeleteReservationByIdRequest request,
-                                          StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(Reservation.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void updateReservationById(UpdateReservationByIdRequest request,
-                                          StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(Reservation.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void updateReservations(UpdateReservationsRequest request,
-                                       StreamObserver<Reservation> responseObserver) {
-            responseObserver.onNext(Reservation.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
     }
 }

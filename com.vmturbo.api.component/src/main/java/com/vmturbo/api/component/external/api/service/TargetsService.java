@@ -43,7 +43,6 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
-import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -65,12 +64,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -114,7 +108,7 @@ public class TargetsService implements ITargetsService {
      * The UI string constant for the "VALIDATED" state of a target.
      * Should match what's defined in the UI in stringUtils.js
      */
-    public static final String UI_VALIDATED_STATUS = "Validated";
+    private static final String UI_VALIDATED_STATUS = "Validated";
 
     /**
      * The display name of the category for all targets that are not functional.
@@ -146,7 +140,7 @@ public class TargetsService implements ITargetsService {
      * This is currently required because the SDK probes have
      * the category field inconsistently cased
      */
-    public static final ImmutableBiMap<String, String> USER_FACING_CATEGORY_MAP = ImmutableBiMap
+    private static final ImmutableBiMap<String, String> USER_FACING_CATEGORY_MAP = ImmutableBiMap
             .<String, String>builder()
             .put("STORAGE", "Storage")
             .put("HYPERVISOR", "Hypervisor")
@@ -226,27 +220,30 @@ public class TargetsService implements ITargetsService {
      * associated probe for each target. This is a blocking call that makes network requests of the
      * Topology-Processor.
      *
+     * @param environmentType optional filter according to an environment type:
+     *                        <ul>
+     *                        <li>if this parameter is {@code null} or {@link EnvironmentType#HYBRID},
+     *                            no filtering happens (all targets are returned).</li>
+     *                        <li>if this parameter is {@link EnvironmentType#UNKNOWN},
+     *                            no target is returned.</li>
+     *                        <li>if this parameter is {@link EnvironmentType#CLOUD},
+     *                            only targets coming from public cloud probes are returned</li>
+     *                        <li>if this parameter is {@link EnvironmentType#ONPREM},
+     *                            only targets <i>not</i> coming from public cloud probes are returned</li>
+     *                        </ul>
      * @return a List of {@link TargetApiDTO} containing the uuid of the target, plus the info from
      *         the related probe.
-     * @throws Exception if there is a communication error or an error in processing in the
-     *             topology-processor
      */
     @Override
-    public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
-        logger.debug("Get all targets");
-        return getAllTargets(environmentType);
-    }
-
     @Nonnull
-    public List<TargetApiDTO> getAllTargets(@Nullable final EnvironmentType environmentType) {
+    public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
         try {
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
-            final List<TargetApiDTO> answer = targets.stream()
+            return targets.stream()
                 .filter(target -> environmentTypeFilter(target, environmentType))
                 .filter(target -> !target.isHidden())
                 .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets))
                 .collect(Collectors.toList());
-            return answer;
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
@@ -254,16 +251,22 @@ public class TargetsService implements ITargetsService {
 
     private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType) {
         try {
-            if (envType != null && envType != EnvironmentType.HYBRID) {
+            if (envType == EnvironmentType.CLOUD || envType == EnvironmentType.ONPREM) {
                 // gather the other info for this target, based on the related probe
                 final long probeId = target.getProbeId();
                 final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
                 final ProbeInfo probeInfo = probeMap.get(probeId);
-                // check if public cloud
                 boolean isPublicCloud = GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType());
-                return isPublicCloud && envType == EnvironmentType.CLOUD;
+
+                // return true if and only if isPublicCloud agrees with the parameter
+                // this means:
+                    // if envType is CLOUD then return all targets coming from public cloud probes
+                    // if envType is ONPREM then return all other targets
+                return isPublicCloud == (envType == EnvironmentType.CLOUD);
             } else {
-                return true;
+                // if the parameter is not there, or if it is HYBRID, no filtering should happen
+                // if the parameter is UNKNOWN, all targets should be filtered out
+                return envType == null || envType == EnvironmentType.HYBRID;
             }
         } catch (Exception e) {
             throw new RuntimeException("Error setting environment filters", e);
@@ -278,10 +281,9 @@ public class TargetsService implements ITargetsService {
      * @param uuid the unique ID for the target
      * @return an {@link TargetApiDTO} containing the uuid of the target, plus the info from the
      *         related probe.
-     * @throws Exception if there is a communication error or an error in processing in the
-     *             topology-processor
      */
     @Override
+    @Nonnull
     public TargetApiDTO getTarget(@PathVariable("uuid") String uuid) throws UnknownObjectException {
         logger.debug("Get target {}", uuid);
         // assumes target uuid's are long's in XL
@@ -301,10 +303,9 @@ public class TargetsService implements ITargetsService {
      * makes network requests of the Topology-Processor
      *
      * @return a List of information {@link TargetApiDTO} about each probe known to the system.
-     * @throws Exception if there is a communication error or an error in processing in the
-     *             topology-processor
      */
     @Override
+    @Nonnull
     public List<TargetApiDTO> getProbes() {
         logger.debug("Get all probes");
         final Set<ProbeInfo> probes;
@@ -541,6 +542,7 @@ public class TargetsService implements ITargetsService {
      *             TopologyProcessorException if there is an error getting the target information.
      */
     @Override
+    @Nonnull
     public TargetApiDTO executeOnTarget(@Nonnull String uuid, @Nullable Boolean validate,
                                         @Nullable Boolean rediscover)
             throws OperationFailedException, UnauthorizedObjectException,
@@ -616,11 +618,9 @@ public class TargetsService implements ITargetsService {
      * Remove a target given the uuid. Note this is a blocking operation.
      *
      * @param uuid the ID of the target to be removed
-     * @return true iff the target was removed; false otherwise.
-     * @throws Exception if some extraordinary exception occurs.
      */
     @Override
-    public void deleteTarget(String uuid) throws UnknownObjectException {
+    public void deleteTarget(@Nonnull String uuid) throws UnknownObjectException {
         logger.debug("Delete target {}", uuid);
         long targetId = Long.valueOf(uuid);
         try {
@@ -632,13 +632,11 @@ public class TargetsService implements ITargetsService {
         }
     }
 
-
     @Nonnull
     @Override
     public List<WorkflowApiDTO> getWorkflowsByTarget(@Nonnull String uuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
-
 
     /**
      * Populate a Map from probe id to probe info for all known probes in order to facilitate lookup
@@ -1205,10 +1203,11 @@ public class TargetsService implements ITargetsService {
      * Gets the entities that belong to the given target
      * @param targetDTO The TargetApiDTO object
      * @return A list of ServiceEntityApiDTO of the target's entities
-     * @throws OperationFailedException
+     * @throws OperationFailedException if communication with the repository
+     *                                  fails for any reason
      */
     private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
-                throws OperationFailedException{
+                throws OperationFailedException {
         final String targetUuid = targetDTO.getUuid();
         final String targetType = targetDTO.getType();
 
@@ -1219,17 +1218,5 @@ public class TargetsService implements ITargetsService {
                     SearchProtoUtil.discoveredBy(Long.parseLong(targetUuid)))
                 .build())
             .getSEList();
-    }
-
-    /**
-     * Check if the object related to the given uuid is a target.
-     */
-    public boolean isTarget(@Nonnull String uuid) {
-        try {
-            topologyProcessor.getTarget(Long.valueOf(uuid));
-            return true;
-        } catch (CommunicationException | TopologyProcessorException | NumberFormatException e) {
-            return false;
-        }
     }
 }

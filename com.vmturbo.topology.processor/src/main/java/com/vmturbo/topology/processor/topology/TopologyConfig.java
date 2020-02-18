@@ -266,6 +266,7 @@ public class TopologyConfig {
                 applicationCommodityKeyChanger(),
                 commoditiesEditor(),
                 planTopologyScopeEditor(),
+                probeActionCapabilitiesApplicatorEditor(),
                 historicalEditor(),
                 matrixInterface(),
                 cachedTopology(),

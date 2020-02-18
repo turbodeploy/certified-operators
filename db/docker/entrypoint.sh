@@ -44,12 +44,16 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 
     echo "Initializing mariadb " | logger --tag mariadb -u /tmp/log.sock
 
-    /usr/bin/mysql_install_db --user=mysql --datadir=/var/lib/mysql --defaults-file=$DEFAULT_MYSQL_CONF --basedir=/usr 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    if [ "$USER" == "root" ]; then
+      /usr/bin/mysql_install_db --user=mysql --defaults-file=$DEFAULT_MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
+     else
+      /usr/bin/mysql_install_db --auth-root-socket-user=mysql --defaults-file=$DEFAULT_MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    fi
 
     copy_mysql_default_conf_file
 
     # Start mysqld in background
-    /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | logger --tag mariadb -u /tmp/log.sock &
+    /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --skip-networking 2>&1 | logger --tag mariadb -u /tmp/log.sock &
     for i in `seq 1 $RETRY_LIMIT`
     do
         echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
@@ -117,4 +121,4 @@ else
 fi
 
 # Start the database server
-exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql > >(logger --tag mariadb -u /tmp/log.sock) 2>&1
+exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF > >(logger --tag mariadb -u /tmp/log.sock) 2>&1

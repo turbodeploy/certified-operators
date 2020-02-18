@@ -19,6 +19,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -123,6 +124,10 @@ public class BuyRiScopeHandler {
      * @return true if the RI buy should be included, false otherwise.
      */
     public boolean shouldIncludeBuyRiDiscount(@Nonnull final ApiId inputScope) {
+        //only allow non-observer users.
+        if (UserScopeUtils.isUserObserver()) {
+            return false;
+        }
         // The buy RI discount should be shown in the realtime market (global) scope and plans.
         if (inputScope.isRealtimeMarket() || inputScope.isPlan()) {
             return true;

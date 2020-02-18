@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -63,11 +64,11 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         GroupClientConfig.class, CostClientConfig.class, GlobalConfig.class})
 public class PlanConfig {
 
-    /**
-     * This parameter is used to control the time out hours for running plans
-     */
-    @Value("${planTimeOutHours}")
-    private int planTimeOutHours;
+    @Value("${planTimeoutMins:60}")
+    private int planTimeoutMins;
+
+    @Value("${planCleanupIntervalMin:5}")
+    private int planCleanupIntervalMin;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
@@ -120,7 +121,25 @@ public class PlanConfig {
                 riBuyContextService(),
                 planReservedInstanceService(),
                 costService(),
-                planTimeOutHours);
+                globalConfig.clock(),
+                planCleanupExecutor(),
+                planTimeoutMins,
+                TimeUnit.MINUTES,
+                planCleanupIntervalMin,
+                TimeUnit.MINUTES);
+    }
+
+    /**
+     * Scheduled executor used by {@link PlanDao} to asynchronously clean up (i.e. mark as failed)
+     * plans with no activity for a certain time period.
+     *
+     * @return The {@link ScheduledExecutorService}.
+     */
+    @Bean
+    public ScheduledExecutorService planCleanupExecutor() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+            .setNameFormat("plan-cleanup-%d").build();
+        return Executors.newSingleThreadScheduledExecutor(threadFactory);
     }
 
     @Bean
