@@ -36,7 +36,7 @@ public class TopologyListenerConfig {
     @Value("${maxPlacementIterations}")
     private int maxPlacementIterations;
 
-    @Value("${useQuoteCacheDuringSNM}")
+    @Value("${useQuoteCacheDuringSNM:false}")
     private boolean useQuoteCacheDuringSNM;
 
     @Value("${rightsizeLowerWatermark}")
