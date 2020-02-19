@@ -278,7 +278,7 @@ public class StatSnapshotCreatorTest {
 
         final HistUtilizationRecord percentileRecord = new HistUtilizationRecord();
         percentileRecord.setPropertyTypeId(UICommodityType.IMAGE_CPU.typeNumber());
-        percentileRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        percentileRecord.setUtilization(BigDecimal.valueOf(40D));
         percentileRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         percentileRecord.setCapacity(capacity);
         percentileRecord.setCommodityKey("percentileCommodityKey");
@@ -317,7 +317,7 @@ public class StatSnapshotCreatorTest {
         final double capacity = 1000D;
         final HistUtilizationRecord histUtilizationRecord = new HistUtilizationRecord();
         histUtilizationRecord.setPropertyTypeId(UICommodityType.IMAGE_CPU.typeNumber());
-        histUtilizationRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        histUtilizationRecord.setUtilization(BigDecimal.valueOf(40D));
         histUtilizationRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
         histUtilizationRecord.setCommodityKey(COMMODITY_KEY);
         histUtilizationRecord.setCapacity(capacity);
@@ -359,7 +359,7 @@ public class StatSnapshotCreatorTest {
     public void testTimeSlotUtilization() {
         final float capacity = 1000F;
         final List<Record> dbRecords = IntStream.of(1, 2, 3)
-                        .mapToObj(slot -> createRecord(capacity, slot / 10D, slot))
+                        .mapToObj(slot -> createRecord(capacity, slot * 10, slot))
                         .collect(Collectors.toList());
 
         final List<StatSnapshot> statSnapshots = snapshotCreator

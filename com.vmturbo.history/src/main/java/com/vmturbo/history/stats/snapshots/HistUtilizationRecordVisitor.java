@@ -70,7 +70,7 @@ public class HistUtilizationRecordVisitor extends
             LOGGER.error("Cannot get capacity/utilization from '{}' record", record);
             return;
         }
-        usageCapacityAccumulators.first.record(utilization.doubleValue() * capacity);
+        usageCapacityAccumulators.first.record(utilization.doubleValue() * capacity / 100);
         usageCapacityAccumulators.second.record(capacity);
     }
 
