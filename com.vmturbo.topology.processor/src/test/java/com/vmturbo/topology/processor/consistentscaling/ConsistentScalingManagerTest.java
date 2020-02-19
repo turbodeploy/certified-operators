@@ -11,11 +11,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
@@ -40,7 +37,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -105,8 +101,13 @@ public class ConsistentScalingManagerTest {
         });
     }
 
-    private void buildScalingGroups(ConsistentScalingManager csm) {
-        csm.buildScalingGroups(topologyGraph, testGroups.values().iterator());
+    private Map<Long, Map<String, SettingAndPolicyIdRecord>>
+    buildScalingGroups(ConsistentScalingManager csm) {
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName =
+            new HashMap<>();
+        csm.buildScalingGroups(topologyGraph, testGroups.values().iterator(),
+            userSettingsByEntityAndName);
+        return userSettingsByEntityAndName;
     }
 
     private Stream<TopologyEntity> getTopologyEntityStreamFromGroup(final Grouping group) {
@@ -195,8 +196,8 @@ public class ConsistentScalingManagerTest {
     public void testAddScalingGroupSettings() {
         ConsistentScalingManager csm = createCSM(true);
         populateCSMWithTestData(csm);
-        buildScalingGroups(csm);
-        Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName = new HashMap<>();
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName =
+                buildScalingGroups(csm);
         csm.addScalingGroupSettings(userSettingsByEntityAndName);
         // The are 7 VMs in the topology, and VM-6 has consistent scaling disabled via policy.
         // Ensure that there are 6 entries in the user settings map and that 6 does not exist.
@@ -209,23 +210,6 @@ public class ConsistentScalingManagerTest {
     }
 
     @Test
-    public void testGetPoliciesStream() {
-        ConsistentScalingManager csm = createCSM(true);
-        populateCSMWithTestData(csm);
-        buildScalingGroups(csm);
-        List<Pair<Set<Long>, List<SettingPolicy>>> policies =
-            csm.getPoliciesStream().collect(Collectors.toList());
-        // There are three consistent scaling policies: 1001L, 1002L, and 1003L.  Ensure that they
-        // are all present in the policies stream.
-        Set<Long> uniqueGroups = new HashSet<>();
-        csm.getPoliciesStream().forEach(p -> {
-            uniqueGroups.addAll(p.second.stream().map(SettingPolicy::getId)
-                .collect(Collectors.toList()));
-        });
-        Assert.assertEquals(new HashSet<>(Arrays.asList(1001L, 1002L, 1003L, 1009L)), uniqueGroups);
-    }
-
-    @Test
     public void testAddEntities() {
         // addEntities() is already tested in XXX.  Here tests when consistent scaling is globally
         // disabled.
@@ -234,7 +218,6 @@ public class ConsistentScalingManagerTest {
         buildScalingGroups(csm);
         // There should be no groups or policies defined
         Assert.assertFalse(csm.getScalingGroupId(1L).isPresent());
-        Assert.assertTrue(csm.getPoliciesStream().count() == 0);
     }
 
     /**
@@ -256,7 +239,6 @@ public class ConsistentScalingManagerTest {
         // not be created.  The internal group list is not exposed in the CSM and I don't feel like
         // doing it just for test, so if the scaling group ID query for both members returns empty,
         // then we can be assured that there was no group created for them.
-        // testGetPoliciesStream also confirms that the scaling geoup was not created.
         Assert.assertFalse(csm.getScalingGroupId(11L).isPresent());
         Assert.assertFalse(csm.getScalingGroupId(12L).isPresent());
     }
@@ -279,11 +261,20 @@ public class ConsistentScalingManagerTest {
         ConsistentScalingManager csm = createCSM(true);
         // Build groups and verify group membership of an entity
         populateCSMWithTestData(csm);
-        buildScalingGroups(csm);
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> settingsMaps = buildScalingGroups(csm);
         Assert.assertTrue(csm.getScalingGroupId(1L).isPresent());
+        // VM-9 is in a scaling group, so it should be in the settings map
+        Assert.assertNotNull(settingsMaps.get(9L));
         csm.clear();
-        Assert.assertTrue(csm.getPoliciesStream().count() == 0);
         Assert.assertFalse(csm.getScalingGroupId(1L).isPresent());
+
+        // Repopulate
+        populateCSMWithTestData(csm);
+        // Clear discovered groups
+        csm.clearDiscoveredGroups();
+        buildScalingGroups(csm);
+        // VM-7 is in DiscoveredGroup-B, so now it should no longer be in there
+        Assert.assertFalse(csm.getScalingGroupId(7L).isPresent());
     }
 
     @Test
@@ -316,9 +307,55 @@ public class ConsistentScalingManagerTest {
         when(groupResolver.getGroupServiceClient()).thenReturn(groupServiceClient);
         when(testGroupService.getGroups(any()))
                 .thenReturn(new ArrayList<>(testGroups.values()));
-        csm.buildScalingGroups(topologyGraph, groupResolver);        // Member of merged group
+        csm.buildScalingGroups(topologyGraph, groupResolver, new HashMap<>());
         Assert.assertEquals(Optional.of("Group-B, Group-A"), csm.getScalingGroupId(1L));
         // Member of non-merged group
         Assert.assertEquals(Optional.of("Group-C"), csm.getScalingGroupId(5L));
+    }
+
+    /**
+     * Verify that the OID to settings map shares map between members of the same scaling group.
+     */
+    @Test
+    public void testPreMergeScalingGroups() {
+        ConsistentScalingManager csm = createCSM(true);
+        populateCSMWithTestData(csm);
+        final GroupResolver groupResolver = mock(GroupResolver.class);
+        when(groupResolver.getGroupServiceClient()).thenReturn(groupServiceClient);
+        when(testGroupService.getGroups(any()))
+            .thenReturn(new ArrayList<>(testGroups.values()));
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> settingsMaps = new HashMap<>();
+                csm.buildScalingGroups(topologyGraph, groupResolver, settingsMaps);
+        // There are 7 powered on entities in the test topology, all of them in scaling groups, so
+        // the settings map must also contain 7 entries.
+        Assert.assertEquals(7, settingsMaps.size());
+        /*
+         * Group-A: VM-1, VM-2, VM-3
+         * Group-B: VM-2, VM-4
+         * Group-C: VM-5
+         * DiscoveredGroup-A: VM-4, VM-6
+         * DiscoveredGroup-B: VM-7
+         *
+         * Internal Groups:
+         * - SG-1: VM-1, 2, 3, 4
+         * - SG-2: VM-5
+         * - SG-3: VM-7
+         * - SG-4: VM-9
+         */
+        final Map<String, SettingAndPolicyIdRecord> m1 = settingsMaps.get(1L);  // Get settings map for VM-1
+        Assert.assertNotNull(m1);
+        Assert.assertEquals(4, settingsMaps.values().stream().filter(settings -> settings == m1).count());
+
+        final Map<String, SettingAndPolicyIdRecord> m2 = settingsMaps.get(5L);  // Get settings map for VM-5
+        Assert.assertNotNull(m2);
+        Assert.assertEquals(1, settingsMaps.values().stream().filter(settings -> settings == m2).count());
+
+        final Map<String, SettingAndPolicyIdRecord> m3 = settingsMaps.get(7L);  // Get settings map for VM-7
+        Assert.assertNotNull(m3);
+        Assert.assertEquals(1, settingsMaps.values().stream().filter(settings -> settings == m3).count());
+
+        final Map<String, SettingAndPolicyIdRecord> m4 = settingsMaps.get(9L);  // Get settings map for VM-9
+        Assert.assertNotNull(m4);
+        Assert.assertEquals(1, settingsMaps.values().stream().filter(settings -> settings == m4).count());
     }
 }
