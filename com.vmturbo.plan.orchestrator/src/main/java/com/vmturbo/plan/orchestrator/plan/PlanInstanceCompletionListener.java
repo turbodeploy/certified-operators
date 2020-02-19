@@ -26,7 +26,16 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
                 plan.getStatus().equals(PlanStatus.FAILED) ||
                 plan.getStatus().equals(PlanStatus.STOPPED)) {
 
-            logger.info("Plan instance {} has completed execution.", plan.getPlanId());
+            try {
+                logger.info("Plan [{} {}] has completed execution in {} ms with status {}.",
+                    plan.getPlanId(),
+                    plan.getScenario().getScenarioInfo().getType(),
+                    plan.getEndTime() - plan.getStartTime(),
+                    plan.getStatus());
+            } catch (Exception e) {
+                logger.error("Encountered exception while trying to log plan completion: ", e);
+            }
+
             // Run the next plan instance in queue if available.
             planInstanceQueue.runNextPlanInstance();
         }
