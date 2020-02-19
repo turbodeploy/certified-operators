@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,7 +19,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 
 /**
  * Configuration parameters for percentile commodity editor.
@@ -54,7 +55,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     private final int grpcStreamTimeoutSec;
     private final int blobReadWriteChunkSizeKb;
     private final KVConfig kvConfig;
-
 
     /**
      * Initialize the percentile configuration values.
@@ -123,8 +123,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @param oid entity oid
      * @return aggressiveness in percents, default if not found
      */
-    public int getAggressiveness(long oid) {
-        return getIntSetting(oid, TYPE_AGGRESSIVENESS, "aggressiveness",
+    public int getAggressiveness(@Nonnull HistoryAggregationContext context, long oid) {
+        return getIntSetting(context, oid, TYPE_AGGRESSIVENESS, "aggressiveness",
                              getDefaultAggressiveness());
     }
 
@@ -134,8 +134,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @param oid entity oid
      * @return observation period
      */
-    public int getObservationPeriod(long oid) {
-        return getIntSetting(oid, TYPE_MAX_OBSERVATION_PERIOD, "observation period",
+    public int getObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
+        return getIntSetting(context, oid, TYPE_MAX_OBSERVATION_PERIOD, "observation period",
                              getDefaultObservationPeriod());
     }
 
@@ -145,8 +145,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @param oid entity oid
      * @return observation period
      */
-    public int getMinObservationPeriod(long oid) {
-        return getIntSetting(oid, TYPE_MIN_OBSERVATION_PERIOD, "min observation period",
+    public int getMinObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
+        return getIntSetting(context, oid, TYPE_MIN_OBSERVATION_PERIOD, "min observation period",
                 getDefaultMinObservationPeriod());
     }
 
@@ -195,23 +195,17 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                 .getNumericSettingValueType().getDefault();
     }
 
-    private int getIntSetting(long oid,
+    private int getIntSetting(@Nonnull HistoryAggregationContext context, long oid,
                               @Nonnull Map<EntityType, EntitySettingSpecs> type2spec,
                               @Nonnull String description, int defaultValue) {
-        try {
-            EntitySettingSpecs spec = type2spec.get(getEntityType(oid));
-            if (spec != null) {
-                Float value = getEntitySetting(oid, spec, Float.class);
-                if (value != null) {
-                    return value.intValue();
-                }
+        EntitySettingSpecs spec = type2spec.get(context.getEntityType(oid));
+        if (spec != null) {
+            Float value = context.getEntitySetting(oid, spec, Float.class);
+            if (value != null) {
+                return value.intValue();
             }
-        } catch (HistoryCalculationException e) {
-            logger.warn("Cannot get percentile " + description
-                        + " setting, assuming default for "
-                        + oid, e);
         }
-        logger.debug("{} Returning default value {} for percentile {} with oid {}",
+        logger.trace("{} Returning default value {} for percentile {} with oid {}",
                 getClass().getSimpleName(), defaultValue, description, oid);
         return defaultValue;
     }

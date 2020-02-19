@@ -7,7 +7,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
 
 /**
@@ -21,9 +21,9 @@ public class MaxValueCommodityData implements IHistoryCommodityData<CachingHisto
     @Override
     public void aggregate(@Nonnull EntityCommodityFieldReference field,
                           @Nonnull CachingHistoricalEditorConfig config,
-                          @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
+                          @Nonnull HistoryAggregationContext context) {
         // TODO dmitry trace log
-        float newUsed = Optional.ofNullable(commodityFieldsAccessor.getRealTimeValue(field))
+        float newUsed = Optional.ofNullable(context.getAccessor().getRealTimeValue(field))
                         .orElse(0d).floatValue();
         if (topologyMax == null) {
             topologyMax = newUsed;
@@ -31,7 +31,7 @@ public class MaxValueCommodityData implements IHistoryCommodityData<CachingHisto
             topologyMax = Math.max(newUsed, topologyMax);
         }
         float max = Math.max(topologyMax, dbMax == null ? 0f : dbMax);
-        commodityFieldsAccessor.updateHistoryValue(field, hv -> hv.setMaxQuantity(max),
+        context.getAccessor().updateHistoryValue(field, hv -> hv.setMaxQuantity(max),
                                                    MaxValueEditor.class.getSimpleName());
     }
 
@@ -39,7 +39,7 @@ public class MaxValueCommodityData implements IHistoryCommodityData<CachingHisto
     public void init(@Nonnull EntityCommodityFieldReference field,
                      @Nullable Float dbValue,
                      @Nonnull CachingHistoricalEditorConfig config,
-                     @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
+                     @Nonnull HistoryAggregationContext context) {
         if (dbValue != null) {
             dbMax = dbValue;
         }

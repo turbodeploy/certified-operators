@@ -45,6 +45,7 @@ public class AbstractCachingHistoricalEditorTest {
                     new CachingHistoricalEditorConfig(2, 3, Clock.systemUTC());
     private static final CachingHistoricalEditorConfig CONFIG2 =
                     new CachingHistoricalEditorConfig(10, 10, Clock.systemUTC());
+    private static final HistoryAggregationContext CONTEXT = new HistoryAggregationContext(null, false);
 
     private EntityCommodityReference cref1;
     private EntityCommodityReference cref2;
@@ -74,10 +75,10 @@ public class AbstractCachingHistoricalEditorTest {
     public void testCreatePreparationTasksChunking() {
         IHistoricalEditor<CachingHistoricalEditorConfig> editor = new TestCachingEditor(CONFIG1);
         List<? extends Callable<List<EntityCommodityFieldReference>>> tasks = editor
-                        .createPreparationTasks(allComms);
+                        .createPreparationTasks(CONTEXT, allComms);
         Assert.assertEquals(3, tasks.size());
         editor = new TestCachingEditor(CONFIG2);
-        tasks = editor.createPreparationTasks(allComms);
+        tasks = editor.createPreparationTasks(CONTEXT, allComms);
         Assert.assertEquals(1, tasks.size());
     }
 
@@ -91,14 +92,14 @@ public class AbstractCachingHistoricalEditorTest {
         try {
             IHistoricalEditor<CachingHistoricalEditorConfig> editor = new TestCachingEditor(CONFIG1);
             // when nothing in the cache yet, no tasks
-            List<? extends Callable<List<Void>>> calcTasks = editor.createCalculationTasks(allComms);
+            List<? extends Callable<List<Void>>> calcTasks = editor.createCalculationTasks(CONTEXT, allComms);
             Assert.assertEquals(0, calcTasks.size());
             List<? extends Callable<List<EntityCommodityFieldReference>>> loadTasks = editor
-                            .createPreparationTasks(allComms);
+                            .createPreparationTasks(CONTEXT, allComms);
             Assert.assertEquals(3, loadTasks.size());
             executor.invokeAll(loadTasks);
             // now the requested calculation tasks should be created and partitioned
-            calcTasks = editor.createCalculationTasks(allComms);
+            calcTasks = editor.createCalculationTasks(CONTEXT, allComms);
             Assert.assertEquals(2, calcTasks.size());
         } finally {
             executor.shutdownNow();
@@ -115,11 +116,11 @@ public class AbstractCachingHistoricalEditorTest {
         try {
             IHistoricalEditor<CachingHistoricalEditorConfig> editor = new TestCachingEditor(CONFIG2);
             List<? extends Callable<List<EntityCommodityFieldReference>>> tasks = editor
-                            .createPreparationTasks(allComms);
+                            .createPreparationTasks(CONTEXT, allComms);
             Assert.assertEquals(1, tasks.size());
             executor.invokeAll(tasks);
             // all commodities must be loaded and next invocation should issue no tasks
-            tasks = editor.createPreparationTasks(allComms);
+            tasks = editor.createPreparationTasks(CONTEXT, allComms);
             Assert.assertEquals(0, tasks.size());
         } finally {
             executor.shutdownNow();
@@ -136,13 +137,14 @@ public class AbstractCachingHistoricalEditorTest {
         try {
             IHistoricalEditor<CachingHistoricalEditorConfig> editor = new TestCachingEditor(CONFIG2);
             List<EntityCommodityReference> comms1 = ImmutableList.of(cref1, cref2, cref3);
-            List<? extends Callable<List<EntityCommodityFieldReference>>> tasks = editor.createPreparationTasks(comms1);
+            List<? extends Callable<List<EntityCommodityFieldReference>>> tasks = editor.createPreparationTasks(CONTEXT,
+                                                                                                                comms1);
             Assert.assertEquals(1, tasks.size());
             executor.invokeAll(tasks);
             Assert.assertEquals(new HashSet<>(comms1), seenCommRefs);
 
             List<EntityCommodityReference> comms2 = ImmutableList.of(cref2, cref3, cref4, cref5);
-            tasks = editor.createPreparationTasks(comms2);
+            tasks = editor.createPreparationTasks(CONTEXT, comms2);
             Assert.assertEquals(1, tasks.size());
             seenCommRefs.clear();
             executor.invokeAll(tasks);
@@ -163,11 +165,11 @@ public class AbstractCachingHistoricalEditorTest {
         try {
             IHistoricalEditor<CachingHistoricalEditorConfig> editor = new TestCachingEditor(CONFIG2);
             List<? extends Callable<List<EntityCommodityFieldReference>>> loadTasks = editor
-                            .createPreparationTasks(allComms);
+                            .createPreparationTasks(CONTEXT, allComms);
             Assert.assertEquals(1, loadTasks.size());
             executor.invokeAll(loadTasks);
             // now internal cache should contain all commodities values initialized
-            List<? extends Callable<List<Void>>> calcTasks = editor.createCalculationTasks(allComms);
+            List<? extends Callable<List<Void>>> calcTasks = editor.createCalculationTasks(CONTEXT, allComms);
             Assert.assertEquals(1, calcTasks.size());
             executor.invokeAll(calcTasks);
 
@@ -256,7 +258,7 @@ public class AbstractCachingHistoricalEditorTest {
         @Override
         public void aggregate(@Nonnull EntityCommodityFieldReference field,
                               @Nonnull CachingHistoricalEditorConfig config,
-                              @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
+                              @Nonnull HistoryAggregationContext context) {
             seenCommRefs.add(field);
             CommoditySoldDTO.Builder builder = getSoldBuilder(field);
             double current = builder.getUsed();
@@ -267,7 +269,7 @@ public class AbstractCachingHistoricalEditorTest {
         @Override
         public void init(EntityCommodityFieldReference field,
                          Float dbValue, CachingHistoricalEditorConfig config,
-                         ICommodityFieldAccessor commodityFieldsAccessor) {
+                         @Nonnull HistoryAggregationContext context) {
             value = dbValue;
         }
     }

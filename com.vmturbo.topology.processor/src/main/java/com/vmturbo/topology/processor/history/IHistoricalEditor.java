@@ -13,7 +13,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Perform a certain kind of aggregation of per-commodity history points and update the
@@ -74,22 +73,26 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
     /**
      * Create (optionally chunk) the tasks that initialize the pre-calculated history.
      *
+     * @param context invocation context i.e current graph
      * @param commodityRefs commodities that have to be processed
      * @return tasks for execution, each task should return the commodity fields that it loads
      */
     @Nonnull
     List<? extends Callable<List<EntityCommodityFieldReference>>>
-                createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs);
+                createPreparationTasks(@Nonnull HistoryAggregationContext context,
+                                       @Nonnull List<EntityCommodityReference> commodityRefs);
 
     /**
      * Create (optionally chunk) the tasks that aggregate and set the commodity historical data.
      *
+     * @param context invocation context i.e current graph
      * @param commodityRefs commodities that have to be processed
      * @return tasks for execution
      */
     @Nonnull
     List<? extends Callable<List<Void>>>
-                createCalculationTasks(@Nonnull List<EntityCommodityReference> commodityRefs);
+                createCalculationTasks(@Nonnull HistoryAggregationContext context,
+                                       @Nonnull List<EntityCommodityReference> commodityRefs);
 
     /**
      * Synchronously initialize the data, if necessary, upon broadcast.
@@ -98,23 +101,22 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * This should be initialized when the stage begins.
      * Also editor may have to access persistent store in a single-threaded way.
      *
-     * @param graph topology graph with settings
-     * @param accessor commodity fields' accessor for the current graph - performance optimization
+     * @param context invocation context i.e current graph
      * @param eligibleComms relevant commodities in the current topology
-     * @param isPlan whether in plan context
      * @throws HistoryCalculationException when initialization fails
      * @throws InterruptedException when interrupted
      */
-    void initContext(@Nonnull GraphWithSettings graph, @Nonnull ICommodityFieldAccessor accessor,
-                     @Nonnull List<EntityCommodityReference> eligibleComms, boolean isPlan)
+    void initContext(@Nonnull HistoryAggregationContext context,
+                     @Nonnull List<EntityCommodityReference> eligibleComms)
                     throws HistoryCalculationException, InterruptedException;
 
     /**
      * Synchronously finish the handling of the broadcast, after all the calculation tasks
      * have been invoked.
      *
+     * @param context invocation context i.e current graph
      * @throws HistoryCalculationException when completion fails critically
      * @throws InterruptedException when interrupted
      */
-    void completeBroadcast() throws HistoryCalculationException, InterruptedException;
+    void completeBroadcast(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException;
 }
