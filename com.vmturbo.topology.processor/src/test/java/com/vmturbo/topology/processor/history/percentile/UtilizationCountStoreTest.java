@@ -14,10 +14,8 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 
@@ -29,8 +27,6 @@ public class UtilizationCountStoreTest {
     private UtilizationCountStore store;
     private EntityCommodityFieldReference ref;
     private Clock clock;
-    private GraphWithSettings graph;
-    private HistoryAggregationContext context;
 
     /**
      * Set up the test.
@@ -46,8 +42,6 @@ public class UtilizationCountStoreTest {
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
         store = new UtilizationCountStore(new PercentileBuckets(), ref, 30);
-        graph = Mockito.mock(GraphWithSettings.class);
-        context = new HistoryAggregationContext(graph, false);
     }
 
     /**
@@ -125,9 +119,8 @@ public class UtilizationCountStoreTest {
     public void checkMinObservationWindowDisabled() {
         final PercentileHistoricalEditorConfig config =
                         Mockito.mock(PercentileHistoricalEditorConfig.class);
-        Mockito.when(config.getClock()).thenReturn(clock);
-        Mockito.when(config.getMinObservationPeriod(context, 134L)).thenReturn(0);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(true));
+        Mockito.when(config.getMinObservationPeriod(134L)).thenReturn(0);
+        Assert.assertThat(store.isMinHistoryDataAvailable(config, clock), CoreMatchers.is(true));
     }
 
     /**
@@ -139,9 +132,8 @@ public class UtilizationCountStoreTest {
     public void checkMinObservationWindowStartTimestampNotInitialized() {
         final PercentileHistoricalEditorConfig config =
                         Mockito.mock(PercentileHistoricalEditorConfig.class);
-        Mockito.when(config.getClock()).thenReturn(clock);
-        Mockito.when(config.getMinObservationPeriod(context, 134L)).thenReturn(1);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(false));
+        Mockito.when(config.getMinObservationPeriod(134L)).thenReturn(1);
+        Assert.assertThat(store.isMinHistoryDataAvailable(config, clock), CoreMatchers.is(false));
     }
 
     /**
@@ -155,12 +147,11 @@ public class UtilizationCountStoreTest {
     public void checkMinObservationWindowHasNoEnoughData() throws HistoryCalculationException {
         final PercentileHistoricalEditorConfig config =
                         Mockito.mock(PercentileHistoricalEditorConfig.class);
-        Mockito.when(config.getClock()).thenReturn(clock);
-        Mockito.when(config.getMinObservationPeriod(context, 134L)).thenReturn(1);
+        Mockito.when(config.getMinObservationPeriod(134L)).thenReturn(1);
         final long currentTime = Duration.ofDays(2).toMillis();
         Mockito.when(clock.millis()).thenReturn(currentTime);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, currentTime - 100);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(false));
+        Assert.assertThat(store.isMinHistoryDataAvailable(config, clock), CoreMatchers.is(false));
     }
 
     /**
@@ -178,19 +169,18 @@ public class UtilizationCountStoreTest {
                     throws HistoryCalculationException {
         final PercentileHistoricalEditorConfig config =
                         Mockito.mock(PercentileHistoricalEditorConfig.class);
-        Mockito.when(config.getClock()).thenReturn(clock);
-        Mockito.when(config.getMinObservationPeriod(context, 134L)).thenReturn(1);
+        Mockito.when(config.getMinObservationPeriod(134L)).thenReturn(1);
         final long currentTime = Duration.ofDays(2).toMillis();
         Mockito.when(clock.millis()).thenReturn(currentTime);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d,
                         currentTime - Duration.ofDays(1).toMillis() - 100);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d,
                         currentTime - Duration.ofHours(1).toMillis() - 100);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(false));
+        Assert.assertThat(store.isMinHistoryDataAvailable(config, clock), CoreMatchers.is(false));
         final long newCurrentTime = currentTime + Duration.ofDays(1).toMillis() + 100;
         Mockito.when(clock.millis()).thenReturn(newCurrentTime);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, newCurrentTime + 50);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(true));
+        Assert.assertThat(store.isMinHistoryDataAvailable(config, clock), CoreMatchers.is(true));
     }
 
     /**
@@ -206,14 +196,13 @@ public class UtilizationCountStoreTest {
                     throws HistoryCalculationException {
         final PercentileHistoricalEditorConfig config =
                         Mockito.mock(PercentileHistoricalEditorConfig.class);
-        Mockito.when(config.getClock()).thenReturn(clock);
-        Mockito.when(config.getMinObservationPeriod(context, 134L)).thenReturn(1);
+        Mockito.when(config.getMinObservationPeriod(134L)).thenReturn(1);
         final long currentTime = Duration.ofDays(2).toMillis();
         Mockito.when(clock.millis()).thenReturn(currentTime);
         final long defaultAllowableGap = Duration.ofDays(1).toMillis();
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d,
                         currentTime - defaultAllowableGap - 100);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, currentTime + 100);
-        Assert.assertThat(store.isMinHistoryDataAvailable(context, config), CoreMatchers.is(true));
+        Assert.assertThat(store.isMinHistoryDataAvailable(config, clock), CoreMatchers.is(true));
     }
 }

@@ -5,6 +5,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Base class for history-related commodity value editors.
@@ -17,6 +18,7 @@ public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorCo
                 implements IHistoricalEditor<Config> {
     private final Stub statsHistoryClient;
     private final Config config;
+    private ICommodityFieldAccessor commodityFieldAccessor;
 
     /**
      * Construct the instance of a historical editor.
@@ -37,12 +39,22 @@ public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorCo
         return statsHistoryClient;
     }
 
-    @Override
-    public void initContext(@Nonnull HistoryAggregationContext context,
-                            @Nonnull List<EntityCommodityReference> eligibleComms)
-                    throws HistoryCalculationException, InterruptedException {}
+    protected ICommodityFieldAccessor getCommodityFieldAccessor() {
+        return commodityFieldAccessor;
+    }
 
     @Override
-    public void completeBroadcast(@Nonnull HistoryAggregationContext context)
-                    throws HistoryCalculationException, InterruptedException {}
+    public void initContext(@Nonnull GraphWithSettings graph,
+                            @Nonnull ICommodityFieldAccessor accessor,
+                            @Nonnull List<EntityCommodityReference> eligibleComms,
+                            boolean isPlan)
+                    throws HistoryCalculationException, InterruptedException {
+        config.initSettings(graph, isPlan);
+        this.commodityFieldAccessor = accessor;
+    }
+
+    @Override
+    public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
+        config.deinit();
+    }
 }

@@ -103,9 +103,6 @@ message TypeSpecificInfo {
 
         // The CPU Core MHz on the host
         optional int32 cpu_core_mhz = 7;
-
-        // Disk Groups for vSAN storages
-        repeated .common_dto.EntityDTO.DiskGroupData diskGroup = 8;
     }
 
     message BusinessAccountInfo {
@@ -263,12 +260,6 @@ message TypeSpecificInfo {
         // this is set to true for storages where storage browsing is disabled for at least one
         // discovering target.
         optional bool ignore_wasted_files = 4 [default = false];
-
-        // vSAN storage policy
-        optional .common_dto.EntityDTO.StorageData.StoragePolicy policy = 5;
-
-        // storage raw capacity
-        optional .common_dto.EntityDTO.StorageData.RawCapacity rawCapacity = 6;
     }
 
     // specific data for a disk array

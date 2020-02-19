@@ -4,7 +4,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.fail;
 
-import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.core.env.PropertySource;
 
@@ -90,7 +89,6 @@ public class ExternalPropertiesTest {
         assertThat(propertiesSource.getProperty("test.txt"), equalTo("text-value"));
         // multi-line .txt file
         final String property = (String)propertiesSource.getProperty("test2.txt");
-        Assert.assertNotNull(property);
-        Assert.assertTrue(property.matches("line1\\Rline2"));
+        assertThat(property, equalTo("line1\nline2"));
     }
 }

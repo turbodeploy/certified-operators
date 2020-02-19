@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Historical commodities editor with cached commodity data state that initiates data from
@@ -46,10 +47,12 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
     }
 
     @Override
-    public void initContext(@Nonnull HistoryAggregationContext context,
-                            @Nonnull List<EntityCommodityReference> eligibleComms)
+    public void initContext(@Nonnull GraphWithSettings graph,
+                            @Nonnull ICommodityFieldAccessor accessor,
+                            @Nonnull List<EntityCommodityReference> eligibleComms,
+                            boolean isPlan)
                     throws HistoryCalculationException, InterruptedException {
-        super.initContext(context, eligibleComms);
+        super.initContext(graph, accessor, eligibleComms, isPlan);
 
         // determine once per broadcast processing at this point
         isRunning = isRunning();
@@ -64,27 +67,25 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
     @Override
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
+           createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
         if (isRunning) {
             return Collections.emptyList();
         } else {
             // synchronously load the small portion of commodities during this broadcast
-            return super.createPreparationTasks(context, commodityRefs);
+            return super.createPreparationTasks(commodityRefs);
         }
     }
 
     @Override
     @Nonnull
     public List<? extends Callable<List<Void>>>
-           createCalculationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
+           createCalculationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
         if (isRunning) {
             // return no data in the broadcast
             // TODO log warning
             return Collections.emptyList();
         } else {
-            return super.createCalculationTasks(context, commodityRefs);
+            return super.createCalculationTasks(commodityRefs);
         }
     }
 

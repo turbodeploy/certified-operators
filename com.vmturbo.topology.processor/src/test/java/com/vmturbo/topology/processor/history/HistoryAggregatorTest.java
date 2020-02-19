@@ -223,10 +223,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         }
 
         @Override
-        @Nonnull
         public List<? extends Callable<List<EntityCommodityFieldReference>>>
-               createPreparationTasks(@Nonnull HistoryAggregationContext context,
-                                      @Nonnull List<EntityCommodityReference> commodityRefs) {
+               createPreparationTasks(List<EntityCommodityReference> commodityRefs) {
             // simulate loading 'used' for all passed commodities
             return Collections.singletonList(new Callable<List<EntityCommodityFieldReference>>() {
                 @Override
@@ -246,10 +244,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         }
 
         @Override
-        @Nonnull
         public List<? extends Callable<List<Void>>>
-               createCalculationTasks(@Nonnull HistoryAggregationContext context,
-                                      @Nonnull List<EntityCommodityReference> commodityFieldRefs) {
+               createCalculationTasks(List<EntityCommodityReference> commodityFieldRefs) {
             return Collections.singletonList(new Callable<List<Void>>() {
                 @Override
                 public List<Void> call() throws Exception {
@@ -280,11 +276,12 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         }
 
         @Override
-        public void initContext(@Nonnull HistoryAggregationContext context,
-                                @Nonnull List<EntityCommodityReference> eligibleComms) {}
+        public void initContext(GraphWithSettings graph, ICommodityFieldAccessor accessor,
+                                List<EntityCommodityReference> eligibleComms, boolean isPlan) {
+        }
 
         @Override
-        public void completeBroadcast(@Nonnull HistoryAggregationContext context)
-                        throws HistoryCalculationException {}
+        public void completeBroadcast() throws HistoryCalculationException {
+        }
     }
 }

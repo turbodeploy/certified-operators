@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
@@ -47,13 +46,13 @@ public class PercentileCommodityData
     public void init(@Nonnull EntityCommodityFieldReference field,
                      @Nullable PercentileRecord dbValue,
                      @Nonnull PercentileHistoricalEditorConfig config,
-                     @Nonnull HistoryAggregationContext context) {
+                     @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         try {
             if (utilizationCounts == null) {
                 utilizationCounts = new UtilizationCountStore(
                                 config.getPercentileBuckets(field.getCommodityType().getType()),
                                 field, config.getUnavailableDataPeriodInMins());
-                utilizationCounts.setPeriodDays(config.getObservationPeriod(context, field.getEntityOid()));
+                utilizationCounts.setPeriodDays(config.getObservationPeriod(field.getEntityOid()));
             }
             if (dbValue != null) {
                 utilizationCounts.setLatestCountsRecord(dbValue);
@@ -72,12 +71,11 @@ public class PercentileCommodityData
     @Override
     public void aggregate(@Nonnull EntityCommodityFieldReference field,
                           @Nonnull PercentileHistoricalEditorConfig config,
-                          @Nonnull HistoryAggregationContext context) {
-        final boolean hasEnoughData = utilizationCounts.isMinHistoryDataAvailable(context, config);
-        final ICommodityFieldAccessor commodityFieldsAccessor = context.getAccessor();
+                          @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
+        final boolean hasEnoughData = utilizationCounts.isMinHistoryDataAvailable(config, config.getClock());
         if (!hasEnoughData) {
             logger.debug("Minimum amount of history data(for '{}' day(s)) is not available for '{}', so restriction policy will be applied",
-                            () -> config.getMinObservationPeriod(context, field.getEntityOid()),
+                            () -> config.getMinObservationPeriod(field.getEntityOid()),
                             () -> field);
             commodityFieldsAccessor.applyInsufficientHistoricalDataPolicy(field);
         }
@@ -89,7 +87,7 @@ public class PercentileCommodityData
         }
         try {
             // do not update values in plan context, only set the result
-            if (!context.isPlan()) {
+            if (!config.isPlan()) {
                 UtilizationData utilizationData = commodityFieldsAccessor.getUtilizationData(field);
                 if (utilizationData != null) {
                     utilizationCounts.addPoints(utilizationData.getPointList(), capacity,
@@ -107,7 +105,7 @@ public class PercentileCommodityData
             }
             if (hasEnoughData) {
                 // calculate and store the utilization into commodity's history value
-                int aggressiveness = config.getAggressiveness(context, field.getEntityOid());
+                int aggressiveness = config.getAggressiveness(field.getEntityOid());
                 int percentile = utilizationCounts.getPercentile(aggressiveness);
                 if (logger.isTraceEnabled()) {
                     logger.trace("Calculated percentile score for {} for rank {}: {}",

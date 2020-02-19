@@ -4,8 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import javax.annotation.Nonnull;
-
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -16,7 +14,6 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.AbstractHistoricalEditor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoricalEditorConfig;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 
 /**
  * Calculate the system load for topology commodities.
@@ -65,8 +62,7 @@ public class SystemLoadEditor extends
 
     @Override
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
+           createPreparationTasks(List<EntityCommodityReference> commodityRefs) {
         // no caching, no chunking
         // TODO dmitry create single task
         return Collections.emptyList();
@@ -74,8 +70,7 @@ public class SystemLoadEditor extends
 
     @Override
     public List<? extends Callable<List<Void>>>
-           createCalculationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityFieldRefs) {
+           createCalculationTasks(List<EntityCommodityReference> commodityFieldRefs) {
         // TODO dmitry create single task, move/call functionality from CommoditiesEditor
         return Collections.emptyList();
     }

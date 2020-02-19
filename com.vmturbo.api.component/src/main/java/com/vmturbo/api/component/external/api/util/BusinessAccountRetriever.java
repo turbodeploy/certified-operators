@@ -34,7 +34,6 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -171,23 +170,22 @@ public class BusinessAccountRetriever {
                     entityFilterMapper.convertToSearchParameters(ListUtils.emptyIfNull(criterias),
                             UIEntityType.BUSINESS_ACCOUNT.apiStr(), null));
         }
-        // for target scope we need to display all accounts (even not discovered)
-        if (targetIds.isEmpty()) {
-            //this parameter used for searching only monitored accounts which have associated target
-            searchParameters.add(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-                    .addSearchFilter(SearchFilter.newBuilder()
-                            .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
-                            .build())
-                    .build());
-        }
         final List<SearchParameters> effectiveParameters = searchParameters.stream()
                 .map(filterResolver::resolveExternalFilters)
                 .collect(Collectors.toList());
-        final List<TopologyEntityDTO> businessAccounts =
-                repositoryApi.newSearchRequestMulti(effectiveParameters)
-                        .getFullEntities()
-                        .collect(Collectors.toList());
+        final List<TopologyEntityDTO> businessAccounts = (targetIds.isEmpty() ?
+                  repositoryApi.newSearchRequestMulti(effectiveParameters)
+                      .getFullEntities()
+                      // OM-53266: Only accounts that are monitored by a probe should be converted.
+                      // Accounts that are only submitted as a member of a BillingFamily should not be converted.
+                      .filter(businessAccount -> businessAccount.hasTypeSpecificInfo())
+                      .filter(businessAccount -> businessAccount.getTypeSpecificInfo().hasBusinessAccount())
+                      .filter(businessAccount -> businessAccount.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
+                      .collect(Collectors.toList())
+                  :
+                  repositoryApi.newSearchRequestMulti(effectiveParameters)
+                      // No filtering required when one ore more target IDs exist
+                      .getFullEntities().collect(Collectors.toList()));
 
         return businessAccountMapper.convert(businessAccounts, allAccounts);
     }

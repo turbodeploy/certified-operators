@@ -78,16 +78,14 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Override
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
+           createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
         List<EntityCommodityReference> uninitializedCommodities =
                         gatherUninitializedCommodities(commodityRefs);
         // chunk by configured size
         List<List<EntityCommodityReference>> partitions = Lists
                         .partition(uninitializedCommodities, getConfig().getLoadingChunkSize());
         return partitions.stream()
-                        .map(chunk -> new HistoryLoadingCallable(context,
-                                                                 historyLoadingTaskCreator.apply(getStatsHistoryClient()),
+                        .map(chunk -> new HistoryLoadingCallable(historyLoadingTaskCreator.apply(getStatsHistoryClient()),
                                                                  chunk))
                         .collect(Collectors.toList());
     }
@@ -95,8 +93,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Override
     @Nonnull
     public List<? extends Callable<List<Void>>>
-           createCalculationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
+           createCalculationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
         // calculate only fields for commodities present in the cache
         List<EntityCommodityFieldReference> cachedFields = commodityRefs.stream()
                         .flatMap(commRef -> Arrays.stream(CommodityField.values())
@@ -107,7 +104,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         List<List<EntityCommodityFieldReference>> partitions = Lists
                         .partition(cachedFields, getConfig().getCalculationChunkSize());
         return partitions.stream()
-                        .map(chunk -> new HistoryCalculationCallable(context, chunk))
+                        .map(chunk -> new HistoryCalculationCallable(chunk))
                         .collect(Collectors.toList());
     }
 
@@ -152,21 +149,17 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     protected class HistoryLoadingCallable implements Callable<List<EntityCommodityFieldReference>> {
         private final HistoryLoadingTask task;
         private final List<EntityCommodityReference> commodities;
-        private final HistoryAggregationContext context;
 
         /**
          * Construct the wrapper to load a chunk of historical commodity values from the history db.
          *
-         * @param context invocation context i.e current graph
          * @param task task that will do the loading
          * @param commodities list of commodities
          */
-        public HistoryLoadingCallable(@Nonnull HistoryAggregationContext context,
-                                      @Nonnull HistoryLoadingTask task,
+        public HistoryLoadingCallable(@Nonnull HistoryLoadingTask task,
                                       @Nonnull List<EntityCommodityReference> commodities) {
             this.task = task;
             this.commodities = commodities;
-            this.context = context;
         }
 
         @Override
@@ -180,7 +173,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                 if (cacheValue == null) {
                     cacheValue = historyDataCreator.get();
                 }
-                cacheValue.init(fieldRef, dbValue, getConfig(), context);
+                cacheValue.init(fieldRef, dbValue, getConfig(), getCommodityFieldAccessor());
                 return cacheValue;
             }));
             // return the list of loaded fields
@@ -195,18 +188,14 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      */
     private class HistoryCalculationCallable implements Callable<List<Void>> {
         private final List<EntityCommodityFieldReference> commodityFields;
-        private final HistoryAggregationContext context;
 
         /**
          * Construct the wrapper to aggregate the chunk of commodity fields.
          *
-         * @param context invocation context i.e current graph
          * @param commodityFields references to commodity fields to aggregate
          */
-        HistoryCalculationCallable(@Nonnull HistoryAggregationContext context,
-                                   @Nonnull List<EntityCommodityFieldReference> commodityFields) {
+        HistoryCalculationCallable(@Nonnull List<EntityCommodityFieldReference> commodityFields) {
             this.commodityFields = commodityFields;
-            this.context = context;
         }
 
         @Override
@@ -217,7 +206,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                     // shouldn't have happened, preparation is supposed to add entries
                     logger.error("Missing historical data cache entry for " + ref);
                 } else {
-                    data.aggregate(ref, getConfig(), context);
+                    data.aggregate(ref, getConfig(), getCommodityFieldAccessor());
                 }
             });
             return Collections.emptyList();

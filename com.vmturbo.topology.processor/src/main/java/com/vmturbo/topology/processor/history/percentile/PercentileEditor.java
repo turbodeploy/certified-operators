@@ -15,10 +15,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Predicates;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -43,11 +43,13 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
@@ -103,6 +105,7 @@ public class PercentileEditor extends
     private long lastCheckpointMs;
     // number of checkpoints happened so far for logging purposes
     private long checkpoints;
+    private TopologyGraph<TopologyEntity> graph;
     /*
      * Flag set to true in case we need to enforce maintenance. Currently there is only one use
      * case for this - when percentile observation window changed. In case there are no changes
@@ -178,27 +181,29 @@ public class PercentileEditor extends
     }
 
     @Override
-    public void initContext(@Nonnull HistoryAggregationContext context,
-                            @Nonnull List<EntityCommodityReference> eligibleComms)
+    public void initContext(@Nonnull GraphWithSettings graph,
+                            @Nonnull ICommodityFieldAccessor accessor,
+                            @Nonnull List<EntityCommodityReference> eligibleComms,
+                            boolean isPlan)
                     throws HistoryCalculationException, InterruptedException {
-        super.initContext(context, eligibleComms);
+        super.initContext(graph, accessor, eligibleComms, isPlan);
+        this.graph = graph.getTopologyGraph();
 
-        loadPersistedData(context);
-        if (!context.isPlan()) {
-            checkObservationPeriodsChanged(context);
+        loadPersistedData();
+        if (!isPlan) {
+            checkObservationPeriodsChanged(graph);
         }
     }
 
     @Override
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
-        initializeCacheValues(context, commodityRefs);
+           createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
+        initializeCacheValues(commodityRefs);
         return Collections.emptyList();
     }
 
-    private void initializeCacheValues(@Nonnull HistoryAggregationContext context,
+    private void initializeCacheValues(
                     @Nonnull Collection<? extends EntityCommodityReference> commodityRefs) {
         // percentile data will be loaded in a single-threaded way into blobs (not chunked)
         // initialize cache values for entries from topology
@@ -209,24 +214,28 @@ public class PercentileEditor extends
                                                               CommodityField.USED);
             getCache().computeIfAbsent(field, fieldRef -> {
                 PercentileCommodityData data = historyDataCreator.get();
-                data.init(field, null, getConfig(), context);
+                data.init(field, null, getConfig(), getCommodityFieldAccessor());
                 return data;
             });
         });
     }
 
     @Override
-    public void completeBroadcast(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException {
-        super.completeBroadcast(context);
-        if (!context.isPlan()) {
-            // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
-            maintenance(context);
-            // persist the daily blob
-            persistBlob(getCheckpoint(), getMaintenanceWindowInMs(),
-                            UtilizationCountStore::getLatestCountsRecord);
-            // print the utilization counts from cache for the configured OID in logs
-            // if debug is enabled.
-            debugLogPercentileValues();
+    public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
+        try {
+            if (!getConfig().isPlan()) {
+                // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
+                maintenance();
+                // persist the daily blob
+                persistBlob(getCheckpoint(), getMaintenanceWindowInMs(),
+                                UtilizationCountStore::getLatestCountsRecord);
+                // print the utilization counts from cache for the configured OID in logs
+                // if debug is enabled.
+                debugLogPercentileValues();
+            }
+        } finally {
+            super.completeBroadcast();
+            this.graph = null;
         }
     }
 
@@ -259,7 +268,7 @@ public class PercentileEditor extends
         return task;
     }
 
-    private void loadPersistedData(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException {
+    private void loadPersistedData() throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             Stopwatch sw = Stopwatch.createStarted();
             // read the latest and full window blobs if haven't yet, set into cache
@@ -273,7 +282,7 @@ public class PercentileEditor extends
                 PercentileCommodityData data =
                                 getCache().computeIfAbsent(field,
                                                            ref -> historyDataCreator.get());
-                data.init(field, null, getConfig(), context);
+                data.init(field, null, getConfig(), getCommodityFieldAccessor());
                 data.getUtilizationCountStore().addFullCountsRecord(record, true);
                 data.getUtilizationCountStore().setPeriodDays(record.getPeriod());
             }
@@ -292,7 +301,7 @@ public class PercentileEditor extends
                 PercentileRecord record = latestEntry.getValue();
                 if (data.getUtilizationCountStore() == null) {
                     data.init(latestEntry.getKey(), record, getConfig(),
-                              context);
+                              getCommodityFieldAccessor());
                 } else {
                     data.getUtilizationCountStore().setLatestCountsRecord(record);
                 }
@@ -305,9 +314,19 @@ public class PercentileEditor extends
         }
     }
 
-    private void checkObservationPeriodsChanged(@Nonnull HistoryAggregationContext context)
+    private void checkObservationPeriodsChanged(@Nonnull GraphWithSettings graph)
             throws HistoryCalculationException, InterruptedException {
-        final Map<Long, Integer> entity2period = getEntityToPeriod(context);
+        /*
+         * Maintain per-entity observation periods for all entities ever seen
+         * since the component startup, to handle setting changes individually.
+         * Use oids to not hold onto entities.
+         * Note that maintaining this imposes considerable performance cost
+         * as it requires iterations over topology for every broadcast and extra
+         * loading times when some periods change.
+         * We should consider keeping per-entity-type period settings only.
+         * Or preferably even just one global observation window setting.
+         */
+        final Map<Long, Integer> entity2period = getEntityToPeriod(graph.getTopologyGraph());
 
         final Map<EntityCommodityFieldReference, PercentileCommodityData> changedPeriodEntries =
                 new HashMap<>();
@@ -388,7 +407,7 @@ public class PercentileEditor extends
         }
     }
 
-    private void maintenance(@Nonnull HistoryAggregationContext context) throws InterruptedException {
+    private void maintenance() throws InterruptedException {
         if (!historyInitialized) {
             logger.warn("Percentile history is not initialized.");
             return;
@@ -410,9 +429,9 @@ public class PercentileEditor extends
                          Instant.ofEpochMilli(checkpointMs));
             if (enforceMaintenance
                 && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
-                enforcedMaintenance(context, checkpointMs);
+                enforcedMaintenance(checkpointMs);
             } else {
-                final Map<Long, Integer> entity2period = getEntityToPeriod(context);
+                final Map<Long, Integer> entity2period = getEntityToPeriod(graph);
                 final Set<Integer> periods = new HashSet<>(entity2period.values());
 
                 /*
@@ -481,7 +500,7 @@ public class PercentileEditor extends
         }
     }
 
-    private void enforcedMaintenance(@Nonnull HistoryAggregationContext context, long checkpointMs)
+    private void enforcedMaintenance(long checkpointMs)
                     throws InterruptedException, HistoryCalculationException {
         logger.debug("Performing enforced percentile cache maintenance for {}",
                      () -> Instant.ofEpochMilli(checkpointMs));
@@ -490,7 +509,7 @@ public class PercentileEditor extends
                         createTask(yesterday).load(Collections.emptyList(), getConfig());
 
         // initialize LATEST in cache for each entry in loaded percentile data
-        initializeCacheValues(context, yesterdayRecords.keySet());
+        initializeCacheValues(yesterdayRecords.keySet());
 
         // accumulate current day's LATEST in cache with data from yesterday
         for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> entry : yesterdayRecords
@@ -532,19 +551,10 @@ public class PercentileEditor extends
         createTask(startTimestamp).save(blob.build(), periodMs, getConfig());
     }
 
-    @Nonnull
-    private Map<Long, Integer> getEntityToPeriod(@Nonnull HistoryAggregationContext context) {
-        /*
-         * Calculate per-entity observation periods for all entities in the topology,
-         * to handle setting changes individually.
-         * Note that maintaining this imposes considerable performance cost
-         * as it requires iterations over topology for every broadcast and extra
-         * loading times when some periods change.
-         * We should consider introducing per-entity-type period settings concept.
-         * Or preferably even just one global observation window setting.
-         */
-        return context.entityToSetting(Predicates.alwaysTrue(),
-            entity -> getConfig().getObservationPeriod(context, entity.getOid()));
+    private Map<Long, Integer> getEntityToPeriod(TopologyGraph<TopologyEntity> graph) {
+        return graph.entities().collect(Collectors.toMap(TopologyEntity::getOid,
+                                                         entity -> getConfig().getObservationPeriod(
+                                                                         entity.getOid())));
     }
 
     private long getCheckpoint() {

@@ -9,12 +9,10 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.jooq.Field;
 import org.jooq.Record;
@@ -22,7 +20,6 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * This class contains a list of constant string which related with reserved instance and also
@@ -54,16 +51,6 @@ public class ReservedInstanceUtil {
     public static final String USED_COUPONS_MIN_VALUE = "used_coupons_min";
 
     public static final String REGION_ID = "region_id";
-
-    /**
-     * Set of the Linux variations which is currently used to determine if an
-     * RI is instance size flexible.
-     */
-    public static final Set<OSType> LINUX_BASED_OS_SET = Sets.immutableEnumSet(
-            OSType.LINUX,
-            OSType.LINUX_WITH_SQL_STANDARD,
-            OSType.LINUX_WITH_SQL_WEB,
-            OSType.LINUX_WITH_SQL_ENTERPRISE);
 
     /**
      * The name of the entity id column in the RI coverage database tables.

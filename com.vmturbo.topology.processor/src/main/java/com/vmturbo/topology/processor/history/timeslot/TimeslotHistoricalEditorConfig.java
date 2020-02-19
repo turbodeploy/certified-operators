@@ -4,10 +4,13 @@ import java.time.Clock;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.topology.processor.history.BackgroundLoadingHistoricalEditorConfig;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
+import com.vmturbo.topology.processor.history.HistoryCalculationException;
 
 /**
  * Configuration settings for timeslot historical editor.
@@ -17,6 +20,7 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
      * Default value how often to checkpoint observation window.
      */
     public static int defaultMaintenanceWindowHours = 23;
+    private static final Logger logger = LogManager.getLogger();
 
     private final int maintenanceWindowHours;
 
@@ -46,17 +50,20 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
     /**
      * Get the timeslot observation window configured for a given entity.
      *
-     * @param context pipeline context
      * @param oid entity oid
      * @return window in months
      */
-    public int getObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
-        Float window =
-                   context.getEntitySetting(oid,
-                                    EntitySettingSpecs.MaxObservationPeriodDesktopPool,
-                                    Float.class);
-        if (window != null) {
-            return window.intValue();
+    public int getObservationPeriod(long oid) {
+        try {
+            Float window =
+                       getEntitySetting(oid,
+                                        EntitySettingSpecs.MaxObservationPeriodDesktopPool,
+                                        Float.class);
+            if (window != null) {
+                return window.intValue();
+            }
+        } catch (HistoryCalculationException e) {
+            logger.error("Failed to get observation windows count for oid " + oid, e);
         }
         return (int)EntitySettingSpecs.MaxObservationPeriodDesktopPool.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
@@ -65,17 +72,20 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
     /**
      * Get the number of slot windows per day for a given entity.
      *
-     * @param context pipeline context
      * @param oid entity oid
      * @return slots, default to 1
      */
-    public int getSlots(@Nonnull HistoryAggregationContext context, long oid) {
-        DailyObservationWindowsCount slots =
-                   context.getEntitySetting(oid,
-                                    EntitySettingSpecs.DailyObservationWindowDesktopPool,
-                                    DailyObservationWindowsCount.class);
-        if (slots != null) {
-            return slots.getCountOfWindowsPerDay();
+    public int getSlots(long oid) {
+        try {
+            DailyObservationWindowsCount slots =
+                       getEntitySetting(oid,
+                                        EntitySettingSpecs.DailyObservationWindowDesktopPool,
+                                        DailyObservationWindowsCount.class);
+            if (slots != null) {
+                return slots.getCountOfWindowsPerDay();
+            }
+        } catch (HistoryCalculationException e) {
+            logger.error("Failed to get observation windows count for oid " + oid, e);
         }
         return DailyObservationWindowsCount.THREE.getCountOfWindowsPerDay();
     }

@@ -17,7 +17,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoryCommodityData;
@@ -37,10 +36,10 @@ public class TimeSlotCommodityData
     private long timestamp;
 
     @Override
-    public synchronized void init(@Nonnull EntityCommodityFieldReference field,
+    public void init(@Nonnull EntityCommodityFieldReference field,
                      @Nullable List<Pair<Long, StatRecord>> dbValue, @Nonnull TimeslotHistoricalEditorConfig config,
-                     @Nonnull HistoryAggregationContext context) {
-        int slotCount = config.getSlots(context, field.getEntityOid());
+                     @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
+        int slotCount = config.getSlots(field.getEntityOid());
         if (logger.isTraceEnabled()) {
             logger.trace("{}initializing timeslot cache for {} and {} slots", LOG_PREFIX, field, slotCount);
         }
@@ -60,14 +59,13 @@ public class TimeSlotCommodityData
     }
 
     @Override
-    public synchronized void aggregate(@Nonnull EntityCommodityFieldReference field,
+    public void aggregate(@Nonnull EntityCommodityFieldReference field,
                           @Nonnull TimeslotHistoricalEditorConfig config,
-                          @Nonnull HistoryAggregationContext context) {
+                          @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         if (previousSlots == null) {
             // no slots configured
             return;
         }
-        final ICommodityFieldAccessor commodityFieldsAccessor = context.getAccessor();
         Double capacity = commodityFieldsAccessor.getCapacity(field);
         if (capacity == null || capacity <= 0d) {
             logger.error(LOG_PREFIX + "cannot be done for " + field
@@ -75,7 +73,7 @@ public class TimeSlotCommodityData
             return;
         }
 
-        if (!context.isPlan()) {
+        if (!config.isPlan()) {
             long now = config.getClock().millis();
             if (currentSlot.count == 0) {
                 timestamp = now;
@@ -111,7 +109,7 @@ public class TimeSlotCommodityData
     }
 
     @Override
-    public synchronized Void checkpoint(@Nonnull List<List<Pair<Long, StatRecord>>> outdated)
+    public Void checkpoint(@Nonnull List<List<Pair<Long, StatRecord>>> outdated)
                     throws HistoryCalculationException {
         if (previousSlots == null) {
             // no slots configured

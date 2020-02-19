@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -30,16 +31,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.components.common.utils.ThrowingConsumer;
-import com.vmturbo.components.common.utils.TriFunction;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
-import com.vmturbo.topology.processor.history.HistoryAggregationContext;
+import com.vmturbo.topology.processor.history.CommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.IHistoricalEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
@@ -116,22 +116,22 @@ public class HistoryAggregator {
                         gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
         // store reference to the current settings for policies access
         // set up commodity builders lazy/fast access
-        HistoryAggregationContext context = new HistoryAggregationContext(graph, !CollectionUtils
-                        .isEmpty(changes));
+        ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph.getTopologyGraph());
 
         // this may initiate background loading of certain data
         forEachEditor(editorsToRun,
-                      editor -> editor.initContext(context, commsToUpdate.get(editor)),
+                      editor -> editor.initContext(graph, accessor, commsToUpdate.get(editor),
+                                                   !CollectionUtils.isEmpty(changes)),
                       "initialization",
                       "The time spent initializing historical data cache for {}");
 
         try {
             // submit the preparation tasks and wait for completion
-            executeTasks(context, commsToUpdate, IHistoricalEditor::createPreparationTasks,
+            executeTasks(graph.getTopologyGraph(), commsToUpdate, IHistoricalEditor::createPreparationTasks,
                          true, "chunked prepare", LOAD_HISTORY_SUMMARY_METRIC);
 
             // submit the calculation tasks and wait for completion
-            executeTasks(context, commsToUpdate, IHistoricalEditor::createCalculationTasks,
+            executeTasks(graph.getTopologyGraph(), commsToUpdate, IHistoricalEditor::createCalculationTasks,
                          false, "calculate", CALCULATE_HISTORY_SUMMARY_METRIC);
         } catch (RejectedExecutionException | InterruptedException | ExecutionException e) {
             Throwable reason = e;
@@ -144,11 +144,11 @@ public class HistoryAggregator {
             throw new PipelineStageException(FAILURE_CAUSE, reason);
         }
 
-        forEachEditor(editorsToRun, editor -> editor.completeBroadcast(context), "completion",
+        forEachEditor(editorsToRun, IHistoricalEditor::completeBroadcast, "completion",
                       "The time spent completing historical data broadcast preparation for {}");
 
         logger.info("History aggregator commodities modified: {} in {}", editorsToRun.stream()
-                        .map(editor -> editor.getClass().getSimpleName() + ":" + context.getAccessor()
+                        .map(editor -> editor.getClass().getSimpleName() + ":" + accessor
                                         .getUpdateCount(editor.getClass().getSimpleName()))
                         .collect(Collectors.joining(" ")), stopwatch.stop());
     }
@@ -191,10 +191,9 @@ public class HistoryAggregator {
 
     @Nonnull
     private <Output> Map<IHistoricalEditor<?>, List<Output>>
-            executeTasks(@Nonnull HistoryAggregationContext context,
+            executeTasks(@Nonnull TopologyGraph<TopologyEntity> graph,
                          @Nonnull Map<IHistoricalEditor<?>, List<EntityCommodityReference>> editor2comms,
-                         @Nonnull TriFunction<IHistoricalEditor<?>,
-                             HistoryAggregationContext,
+                         @Nonnull BiFunction<IHistoricalEditor<?>,
                              List<EntityCommodityReference>,
                              List<? extends Callable<List<Output>>>> tasksCreator,
                          boolean splitByEntityType,
@@ -218,7 +217,9 @@ public class HistoryAggregator {
                     final Collection<List<EntityCommodityReference>> partitionedComms;
                     if (splitByEntityType) {
                         partitionedComms = editorComms.stream().collect(Collectors
-                                        .groupingBy(comm -> context.getEntityType(comm.getEntityOid())))
+                                        .groupingBy(comm -> graph.getEntity(comm.getEntityOid())
+                                                        .map(TopologyEntity::getEntityType)
+                                                        .orElse(0)))
                                         .values();
                     } else {
                         partitionedComms = Collections.singletonList(editorComms);
@@ -226,8 +227,7 @@ public class HistoryAggregator {
                     // create and submit tasks for execution
                     List<Callable<List<Output>>> tasks = partitionedComms.stream()
                                     .flatMap(comms -> tasksCreator
-                                                    .apply(editorEntry.getKey(), context, comms)
-                                                    .stream())
+                                                    .apply(editorEntry.getKey(), comms).stream())
                                     .collect(Collectors.toList());
                     logger.debug("Submitting {} tasks to {} {} history data of {} commodities",
                                  tasks::size, description::toString,
@@ -303,6 +303,24 @@ public class HistoryAggregator {
             });
         }
         return commoditiesToEdit;
+    }
+
+    /**
+     * A consumer that can throw.
+     *
+     * @param <T> consumer argument
+     * @param <E> exception
+     */
+    @FunctionalInterface
+    private interface ThrowingConsumer<T, E extends Exception> {
+        /**
+         * Process the argument, possibly throwing an exception.
+         *
+         * @param t argument
+         * @throws E exception to throw
+         * @throws InterruptedException when execution is interrupted
+         */
+        void accept(T t) throws E, InterruptedException;
     }
 
 }

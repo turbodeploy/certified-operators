@@ -8,7 +8,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -73,7 +72,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
 
     @Override
     public boolean isInstanceSizeFlexible() {
-        return ReservedInstanceUtil.LINUX_BASED_OS_SET.contains(this.platform) && tenancy == Tenancy.DEFAULT;
+        return platform == OSType.LINUX && tenancy == Tenancy.DEFAULT;
     }
 
     @Override

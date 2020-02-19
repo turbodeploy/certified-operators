@@ -22,23 +22,14 @@ public class StorageInfoMapper extends TypeSpecificInfoMapper {
             return TypeSpecificInfo.getDefaultInstance();
         }
         final StorageData storageData = sdkEntity.getStorageData();
-        boolean isLocal = Boolean.parseBoolean(entityPropertyMap.get("local"));
+        boolean isLocal = Boolean.valueOf(entityPropertyMap.get("local"));
         // remove local from entityPropertyMap to prevent duplication of data on typeSpecificInfo
         entityPropertyMap.remove("local");
-
-        StorageInfo.Builder storageInfo = StorageInfo.newBuilder()
-                .setStorageType(storageData.getStorageType())
-                .setIsLocal(isLocal)
-                .addAllExternalName(storageData.getExternalNameList());
-
-        if (storageData.hasPolicy()) {
-            storageInfo.setPolicy(storageData.getPolicy());
-        }
-
-        if (storageData.hasRawCapacity()) {
-            storageInfo.setRawCapacity(storageData.getRawCapacity());
-        }
-
-        return TypeSpecificInfo.newBuilder().setStorage(storageInfo).build();
+        return TypeSpecificInfo.newBuilder()
+                .setStorage(StorageInfo.newBuilder()
+                        .setStorageType(storageData.getStorageType())
+                        .setIsLocal(isLocal)
+                        .addAllExternalName(storageData.getExternalNameList()))
+                .build();
     }
 }
