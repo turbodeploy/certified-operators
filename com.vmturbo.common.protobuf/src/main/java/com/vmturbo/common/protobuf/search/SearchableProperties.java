@@ -45,11 +45,6 @@ public class SearchableProperties {
     public static final String DS_LOCAL = "local";
 
     /**
-     * Property used for searching discovered business accounts which have associated target.
-     */
-    public static final String ASSOCIATED_TARGET_ID = "associatedTargetId";
-
-    /**
      * Account property name used for search groups owned by business account.
      */
     public static final String ACCOUNT_ID = "accountID";
