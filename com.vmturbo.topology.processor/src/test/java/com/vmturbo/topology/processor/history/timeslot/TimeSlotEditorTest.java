@@ -24,6 +24,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -79,13 +80,14 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
 
         TimeslotEditorCacheAccess editor = new TimeslotEditorCacheAccess(CONFIG, null);
         List<EntityCommodityReference> comms = ImmutableList.of(ref1, ref2, ref3);
-        editor.initContext(graphWithSettings, null, comms, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        editor.initContext(context, comms);
         // as if already got data for oid2
         editor.getCache().put(new EntityCommodityFieldReference(ref2, CommodityField.USED),
                               new TimeSlotCommodityData());
 
         List<? extends Callable<List<EntityCommodityFieldReference>>> tasks = editor
-                        .createPreparationTasks(comms);
+                        .createPreparationTasks(context, comms);
 
         // should have 2 tasks - for ref1 and ref3
         Assert.assertEquals(2, tasks.size());

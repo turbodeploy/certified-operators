@@ -1292,6 +1292,76 @@ public class TopologyFilterFactoryTest {
         assertFalse(propertyFilter.test(entityNoVendorId));
     }
 
+    /**
+     * Test that this filter filters out business accounts which have no associated targets.
+     */
+    @Test
+    public void testAssociatedTargetFilter() {
+        final long account1Id = 1L;
+        final long account2Id = 2L;
+        final long account3Id = 3L;
+        final long account4Id = 4L;
+        final long target1Id = 11L;
+        final long target2Id = 22L;
+
+        final PropertyFilter<TestGraphEntity> associatedTargetFilter = filterFactory.filterFor(
+                Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.ASSOCIATED_TARGET_ID)
+                        .setNumericFilter(NumericFilter.getDefaultInstance())
+                        .build());
+
+        final TestGraphEntity account1 =
+                TestGraphEntity.newBuilder(account1Id, UIEntityType.BUSINESS_ACCOUNT)
+                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                                        .setAssociatedTargetId(target1Id)
+                                        .build())
+                                .build())
+                        .build();
+        final TestGraphEntity account2 =
+                TestGraphEntity.newBuilder(account2Id, UIEntityType.BUSINESS_ACCOUNT)
+                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                                        .setAssociatedTargetId(target2Id)
+                                        .build())
+                                .build())
+                        .build();
+        final TestGraphEntity account3 =
+                TestGraphEntity.newBuilder(account3Id, UIEntityType.BUSINESS_ACCOUNT)
+                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                .setBusinessAccount(BusinessAccountInfo.getDefaultInstance())
+                                .build())
+                        .build();
+        final TestGraphEntity account4 =
+                TestGraphEntity.newBuilder(account4Id, UIEntityType.BUSINESS_ACCOUNT).build();
+
+        assertThat(associatedTargetFilter.apply(Stream.of(account1, account2, account3, account4),
+                graph).collect(Collectors.toList()), contains(account1, account2));
+    }
+
+    /**
+     * Test exception in case if we try to filter entity which has not this property.
+     */
+    @Test
+    public void testAssociatedTargetFilterException() {
+        expectedException.expect(IllegalArgumentException.class);
+        final PropertyFilter<TestGraphEntity> associatedTargetFilter = filterFactory.filterFor(
+                Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.ASSOCIATED_TARGET_ID)
+                        .setNumericFilter(NumericFilter.getDefaultInstance())
+                        .build());
+
+        final TestGraphEntity notSupportedEntity =
+                TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_MACHINE)
+                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                .setVirtualMachine(VirtualMachineInfo.getDefaultInstance())
+                                .build())
+                        .build();
+
+        associatedTargetFilter.apply(Stream.of(notSupportedEntity), graph)
+                .collect(Collectors.toList());
+    }
+
     private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {
         final VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder()
                                               .addAllConnectedNetworks(Arrays.asList(connectedNetworks))

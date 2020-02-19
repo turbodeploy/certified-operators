@@ -33,6 +33,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -65,6 +66,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -97,7 +99,6 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 public class BusinessAccountRetrieverTest {
 
     private static final long ACCOUNT_OID = 7L;
-    private static final long UNMONITORED_ACCOUNT_OID = 7L;
 
     private static final TopologyEntityDTO ACCOUNT = TopologyEntityDTO.newBuilder()
         .setOid(ACCOUNT_OID)
@@ -108,12 +109,6 @@ public class BusinessAccountRetrieverTest {
                 .setAssociatedTargetId(123L)
                 .build())
             .build())
-        .build();
-
-    private static final TopologyEntityDTO UNMONITORED_ACCOUNT = TopologyEntityDTO.newBuilder()
-        .setOid(UNMONITORED_ACCOUNT_OID)
-        .setDisplayName("unmonitored account")
-        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
         .build();
 
     private ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
@@ -175,9 +170,12 @@ public class BusinessAccountRetrieverTest {
         final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(null, null);
 
         // ASSERT
-        verify(repositoryApi).newSearchRequestMulti(Collections.singletonList(
-                SearchProtoUtil.makeSearchParameters(
-                        SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)).build()));
+        final SearchParameters searchParametersForAllAccounts = SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)).build();
+        final SearchParameters searchParametersForFilteringMonitoredAccounts =
+                getFilterForMonitoredAccounts();
+        verify(repositoryApi).newSearchRequestMulti(
+                Arrays.asList(searchParametersForAllAccounts, searchParametersForFilteringMonitoredAccounts));
         verify(mockMapper).convert(Collections.singletonList(ACCOUNT), true);
 
         assertThat(results, is(Collections.singletonList(convertedDto)));
@@ -252,7 +250,7 @@ public class BusinessAccountRetrieverTest {
 
         // Mock the search request to return the matching accounts
         final RepositoryApi.SearchRequest mockReq =
-            ApiTestUtils.mockSearchFullReq(Lists.newArrayList(ACCOUNT, UNMONITORED_ACCOUNT));
+            ApiTestUtils.mockSearchFullReq(Lists.newArrayList(ACCOUNT));
         when(repositoryApi.newSearchRequestMulti(Mockito.anyCollectionOf(SearchParameters.class)))
             .thenReturn(mockReq);
 
@@ -275,12 +273,15 @@ public class BusinessAccountRetrieverTest {
             Lists.newArrayList(groupId), null);
 
         // ASSERT
-        verify(repositoryApi).newSearchRequestMulti(Collections.singletonList(
-                SearchProtoUtil.makeSearchParameters(
-                        SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-                        .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                                SearchProtoUtil.idFilter(expandedOids)))
-                        .build()));
+        final SearchParameters searchParametersForGroupScope = SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                        SearchProtoUtil.idFilter(expandedOids)))
+                .build();
+        final SearchParameters searchParametersForFilteringMonitoredAccounts =
+                getFilterForMonitoredAccounts();
+        verify(repositoryApi).newSearchRequestMulti(
+                Arrays.asList(searchParametersForGroupScope, searchParametersForFilteringMonitoredAccounts));
 
         // Only ACCOUNT should be converted.
         // The UNMONITORED_ACCOUNT should not be converted because the account does not have an
@@ -289,6 +290,38 @@ public class BusinessAccountRetrieverTest {
         verify(mockMapper).convert(Lists.newArrayList(ACCOUNT), false);
 
         assertThat(results, is(Collections.singletonList(convertedDto)));
+    }
+
+    /**
+     * Test that get business accounts request contains several search parameters. First for
+     * searching  entities with business_account entity type and second for searching business
+     * accounts which have associated target.
+     */
+    @Test
+    public void testSearchParametersWhenGetBusinessAccountsInScope() {
+        // ARRANGE
+        final RepositoryApi.SearchRequest mockReq =
+                ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
+        when(repositoryApi.newSearchRequestMulti(any())).thenReturn(mockReq);
+
+        final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
+        when(mockMapper.convert(any(), anyBoolean())).thenReturn(
+                Collections.singletonList(convertedDto));
+
+        final SearchParameters searchParameterForFilteringMonitoredAccounts =
+                getFilterForMonitoredAccounts();
+
+        // ACT
+        businessAccountRetriever.getBusinessAccountsInScope(null, null);
+
+        ArgumentCaptor<Collection> searchParametersCaptor =
+                ArgumentCaptor.forClass((Collection.class));
+
+        // ASSERT
+        verify(repositoryApi).newSearchRequestMulti(searchParametersCaptor.capture());
+        Assert.assertEquals(2, searchParametersCaptor.getValue().size());
+        Assert.assertTrue(searchParametersCaptor.getValue()
+                .contains(searchParameterForFilteringMonitoredAccounts));
     }
 
     /**
@@ -655,5 +688,14 @@ public class BusinessAccountRetrieverTest {
         Assert.assertEquals(1, actualBusinessUnits.size());
         BusinessUnitApiDTO actual = actualBusinessUnits.get(0);
         Assert.assertNull(actual.getCostPrice());
+    }
+
+    private SearchParameters getFilterForMonitoredAccounts() {
+        return SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                .addSearchFilter(SearchFilter.newBuilder()
+                        .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
+                        .build())
+                .build();
     }
 }

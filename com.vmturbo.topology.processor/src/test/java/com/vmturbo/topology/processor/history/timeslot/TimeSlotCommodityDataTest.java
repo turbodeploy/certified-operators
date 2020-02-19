@@ -21,6 +21,7 @@ import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.CommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotCommodityData.SlotStatistics;
 
@@ -34,6 +35,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
     private static final EntityCommodityFieldReference FIELD =
                     new EntityCommodityFieldReference(1, COMM_TYPE, CommodityField.USED);
     private TimeslotHistoricalEditorConfig config;
+    private HistoryAggregationContext context;
     private Clock clock;
 
     /**
@@ -42,10 +44,10 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
     @Before
     public void before() {
         config = Mockito.mock(TimeslotHistoricalEditorConfig.class);
-        Mockito.when(config.isPlan()).thenReturn(false);
-        Mockito.when(config.getSlots(Mockito.anyLong())).thenReturn(SLOTS);
+        Mockito.when(config.getSlots(Mockito.any(), Mockito.anyLong())).thenReturn(SLOTS);
         clock = Mockito.mock(Clock.class);
         Mockito.when(config.getClock()).thenReturn(clock);
+        context = Mockito.mock(HistoryAggregationContext.class);
     }
 
     /**
@@ -97,20 +99,21 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         final TopologyEntity entity =
                         mockEntity(1, 1, COMM_TYPE, cap, used1, null, null, null, null, true);
         final ICommodityFieldAccessor accessor = createAccessor(cap, entity, 1000);
+        Mockito.when(context.getAccessor()).thenReturn(accessor);
         final CommoditySoldDTO.Builder commSold =
                         entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                                         .get(0);
 
         TimeSlotCommodityData tcd = new TimeSlotCommodityData();
-        tcd.init(FIELD, null, config, accessor);
+        tcd.init(FIELD, null, config, context);
 
         // 2 points in 1st hour
         Mockito.when(clock.millis()).thenReturn(1L);
         Mockito.doReturn(used1).when(accessor).getRealTimeValue(FIELD);
-        tcd.aggregate(FIELD, config, accessor);
+        tcd.aggregate(FIELD, config, context);
         commSold.getHistoricalUsedBuilder().clear();
         Mockito.doReturn(used2).when(accessor).getRealTimeValue(FIELD);
-        tcd.aggregate(FIELD, config, accessor);
+        tcd.aggregate(FIELD, config, context);
 
         // should still be 0 values
         Assert.assertTrue(commSold.hasHistoricalUsed());
@@ -123,7 +126,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         final float expectedFirstHourAvg = (float)((used1 + used2) / 2 / cap);
         Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS + 1).when(clock).millis();
         Mockito.doReturn(used3).when(accessor).getRealTimeValue(FIELD);
-        tcd.aggregate(FIELD, config, accessor);
+        tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstHourAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
         Assert.assertEquals(0, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
         commSold.getHistoricalUsedBuilder().clear();
@@ -132,7 +135,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         final float expectedFirstSlotAvg = (float)((expectedFirstHourAvg + used3 / cap) / 2);
         Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 12 + 1).when(clock).millis();
         Mockito.doReturn(used4).when(accessor).getRealTimeValue(FIELD);
-        tcd.aggregate(FIELD, config, accessor);
+        tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
         Assert.assertEquals(0, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
         commSold.getHistoricalUsedBuilder().clear();
@@ -140,7 +143,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         // and another hour and a point
         Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 13 + 1).when(clock).millis();
         Mockito.doReturn(used5).when(accessor).getRealTimeValue(FIELD);
-        tcd.aggregate(FIELD, config, accessor);
+        tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
         Assert.assertEquals(used4 / cap, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
 

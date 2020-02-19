@@ -95,22 +95,9 @@ public class PlanTopologyListener implements PlanAnalysisTopologyListener {
      */
     @Override
     public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
-        @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
-        final List<Long> scopedSeedOids = topologyInfo.getScopeSeedOidsList();
-        final long topologyContextId = topologyInfo.getTopologyContextId();
-
-        final GetReservedInstanceBoughtByTopologyRequest.Builder requestBuilder =
-                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
-                        .setTopologyType(topologyInfo.getTopologyType())
-                        .setTopologyContextId(topologyInfo.getTopologyContextId())
-                        .setScopeEntityType(topologyInfo.getScopeEntityType())
-                        .addAllScopeSeedOids(topologyInfo.getScopeSeedOidsList());
-        // Getting bought RIs from grpc service allow to get data with RI utilization.
-        final GetReservedInstanceBoughtByTopologyResponse riBoughtResponse =
-        reservedInstanceBoughtServiceBlockingStub.getReservedInstanceBoughtByTopology(requestBuilder.build());
-        final List<ReservedInstanceBought> allReservedInstancesBought = riBoughtResponse.getReservedInstanceBoughtList();
-        planReservedInstanceStore.insertPlanReservedInstanceBought(allReservedInstancesBought,
-                        topologyContextId);
+                   @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
+        // We don't need to save the plan included RIs at the end of the plan.
+        // as they would've already been saved during the plan run.
     }
 
     /**
