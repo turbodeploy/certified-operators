@@ -483,6 +483,7 @@ data:
         historyAggregation.grpcChannelMaxMessageSizeKb: 204800
         # Whether to enable consistent scaling
         consistentScalingEnabled: true
+        enableInternalProbes: false
         # How many timeslot-related commodities trigger background history loading vs synchronous
         historyAggregation.backgroundLoadingThreshold: 5000
         # How many background history loading retries are tolerated before stopping and sending up a notification
