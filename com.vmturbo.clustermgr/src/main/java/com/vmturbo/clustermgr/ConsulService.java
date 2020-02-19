@@ -5,6 +5,7 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -132,7 +133,8 @@ public class ConsulService {
                                 Throwable cause = e.getCause();
                                 if (cause instanceof SocketTimeoutException
                                         || cause instanceof ConnectException
-                                        || cause instanceof ConnectTimeoutException) {
+                                        || cause instanceof ConnectTimeoutException
+                                        || cause instanceof UnknownHostException) {
                                     return true;
                                 }
                             }

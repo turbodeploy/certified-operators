@@ -28,8 +28,8 @@ public class AuthApiKVConfig {
     @Value("${instance_id}")
     private String applicationName;
 
-    @Value("${kvStoreRetryIntervalMillis}")
-    private long kvStoreRetryIntervalMillis;
+    @Value("${kvStoreTimeoutSeconds:120}")
+    private long kvStoreTimeoutSeconds;
 
     /**
      * Construct the key/value store that is attached to auth component.
@@ -40,11 +40,11 @@ public class AuthApiKVConfig {
     @Bean
     public KeyValueStore authKeyValueStore() {
         return new ConsulKeyValueStore(
-                AUTH_NAMESPACE,
+            AUTH_NAMESPACE,
             consulHost,
             consulPort,
-            kvStoreRetryIntervalMillis,
-            TimeUnit.MILLISECONDS
+            kvStoreTimeoutSeconds,
+            TimeUnit.SECONDS
         );
     }
 }

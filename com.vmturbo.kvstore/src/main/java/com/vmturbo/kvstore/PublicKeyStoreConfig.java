@@ -19,8 +19,8 @@ public class PublicKeyStoreConfig extends KeyValueStoreConfig {
                 getApplicationName(),
                 getConsulHost(),
                 getConsulPort(),
-                getKvStoreRetryIntervalMillis(),
-                TimeUnit.MILLISECONDS
+                getKvStoreTimeoutSecond(),
+                TimeUnit.SECONDS
         );
     }
 }

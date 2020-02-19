@@ -22,8 +22,8 @@ public class KVConfig extends KeyValueStoreConfig {
                 "telemetry",
                 getConsulHost(),
                 getConsulPort(),
-                getKvStoreRetryIntervalMillis(),
-                TimeUnit.MILLISECONDS
+                getKvStoreTimeoutSecond(),
+                TimeUnit.SECONDS
         );
     }
 }

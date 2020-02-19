@@ -15,14 +15,14 @@ public class PublicKeyStore implements IPublicKeyStore {
     public PublicKeyStore(final String namespace,
                           final String consulHost,
                           final String consulPort,
-                          final long kvStoreRetryIntervalMillis,
-                          final TimeUnit milliseconds) {
+                          final long kvStoreTimeoutSeconds,
+                          final TimeUnit seconds) {
         this.namespace = namespace;
         this.consulKeyValueStore = new ConsulKeyValueStore(PUBLIC_KEY,
                 consulHost,
                 consulPort,
-                kvStoreRetryIntervalMillis,
-                milliseconds);
+                kvStoreTimeoutSeconds,
+                seconds);
     }
 
     /**

@@ -24,8 +24,8 @@ public class KeyValueStoreConfig {
     @Value("${component_type}-1")
     private String applicationName;
 
-    @Value("${kvStoreRetryIntervalMillis}")
-    private long kvStoreRetryIntervalMillis;
+    @Value("${kvStoreTimeoutSeconds:120}")
+    private long kvStoreTimeoutSeconds;
 
     @Bean
     public KeyValueStore keyValueStore() {
@@ -33,8 +33,8 @@ public class KeyValueStoreConfig {
                 applicationName,
                 consulHost,
                 consulPort,
-                kvStoreRetryIntervalMillis,
-                TimeUnit.MILLISECONDS
+                kvStoreTimeoutSeconds,
+                TimeUnit.SECONDS
         );
     }
 
@@ -50,7 +50,7 @@ public class KeyValueStoreConfig {
         return applicationName;
     }
 
-    protected long getKvStoreRetryIntervalMillis() {
-        return kvStoreRetryIntervalMillis;
+    protected long getKvStoreTimeoutSecond() {
+        return kvStoreTimeoutSeconds;
     }
 }

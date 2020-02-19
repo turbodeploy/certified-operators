@@ -164,7 +164,8 @@ public class ConsulHealthcheckRegistration {
                             Throwable cause = ((ConsulException)e).getCause();
                             if (cause instanceof SocketTimeoutException
                                     || cause instanceof ConnectException
-                                    || cause instanceof ConnectTimeoutException) {
+                                    || cause instanceof ConnectTimeoutException
+                                    || cause instanceof UnknownHostException) {
                                 return true;
                             }
                         }

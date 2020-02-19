@@ -22,16 +22,16 @@ public class AuthKVConfig {
     @Value("${consul_port:8500}")
     private String consulPort;
 
-    @Value("${kvStoreRetryIntervalMillis}")
-    private long kvStoreRetryIntervalMillis;
+    @Value("${kvStoreTimeoutSeconds:120}")
+    private long kvStoreTimeoutSeconds;
 
     @Bean
     public KeyValueStore authKeyValueStore() {
         return new ConsulKeyValueStore(AuthApiKVConfig.AUTH_NAMESPACE,
                 consulHost,
                 consulPort,
-                kvStoreRetryIntervalMillis,
-                TimeUnit.MILLISECONDS
+                kvStoreTimeoutSeconds,
+                TimeUnit.SECONDS
         );
     }
 

@@ -41,7 +41,7 @@ data:
         # Auth
         authRetryDelaySecs: 10
         # Consul Key/Value and Service Discovery Utility
-        kvStoreRetryIntervalMillis: 1000
+        kvStoreTimeoutSeconds: 120
         # Default stat retention times
         retention.numRetainedMinutes: 130
         # DB
