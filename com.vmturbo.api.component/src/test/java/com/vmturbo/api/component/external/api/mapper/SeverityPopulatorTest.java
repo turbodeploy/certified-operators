@@ -63,19 +63,70 @@ public class SeverityPopulatorTest {
         vm2.setUuid(VM2_UUID);
     }
 
+    /**
+     * Should populate the entities with their severity, taking in consideration the entity level
+     * severity and the severity breakdown. Entities considered are:
+     * <ol>
+     *     <li>Only entity level severity</li>
+     *     <li>The severity in severity breakdown is larger than the entity level</li>
+     *     <li>The severity in severity breakdown is smaller than the entity level</li>
+     *     <li>The severity in the severity breakdown is larger than entity level, but has a 0 count</li>
+     *     <li>Severity breakdown has two severities, but the higher has 0 count</li>
+     *     <li>Does not have severity breakdown nor entity level severity</li>
+     *     <li>Is not found in the entity severity cache</li>
+     * </ol>
+     */
     @Test
-    public void testPopulateSeveritiesCollection() throws Exception {
-        List<ServiceEntityApiDTO> entities = Arrays.asList(vm1, vm2);
+    public void testPopulateSeveritiesCollection() {
+        long oidCount = 1;
+        ServiceEntityApiDTO onlyEntityLevelSeverity = makeEntity(oidCount++);
+        ServiceEntityApiDTO breakdownBiggerThanEntityLevel = makeEntity(oidCount++);
+        ServiceEntityApiDTO breakdownSmallerThanEntityLevel = makeEntity(oidCount++);
+        ServiceEntityApiDTO breakdownZeroCount1 = makeEntity(oidCount++);
+        ServiceEntityApiDTO breakdownZeroCount2 = makeEntity(oidCount++);
+        ServiceEntityApiDTO noBreakdownNoEntityLevel = makeEntity(oidCount++);
+        ServiceEntityApiDTO notFoundEntity = makeEntity(oidCount++);
+        List<ServiceEntityApiDTO> entities = Arrays.asList(
+            onlyEntityLevelSeverity,
+            breakdownBiggerThanEntityLevel,
+            breakdownSmallerThanEntityLevel,
+            breakdownZeroCount1,
+            breakdownZeroCount2,
+            noBreakdownNoEntityLevel,
+            notFoundEntity
+        );
 
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
-            severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
-            severityBuilder(2L).build()
+            severityBuilder(onlyEntityLevelSeverity.getUuid()).setSeverity(Severity.MAJOR).build(),
+            severityBuilder(breakdownBiggerThanEntityLevel.getUuid())
+                .setSeverity(Severity.MINOR)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 1)
+                .build(),
+            severityBuilder(breakdownSmallerThanEntityLevel.getUuid())
+                .setSeverity(Severity.MAJOR)
+                .putSeverityBreakdown(Severity.MINOR.getNumber(), 1)
+                .build(),
+            severityBuilder(breakdownZeroCount1.getUuid())
+                .setSeverity(Severity.MINOR)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 0)
+                .build(),
+            severityBuilder(breakdownZeroCount2.getUuid())
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 0)
+                .putSeverityBreakdown(Severity.MINOR.getNumber(), 1)
+                .build(),
+            severityBuilder(noBreakdownNoEntityLevel.getUuid()).build()
         ));
+
         severityPopulator.populate(realtimeTopologyContextId, entities);
 
         // The call to populate mutates the vmInstances and pmInstances maps in the dto.
-        Assert.assertEquals("Major", entities.get(0).getSeverity());
-        Assert.assertEquals("Normal", entities.get(1).getSeverity());
+        Assert.assertEquals("Major", onlyEntityLevelSeverity.getSeverity());
+        Assert.assertEquals("Major", breakdownBiggerThanEntityLevel.getSeverity());
+        Assert.assertEquals("Major", breakdownSmallerThanEntityLevel.getSeverity());
+        Assert.assertEquals("Minor", breakdownZeroCount1.getSeverity());
+        Assert.assertEquals("Minor", breakdownZeroCount2.getSeverity());
+        Assert.assertEquals("Normal", noBreakdownNoEntityLevel.getSeverity());
+        Assert.assertEquals("Normal", notFoundEntity.getSeverity());
     }
 
     @Test
@@ -131,7 +182,6 @@ public class SeverityPopulatorTest {
         Assert.assertEquals("Critical", pmInstances.get("9999").getSeverity());
     }
 
-
     @Test
     public void testCalculateSeverityWithMixedSeverities1() {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
@@ -160,6 +210,77 @@ public class SeverityPopulatorTest {
                 severityPopulator.getSeverityMap(realtimeTopologyContextId, Collections.emptySet());
         Assert.assertEquals(Severity.NORMAL,
                 severityMap.calculateSeverity(Collections.emptyList()));
+    }
+
+    /**
+     * Should calculate severity, taking in consideration the entity level severity and the
+     * severity breakdown. Test cases consider are:
+     * <ol>
+     *     <li>Only entity level severity</li>
+     *     <li>The severity in severity breakdown is larger than the entity level</li>
+     *     <li>The severity in severity breakdown is smaller than the entity level</li>
+     *     <li>The severity in the severity breakdown is larger than entity level, but has a 0 count</li>
+     *     <li>Severity breakdown has two severities, but the higher has 0 count</li>
+     *     <li>Does not have severity breakdown nor entity level severity</li>
+     *     <li>Is not found in the entity severity cache</li>
+     * </ol>
+     */
+    @Test
+    public void testCalculateSeverityEdgeCases() {
+        long oidCount = 1;
+        long onlyEntityLevelSeverity = oidCount++;
+        long breakdownBiggerThanEntityLevel = oidCount++;
+        long breakdownSmallerThanEntityLevel = oidCount++;
+        long breakdownZeroCount1 = oidCount++;
+        long breakdownZeroCount2 = oidCount++;
+        long noBreakdownNoEntityLevel = oidCount++;
+        long notFoundEntity = oidCount++;
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+            severityBuilder(onlyEntityLevelSeverity).setSeverity(Severity.MAJOR).build(),
+            severityBuilder(breakdownBiggerThanEntityLevel)
+                .setSeverity(Severity.MINOR)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 1)
+                .build(),
+            severityBuilder(breakdownSmallerThanEntityLevel)
+                .setSeverity(Severity.MAJOR)
+                .putSeverityBreakdown(Severity.MINOR.getNumber(), 1)
+                .build(),
+            severityBuilder(breakdownZeroCount1)
+                .setSeverity(Severity.MINOR)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 0)
+                .build(),
+            severityBuilder(breakdownZeroCount2)
+                .putSeverityBreakdown(Severity.MAJOR.getNumber(), 0)
+                .putSeverityBreakdown(Severity.MINOR.getNumber(), 1)
+                .build(),
+            severityBuilder(noBreakdownNoEntityLevel).build()
+        ));
+
+        final SeverityMap severityMap = severityPopulator
+            .getSeverityMap(realtimeTopologyContextId,
+                Sets.newHashSet(
+                    onlyEntityLevelSeverity,
+                    breakdownBiggerThanEntityLevel,
+                    breakdownSmallerThanEntityLevel,
+                    breakdownZeroCount1,
+                    breakdownZeroCount2,
+                    noBreakdownNoEntityLevel,
+                    notFoundEntity));
+
+        Assert.assertEquals(Severity.MAJOR,
+            severityMap.calculateSeverity(Collections.singletonList(onlyEntityLevelSeverity)));
+        Assert.assertEquals(Severity.MAJOR,
+            severityMap.calculateSeverity(Collections.singletonList(breakdownBiggerThanEntityLevel)));
+        Assert.assertEquals(Severity.MAJOR,
+            severityMap.calculateSeverity(Collections.singletonList(breakdownSmallerThanEntityLevel)));
+        Assert.assertEquals(Severity.MINOR,
+            severityMap.calculateSeverity(Collections.singletonList(breakdownZeroCount1)));
+        Assert.assertEquals(Severity.MINOR,
+            severityMap.calculateSeverity(Collections.singletonList(breakdownZeroCount2)));
+        Assert.assertEquals(Severity.NORMAL,
+            severityMap.calculateSeverity(Collections.singletonList(noBreakdownNoEntityLevel)));
+        Assert.assertEquals(Severity.NORMAL,
+            severityMap.calculateSeverity(Collections.singletonList(notFoundEntity)));
     }
 
     @Test
@@ -261,6 +382,16 @@ public class SeverityPopulatorTest {
         Assert.assertEquals(Long.valueOf(2L), severityBreakdown.get(Severity.MAJOR.name()));
         Assert.assertEquals(Long.valueOf(1L), severityBreakdown.get(Severity.MINOR.name()));
         Assert.assertNull(severityBreakdown.get(Severity.NORMAL.name()));
+    }
+
+    private static ServiceEntityApiDTO makeEntity(long oid) {
+        ServiceEntityApiDTO entity = new ServiceEntityApiDTO();
+        entity.setUuid(String.valueOf(oid));
+        return entity;
+    }
+
+    private EntitySeverity.Builder severityBuilder(final String id) {
+        return severityBuilder(Long.parseLong(id));
     }
 
     private EntitySeverity.Builder severityBuilder(final long id) {

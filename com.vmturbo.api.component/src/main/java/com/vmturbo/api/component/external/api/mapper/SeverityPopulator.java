@@ -1,13 +1,14 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -15,6 +16,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Streams;
+
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -32,7 +34,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 
 public class SeverityPopulator {
-    private static final String NORMAL_SEVERITY_NAME = ActionDTOUtil.getSeverityName(Severity.NORMAL);
     private static final Logger logger = LogManager.getLogger();
     private final EntitySeverityServiceBlockingStub severityService;
 
@@ -208,14 +209,16 @@ public class SeverityPopulator {
          */
         @Nonnull
         public String getSeverity(@Nonnull final Long id) {
-            return Optional.ofNullable(severities.get(id))
-                .flatMap(entity -> Optional.of(entity.getSeverity()))
-                .map(ActionDTOUtil::getSeverityName)
-                .orElse(NORMAL_SEVERITY_NAME);
+            return ActionDTOUtil.getSeverityName(
+                getAllEntitySeverities(severities.get(id)).stream()
+                    .filter(Objects::nonNull)
+                    .max(Comparator.comparing(Severity::getNumber))
+                    .orElse(Severity.NORMAL));
         }
 
         /**
-         * Calculate the highest severity for the passed in entity OIDs.
+         * Calculate the highest severity for the passed in entity OIDs using each entity level
+         * severity, and the severity breakdown.
          *
          * @param entityOids The set of entity OIDs.
          * @return calculated highest severity
@@ -225,12 +228,44 @@ public class SeverityPopulator {
             return entityOids.stream()
                     .map(severities::get)
                     .filter(Objects::nonNull)
-                    .map(EntitySeverity::getSeverity)
-                    .map(Optional::ofNullable)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
+                    .map(this::getAllEntitySeverities)
+                    .flatMap(Collection::stream)
+                    .filter(Objects::nonNull)
                     .max(Comparator.comparing(Severity::getNumber))
                     .orElse(Severity.NORMAL);
+        }
+
+        /**
+         * Expands all severities from entity level severity and severity breaks with a count
+         * greater than 0.
+         *
+         * @param entitySeverity the entity severity to expand.
+         *
+         * @return all severities from entity level severity and severity breaks with a count
+         *            greater than 0. Returns an empty list if there is no entity severity and
+         *            no severity breakdown with a count greater than 0.
+         */
+        @Nonnull
+        private List<Severity> getAllEntitySeverities(@Nullable EntitySeverity entitySeverity) {
+            List<Severity> result = new ArrayList<>();
+            if (entitySeverity == null) {
+                return result;
+            }
+            if (entitySeverity.getSeverityBreakdownMap() != null) {
+                for (Map.Entry<Integer, Long> entry : entitySeverity.getSeverityBreakdownMap().entrySet()) {
+                    if (entry.getKey() != null
+                            && entry.getValue() != null
+                            && entry.getValue() > 0
+                            && entry.getKey() >= 0
+                            && Severity.forNumber(entry.getKey()) != null) {
+                        result.add(Severity.forNumber(entry.getKey()));
+                    }
+                }
+            }
+            if (entitySeverity.getSeverity() != null) {
+                result.add(entitySeverity.getSeverity());
+            }
+            return result;
         }
 
         /**
