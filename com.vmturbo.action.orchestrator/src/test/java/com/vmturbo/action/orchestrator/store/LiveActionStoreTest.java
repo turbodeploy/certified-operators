@@ -142,7 +142,8 @@ public class LiveActionStoreTest {
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
-        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
+        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
+            null, null, targetSelector,
             probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
             actionTranslator, clock, userSessionContext);
 
@@ -272,6 +273,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore = new LiveActionStore(
                 new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+                null, null,
                 targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, clock, userSessionContext);
 
