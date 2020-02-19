@@ -574,7 +574,7 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public ResponseEntity<PolicyApiDTO> addPolicy(final String uuid,
-            PolicyApiInputDTO policyApiInputDTO) {
+            PolicyApiInputDTO policyApiInputDTO) throws UnknownObjectException {
         try {
             if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policyApiInputDTO)) {
                 // Create a hidden group to support the merge policy for entities that are not groups.
