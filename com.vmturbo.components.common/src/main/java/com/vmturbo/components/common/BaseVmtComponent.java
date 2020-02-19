@@ -121,6 +121,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * ClusterMgr ("standalone: false").
      */
     public static final String PROP_STANDALONE = "standalone";
+    /**
+     * The environment key for a flag indicating whether this component should force retry
+     * failed migrations on startup.
+     */
+    public static final String PROP_FORCE_RETRY_MIGRATIONS = "force_retry_migrations";
 
     /**
      * The path to the "properties.yaml" file used to load external configuration properties
@@ -191,6 +196,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private Boolean standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
         .map(Boolean::parseBoolean)
         .orElse(false);
+
+    /**
+     * Indicate whether this component should force retry failed migrations on startup.
+     */
+    private Boolean forceRetryMigrations =
+        EnvironmentUtils.getOptionalEnvProperty(PROP_FORCE_RETRY_MIGRATIONS)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
 
 
     private static final DataMetricGauge STARTUP_DURATION_METRIC = DataMetricGauge.builder()
@@ -373,7 +386,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
         setStatus(ExecutionStatus.MIGRATING);
         if (enableConsulRegistration) {
-            baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(), false);
+            baseVmtComponentConfig.migrationFramework()
+                .startMigrations(getMigrations(), forceRetryMigrations);
         }
 
         registerGrpcServices();
@@ -949,6 +963,25 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 logger.error("Could not get Specification-Version for component class {}", getClass());
             }
         }
+    }
+
+    /**
+     * Get whether this component should force retry failed migrations on startup.
+     *
+     * @return whether this component should force retry failed migrations on startup.
+     */
+    public Boolean getForceRetryMigrations() {
+        return forceRetryMigrations;
+    }
+
+    /**
+     * Set whether this component should force retry failed migrations on startup.
+     *
+     * @param forceRetryMigrations whether this component should force retry failed migrations
+     *                             on startup.
+     */
+    protected void setForceRetryMigrations(final Boolean forceRetryMigrations) {
+        this.forceRetryMigrations = forceRetryMigrations;
     }
 
     /**
