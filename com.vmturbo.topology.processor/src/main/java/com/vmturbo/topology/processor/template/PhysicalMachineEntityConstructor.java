@@ -11,6 +11,7 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.up
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -167,9 +168,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_MEM_SIZE, ZERO));
 
         final CommoditySoldDTO cpuCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.CPU_VALUE, numOfCpu * cpuSpeed);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.CPU_VALUE, Optional.ofNullable(numOfCpu * cpuSpeed));
         final CommoditySoldDTO  memCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.MEM_VALUE, memSize);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.MEM_VALUE, Optional.ofNullable(memSize));
         topologyEntityBuilder
             .addCommoditySoldList(cpuCommodity)
             .addCommoditySoldList(memCommodity);
@@ -187,15 +188,15 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
 
         // QxVCPU. Note that 1,2,4,8,16 are the number of VCPUs.
         final CommoditySoldDTO q1VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q1_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 1.0);
+            createCommoditySoldDTO(CommodityType.Q1_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 1.0));
         final CommoditySoldDTO q2VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q2_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 2.0);
+            createCommoditySoldDTO(CommodityType.Q2_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 2.0));
         final CommoditySoldDTO q4VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q4_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 4.0);
+            createCommoditySoldDTO(CommodityType.Q4_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 4.0));
         final CommoditySoldDTO q8VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q8_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 8.0);
+            createCommoditySoldDTO(CommodityType.Q8_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 8.0));
         final CommoditySoldDTO q16VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q16_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 16.0);
+            createCommoditySoldDTO(CommodityType.Q16_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 16.0));
         topologyEntityBuilder
             .addCommoditySoldList(q1VcpuCommodity)
             .addCommoditySoldList(q2VcpuCommodity)
@@ -218,9 +219,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NETWORK_THROUGHPUT_SIZE, ZERO));
 
         CommoditySoldDTO ioThroughputCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughputSize);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, Optional.ofNullable(ioThroughputSize));
         CommoditySoldDTO networkCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, networkThroughputSize);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, Optional.ofNullable(networkThroughputSize));
         topologyEntityBuilder
             .addCommoditySoldList(ioThroughputCommodity)
             .addCommoditySoldList(networkCommodity);
@@ -235,14 +236,14 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         @Nonnull final Builder topologyEntityBuilder) {
 
         final CommoditySoldDTO extent =
-            createCommoditySoldDTO(CommodityType.EXTENT_VALUE, MAX_LUN_LIMIT);
+            createCommoditySoldDTO(CommodityType.EXTENT_VALUE, Optional.ofNullable(Double.valueOf(MAX_LUN_LIMIT)));
         final CommoditySoldDTO ballooning =
             // TODO: set price weight field to -1.0 when it is introduced in CommoditySoldDTO
-            createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, BALLOONING_DEFAULT_CAPACITY);
+            createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, Optional.ofNullable(BALLOONING_DEFAULT_CAPACITY));
         final CommoditySoldDTO swapping =
-            createCommoditySoldDTO(CommodityType.SWAPPING_VALUE, SWAPPING_DEFAULT_CAPACITY);
+            createCommoditySoldDTO(CommodityType.SWAPPING_VALUE, Optional.ofNullable(SWAPPING_DEFAULT_CAPACITY));
         final CommoditySoldDTO hostLunAccess =
-            createCommoditySoldDTO(CommodityType.HOST_LUN_ACCESS_VALUE, MAX_LUN_LIMIT);
+            createCommoditySoldDTO(CommodityType.HOST_LUN_ACCESS_VALUE, Optional.ofNullable(Double.valueOf(MAX_LUN_LIMIT)));
 
         // TODO: Flows?????
 

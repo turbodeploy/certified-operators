@@ -380,20 +380,29 @@ public class TemplatesConverterUtils {
             .build();
     }
 
-    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType, double capacity) {
-        return CommoditySoldDTO.newBuilder()
-            .setActive(true)
-            .setCapacity(capacity)
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(commodityType))
-            .build();
+    /**
+     * Create commodity sold DTO. {@link CommoditySoldDTO} from template is not resizeable.
+     *
+     * @param commodityType commodity type.
+     * @param capacity capacity.
+     * @return {@link CommoditySoldDTO}
+     */
+    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType,
+            @Nonnull final Optional<Double> capacity) {
+        final CommoditySoldDTO.Builder builder = CommoditySoldDTO.newBuilder();
+        builder.setActive(true).setCommodityType(CommodityType.newBuilder().setType(commodityType));
+        capacity.ifPresent(value -> builder.setCapacity(value));
+        builder.setIsResizeable(false);
+        return builder.build();
     }
 
+    /**
+     * Create commodity sold DTO. {@link CommoditySoldDTO} from template is not resizeable.
+     *
+     * @param commodityType commodity type.
+     * @return {@link CommoditySoldDTO}
+     */
     public static CommoditySoldDTO createCommoditySoldDTO(int commodityType) {
-        return CommoditySoldDTO.newBuilder()
-            .setActive(true)
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(commodityType))
-            .build();
+        return createCommoditySoldDTO(commodityType, Optional.empty());
     }
 }

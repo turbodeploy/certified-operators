@@ -11,6 +11,7 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.ge
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -255,9 +256,9 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
 
         final double totalCpuSold = numOfCpu * cpuSpeed;
         CommoditySoldDTO cpuSoldCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, totalCpuSold);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, Optional.ofNullable(totalCpuSold));
         CommoditySoldDTO memorySizeCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, memorySize);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, Optional.ofNullable(memorySize));
         topologyEntityBuilder.addCommoditySoldList(cpuSoldCommodity);
         topologyEntityBuilder.addCommoditySoldList(memorySizeCommodity);
     }
@@ -408,7 +409,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull double totalDiskSize) {
         if (Double.isFinite(totalDiskSize)) {
             CommoditySoldDTO totalDiskSizeCommodity =
-                createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE, totalDiskSize);
+                createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE, Optional.ofNullable(totalDiskSize));
             topologyEntityBuilder.addCommoditySoldList(totalDiskSizeCommodity);
         }
     }
