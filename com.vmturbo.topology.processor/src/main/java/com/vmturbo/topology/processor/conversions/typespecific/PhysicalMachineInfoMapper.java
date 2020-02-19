@@ -46,6 +46,9 @@ public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
         if (physicalMachineData.hasCpuCoreMhz()) {
             physicalMachineInfoBuilder.setCpuCoreMhz(physicalMachineData.getCpuCoreMhz());
         }
+
+        physicalMachineInfoBuilder.addAllDiskGroup(physicalMachineData.getDiskGroupList());
+
         // note that the PhysicalMachineInfo will be added even if none of the properties are found
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)

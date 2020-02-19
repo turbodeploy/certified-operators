@@ -355,10 +355,26 @@ public class TargetsServiceTest {
     /**
      * Tests for retrieval of all the targets.
      *
-     * @throws Exception on exceptions occur.
+     * @throws Exception should not happen.
      */
     @Test
     public void testGetAllTargets() throws Exception {
+        fetchAllTargets(false);
+    }
+
+    /**
+     * Tests for retrieval of all the targets with environment type filter
+     * {@link com.vmturbo.api.enums.EnvironmentType#HYBRID}. All targets should
+     * be fetched.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllTargetsWithHybridFilter() throws Exception {
+        fetchAllTargets(true);
+    }
+
+    private void fetchAllTargets(boolean hybridFilterExists) throws Exception {
         final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
         final Collection<TargetInfo> targets = new ArrayList<>();
         targets.add(createMockTargetInfo(probe.getId(), 2));
@@ -366,8 +382,9 @@ public class TargetsServiceTest {
         targets.add(createMockTargetInfo(probe.getId(), 4));
         when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
 
+        final String url = "/targets" + (hybridFilterExists ? "?environmentType=HYBRID" : "");
         final MvcResult result = mockMvc
-                        .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                        .perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
                         TargetApiDTO[].class);
@@ -378,6 +395,45 @@ public class TargetsServiceTest {
             final TargetApiDTO dto = map.get(target.getId());
             assertEquals(target, probe, dto);
         }
+    }
+
+    /**
+     * Tests if the service can filter and return the cloud targets.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllCloudTargets() throws Exception {
+        testFilterTargetsByEnvironment(true);
+    }
+
+    /**
+     * Tests if the service can filter and return the onprem targets.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllOnPremTargets() throws Exception {
+        testFilterTargetsByEnvironment(false);
+    }
+
+    private void testFilterTargetsByEnvironment(boolean cloud) throws Exception {
+        final long cloudProbeId = 1L;
+        final long onPremProbeId = 2L;
+        final long cloudTargetId = 3L;
+        final long onPremTargetId = 4L;
+        createMockProbeInfo(cloudProbeId, SDKProbeType.AWS.getProbeType(), "dummy");
+        createMockProbeInfo(onPremProbeId, SDKProbeType.VCENTER.getProbeType(), "dummy");
+        createMockTargetInfo(cloudProbeId, cloudTargetId);
+        createMockTargetInfo(onPremProbeId, onPremTargetId);
+
+        final String url = "/targets?environment_type=" + (cloud ? "CLOUD" : "ONPREM");
+        final MvcResult result = mockMvc.perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                                    .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO[].class);
+        Assert.assertEquals(1, resp.length);
+        Assert.assertEquals(Long.toString(cloud ? cloudTargetId : onPremTargetId), resp[0].getUuid());
     }
 
     /**

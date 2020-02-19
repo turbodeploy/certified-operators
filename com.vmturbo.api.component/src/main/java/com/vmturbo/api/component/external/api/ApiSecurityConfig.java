@@ -568,7 +568,9 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         List<MetadataProvider> providers = new ArrayList<>();
         if (samlIdpMetadata != null ) {
             DOMMetadataProvider provider = getDomMetadataProvider();
-            providers.add(new ExtendedMetadataDelegate(provider, new ExtendedMetadata()));
+            ExtendedMetadataDelegate delegate = new ExtendedMetadataDelegate(provider, new ExtendedMetadata());
+            delegate.setMetadataTrustCheck(false);
+            providers.add(delegate);
         } else { //default provider for development
             providers.add(oktaExtendedMetadataProvider());
         }

@@ -136,7 +136,6 @@ public class StatsConfig {
     private int entitiesReadPerChunk;
 
 
-    // TODO figure this out - plan stats writer probably needs to use bulk loader, etc.
     @Bean
     public StatsHistoryRpcService statsRpcService() {
         return new StatsHistoryRpcService(

@@ -7,7 +7,6 @@ import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.components.common.identity.ArrayOidSet;

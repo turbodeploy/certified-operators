@@ -11,14 +11,20 @@ import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 @Configuration
 @Import(TopologyProcessorDBConfig.class)
 public class ControllableConfig {
-    @Value("${activateOrMoveInProgressRecordExpiredSeconds}")
-    private int activateOrMoveInProgressRecordExpiredSeconds;
+    @Value("${inProgressActionExpiredSeconds:3600}")
+    private int inProgressActionExpiredSeconds;
 
-    @Value("${moveSucceedRecordExpiredSeconds}")
+    @Value("${moveSucceedRecordExpiredSeconds:1800}")
     private int moveSucceedRecordExpiredSeconds;
 
-    @Value("${activateSucceedRecordExpiredSeconds}")
+    @Value("${activateSucceedRecordExpiredSeconds:14400}")
     private int activateSucceedRecordExpiredSeconds;
+
+    @Value("${scaleSucceedRecordExpiredSeconds:21600}")
+    private int scaleSucceedRecordExpiredSeconds;
+
+    @Value("${resizeSucceedRecordExpiredSeconds:14400}")
+    private int resizeSucceedRecordExpiredSeconds;
 
     @Autowired
     private TopologyProcessorDBConfig topologyProcessorDBConfig;
@@ -26,7 +32,8 @@ public class ControllableConfig {
     @Bean
     public EntityActionDaoImp entityActionDaoImp() {
         return new EntityActionDaoImp(topologyProcessorDBConfig.dsl(), moveSucceedRecordExpiredSeconds,
-                activateOrMoveInProgressRecordExpiredSeconds, activateSucceedRecordExpiredSeconds);
+                inProgressActionExpiredSeconds, activateSucceedRecordExpiredSeconds,
+                resizeSucceedRecordExpiredSeconds, scaleSucceedRecordExpiredSeconds);
     }
 
     @Bean

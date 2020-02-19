@@ -6,6 +6,7 @@ import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
+import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetsNotification;
 
@@ -57,4 +58,11 @@ public interface UINotificationChannel {
      * @param notification The notification to send.
      */
     void broadcastDiagsExportNotification(@Nonnull final ExportNotification notification);
+
+    /**
+     * Broadcast a reservation notification to the UI.
+     *
+     * @param notification The notification to send.
+     */
+    void broadcastReservationNotification(@Nonnull final ReservationNotification notification);
 }

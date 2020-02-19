@@ -13,6 +13,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -358,13 +359,32 @@ public class CloudDiscoveryConverter {
      * and then put into sharedEntities table for use by converters later.
      */
     private void createCloudServices() {
+        final EntityDTO.Builder serviceProviderBuilder = getServiceProviderBuilder();
         conversionContext.getCloudServicesToCreate().forEach(cloudService -> {
             EntityDTO.Builder csBuilder = EntityDTO.newBuilder();
             csBuilder.setEntityType(EntityType.CLOUD_SERVICE);
             csBuilder.setId(cloudService.getId());
             csBuilder.setDisplayName(cloudService.getDisplayName());
             newEntityBuildersById.put(cloudService.getId(), csBuilder);
+            if (serviceProviderBuilder != null) {
+                serviceProviderBuilder.addConsistsOf(cloudService.getId());
+            }
         });
+    }
+
+    @Nullable
+    private EntityDTO.Builder getServiceProviderBuilder() {
+        final List<EntityDTO.Builder> serviceProviderList = newEntityBuildersById.values()
+                .stream()
+                .filter(dto -> dto.getEntityType() == EntityType.SERVICE_PROVIDER)
+                .collect(Collectors.toList());
+        if (serviceProviderList.size() == 1) {
+            return serviceProviderList.get(0);
+        }
+        if (serviceProviderList.size() > 1) {
+            logger.error("Received multiple Service Providers in discovery response");
+        }
+        return null;
     }
 
     /**

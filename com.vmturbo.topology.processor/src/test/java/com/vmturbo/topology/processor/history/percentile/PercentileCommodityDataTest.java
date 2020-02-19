@@ -27,6 +27,7 @@ import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.CommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
@@ -41,6 +42,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                     new EntityCommodityFieldReference(1, commType, CommodityField.USED);
     private static final int UNAVAILABLE_DATA_PERIOD = 30;
     private PercentileHistoricalEditorConfig config;
+    private HistoryAggregationContext context;
 
     private Clock clock;
 
@@ -53,6 +55,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(0L));
         config = new PercentileHistoricalEditorConfig(1, UNAVAILABLE_DATA_PERIOD, 24, 10, 100,
                         Collections.emptyMap(), null, clock);
+        context = Mockito.mock(HistoryAggregationContext.class);
     }
 
     /**
@@ -68,6 +71,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         ICommodityFieldAccessor accessor = Mockito.spy(new CommodityFieldAccessor(
                         mockGraph(Collections.singleton(entity))));
         Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
+        Mockito.when(context.getAccessor()).thenReturn(accessor);
         PercentileRecord.Builder dbValue =
                         PercentileRecord.newBuilder().setCapacity(cap).setEntityOid(entity.getOid())
                                         .setCommodityType(commType.getType())
@@ -77,7 +81,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         }
 
         PercentileCommodityData pcd = new PercentileCommodityData();
-        pcd.init(field, dbValue.build(), config, accessor);
+        pcd.init(field, dbValue.build(), config, context);
 
         Assert.assertEquals(0, pcd.getUtilizationCountStore().getPercentile(0));
         Assert.assertEquals(used, pcd.getUtilizationCountStore().getPercentile(100));
@@ -100,10 +104,11 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                         mockEntity(1, 1, commType, cap, used1, null, null, null, null, true);
         ICommodityFieldAccessor accessor =
                         createAccessor(cap, used2, used3, realTime, entity, 1000);
+        Mockito.when(context.getAccessor()).thenReturn(accessor);
 
         PercentileCommodityData pcd = new PercentileCommodityData();
-        pcd.init(field, null, config, accessor);
-        pcd.aggregate(field, config, accessor);
+        pcd.init(field, null, config, context);
+        pcd.aggregate(field, config, context);
         CommoditySoldDTO.Builder commSold =
                         entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                                         .get(0);
@@ -120,7 +125,8 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(currentTime));
         final PercentileCommodityData pcd = new PercentileCommodityData();
         final ICommodityFieldAccessor accessor = createAccessor(currentTime);
-        pcd.init(field, null, config, accessor);
+        Mockito.when(context.getAccessor()).thenReturn(accessor);
+        pcd.init(field, null, config, context);
         // First time until startTimestamp initialized
         aggregate(false, currentTime, pcd, 1);
         // Start timestamp initialized, but there is no enough history data
@@ -147,11 +153,14 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                                         .addUserSettings(SettingToPolicyId.newBuilder()
                                                         .setSetting(minObservationPeriodSetting)
                                                         .build()).build();
-        config.initSettings(new GraphWithSettings(new TopologyGraphCreator<>(
+        HistoryAggregationContext ctx = Mockito.spy(new HistoryAggregationContext(
+            new GraphWithSettings(new TopologyGraphCreator<>(
                         Collections.singletonMap(1L, TopologyEntity.newBuilder(
                                         entity.getTopologyEntityDtoBuilder()))).build(),
-                        Collections.singletonMap(1L, settings), Collections.emptyMap()), false);
-        pcd.aggregate(field, config, createAccessor(100f, 99d, 12d, 80d, entity, currentTime));
+                        Collections.singletonMap(1L, settings), Collections.emptyMap()), false));
+        final ICommodityFieldAccessor accessor = createAccessor(100f, 99d, 12d, 80d, entity, currentTime);
+        Mockito.doReturn(accessor).when(ctx).getAccessor();
+        pcd.aggregate(field, config, ctx);
         final CommoditySoldDTO.Builder commSold =
                         entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                                         .get(0);

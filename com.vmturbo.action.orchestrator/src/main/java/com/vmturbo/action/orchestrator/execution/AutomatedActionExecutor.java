@@ -18,10 +18,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
@@ -33,12 +33,10 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTarg
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 public class AutomatedActionExecutor {
@@ -107,7 +105,7 @@ public class AutomatedActionExecutor {
         final Map<Long, ActionTargetInfo> targetIdsForActions =
                 actionTargetSelector.getTargetsForActions(allActions.values().stream()
                     .map(Action::getRecommendation), entitySettingsCache.emptySnapshot());
-        for(Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
+        for (Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
             final Long actionId = targetIdForActionEntry.getKey();
             final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();
             if (targetInfo.targetId().isPresent()) {
@@ -148,9 +146,7 @@ public class AutomatedActionExecutor {
                     failed.receive(new FailureEvent(errorMsg));
                     toRemove.add(failed.getId());
                 });
-        toRemove.forEach(id -> {
-            autoActions.remove(id);
-        });
+        toRemove.forEach(autoActions::remove);
 
         List<ActionExecutionTask> actionsToBeExecuted = new ArrayList<>();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();

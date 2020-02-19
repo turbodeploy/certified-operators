@@ -66,6 +66,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Users management service implementation.
@@ -89,6 +90,7 @@ public class UsersService implements IUsersService {
     private static final String MD_SINGLE_LOGOUT_SERVICE = "SingleLogoutService";
     private static final String NOT_ASSIGNED = "Not assigned";
     private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
+    private final Set<String> invalidScopes = new HashSet<>();
 
     /**
      * The logger.
@@ -162,6 +164,11 @@ public class UsersService implements IUsersService {
         }
         this.groupsService = groupsService;
         this.widgetsetsService = widgetsetsService;
+        // users cannot be created with the following group scopes
+        this.invalidScopes.add(UIEntityType.BUSINESS_ACCOUNT.displayName());
+        this.invalidScopes.add(UIEntityType.REGION.displayName());
+        this.invalidScopes.add(UIEntityType.AVAILABILITY_ZONE.displayName());
+        this.invalidScopes.add("ResourceGroup");
     }
 
     /**
@@ -462,6 +469,26 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(userApiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for user.");
         }
+
+        if (userApiDTO.getScope() != null && !userApiDTO.getScope().isEmpty()) {
+            if (!isUserScopeAllowed(userApiDTO.getScope())) {
+                throw new IllegalArgumentException("Scope not allowed for user.");
+            }
+        }
+    }
+
+    /**
+     * Check if scope set for an user account is valid.
+     * @param scope - List of scopes set for an user account
+     * @return - If the scope is allowed
+     */
+    public Boolean isUserScopeAllowed(List<GroupApiDTO> scope) {
+        for (GroupApiDTO dto : scope) {
+            if (this.invalidScopes.contains(dto.getGroupType())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1048,16 +1075,15 @@ public class UsersService implements IUsersService {
     }
 
     /**
-     * Validate that the active directory api dto specified has a valid domain name and login provider url.
+     * Validate that the active directory api dto specified has a valid domain name or login provider url.
      *
      * @param apiDTO dto representing the active directory,
      */
     private void validateActiveDirectoryInput(@Nonnull final ActiveDirectoryApiDTO apiDTO) {
-        if (StringUtils.isBlank(apiDTO.getDomainName())) {
-            throw new IllegalArgumentException("No domain name specified for active directory.");
-        }
-        if (StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
-            throw new IllegalArgumentException("No login provider URL specified for active directory.");
+        if (StringUtils.isBlank(apiDTO.getDomainName()) &&
+                StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
+            throw new IllegalArgumentException("Both domain name and login provider URL are" +
+                    " not specified for active directory.");
         }
     }
 }

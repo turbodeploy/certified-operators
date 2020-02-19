@@ -4,8 +4,10 @@ import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.neverD
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -14,7 +16,6 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,17 +53,21 @@ import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMo
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.PolicyManager.ReservationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator.Results;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
+import com.vmturbo.topology.processor.topology.TopologyEditorException;
 
 /**
  * Unit tests for {@link PolicyManager}.
@@ -114,7 +119,7 @@ public class PolicyManagerTest {
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyServiceMole, groupServiceMole,
             reservationServiceMole);
 
-    private com.vmturbo.topology.processor.group.policy.PolicyManager policyManager;
+    private PolicyManager policyManager;
 
     @Before
     public void setup() throws Exception {
@@ -156,7 +161,8 @@ public class PolicyManagerTest {
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
             .thenReturn(new Results());
-        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
+        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList(),
+            TopologyInfo.getDefaultInstance());
 
         // There shouldn't be a call to get groups if there are no policies.
         verify(groupServiceMole, never()).getGroups(any());
@@ -178,7 +184,7 @@ public class PolicyManagerTest {
         when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
             .thenReturn(expectedResults);
 
-        final Results results = policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
+        final Results results = policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList(), TopologyInfo.getDefaultInstance());
         // We should filter out the invalid policy.
         verify(policyApplicator).applyPolicies(eq(Collections.emptyList()), eq(groupResolver), eq(topologyGraph));
         assertThat(results, is(expectedResults));
@@ -197,7 +203,45 @@ public class PolicyManagerTest {
         // Do not configure the group service to return any of the groups.
         when(topologyGraph.entities()).thenReturn(Stream.empty());
 
-        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList());
+        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList(), TopologyInfo.getDefaultInstance());
+    }
+
+    /*
+     * Test that reservations that fail to apply get marked as invalid via RPC.
+     */
+    @Test
+    public void testMarkFailedReservationConstraints() {
+        final long reservationId = 44;
+        final ConstraintInfoCollection constraintInfoCollection =
+            ConstraintInfoCollection.newBuilder()
+                .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                    .setType(Type.DATA_CENTER)
+                    .setConstraintId(34))
+                .build();
+        final Reservation reservation = Reservation.newBuilder()
+            .setStatus(ReservationStatus.RESERVED)
+            .setId(reservationId)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                .addReservationTemplate(ReservationTemplate.newBuilder()
+                    .setTemplateId(77)
+                    .setCount(1)
+                    .addReservationInstance(ReservationInstance.newBuilder()
+                        .setEntityId(66L))))
+            .setConstraintInfoCollection(constraintInfoCollection)
+            .build();
+
+        doReturn(Lists.newArrayList(reservation)).when(reservationServiceMole)
+            .getAllReservations(GetAllReservationsRequest.newBuilder().build());
+
+        when(reservationPolicyFactory.generatePolicyForReservation(topologyGraph,
+            constraintInfoCollection.getReservationConstraintInfoList(),
+            reservation)).thenThrow(TopologyEditorException.notFoundEntityException(34L));
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
+        final ReservationResults reservationResults =
+            policyManager.handleReservationConstraints(topologyGraph,
+                Collections.emptyList(), TopologyInfo.getDefaultInstance());
+        assertTrue(reservationResults.hasErrors());
     }
 
     @Test
@@ -226,14 +270,10 @@ public class PolicyManagerTest {
                                         .setType(ReservationConstraintInfo.Type.POLICY)
                                         .setConstraintId(34)))
                         .build()));
-        final Map<Long, Set<Long>> policyConstraintMap =
-                policyManager.handleReservationConstraints(topologyGraph,
-                        scenarioChanges, Collections.emptyList());
-        assertEquals(2L, policyConstraintMap.keySet().size());
-        final Set<Long> reservationIds = policyConstraintMap.get(34L);
-        final Set<Long> initialPlacementIds = policyConstraintMap.get(33L);
+        final ReservationResults reservationResults =
+            policyManager.handleReservationConstraints(topologyGraph, scenarioChanges, TopologyInfo.getDefaultInstance());
+        final Set<Long> reservationIds = reservationResults.getExtraConsumersForPolicy(34L);
         assertEquals(Sets.newHashSet(66L), reservationIds);
-        assertEquals(Sets.newHashSet(5L), initialPlacementIds);
     }
 
 

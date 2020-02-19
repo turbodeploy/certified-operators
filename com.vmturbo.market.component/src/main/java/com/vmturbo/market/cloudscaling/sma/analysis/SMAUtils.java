@@ -1,6 +1,10 @@
 package com.vmturbo.market.cloudscaling.sma.analysis;
 
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
+
+import org.apache.commons.math3.util.Pair;
 
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
@@ -68,9 +72,14 @@ public class SMAUtils {
     public static final long NO_CURRENT_RI = -1;
 
     /**
-     * zero cost.
+     * no cost.
      */
-    public static final SMACost zeroCost = new SMACost(0.0f, 0.0f);
+    public static final float NO_COST = 0f;
+
+    /**
+     * zero SMACost.
+     */
+    public static final SMACost zeroSMACost = new SMACost(NO_COST, NO_COST);
 
     /**
      * Placeholder for invalid SMAContext.
@@ -83,5 +92,15 @@ public class SMAUtils {
      */
     public static final SMATemplate BOGUS_TEMPLATE = new SMATemplate(-1, "SMATemplate placeholder",
         "xxx", 0, BOGUS_CONTEXT, null);
+
+    /**
+     * if Azure, then OS type agnostic and use UNKNOWN_OS.
+     */
+    public static final Set<OSType> UNKNOWN_OS_SINGLETON_SET = Collections.singleton(OSType.UNKNOWN_OS);
+
+    /**
+     * no RI Coverage.
+     */
+    public static final Pair<Long, Float> NO_COMPUTE_RI_COVERAGE = new Pair(SMAUtils.NO_CURRENT_RI, SMAUtils.NO_RI_COVERAGE);
 
 }

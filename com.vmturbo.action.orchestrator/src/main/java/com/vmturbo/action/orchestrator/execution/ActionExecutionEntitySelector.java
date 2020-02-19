@@ -4,13 +4,12 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
- * Selects a service entity to execute an action against
+ * Selects a service entity to execute an action against.
  */
 public interface ActionExecutionEntitySelector {
 

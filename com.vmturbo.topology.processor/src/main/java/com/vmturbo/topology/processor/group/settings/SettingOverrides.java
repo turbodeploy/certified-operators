@@ -65,21 +65,16 @@ public class SettingOverrides {
      *<p> These overrides apply to all entities of a particular type that have a setting matching
      * settingName.
      */
-    private Map<Integer, Map<String, Setting>> overridesForEntityType = new HashMap<>();
-
-    /**
-     * Keep a list of max utilization levels found in the plan scenario. We will translate these to
-     * entity-specific setting overrides during the settings resolution stage of the topology pipeline.
-     * TODO: Refactor these to use a generic SettingOverride
-     */
-    private List<MaxUtilizationLevel> maxUtilizationLevels;
+    @VisibleForTesting
+    protected Map<Integer, Map<String, Setting>> overridesForEntityType = new HashMap<>();
 
     /**
      * groupOid -> settingName -> setting
      *
      *<p>These overrides apply to a specific group.
      */
-     private final Map<Long, Map<String, Setting>> overridesForGroup = new HashMap<>();
+    @VisibleForTesting
+    protected final Map<Long, Map<String, Setting>> overridesForGroup = new HashMap<>();
 
     /**
      * entityOid -> settingName -> setting
@@ -114,15 +109,6 @@ public class SettingOverrides {
                 final Setting overridenSetting = settingOverride.getSetting();
                 settingByNameMap.put(overridenSetting.getSettingSpecName(), overridenSetting);
             });
-
-        // find any max utilization overrides in the set of changes -- we will resolve these later,
-        // when we have a topology graph available.
-        maxUtilizationLevels = changes.stream()
-            .filter(ScenarioChange::hasPlanChanges)
-            .map(ScenarioChange::getPlanChanges)
-            .filter(PlanChanges::hasMaxUtilizationLevel)
-            .map(PlanChanges::getMaxUtilizationLevel)
-            .collect(Collectors.toList());
     }
 
     /**
@@ -131,11 +117,7 @@ public class SettingOverrides {
      * @return a list of group id's present in the settings changes.
      */
     public Set<Long> getInvolvedGroups() {
-        return Stream.concat(overridesForGroup.keySet().stream(),
-                maxUtilizationLevels.stream()
-                    .filter(MaxUtilizationLevel::hasGroupOid)
-                    .map(MaxUtilizationLevel::getGroupOid))
-            .collect(Collectors.toSet());
+        return overridesForGroup.keySet();
     }
 
     /**
@@ -145,41 +127,12 @@ public class SettingOverrides {
      *<p> We are creating them as entity setting overrides rather than SettingPolicy because we want
      * these to override the existing policies, rather than co-exist with them.
      *
-     *<p> TODO: Instead of specifically handling MaxUtilization settings, we should treat these more
-     * generically, by enhancing the existing SettingOverride object to allow support for group-specific
-     * or even entity-specific targeting. Then, instead of MaxUtilizationLevel objects we can work
-     * with the more widely usable SettingOverride objects.
-     *
      * @param groupsById    A map of group id -> Groups, used for group resolution.
      * @param groupResolver the group resolver to use
      * @param topologyGraph the topology graph used for finding group members
      */
     public void resolveGroupOverrides(@Nonnull Map<Long, Grouping> groupsById,
                                       @Nonnull GroupResolver groupResolver, TopologyGraph<TopologyEntity> topologyGraph) {
-        Map<Setting, Set<Long>> entitiesToApplySetting = new HashMap<>();
-        for (MaxUtilizationLevel u : maxUtilizationLevels) {
-            if (!u.hasGroupOid()) {
-                // this is a full scope utilization setting
-                final Set<Long> entitiesOid = topologyGraph.entitiesOfType(u.getSelectedEntityType())
-                        .map(TopologyGraphEntity::getOid)
-                        .collect(Collectors.toSet());
-                MAX_UTILIZATION_SETTING_SPECS.values().stream()
-                    // use selected entity type of full scope to filter setting spec
-                    .filter(spec -> isSettingSpecForEntityType(spec,
-                            Collections.singletonList(UIEntityType.fromType(u.getSelectedEntityType()))))
-                    .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), entitiesOid));
-            } else {
-                // get the group members to apply this setting to
-                Grouping group = groupsById.get(u.getGroupOid());
-                Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
-                MAX_UTILIZATION_SETTING_SPECS.values().stream()
-                        .filter(spec -> isSettingSpecForEntityType(spec,
-                            Collections.singletonList(UIEntityType.fromType(u.getSelectedEntityType()))))
-                        .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), groupMemberOids));
-            }
-        }
-        resolveEntitySettings(entitiesToApplySetting, MAX_UTILIZATION_SETTING_SPECS);
-
         final Map<Setting, Set<Long>> groupOverrideSettings = new HashMap<>();
         final Map<String, SettingSpec> grpOverrideSpecs = new HashMap<>();
         overridesForGroup.forEach((groupOid, settingsMap) -> {

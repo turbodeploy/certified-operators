@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Channel;
 
@@ -34,7 +35,10 @@ import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBat
 import com.vmturbo.action.orchestrator.translation.batch.translator.PassThroughBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.SkipBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.VCpuResizeBatchTranslator;
+import com.vmturbo.auth.api.authorization.UserContextUtils;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -45,7 +49,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
-
 
 /**
  * Translates actions from the market's domain-agnostic actions into real-world domain-specific actions.
@@ -76,6 +79,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesReque
 public class ActionTranslator {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Set<String> ROLES_WITH_ABILITY_TO_APPLY_ACTIONS =
+            ImmutableSet.of(SecurityConstant.ADMINISTRATOR.toUpperCase(),
+                    SecurityConstant.SITE_ADMIN, SecurityConstant.AUTOMATOR);
 
     /**
      * An interface for actually executing action translation. Usually it is unnecessary to specify
@@ -156,11 +163,14 @@ public class ActionTranslator {
      * @return The {@link ActionSpec} descriptions of the input actions.
      */
     @Nonnull
-    public Stream<ActionSpec> translateToSpecs(@Nonnull final List<? extends ActionView> actionViews) {
+    public Stream<ActionSpec> translateToSpecs(
+            @Nonnull final List<? extends ActionView> actionViews) {
+        final boolean isUserAbleToApplyActions = isUserAbleToApplyActions();
         final Map<Long, String> settingPolicyIdToSettingPolicyName =
-            getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews);
+                getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews);
         return actionViews.stream()
-            .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName));
+                .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName,
+                        isUserAbleToApplyActions));
     }
 
     /**
@@ -249,11 +259,13 @@ public class ActionTranslator {
      *
      * @param actionView the actions to be translated and whose specs should be generated
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @param isUserAbleToApplyActions the current user is able to apply actions
      * @return the {@link ActionSpec} representation of this action
      */
     @Nonnull
     private ActionSpec toSpec(@Nonnull final ActionView actionView,
-                              @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            boolean isUserAbleToApplyActions) {
         final ActionDTO.Action recommendationForDisplay = actionView
                 .getTranslationResultOrOriginal();
 
@@ -262,13 +274,21 @@ public class ActionTranslator {
             .setActionPlanId(actionView.getActionPlanId())
             .setRecommendationTime(actionView.getRecommendationTime()
                 .toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli())
-            .setActionMode(actionView.getMode())
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(
                 recommendationForDisplay, settingPolicyIdToSettingPolicyName))
             .setCategory(actionView.getActionCategory())
             .setDescription(actionView.getDescription());
+
+        // If the user has an observer role, all actions should be dropped to RECOMMEND
+        // as the highest mode (DISABLED are generally filtered out,
+        // but if they are returned from AO, their mode can stay DISABLED).
+        if (!isUserAbleToApplyActions && actionView.getMode() != ActionMode.DISABLED) {
+            specBuilder.setActionMode(ActionMode.RECOMMEND);
+        } else {
+            specBuilder.setActionMode(actionView.getMode());
+        }
 
         // Compose pre-requisite description if action has any pre-requisite.
         if (!recommendationForDisplay.getPrerequisiteList().isEmpty()) {
@@ -283,6 +303,19 @@ public class ActionTranslator {
             .ifPresent(specBuilder::setExecutionStep);
 
         return specBuilder.build();
+    }
+
+    /**
+     * Returns {@code true} if the current user is able to apply actions.
+     *
+     * @return {@code true} if the current user is able to apply actions
+     */
+    private static boolean isUserAbleToApplyActions() {
+        return UserContextUtils.getCurrentUserRoles()
+                .map(roles -> roles.stream()
+                        .map(String::toUpperCase)
+                        .anyMatch(ROLES_WITH_ABILITY_TO_APPLY_ACTIONS::contains))
+                .orElse(false);
     }
 
     /**

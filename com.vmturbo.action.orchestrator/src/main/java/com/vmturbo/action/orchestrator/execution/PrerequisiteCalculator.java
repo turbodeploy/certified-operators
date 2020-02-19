@@ -14,9 +14,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.action.constraint.CoreQuotaStore;
@@ -50,8 +47,6 @@ class PrerequisiteCalculator {
      * Private to prevent instantiation.
      */
     private PrerequisiteCalculator() {}
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Calculate pre-requisites for a given action.
@@ -148,9 +143,6 @@ class PrerequisiteCalculator {
                     // Calculate pre-requisites when target has VirtualMachineInfo and
                     // destination has ComputeTierInfo.
                     Map<String, Setting> settingsForTargetEntity = snapshot.getSettingsForEntity(target.getOid());
-                    if (settingsForTargetEntity == null) {
-                        logger.error("Could not fetch settings for entity {}", target.getDisplayName());
-                    }
                     return generalPrerequisiteCalculators.stream()
                         .map(calculator -> calculator.calculate(
                             target.getTypeSpecificInfo().getVirtualMachine(),
@@ -208,25 +200,23 @@ class PrerequisiteCalculator {
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
             @Nonnull final ComputeTierInfo computeTierInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
-        if (settingsForTargetEntity != null) {
-            Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
-            boolean ignoreNvme = ignoreNvmeSetting != null &&
-                ignoreNvmeSetting.hasBooleanSettingValue() &&
-                ignoreNvmeSetting.getBooleanSettingValue().getValue();
-            if (!ignoreNvme) {
-                // Check if the compute tier supports only NVMe vms.
-                final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo() &&
-                    computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyNVMeVms() &&
-                    computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyNVMeVms();
-                // Check if the vm has a NVMe driver.
-                final boolean vmHasNvmeDriver = virtualMachineInfo.hasDriverInfo() &&
-                    virtualMachineInfo.getDriverInfo().hasHasNvmeDriver() &&
-                    virtualMachineInfo.getDriverInfo().getHasNvmeDriver();
+        Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
+        boolean ignoreNvme = ignoreNvmeSetting != null &&
+            ignoreNvmeSetting.hasBooleanSettingValue() &&
+            ignoreNvmeSetting.getBooleanSettingValue().getValue();
+        if (!ignoreNvme) {
+            // Check if the compute tier supports only NVMe vms.
+            final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo() &&
+                computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyNVMeVms() &&
+                computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyNVMeVms();
+            // Check if the vm has a NVMe driver.
+            final boolean vmHasNvmeDriver = virtualMachineInfo.hasDriverInfo() &&
+                virtualMachineInfo.getDriverInfo().hasHasNvmeDriver() &&
+                virtualMachineInfo.getDriverInfo().getHasNvmeDriver();
 
-                if (computeTierSupportsOnlyNVMeVms && !vmHasNvmeDriver) {
-                    return Optional.of(Prerequisite.newBuilder()
-                        .setPrerequisiteType(PrerequisiteType.NVME).build());
-                }
+            if (computeTierSupportsOnlyNVMeVms && !vmHasNvmeDriver) {
+                return Optional.of(Prerequisite.newBuilder()
+                    .setPrerequisiteType(PrerequisiteType.NVME).build());
             }
         }
         return Optional.empty();

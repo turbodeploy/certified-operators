@@ -134,15 +134,15 @@ public class SystemLoadHelper {
     public void updateCapacities(Map<Long, Double[]> perSliceCapacities) {
         for (long slice : perSliceCapacities.keySet()) {
             Double[] capacities = perSliceCapacities.get(slice);
-            capacities[SystemLoadCommodities.CPU.ordinal()] = hostsSumCapacities.getCpu().get(slice);
-            capacities[SystemLoadCommodities.MEM.ordinal()] = hostsSumCapacities.getMem().get(slice);
-            capacities[SystemLoadCommodities.IO_THROUGHPUT.ordinal()] = hostsSumCapacities.getIoThroughput().get(slice);
-            capacities[SystemLoadCommodities.NET_THROUGHPUT.ordinal()] = hostsSumCapacities.getNetThroughput().get(slice);
-            capacities[SystemLoadCommodities.CPU_PROVISIONED.ordinal()] = hostsSumCapacities.getCpuProvisioned().get(slice);
-            capacities[SystemLoadCommodities.MEM_PROVISIONED.ordinal()] = hostsSumCapacities.getMemProvisioned().get(slice);
-            capacities[SystemLoadCommodities.STORAGE_ACCESS.ordinal()] = storagesSumCapacities.getStorageAccess().get(slice);
-            capacities[SystemLoadCommodities.STORAGE_PROVISIONED.ordinal()] = storagesSumCapacities.getStorageProvisioned().get(slice);
-            capacities[SystemLoadCommodities.STORAGE_AMOUNT.ordinal()] = storagesSumCapacities.getStorageAmount().get(slice);
+            capacities[SystemLoadCommodities.CPU.ordinal()] = hostsSumCapacities.getCpu(slice);
+            capacities[SystemLoadCommodities.MEM.ordinal()] = hostsSumCapacities.getMem(slice);
+            capacities[SystemLoadCommodities.IO_THROUGHPUT.ordinal()] = hostsSumCapacities.getIoThroughput(slice);
+            capacities[SystemLoadCommodities.NET_THROUGHPUT.ordinal()] = hostsSumCapacities.getNetThroughput(slice);
+            capacities[SystemLoadCommodities.CPU_PROVISIONED.ordinal()] = hostsSumCapacities.getCpuProvisioned(slice);
+            capacities[SystemLoadCommodities.MEM_PROVISIONED.ordinal()] = hostsSumCapacities.getMemProvisioned(slice);
+            capacities[SystemLoadCommodities.STORAGE_ACCESS.ordinal()] = storagesSumCapacities.getStorageAccess(slice);
+            capacities[SystemLoadCommodities.STORAGE_PROVISIONED.ordinal()] = storagesSumCapacities.getStorageProvisioned(slice);
+            capacities[SystemLoadCommodities.STORAGE_AMOUNT.ordinal()] = storagesSumCapacities.getStorageAmount(slice);
             perSliceCapacities.put(slice, capacities);
         }
     }
@@ -255,8 +255,11 @@ public class SystemLoadHelper {
     /**
      * The method calculates the system load for the given values.
      *
-     * @param usedSums       The sums of the used values per system load commodity.
-     * @param capacitiesSums The sums of capacities per system load commodity.
+     * @param usedSums       The sums of the used values per system load commodity. Individual
+     *                       entries may be null and are replaced (with warning) by 0.0.
+     * @param capacitiesSums The sums of capacities per system load commodity. Individual
+     *                       entries may be null and are replaced (with warning) by 0.0.
+     *                       be null.
      * @param clusterId      id of cluster to calculate system load for.
      * @return The system load value.
      */
@@ -314,8 +317,10 @@ public class SystemLoadHelper {
      *
      * @param loader           bulk loader for system_load table
      * @param slice            The slice we want to update.
-     * @param sliceUsed        used values for slices
-     * @param sliceCapacities  capacities for slices
+     * @param sliceUsed        used values for slices. individual entries may be null and are
+     *                         replaced with 0.0.
+     * @param sliceCapacities  capacities for slices. individual entries may be null and are
+     *                         replaced with 0.0.
      * @param snapshotTime     snapshot timestmp
      * @param soldCollection   sold commodities
      * @param boughtCollection bought commodities

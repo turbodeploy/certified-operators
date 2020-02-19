@@ -94,7 +94,7 @@ message ScenarioChange {
 
         optional UtilizationLevel utilization_level = 3;
 
-        optional MaxUtilizationLevel max_utilization_level = 6;
+        optional MaxUtilizationLevel max_utilization_level = 6 [deprecated = true];
 
         // User specified multiple constraints for initial placement, the logic between them is AND.
         repeated ReservationConstraintInfo initial_placement_constraints = 4;
@@ -152,10 +152,8 @@ message ScenarioChange {
             optional int64 group_oid = 3;
         }
 
-        // Represents the max utilization level a group of entities should support. This is used to
-        // model HA allocation in a plan.
-        // TODO: Can this be modeled as a SettingOverride instead, once we expand that message to
-        // allow scoping the override to a group?
+        // This message is deprecated. Use setting_override instead
+        option deprecated = true;
         message MaxUtilizationLevel {
 
             required int32 percentage = 2;

@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -30,10 +32,13 @@ import com.vmturbo.components.common.utils.StringConstants;
  */
 public class PlanReservedInstanceClient {
 
+    // The plan reserved instance service client.
     private PlanReservedInstanceServiceBlockingStub planRIService;
 
+    // The reserved instance bought service client.
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtService;
 
+    // The realtime context id.
     private Long realtimeTopologyContextId;
 
     /**
@@ -41,6 +46,7 @@ public class PlanReservedInstanceClient {
      *
      * @param planRIService PlanReservedInstanceServiceBlockingStub.
      * @param reservedInstanceBoughtService ReservedInstanceBoughtServiceBlockingStub.
+     * @param realtimeTopologyContextId The real-time topology context id.
      */
     public PlanReservedInstanceClient(@Nonnull PlanReservedInstanceServiceBlockingStub planRIService,
                       @Nonnull ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
@@ -57,12 +63,6 @@ public class PlanReservedInstanceClient {
      */
      public void savePlanIncludedCoupons(@Nonnull PlanInstance planInstance) {
         ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
-        String planSubType = PlanRpcServiceUtil.getPlanSubType(scenarioInfo);
-        // OCP Option #3 has to do with New Buy RI recommendations only, hence there's no
-        // point in including or saving existing RIs to db
-        if (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)) {
-            return;
-        }
         List<Long> includedCouponOidsList = new ArrayList<>();
         boolean includeAll = parsePlanIncludedCoupons(planInstance, includedCouponOidsList);
         Long topologyContextId = planInstance.getPlanId();
@@ -104,15 +104,16 @@ public class PlanReservedInstanceClient {
         }
     }
 
-     /**
-      * Parse the Included RI OIDs from the plan's Scenario.
-      *
-      * @param planInstance  The plan Instance;
-      * @param includedCouponOids The List of RI Oids to be populated
-      * @return Returns true to include all RIs in scope, false otherwise.
-      */
-    private boolean parsePlanIncludedCoupons(@Nonnull PlanInstance planInstance,
-                                                 @Nonnull List<Long> includedCouponOids) {
+    /**
+     * Parse the Included RI OIDs from the plan's Scenario.
+     *
+     * @param planInstance  The plan Instance;
+     * @param includedCouponOids The List of RI Oids to be populated
+     * @return Returns true to include all RIs in scope, false otherwise.
+     */
+    @VisibleForTesting
+    boolean parsePlanIncludedCoupons(@Nonnull PlanInstance planInstance,
+                                     @Nonnull List<Long> includedCouponOids) {
         if (!planInstance.hasScenario()) {
             return false;
         }
@@ -151,10 +152,10 @@ public class PlanReservedInstanceClient {
         // save the user selected RI included in the plan, to db.
         final UploadRIDataRequest insertRiRequest =
                                                   UploadRIDataRequest
-                                                                  .newBuilder()
-                                                                  .setTopologyId(planId)
-                                                                  .addAllReservedInstanceBought(planRIs)
-                                                                  .build();
+                                                      .newBuilder()
+                                                      .setTopologyId(planId)
+                                                      .addAllReservedInstanceBought(planRIs)
+                                                      .build();
 
         planRIService.insertPlanReservedInstanceBought(insertRiRequest);
     }

@@ -24,12 +24,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractBackgroundLoadingHistoricalEditor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
-import com.vmturbo.topology.processor.history.HistoryCalculationException;
-import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 
 /**
  * Calculate and provide time slot historical values for topology commodities.
@@ -45,8 +42,6 @@ public class TimeSlotEditor extends
                     .of(CommodityDTO.CommodityType.POOL_CPU,
                         CommodityDTO.CommodityType.POOL_MEM,
                         CommodityDTO.CommodityType.POOL_STORAGE);
-
-    private TopologyGraph<TopologyEntity> graph;
 
     /**
      * Construct the timeslot historical values editor.
@@ -90,27 +85,17 @@ public class TimeSlotEditor extends
     }
 
     @Override
-    public void initContext(@Nonnull GraphWithSettings graph,
-                            @Nonnull ICommodityFieldAccessor accessor,
-                            @Nonnull List<EntityCommodityReference> eligibleComms,
-                            boolean isPlan)
-                    throws HistoryCalculationException, InterruptedException {
-        super.initContext(graph, accessor, eligibleComms, isPlan);
-        this.graph = graph.getTopologyGraph();
-    }
-
-    @Override
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
+           createPreparationTasks(@Nonnull HistoryAggregationContext context,
+                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
         List<EntityCommodityReference> uninitializedCommodities =
                         gatherUninitializedCommodities(commodityRefs);
         // partition by configured observation window first
         // we are only interested in business users
-        Map<Long, Integer> user2period = graph.entities()
-                        .filter(entity -> entity.getEntityType() == EntityType.BUSINESS_USER_VALUE)
-                        .collect(Collectors.toMap(TopologyEntity::getOid, entity -> getConfig()
-                                        .getObservationPeriod(entity.getOid())));
+        Map<Long, Integer> user2period = context.entityToSetting(
+                        this::isEntityApplicable,
+                        entity -> getConfig().getObservationPeriod(context, entity.getOid()));
         Map<Integer, List<EntityCommodityReference>> period2comms = uninitializedCommodities.stream()
                         .collect(Collectors.groupingBy(comm -> user2period.get(comm.getEntityOid())));
 
@@ -120,17 +105,12 @@ public class TimeSlotEditor extends
             List<List<EntityCommodityReference>> partitions = Lists
                             .partition(period2comm.getValue(), getConfig().getLoadingChunkSize());
             for (List<EntityCommodityReference> chunk : partitions) {
-                loadingTasks.add(new HistoryLoadingCallable(new TimeSlotLoadingTask(getStatsHistoryClient(),
+                loadingTasks.add(new HistoryLoadingCallable(context,
+                                                            new TimeSlotLoadingTask(getStatsHistoryClient(),
                                                                                     period2comm.getKey()),
                                                             chunk));
             }
         }
         return loadingTasks;
-    }
-
-    @Override
-    public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
-        super.completeBroadcast();
-        this.graph = null;
     }
 }

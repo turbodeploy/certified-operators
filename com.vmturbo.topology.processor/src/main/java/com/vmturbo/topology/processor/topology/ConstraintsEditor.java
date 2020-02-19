@@ -109,9 +109,13 @@ public class ConstraintsEditor {
         // First check if all entities have to be ignored.
         if (hasIgnoreAllEntities) {
             graph.entities()
-                    .map(TopologyEntity::getOid)
-                    .forEach(entityId ->
-                            entitesToIgnoredCommodities.put(entityId, ALL_COMMODITIES));
+                    .forEach(entity -> {
+                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
+                        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                .setShopTogether(true);
+                        }
+                    });
             return entitesToIgnoredCommodities;
         }
 
@@ -122,8 +126,13 @@ public class ConstraintsEditor {
                 .flatMap(entityTypes -> entityTypes.getEntityTypesList().stream())
                 .map(entityType -> graph.entitiesOfType(entityType))
                 .flatMap(Function.identity())
-                .forEach(entity ->
-                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES));
+                .forEach(entity -> {
+                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
+                        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                .setShopTogether(true);
+                        }
+                });
 
         // HACK : Ignore All constraints at global level.
         // This is done because currently there is a gap in UI where not enough information is
@@ -142,7 +151,17 @@ public class ConstraintsEditor {
                         graph.entitiesOfType(EntityType.CONTAINER),
                         graph.entitiesOfType(EntityType.CONTAINER_POD))
                             .flatMap(Function.identity())
-                            .forEach(entity -> entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES));
+                            .forEach(entity -> {
+                                entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
+                                // VMs should shop together when all constraints are ignored
+                                // in order to place on Storage/Host pairing and prevent
+                                // incorrect placing on entities that the VM should not place on
+                                // such as a Disk Array that sells the same non access commodities.
+                                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                                    entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                        .setShopTogether(true);
+                                }
+                            });
             });
 
         Set<Long> groups = ignoredCommodities.stream()

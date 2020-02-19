@@ -19,10 +19,10 @@ public interface IHistoryCommodityData<Config, DbValue, CheckpointResult> {
      *
      * @param field what field is being aggregated and updated
      * @param config configuration (e.g. observation window or averaging weights)
-     * @param commodityFieldsAccessor access to commodity builders
+     * @param context pipeline context, including access to commodity builders
      */
     void aggregate(@Nonnull EntityCommodityFieldReference field, @Nonnull Config config,
-                   @Nonnull ICommodityFieldAccessor commodityFieldsAccessor);
+                   @Nonnull HistoryAggregationContext context);
 
     /**
      * (Re)initialize the underlying cache according to configuration values and
@@ -31,11 +31,11 @@ public interface IHistoryCommodityData<Config, DbValue, CheckpointResult> {
      * @param field what field is being initialized
      * @param dbValue previous values loaded from persistent store, if applicable
      * @param config configuration (e.g. observation window)
-     * @param commodityFieldsAccessor access to commodity builders
+     * @param context pipeline context, including access to commodity builders
      */
     void init(@Nonnull EntityCommodityFieldReference field,
               @Nullable DbValue dbValue, @Nonnull Config config,
-              @Nonnull ICommodityFieldAccessor commodityFieldsAccessor);
+              @Nonnull HistoryAggregationContext context);
 
     /**
      * Perform the periodic maintenance upon checkpoint of the data to the persistent store.

@@ -17,7 +17,7 @@ import com.vmturbo.history.schema.HistoryVariety;
  * This class creates a query to retrieve available timestamps for a given variety of history data in a given
  * timeframe, in reverse chronological order.
  */
-public class AvailableTimestamps extends QueryBase {
+public class AvailableTimestampsQuery extends QueryBase {
 
     /**
      * Create a new query.
@@ -28,7 +28,7 @@ public class AvailableTimestamps extends QueryBase {
      * @param fromInclusive  inclusive lower bound on results
      * @param toExclusive    exclusive upper bound on results
      */
-    public AvailableTimestamps(@Nonnull TimeFrame timeFrame,
+    public AvailableTimestampsQuery(@Nonnull TimeFrame timeFrame,
             @Nonnull HistoryVariety historyVariety,
             int limit,
             @Nullable Timestamp fromInclusive,

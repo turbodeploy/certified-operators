@@ -34,6 +34,22 @@ message Reservation {
     optional ConstraintInfoCollection constraint_info_collection = 7;
 }
 
+// ReservationChange describes a reservation whose status has changed.
+// Meant to be lightweight since we will batch send multiple reservation records.
+message ReservationChange {
+    // Id of reservation.
+    optional int64 id = 1;
+
+    // Status of reservation.
+    optional ReservationStatus status = 2;
+}
+
+// ReservationChanges describes a list of reservations whose statuses have changed.
+message ReservationChanges {
+    // A list of reservation status changes.
+    repeated ReservationChange reservation_change = 1;
+}
+
 // If current date is before start date, status is FUTURE. If current date is equal or after
 // start date, status is RESERVED.
 //ie: current date     start_date
@@ -163,6 +179,16 @@ message UpdateFutureAndExpiredReservationsRequest {
     // A list of reservations need to update.
 }
 
+message UpdateFutureAndExpiredReservationsResponse {
+    // The number of reservations that are activated by the RPC.
+    // If this number is greater than 0, the reservation service will be kicking off
+    // another reservation plan to place the activated reservations.
+    optional int64 activated_reservations = 1;
+
+    // The number of reservations that are now expired, and got deleted.
+    optional int64 expired_reservations_removed = 2;
+}
+
 // A service responsible for Reservation related request.
 service ReservationService {
 
@@ -179,7 +205,8 @@ service ReservationService {
     rpc CreateReservation(CreateReservationRequest) returns (Reservation);
 
     // Update future and expired reservation.
-    rpc UpdateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest) returns (stream Reservation);
+    rpc UpdateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest)
+        returns (UpdateFutureAndExpiredReservationsResponse);
 
     // Delete a existing reservation.
     rpc DeleteReservationById(DeleteReservationByIdRequest) returns (Reservation);

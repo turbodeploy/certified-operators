@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.history.percentile;
 
-import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 
@@ -10,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
+import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 
@@ -76,7 +76,7 @@ public class UtilizationCountStore {
      * @return percentile score of previously stored points
      * @throws HistoryCalculationException when rank value is invalid
      */
-    public int getPercentile(int rank) throws HistoryCalculationException {
+    public synchronized int getPercentile(int rank) throws HistoryCalculationException {
         return full.getPercentile(rank);
     }
 
@@ -84,22 +84,22 @@ public class UtilizationCountStore {
      * Checks whether current {@link EntityCommodityFieldReference} has enough historical data or
      * not.
      *
+     * @param context pipeline context, including access to commodity builders
      * @param config percentile configuration.
-     * @param clock provides information about current time.
      * @return {@code true} in case minimum observation period is disabled, i.e. it's value
      *                 equal to 0, or in case there are enough data point collected for specified
      *                 minimum observation period in days, otherwise return {@code false}.
      */
-    public boolean isMinHistoryDataAvailable(@Nonnull PercentileHistoricalEditorConfig config,
-                    @Nonnull Clock clock) {
+    public synchronized boolean isMinHistoryDataAvailable(@Nonnull HistoryAggregationContext context,
+                                             @Nonnull PercentileHistoricalEditorConfig config) {
         /*
          Latest is taken because its database representation updated every discovery,
          i.e. its database representation will contain information about
          correct last point timestamp. On the other hand if we would use full it database
          representation would have timestamp for the last point before maintenance.
          */
-        return latest.isMinHistoryDataAvailable(clock.millis(), fieldReference.toString(),
-                        config.getMinObservationPeriod(fieldReference.getEntityOid()),
+        return latest.isMinHistoryDataAvailable(config.getClock().millis(), fieldReference.toString(),
+                        config.getMinObservationPeriod(context, fieldReference.getEntityOid()),
                         config.getUnavailableDataPeriodInMins());
     }
 
@@ -111,7 +111,7 @@ public class UtilizationCountStore {
      * @param timestamp latest timestamp for the samples
      * @throws HistoryCalculationException when passed data are not correct (non-positive capacity)
      */
-    public void addPoints(List<Double> samples, double capacity, long timestamp) throws HistoryCalculationException {
+    public synchronized void addPoints(List<Double> samples, double capacity, long timestamp) throws HistoryCalculationException {
         // prevent double-storing upon broadcast if mediation hasn't changed the value
         if (timestamp <= latest.getEndTimestamp()) {
             logger.trace("Skipping storing the percentile samples for {} - already present", fieldReference::toString);
@@ -138,7 +138,7 @@ public class UtilizationCountStore {
      * @param clear whether to clear the array before adding points
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public void addFullCountsRecord(PercentileRecord record, boolean clear) throws HistoryCalculationException {
+    public synchronized void addFullCountsRecord(PercentileRecord record, boolean clear) throws HistoryCalculationException {
         if (clear) {
             full.clear();
         }
@@ -151,7 +151,7 @@ public class UtilizationCountStore {
      * @param record serialized record
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public void addLatestCountsRecord(PercentileRecord record) throws HistoryCalculationException {
+    public synchronized void addLatestCountsRecord(PercentileRecord record) throws HistoryCalculationException {
         latest.deserialize(record, fieldReference.toString());
     }
 
@@ -161,7 +161,7 @@ public class UtilizationCountStore {
      * @param record serialized record
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public void setLatestCountsRecord(PercentileRecord record) throws HistoryCalculationException {
+    public synchronized void setLatestCountsRecord(PercentileRecord record) throws HistoryCalculationException {
         latest.clear();
         String description = fieldReference.toString();
         latest.deserialize(record, description);
@@ -173,7 +173,7 @@ public class UtilizationCountStore {
      *
      * @return serialized record
      */
-    public PercentileRecord.Builder getLatestCountsRecord() {
+    public synchronized PercentileRecord.Builder getLatestCountsRecord() {
         return latest.serialize(fieldReference).setPeriod(1);
     }
 
@@ -186,7 +186,8 @@ public class UtilizationCountStore {
      * @return serialized counts array for the entire observation window, to be persisted
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public PercentileRecord.Builder checkpoint(Collection<PercentileRecord> oldPages) throws HistoryCalculationException {
+    public synchronized PercentileRecord.Builder checkpoint(Collection<PercentileRecord> oldPages)
+                    throws HistoryCalculationException {
         for (PercentileRecord oldest : oldPages) {
             if (oldest.getUtilizationCount() != buckets.size()) {
                 throw new HistoryCalculationException("Length " + oldest.getUtilizationCount()
@@ -223,12 +224,12 @@ public class UtilizationCountStore {
      * @throws HistoryCalculationException if copying the counts array from full to latest is not
      * successful
      */
-    public void copyCountsFromLatestToFull() throws HistoryCalculationException {
+    public synchronized void copyCountsFromLatestToFull() throws HistoryCalculationException {
         full.copyCountsFrom(latest);
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return UtilizationCountStore.class.getSimpleName() + "{fieldReference=" + fieldReference +
                         ", full=" + full + ", latestStoredTimestamp=" + latest.getEndTimestamp() +
                         ", periodDays=" + periodDays + '}';
@@ -238,7 +239,7 @@ public class UtilizationCountStore {
      * This uses the toDebugString to be used for debug logging with more details.
      * @return the string representation of the utilization store.
      */
-    public String toDebugString() {
+    public synchronized String toDebugString() {
         return UtilizationCountStore.class.getSimpleName() + "{fieldReference=" + fieldReference +
                         ", full=" + full.toDebugString() +
                         ", latest=" + latest.toDebugString() +

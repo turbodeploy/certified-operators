@@ -7,14 +7,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.history.db.Queries;
 import com.vmturbo.history.db.QueryTestBase;
 import com.vmturbo.history.schema.HistoryVariety;
 
 /**
- * Test class for the {@link AvailableTimestamps} query builder.
+ * Test class for the {@link AvailableTimestampsQuery} query builder.
  */
-public class AvailableTimestampsTest extends QueryTestBase {
+public class AvailableTimestampsQueryTest extends QueryTestBase {
 
     private QueryChecker queryChecker;
 
@@ -40,8 +39,8 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testUnconstrainedQuery() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
-                TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0, null, null);
+        Query query = new AvailableTimestampsQuery(
+                TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0, null, null).getQuery();
         queryChecker.check(query);
     }
 
@@ -50,8 +49,8 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testHourlyTimeFrame() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
-                TimeFrame.HOUR, HistoryVariety.ENTITY_STATS, 0, null, null);
+        Query query = new AvailableTimestampsQuery(
+                TimeFrame.HOUR, HistoryVariety.ENTITY_STATS, 0, null, null).getQuery();
         queryChecker.withConditions("available_timestamps.time_frame = 'HOUR'",
                 "available_timestamps.history_variety = 'ENTITY_STATS'")
                 .check(query);
@@ -62,8 +61,8 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testPriceDataVariety() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
-                TimeFrame.LATEST, HistoryVariety.PRICE_DATA, 0, null, null);
+        Query query = new AvailableTimestampsQuery(
+                TimeFrame.LATEST, HistoryVariety.PRICE_DATA, 0, null, null).getQuery();
         queryChecker.withConditions("available_timestamps.time_frame = 'LATEST'",
                 "available_timestamps.history_variety = 'PRICE_DATA'")
                 .check(query);
@@ -74,8 +73,8 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testLimit1() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
-                TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 1, null, null);
+        Query query = new AvailableTimestampsQuery(
+                TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 1, null, null).getQuery();
         queryChecker.withDistinct(false).withLimit(1).check(query);
     }
 
@@ -84,8 +83,8 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testLimit10() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
-                TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 10, null, null);
+        Query query = new AvailableTimestampsQuery(
+                TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 10, null, null).getQuery();
         queryChecker.withLimit(10).check(query);
     }
 
@@ -94,9 +93,9 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testMinTime() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
+        Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
-                Timestamp.valueOf("2019-01-02 03:04:05"), null);
+                Timestamp.valueOf("2019-01-02 03:04:05"), null).getQuery();
         queryChecker.withMoreConditions("available_timestamps.time_stamp >= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
@@ -106,9 +105,9 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testMaxTime() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
+        Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
-                null, Timestamp.valueOf("2019-01-02 03:04:05"));
+                null, Timestamp.valueOf("2019-01-02 03:04:05")).getQuery();
         queryChecker.withMoreConditions("available_timestamps.time_stamp < TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
@@ -118,9 +117,10 @@ public class AvailableTimestampsTest extends QueryTestBase {
      */
     @Test
     public void testBothTimes() {
-        Query query = Queries.getAvailableSnapshotTimesQuery(
+        Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
-                Timestamp.valueOf("2019-01-01 03:04:05"), Timestamp.valueOf("2019-01-02 03:04:05"));
+                Timestamp.valueOf("2019-01-01 03:04:05"), Timestamp.valueOf("2019-01-02 03:04:05")
+        ).getQuery();
         queryChecker.withMoreConditions(
                 "available_timestamps.time_stamp " +
                         "BETWEEN TIMESTAMP '2019-01-01 03:04:05\\.0' " +

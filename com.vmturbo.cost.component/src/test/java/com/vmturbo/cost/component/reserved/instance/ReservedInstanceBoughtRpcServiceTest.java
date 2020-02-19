@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -50,9 +51,11 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
@@ -75,7 +78,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private SupplyChainServiceBlockingStub supplyChainService;
 
-    private PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
+    private PlanReservedInstanceServiceBlockingStub planClient;
 
     private final Long realtimeTopologyContextId = 777777L;
 
@@ -87,7 +90,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
                 reservedInstanceBoughtStore,
                    reservedInstanceMappingStore, repositoryClient, supplyChainService,
-                   planReservedInstanceService, realtimeTopologyContextId, priceTableStore,
+                   planClient, realtimeTopologyContextId, priceTableStore,
                    reservedInstanceSpecStore);
 
     /**
@@ -95,6 +98,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
+
+
 
     private ReservedInstanceBoughtServiceBlockingStub client;
 
@@ -116,6 +121,44 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final long RI_BOUGHT_ID_3 = 8002L;
     private static final long RI_SPEC_ID_3 = 2224L;
 
+    private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(123L)
+                    .setProbeReservedInstanceId("bar")
+                    .setReservedInstanceSpec(101L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(10)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .setDisplayName("t101.small")
+                    .build();
+
+    private static final ReservedInstanceBoughtInfo RI_INFO_2 = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(456L)
+                    .setProbeReservedInstanceId("foo")
+                    .setReservedInstanceSpec(102L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(20)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .setDisplayName("t102.large")
+                    .build();
+
+    private static final ReservedInstanceBoughtInfo RI_INFO_3 = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(456L)
+                    .setProbeReservedInstanceId("foo")
+                    .setReservedInstanceSpec(103L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(20)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .setDisplayName("m3.large")
+                    .build();
+
     /**
      * Initialize instances for each test.
      */
@@ -123,7 +166,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     public void setup() {
         client = ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        planReservedInstanceService = PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        planClient = PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryClient = new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId);
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(ImmutableList.of(createRiSpec(OSType.LINUX, RI_SPEC_ID),
@@ -391,4 +434,66 @@ public class ReservedInstanceBoughtRpcServiceTest {
         ReservedInstanceBought ri = response.getReservedInstanceBought(0);
         assertThat(ri.getId(), is(RI_BOUGHT_ID_3));
     }
+
+    /**
+     * Tests retrieval of RIs/Coupons included in OCP plans.
+     */
+    @Test
+    public void testGetIncludedReservedInstanceBought() {
+        final long planId = 1234567L;
+        final List<ReservedInstanceBought> planReservedInstanceBought =
+                        Arrays.asList(ReservedInstanceBought.newBuilder()
+                                      .setReservedInstanceBoughtInfo(RI_INFO_1).build(),
+                    ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_2)
+                                    .build());
+
+        // The plan added RIs above have Region ID == 101L and 102L, and below are all the
+        // RIs in scope.
+        Set<Long> scopeIds = new HashSet<>();
+        scopeIds.add(101L);
+        scopeIds.add(102L);
+        scopeIds.add(103L);
+
+        // setup what's expected to be returned on going through the real-time path.
+        // When getSaved is false, the real-time RIs are fetched, which is all the RIs in scope.
+        final List<ReservedInstanceBought> allReservedInstanceBought =
+                        Arrays.asList(ReservedInstanceBought.newBuilder()
+                                      .setReservedInstanceBoughtInfo(RI_INFO_1).build(),
+                    ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_2)
+                                    .build(),
+                    ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_3)
+                                    .build());
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                                    .thenReturn(allReservedInstanceBought);
+
+
+        List<ReservedInstanceBought> riBought2 = client
+                        .getReservedInstanceBoughtByTopology(
+                                                 GetReservedInstanceBoughtByTopologyRequest
+                                                     .newBuilder()
+                                                     .setTopologyType(TopologyType.PLAN)
+                                                     .setTopologyContextId(planId)
+                                                     // don't get saved plan RIs/Coupons, get all real-time ones.
+                                                     .setGetSaved(false)
+                                                     .addAllScopeSeedOids(scopeIds)
+                                                     .build())
+                        .getReservedInstanceBoughtList();
+        assertEquals(3, riBought2.size());
+
+        // If getSaved is true but it's a real-time topology or topologyContextId isn't set,
+        // get the real-time OIDs in this case as well.
+        List<ReservedInstanceBought> riBought3 = client
+                        .getReservedInstanceBoughtByTopology(
+                                                 GetReservedInstanceBoughtByTopologyRequest
+                                                     .newBuilder()
+                                                     .setTopologyType(TopologyType.PLAN)
+                                                     .setTopologyContextId(777777L)
+                                                     // don't get saved plan RIs/Coupons, but real-time ones, based on topologyContextId
+                                                     .setGetSaved(true)
+                                                     .addAllScopeSeedOids(scopeIds)
+                                                     .build())
+                        .getReservedInstanceBoughtList();
+        assertEquals(3, riBought3.size());
+    }
+
 }

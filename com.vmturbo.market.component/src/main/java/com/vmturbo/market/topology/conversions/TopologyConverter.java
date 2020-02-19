@@ -1748,6 +1748,9 @@ public class TopologyConverter {
                     if (originalCommodityBoughtDTO.isPresent()) {
                         currentUsage = (float)originalCommodityBoughtDTO.get().getUsed();
                     }
+                } else if (providerDTO.isEmpty()) {
+                    logger.warn("{} has no provider of type {} in the topology.",
+                        originalEntity.getDisplayName(), EntityType.forNumber(providerType));
                 }
             } else if (cloudTc.getMarketTier(supplierOid).getTier() == null) {
                 logger.warn("Unable to find providerType to retrieve original" +
@@ -2193,6 +2196,14 @@ public class TopologyConverter {
             // Turn off movable for cloud scaling group members that are not group leaders.
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;
         }
+
+
+        // Apply scalable to movable for cloud VMs in realtime
+        if (!isPlan() && buyer.getEnvironmentType() == EnvironmentType.CLOUD
+                && buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+        }
+
         // if the buyer of the shopping list is in control state(controllable = false), or if the
         // shopping list has a provider and the provider is in control state (controllable = false)
         // the shopping list should not move
@@ -2419,28 +2430,36 @@ public class TopologyConverter {
                     !coverage.get().getCouponsCoveredByRiMap().isEmpty()) {
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
                 final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
-                final TopologyEntityDTO computeTier =
-                        entityOidToDto.get(riData.getReservedInstanceSpec()
-                                .getReservedInstanceSpecInfo().getTierId());
-                final long businessAccountId = riData.getReservedInstanceBought()
-                        .getReservedInstanceBoughtInfo().getBusinessAccountId();
-                final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
-                        .getBillingFamilyForEntity(businessAccountId);
-                if (!billingFamilyGroup.isPresent()) {
-                    logger.error("Billing family group not found for RI Data: {}",
-                            riData.getReservedInstanceBought());
+                if (riData != null) {
+                    final TopologyEntityDTO computeTier =
+                            entityOidToDto.get(riData.getReservedInstanceSpec()
+                                    .getReservedInstanceSpecInfo().getTierId());
+                    final long businessAccountId = riData.getReservedInstanceBought()
+                            .getReservedInstanceBoughtInfo().getBusinessAccountId();
+                    final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
+                            .getBillingFamilyForEntity(businessAccountId);
+                    if (!billingFamilyGroup.isPresent()) {
+                        logger.error("Billing family group not found for RI Data: {}",
+                                riData.getReservedInstanceBought());
+                    }
+                    final long billingFamilyId = billingFamilyGroup.map(group ->
+                            group.group().getId()).orElse(businessAccountId);
+                    final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
+                            computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
+                            billingFamilyId);
+                    final ReservedInstanceAggregate riAggregate =
+                            new ReservedInstanceAggregate(riData, riKey, computeTier,
+                                    Collections.emptySet());
+                    providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
+                            region, riAggregate));
+                    resultType = RiDiscountedMarketTier.class;
+                } else {
+                    logger.error("RI: {} for topology entity: {} not found in scope.",
+                            riId, topologyEntity.getOid() + "::" + topologyEntity.getDisplayName());
+                    providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
+                            providerTopologyEntity));
+                    resultType = OnDemandMarketTier.class;
                 }
-                final long billingFamilyId = billingFamilyGroup.map(group ->
-                        group.group().getId()).orElse(businessAccountId);
-                final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
-                        computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
-                        billingFamilyId);
-                final ReservedInstanceAggregate riAggregate =
-                        new ReservedInstanceAggregate(riData, riKey, computeTier,
-                                Collections.emptySet());
-                providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
-                        region, riAggregate));
-                resultType = RiDiscountedMarketTier.class;
             } else {
                 providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
                         providerTopologyEntity));

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
@@ -492,9 +493,13 @@ public class KVBackedTargetStoreTest {
         prepareInitialProbe();
         final TargetSpec targetSpec = createTargetSpec(0, 1);
         Target target = targetStore.createTarget(targetSpec);
+        TargetStoreListener listener = Mockito.mock(TargetStoreListener.class);
+        targetStore.addListener(listener);
         Assert.assertEquals("1",
                         target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
         target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList());
+        // No update message sent since account values did not change
+        verify(listener, never()).onTargetUpdated(target);
         Assert.assertEquals("1",
                         target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
 
@@ -503,6 +508,8 @@ public class KVBackedTargetStoreTest {
         Assert.assertEquals("2",
                         target.getMediationAccountVals(groupScopeResolver)
                                 .iterator().next().getStringValue());
+        // Update message was sent since account values changed
+        verify(listener).onTargetUpdated(target);
     }
 
     /**

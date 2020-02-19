@@ -100,8 +100,8 @@ public enum RetentionPolicy {
      */
     public Integer getPeriod() {
         // ensure retention data is loaded
-        getRetentionData();
-        return retentionPeriods.containsKey(this) ? retentionPeriods.get(this).getLeft() : null;
+        final Map<RetentionPolicy, Pair<Integer, ChronoUnit>> data = getRetentionData();
+        return data.containsKey(this) ? data.get(this).getLeft() : null;
     }
 
     /**
@@ -111,8 +111,8 @@ public enum RetentionPolicy {
      */
     public ChronoUnit getUnit() {
         // ensure retention data is loaded
-        getRetentionData();
-        return retentionPeriods.containsKey(this) ? retentionPeriods.get(this).getRight() : null;
+        final Map<RetentionPolicy, Pair<Integer, ChronoUnit>> data = getRetentionData();
+        return data.containsKey(this) ? data.get(this).getRight() : null;
     }
 
     /**
@@ -123,10 +123,10 @@ public enum RetentionPolicy {
      */
     public Instant getExpiration(Instant t) {
         // ensure policy data is loaded
-        getRetentionData();
-        if (retentionPeriods.containsKey(this)) {
-            Integer period = retentionPeriods.get(this).getLeft();
-            ChronoUnit unit = retentionPeriods.get(this).getRight();
+        final Map<RetentionPolicy, Pair<Integer, ChronoUnit>> data = getRetentionData();
+        if (data.containsKey(this)) {
+            Integer period = data.get(this).getLeft();
+            ChronoUnit unit = data.get(this).getRight();
             return RetentionUtil.getExpiration(t, unit, period);
         } else {
             throw new IllegalStateException(String.format("No retention policy data loaded for policy %s", name()));
@@ -149,15 +149,17 @@ public enum RetentionPolicy {
      * <p>We discard our current retention and then recalculate expiration timestamps for all records in
      * available_timestamps (which will fault in the new data, assuming there are any records.</p>
      */
-    public static void onChange() {
+    public static synchronized void onChange() {
         retentionPeriods = null;
         updateAvailableTimestampExpiration();
     }
 
     /**
      * Load retention policy data from the database, if we don't currently have it.
+     *
+     * @return the newly loaded data
      */
-    private static synchronized void getRetentionData() {
+    private static synchronized Map<RetentionPolicy, Pair<Integer, ChronoUnit>> getRetentionData() {
         if (retentionPeriods == null) {
             // no loaded retention data, so load it now
             retentionPeriods = new HashMap<>();
@@ -188,6 +190,7 @@ public enum RetentionPolicy {
                 logger.error("Failed to load retention policy data", e);
             }
         }
+        return retentionPeriods;
     }
 
     /**

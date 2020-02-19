@@ -28,23 +28,87 @@ public class HostsSumCapacities {
         return cpu;
     }
 
+    /**
+     * Get the CPU capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getCpu(long slice) {
+        return nullIfMissing(cpu.get(slice));
+    }
+
     public TLongDoubleMap getMem() {
         return mem;
+    }
+
+    /**
+     * Get the MEM capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getMem(long slice) {
+        return nullIfMissing(mem.get(slice));
     }
 
     public TLongDoubleMap getIoThroughput() {
         return io_throughput;
     }
 
+    /**
+     * Get the IO THROUGHPUT capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getIoThroughput(long slice) {
+        return nullIfMissing(io_throughput.get(slice));
+    }
+
     public TLongDoubleMap getNetThroughput() {
         return net_throughput;
+    }
+
+    /**
+     * Get the NET THROUGHPUT capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getNetThroughput(long slice) {
+        return nullIfMissing(net_throughput.get(slice));
     }
 
     public TLongDoubleMap getCpuProvisioned() {
         return cpu_provisioned;
     }
 
+    /**
+     * Get the CPU PROVISIONED capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getCpuProvisioned(long slice) {
+        return nullIfMissing(cpu_provisioned.get(slice));
+    }
+
     public TLongDoubleMap getMemProvisioned() {
         return mem_provisioned;
+    }
+
+    /**
+     * Get the MEM PROVISIONED capacity value for the given slice.
+     *
+     * @param slice slice id
+     * @return capacity value, or null if missing
+     */
+    public Double getMemProvisioned(long slice) {
+        return nullIfMissing(mem_provisioned.get(slice));
+    }
+
+    private Double nullIfMissing(double value) {
+        return Double.isNaN(value) ? null : value;
     }
 }

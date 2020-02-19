@@ -464,6 +464,18 @@ public class KVBackedTargetStore implements TargetStore {
             if (oldTarget == null) {
                 throw new TargetNotFoundException(targetId);
             }
+            // Because derived targets' account values are reprocessed with every parent target
+            // discovery, we are sending out spurious onTargetUpdated messages.  Curtail these
+            // by skipping the update if nothing's changed.
+            Set<AccountValue> oldAccountValSet = new HashSet<>(oldTarget.getSpec().getAccountValueList());
+            Set<AccountValue> newAccountValSet = new HashSet<>(updatedFields);
+            Set<Long> oldDerivedTargetIds = new HashSet<>(oldTarget.getSpec().getDerivedTargetIdsList());
+            if (oldAccountValSet.equals(newAccountValSet) &&
+                oldDerivedTargetIds.equals(getDerivedTargetIds(targetId))) {
+                logger.debug("No change in account values or derived targets. "
+                    + "Not updating target '{}' ({}).", oldTarget.getDisplayName(), targetId);
+                return oldTarget;
+            }
             retTarget =
                 oldTarget.withUpdatedFields(updatedFields, probeStore)
                     .withUpdatedDerivedTargetIds(
