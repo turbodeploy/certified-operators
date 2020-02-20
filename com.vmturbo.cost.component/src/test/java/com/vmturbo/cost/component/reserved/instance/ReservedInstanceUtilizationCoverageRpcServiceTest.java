@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -129,7 +130,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord projectedRICoverageStatRecord =
             createRIStatsRecord(0, 0,
                     now + 50);
-        when(projectedRICoverageStore.getReservedInstanceCoverageStats(any(), anyBoolean()))
+        when(projectedRICoverageStore.getReservedInstanceCoverageStats(any(), anyBoolean(), anyLong()))
                 .thenReturn(projectedRICoverageStatRecord);
     }
 
@@ -153,7 +154,8 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord projectedRIUtilizationStatRecord =
                 createRIStatsRecord(0, 0,
                         now + 50);
-        when(projectedRICoverageStore.getReservedInstanceUtilizationStats(any(), anyBoolean()))
+        when(projectedRICoverageStore.getReservedInstanceUtilizationStats(any(), anyBoolean(),
+                anyLong()))
                 .thenReturn(projectedRIUtilizationStatRecord);
     }
 
