@@ -41,7 +41,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;

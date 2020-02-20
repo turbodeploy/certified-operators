@@ -41,7 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;

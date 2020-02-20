@@ -63,7 +63,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;

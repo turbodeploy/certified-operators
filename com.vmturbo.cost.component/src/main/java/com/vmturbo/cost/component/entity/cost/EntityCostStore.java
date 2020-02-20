@@ -9,7 +9,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.sql.utils.DbException;

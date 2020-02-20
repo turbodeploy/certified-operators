@@ -34,7 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

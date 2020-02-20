@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
