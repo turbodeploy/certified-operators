@@ -635,7 +635,11 @@ public class ScheduleStore implements DiagsRestorable {
         recordToUpdate.setRecurRule(scheduleMessage.hasOneTime() ?
             null : scheduleMessage.getRecurRule());
         recordToUpdate.setTimeZoneId(scheduleMessage.getTimezoneId());
-        recordToUpdate.setRecurrenceStartTime(scheduleMessage.hasRecurrenceStart() ?
-            new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null);
+        // UI may not send deferred schedule start time with every request so don't overwrite the
+        // existing value
+        if (scheduleMessage.hasRecurrenceStart()) {
+            recordToUpdate.setRecurrenceStartTime(
+                new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()));
+        }
     }
 }
