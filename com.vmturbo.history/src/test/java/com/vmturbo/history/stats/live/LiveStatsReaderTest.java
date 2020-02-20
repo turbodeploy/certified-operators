@@ -344,4 +344,18 @@ public class LiveStatsReaderTest {
         // The returned record should be the one coming out of the ratio processor.
         assertThat(records, contains(processedRecord));
     }
+
+    /**
+     * Test getEntityDisplayNameForId.
+     *
+     * @throws VmtDbException if there's a problem
+     */
+    @Test
+    public void testGetEntityDisplayNameForId() throws VmtDbException {
+        final Long entityOid = 1L;
+        final String entityDisplayName = new String("Entity_1");
+        when(liveStatsReader.getEntityDisplayNameForId(entityOid)).thenReturn(entityDisplayName);
+        assertTrue(liveStatsReader.getEntityDisplayNameForId(null) == null);
+        assertTrue(liveStatsReader.getEntityDisplayNameForId(entityOid).equals(entityDisplayName));
+    }
 }
