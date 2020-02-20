@@ -175,6 +175,11 @@ public class ActionDTOUtil {
                 // is applied to the source instead of the target,
                 // since we're moving the load off of the source.
                 final List<ChangeProvider> changes = getChangeProviderList(actionInfo);
+                ActionEntity potentialVirtualVolume = getPrimaryEntity(action.getId(), actionInfo, true);
+                //Move volume actions should be counted against the moving volumes in terms of severity, not the storage
+                if (potentialVirtualVolume.getId() != primaryEntity.getId()) {
+                    return potentialVirtualVolume.getId();
+                }
                 return changes.stream()
                     .filter(provider -> provider.getSource().getType() == EntityType.PHYSICAL_MACHINE_VALUE)
                     .findFirst()
@@ -281,7 +286,7 @@ public class ActionDTOUtil {
     }
 
     /**
-     * If a move action has a volume as resource and is from one storage tier to another, the
+     * If a move action has a volume as resource and is from one storage to another, the
      * resource volume should be treated as the target of the action.
      *
      * @param actionInfo action info to be assessed
@@ -292,8 +297,6 @@ public class ActionDTOUtil {
             final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(actionInfo);
             if (primaryChangeProvider.hasSource() && primaryChangeProvider.hasDestination() &&
                 primaryChangeProvider.hasResource() &&
-                TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType()) &&
-                TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType()) &&
                 TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType()) &&
                 TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
                 return primaryChangeProvider.getResource();
