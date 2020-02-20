@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.driver.ArangoGraphDatabaseDriver;
@@ -28,7 +29,7 @@ import com.vmturbo.repository.topology.TopologyID;
  * changes introduced for multi-tenancy. Therefore, we need this migration to clean up the old
  * topologies.</p>
  */
-public class V_01_00_00__PURGE_ALL_LEGACY_PLANS implements Migration {
+public class V_01_00_00__PURGE_ALL_LEGACY_PLANS extends AbstractMigration {
 
     /**
      * For logging migration status.
@@ -62,18 +63,6 @@ public class V_01_00_00__PURGE_ALL_LEGACY_PLANS implements Migration {
     private final ArangoDatabaseFactory arangoFactory;
 
     /**
-     * For reporting migration progress.
-     */
-    //TODO: Improve this with an abstract superclass.
-    @GuardedBy("migrationInfoLock")
-    private final MigrationProgressInfo.Builder migrationInfo = MigrationProgressInfo.newBuilder();
-
-    /**
-     * For synchronizing access to the migrationInfo.
-     */
-    private final Object migrationInfoLock = new Object();
-
-    /**
      * Create an instance of the Purge all Legacy Plans migration.
      *
      * @param arangoFactory provides a connection to ArangoDB
@@ -83,43 +72,13 @@ public class V_01_00_00__PURGE_ALL_LEGACY_PLANS implements Migration {
     }
 
     /**
-     * Retrieve the current status of the migration.
-     *
-     * <p>See {@link MigrationStatus} for the list of states.</p>
-     *
-     * @return the current {@link MigrationStatus}
-     */
-    @Override
-    public MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    /**
-     * Retrieve the current info about the migration.
-     *
-     * @return the current {@link MigrationProgressInfo}
-     */
-    @Override
-    public MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    /**
      * Start the migration, deleting all obsolete plan topologies.
      *
      * @return {@link MigrationProgressInfo} describing the details
      * of the migration
      */
     @Override
-    public MigrationProgressInfo startMigration() {
-        logger.info("Starting migration...");
-        synchronized (migrationInfoLock) {
-            migrationInfo.setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.RUNNING);
-        }
+    public MigrationProgressInfo doStartMigration() {
         return deleteLegacyDatabases();
     }
 
@@ -168,32 +127,5 @@ public class V_01_00_00__PURGE_ALL_LEGACY_PLANS implements Migration {
     private boolean deleteDatabase(final String databaseName) {
         logger.info("Deleting legacy plan database " + databaseName);
         return arangoFactory.getArangoDriver().db(databaseName).drop();
-    }
-
-    /**
-     * Generate a migrationInfo indicating a successful migration.
-     *
-     * @return migrationInfo indicating a successful migration
-     */
-    @Nonnull
-    private MigrationProgressInfo migrationSucceeded() {
-        return migrationInfo
-            .setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.SUCCEEDED)
-            .setCompletionPercentage(100)
-            .build();
-    }
-
-    /**
-     * Generate a migrationInfo indicating a failed migration.
-     *
-     * @param errorMessage a message indicating why the migration failed
-     * @return migrationInfo indicating a failed migration
-     */
-    @Nonnull
-    private MigrationProgressInfo migrationFailed(@Nonnull String errorMessage) {
-        return migrationInfo
-            .setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.FAILED)
-            .setStatusMessage("Migration failed: " + errorMessage)
-            .build();
     }
 }

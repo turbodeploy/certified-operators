@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting.Builder;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
@@ -33,7 +34,7 @@ import com.vmturbo.group.setting.SettingStore;
  * 20.0. If its default is not 10000.0, it means it's already changed to other meaningful value by
  * user, we should keep it and not change it.
  */
-public class V_01_00_03__Change_Default_Transactions_Capacity implements Migration {
+public class V_01_00_03__Change_Default_Transactions_Capacity extends AbstractMigration {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -43,38 +44,13 @@ public class V_01_00_03__Change_Default_Transactions_Capacity implements Migrati
 
     private final SettingStore settingStore;
 
-    private final Object migrationInfoLock = new Object();
-
-    @GuardedBy("migrationInfoLock")
-    private final MigrationProgressInfo.Builder migrationInfo =
-            MigrationProgressInfo.newBuilder();
-
 
     public V_01_00_03__Change_Default_Transactions_Capacity(@Nonnull final SettingStore settingStore) {
         this.settingStore = Objects.requireNonNull(settingStore);
     }
 
     @Override
-    public MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    @Override
-    public MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    @Override
-    public MigrationProgressInfo startMigration() {
-        logger.info("Starting migration...");
-        synchronized (migrationInfoLock) {
-            migrationInfo.setStatus(MigrationStatus.RUNNING);
-        }
-
+    public MigrationProgressInfo doStartMigration() {
         // keep track of policies whose transactions capacity is changed
         final List<String> migratedPolicies = new ArrayList<>();
 
@@ -117,13 +93,9 @@ public class V_01_00_03__Change_Default_Transactions_Capacity implements Migrati
 
         logger.info("Finished migration!");
 
-        synchronized (migrationInfoLock) {
-            return migrationInfo.setStatus(MigrationStatus.SUCCEEDED)
-                .setCompletionPercentage(100)
-                .setStatusMessage("Changed default value of transactions capacity from " +
+        return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100,
+            "Changed default value of transactions capacity from " +
                     DEFAULT_VALUE_OLD + " to " + DEFAULT_VALUE_NEW + " for setting policies: " +
-                    String.join(", ", migratedPolicies))
-                .build();
-        }
+                    String.join(", ", migratedPolicies));
     }
 }
