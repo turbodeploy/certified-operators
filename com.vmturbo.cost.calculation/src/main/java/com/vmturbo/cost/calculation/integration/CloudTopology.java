@@ -226,4 +226,14 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<GroupAndMembers> getBillingFamilyForEntity(long entityId);
+
+    /**
+     * Get ServiceProvider for provided entity oid.
+     *
+     * @param entityId entity Oid.
+     * @return ServiceProvider
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getServiceProvider(long entityId);
+
 }

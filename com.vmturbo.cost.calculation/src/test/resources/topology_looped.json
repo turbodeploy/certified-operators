@@ -1,0 +1,41 @@
+[{
+  "entityType": 10,
+  "oid": "73335109012371",
+  "displayName": "aks-agentpool-36973178-4",
+  "environmentType": "CLOUD",
+  "commoditySoldList": [],
+  "commoditiesBoughtFromProviders": [],
+  "entityState": "POWERED_ON",
+  "connectedEntityList": [{
+    "connectedEntityId": "73335109012372",
+    "connectedEntityType": 10,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  },
+    {
+      "connectedEntityId": "73335109012366",
+      "connectedEntityType": 60,
+      "connectionType": "NORMAL_CONNECTION"
+    }
+  ]
+},{
+  "entityType": 10,
+  "oid": "73335109012372",
+  "displayName": "aks-agentpool-36973178-4",
+  "environmentType": "CLOUD",
+  "commoditySoldList": [],
+  "commoditiesBoughtFromProviders": [],
+  "entityState": "POWERED_ON",
+  "connectedEntityList": [{
+    "connectedEntityId": "73335109012371",
+    "connectedEntityType": 10,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  },
+    {
+      "connectedEntityId": "73335109012366",
+      "connectedEntityType": 60,
+      "connectionType": "NORMAL_CONNECTION"
+    }
+  ]
+}
+
+]
