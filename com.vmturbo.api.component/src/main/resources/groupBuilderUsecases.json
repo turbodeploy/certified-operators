@@ -56,8 +56,8 @@
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageByName"},
             {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByVMs"},
-            {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
-            {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
+            {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:CONSUMES:Storage", "filterCategory": "entity", "filterType": "storageByPMCluster"},
+            {"inputType": "*", "elements": "MemberOf:StorageCluster:displayName", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState", "loadOptions": true},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag", "loadOptions": true},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"},
