@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.stats.query.live;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import io.grpc.Status.Code;
 
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -31,11 +33,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -46,9 +52,7 @@ public class CurrentActionStatReaderTest {
 
     private ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
 
-    private CurrentActionStatReader statReader = new CurrentActionStatReader(queryInfoFactory,
-        statsBucketsFactory,
-        actionStorehouse);
+    private CurrentActionStatReader statReader;
 
     private static final Action ACTION = Action.newBuilder()
         .setId(1)
@@ -60,6 +64,33 @@ public class CurrentActionStatReaderTest {
         .setExplanation(Explanation.getDefaultInstance())
         .setDeprecatedImportance(1)
         .build();
+
+    /**
+     * A move action which move vm from one host to another.
+     */
+    private static final Action MOVE_ACTION = Action.newBuilder()
+        .setId(1)
+        .setInfo(ActionInfo.newBuilder()
+            .setMove(Move.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(112)
+                    .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ActionEntity.newBuilder()
+                        .setId(221)
+                        .setType(EntityType.PHYSICAL_MACHINE_VALUE))
+                    .setDestination(ActionEntity.newBuilder()
+                        .setId(222)
+                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
+        .setExplanation(Explanation.getDefaultInstance())
+        .setDeprecatedImportance(1)
+        .build();
+
+    @Before
+    public void setup() {
+        statReader = new CurrentActionStatReader(queryInfoFactory, statsBucketsFactory,
+            actionStorehouse);
+    }
 
     @Test
     public void testReadActionStatsNoStoreForContext() {
@@ -197,4 +228,72 @@ public class CurrentActionStatReaderTest {
         assertThat(statsByQueryId.get(query2.getQueryId()), contains(stat2));
     }
 
+    /**
+     * Test the case that action count is correct if the passed queries contain entities which
+     * are involved in same action. For example: there is an action
+     * "move vm 112 from host 221 to host 222", it passed two queries, one for host221, the other
+     * one for host222, it should return action count 1 for both, not 2.
+     *
+     * @throws FailedActionQueryException any error happens
+     */
+    @Test
+    public void testReadActionStatsForEntitiesWhichAreRelatedToSameAction()
+            throws FailedActionQueryException {
+        statReader = new CurrentActionStatReader(queryInfoFactory,
+            new CombinedStatsBucketsFactory(), actionStorehouse);
+        // Create two queries, for different entities scopes
+        final SingleQuery query1 = SingleQuery.newBuilder()
+            .setQueryId(221)
+            .setQuery(CurrentActionStatsQuery.newBuilder()
+                .setScopeFilter(ScopeFilter.newBuilder()
+                    .setEntityList(EntityScope.newBuilder().addOids(221))))
+            .build();
+        final SingleQuery query2 = SingleQuery.newBuilder()
+            .setQueryId(222)
+            .setQuery(CurrentActionStatsQuery.newBuilder()
+                .setScopeFilter(ScopeFilter.newBuilder()
+                    .setEntityList(EntityScope.newBuilder().addOids(222))))
+            .build();
+
+        final long contextId = 1;
+        final QueryInfo queryInfo1 = ImmutableQueryInfo.builder()
+            .queryId(query1.getQueryId())
+            .topologyContextId(contextId)
+            .entityPredicate(entity -> entity.getId() == 221L)
+            .query(query1.getQuery())
+            .actionGroupPredicate(action -> true)
+            .build();
+        when(queryInfoFactory.extractQueryInfo(query1)).thenReturn(queryInfo1);
+
+        final QueryInfo queryInfo2 = ImmutableQueryInfo.builder()
+            .queryId(query2.getQueryId())
+            .topologyContextId(contextId)
+            .entityPredicate(entity -> entity.getId() == 222L)
+            .query(query2.getQuery())
+            .actionGroupPredicate(action -> true)
+            .build();
+        when(queryInfoFactory.extractQueryInfo(query2)).thenReturn(queryInfo2);
+
+        final ActionStore actionStore = mock(ActionStore.class);
+        when(actionStore.getStoreTypeName()).thenReturn("store1");
+        final Predicate<ActionView> visibilityPredicate = mock(Predicate.class);
+        when(visibilityPredicate.test(any())).thenReturn(true);
+        when(actionStore.getVisibilityPredicate()).thenReturn(visibilityPredicate);
+        when(actionStorehouse.getStore(contextId)).thenReturn(Optional.of(actionStore));
+
+        // mock move action: move vm 112 from host 221 to host 222
+        ActionView actionView = ActionOrchestratorTestUtils.mockActionView(MOVE_ACTION);
+        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(
+            ImmutableMap.of(1111L, actionView)));
+
+        final GetCurrentActionStatsRequest req = GetCurrentActionStatsRequest.newBuilder()
+                .addQueries(query1)
+                .addQueries(query2)
+                .build();
+        final Map<Long, List<CurrentActionStat>> statsByQueryId = statReader.readActionStats(req);
+
+        // verify that action count for host 221 and host 222 are both 1, not 2
+        assertThat(statsByQueryId.get(query1.getQueryId()).get(0).getActionCount(), is(1));
+        assertThat(statsByQueryId.get(query2.getQueryId()).get(0).getActionCount(), is(1));
+    }
 }

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -157,13 +158,13 @@ public class CurrentActionStatReader {
         // requested entities. Otherwise get all action views.
         if (queriesByScopeCase.containsKey(ScopeCase.ENTITY_LIST)
                 && queriesByScopeCase.keySet().size() == 1) {
-            // Actions are indexed by entity ID, so here we can run each query separately.
-            candidateActionViews = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
-                .flatMap(queryInfo -> {
-                    final List<Long> desiredEntityIds =
-                        queryInfo.query().getScopeFilter().getEntityList().getOidsList();
-                    return actionViews.getByEntity(desiredEntityIds);
-                });
+            // collect all involved entities into a set for all scopes in the queries first,
+            // so actions are already deduplicated in getByEntity before returning
+            Set<Long> allInvolvedEntities = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
+                .flatMap(queryInfo ->
+                    queryInfo.query().getScopeFilter().getEntityList().getOidsList().stream())
+                .collect(Collectors.toSet());
+            candidateActionViews = actionViews.getByEntity(allInvolvedEntities);
         } else {
             candidateActionViews = actionViews.getAll();
         }
