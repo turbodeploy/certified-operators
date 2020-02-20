@@ -1,15 +1,16 @@
 package com.vmturbo.cost.calculation.topology;
 
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -34,8 +35,9 @@ public class AccountPricingData<T> {
     private final PriceTable priceTable;
 
     //List of licensePrice is sorted by number of cores.
-    private final Map<LicenseIdentifier, Collection<LicensePrice>> onDemandLicensePrices;
+    private final Map<LicenseIdentifier, List<LicensePrice>> onDemandLicensePrices;
 
+    //List of licensePrice is sorted by number of cores.
     private final Map<LicenseIdentifier, List<LicensePrice>> reservedLicensePrices;
 
     private final Long accountPricingDataOid;
@@ -62,44 +64,46 @@ public class AccountPricingData<T> {
             .put(OSType.WINDOWS_WITH_SQL_WEB, Optional.of(OSType.WINDOWS)).build();
 
     /**
+     * Collector to group prices by {@link LicenseIdentifier} and sort prices by number of cores.
+     */
+    private static final Collector<LicensePriceEntry, ?, Map<LicenseIdentifier, List<LicensePrice>>>
+            PRICE_COLLECTOR = Collectors.toMap(
+            licensePriceEntry -> new LicenseIdentifier(licensePriceEntry.getOsType(),
+                    licensePriceEntry.getBurstableCPU()), value -> value.getLicensePricesList()
+                    .stream()
+                    .sorted(Comparator.comparingInt(LicensePrice::getNumberOfCores))
+                    .collect(ImmutableList.toImmutableList()),
+            // if there are duplicate OS types then merge their price lists
+            (list1, list2) -> {
+                List<LicensePrice> list3 = Lists.newLinkedList();
+                list3.addAll(list1);
+                list3.addAll(list2);
+                list3.sort(Comparator.comparingInt(LicensePrice::getNumberOfCores));
+                return ImmutableList.copyOf(list3);
+            });
+
+    /**
      * Constructor for the account pricing data.
      *
      * @param discountApplicator The discount applicator.
      * @param priceTable The price table.
      * @param accountPricingDataOid The account pricing data oid.
      */
-    public AccountPricingData(DiscountApplicator<T> discountApplicator,
-                              final PriceTable priceTable, Long accountPricingDataOid) {
+    public AccountPricingData(DiscountApplicator<T> discountApplicator, final PriceTable priceTable,
+            Long accountPricingDataOid) {
         this.discountApplicator = discountApplicator;
         this.priceTable = priceTable;
-        this.onDemandLicensePrices = priceTable.getOnDemandLicensePricesList().stream()
-                .collect(Collectors.toMap(licensePriceEntry -> new LicenseIdentifier(licensePriceEntry.getOsType(),
-                        licensePriceEntry.getBurstableCPU()),
-                        LicensePriceEntry::getLicensePricesList,
-                        // if there are duplicate OS types then merge their price lists
-                        (list1, list2) -> {
-                            List<LicensePrice> list3 = Lists.newLinkedList();
-                            list3.addAll(list1);
-                            list3.addAll(list2);
-                            list3.sort(Comparator.comparingInt(LicensePrice::getNumberOfCores));
-                            return list3;
-                        }));
-
-        this.reservedLicensePrices = priceTable.getReservedLicensePricesList().stream()
-                .collect(Collectors.toMap(licensePriceEntry -> new LicenseIdentifier(licensePriceEntry.getOsType(),
-                        licensePriceEntry.getBurstableCPU()),
-                        LicensePriceEntry::getLicensePricesList,
-                        (list1, list2) -> {
-                            List<LicensePrice> list3 = Lists.newArrayList();
-                            list3.addAll(list1);
-                            list3.addAll(list2);
-                            return list3;
-                        }));
+        this.onDemandLicensePrices = priceTable.getOnDemandLicensePricesList()
+                .stream()
+                .collect(Collectors.collectingAndThen(PRICE_COLLECTOR, ImmutableMap::copyOf));
+        this.reservedLicensePrices = priceTable.getReservedLicensePricesList()
+                .stream()
+                .collect(Collectors.collectingAndThen(PRICE_COLLECTOR, ImmutableMap::copyOf));
         this.accountPricingDataOid = accountPricingDataOid;
     }
 
     /**
-     * Return the license price that matches the OS and has the minimal number of
+     * Return the explicit license price that matches the OS and has the minimal number of
      * cores that is .GE. the numCores argument. If numCores is too high then
      * return {@link Optional#empty}. This will have effect on Azure instances.
      *
@@ -108,23 +112,44 @@ public class AccountPricingData<T> {
      * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
-    private Optional<LicensePrice> getExplicitLicensePrice(OSType os, int numCores, boolean burstableCPU) {
-        LicenseIdentifier licenseIdentifier = new LicenseIdentifier(os, burstableCPU);
-        // the prices are already ASC sorted by num of cores in licensePrice.
-        Collection<LicensePrice> prices = onDemandLicensePrices.get(licenseIdentifier);
-        if (prices == null) {
-            return Optional.empty();
-        } else {
-            return prices.stream().filter(price -> price.getNumberOfCores() >= numCores).findFirst();
-        }
+    private Optional<LicensePrice> getExplicitLicensePrice(OSType os, int numCores,
+            boolean burstableCPU) {
+        return getLicensePrice(onDemandLicensePrices, os, numCores, burstableCPU);
     }
 
-    private Optional<LicensePrice> getReservedLicensePrice(OSType os, int numCores, final boolean burstableCPU) {
-        List<LicensePrice> prices = reservedLicensePrices.get(new LicenseIdentifier(os, burstableCPU));
+    /**
+     * Return the license price of the RI coverage that matches the OS and has the minimal number of
+     * cores that is .GE. the numCores argument. If numCores is too high then
+     * return {@link Optional#empty}. This will have effect on Azure instances.
+     *
+     * @param os VM OS
+     * @param numCores VM number of CPUs
+     * @param burstableCPU if a license support burstableCPU.
+     * @return the matching license price
+     */
+    private Optional<LicensePrice> getReservedLicensePrice(OSType os, int numCores,
+            final boolean burstableCPU) {
+        return getLicensePrice(reservedLicensePrices, os, numCores, burstableCPU);
+    }
+
+    /**
+     * Return the  license price that matches the OS and has the minimal number of
+     * cores that is .GE. the numCores argument. If numCores is too high then
+     * return {@link Optional#empty}.
+     *
+     * @param mapping license price mapping
+     * @param os VM OS
+     * @param numCores VM number of CPUs
+     * @param burstableCPU if a license support burstableCPU.
+     * @return the matching license price
+     */
+    private Optional<LicensePrice> getLicensePrice(Map<LicenseIdentifier, List<LicensePrice>> mapping,
+            OSType os, int numCores, final boolean burstableCPU) {
+        List<LicensePrice> prices = mapping.get(new LicenseIdentifier(os, burstableCPU));
         if (prices == null) {
             return Optional.empty();
         }
-        return prices.stream().filter(s -> s.getNumberOfCores() == numCores).findFirst();
+        return prices.stream().filter(s -> s.getNumberOfCores() >= numCores).findFirst();
     }
 
     /**
