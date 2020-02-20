@@ -80,7 +80,8 @@ public class ReservedCapacityAnalysisTest {
     VMScenario[] vmData = {
         new VMScenario(2L, 100, 10, 20, 15, false),
         new VMScenario(3L, 100, 30, 60, 15, true),
-        new VMScenario(4L, 50,  10, 20, 15, true)
+        new VMScenario(4L, 50,  10, 20, 15, true),
+        new VMScenario(5L, 50,  10, 20, 50, true)
     };
 
     private CommodityBoughtDTO.Builder makeMemBought(double capacity) {
@@ -329,13 +330,15 @@ public class ReservedCapacityAnalysisTest {
         /*
          * VM-1 has current reservation = 100, new reservation = 60
          * VM-2 has current reservation = 50, new reservation = 20
+         * VM-3 has current reservation = 100, new reservation = 60, increment = 50
          *
          * The maximum new reservation for the scaling group is therefore 60.
          * Since 60 is greater than the current reservation in VM-2, no
          * reservation action will be generated for it.  We should see a single
-         * reservation from 100 -> 60 for VM-1.
+         * reservation from 100 -> 60 for VM-1.  VM-3 also wants to go from 100 -> 60, but the
+         * delta of 40 is less than its used increment is 50, so the action will not be generated.
          */
-        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], PM);
+        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], VMs[3], PM);
         rca.execute(csh);
 
         assertEquals(1, rca.getActions().size());

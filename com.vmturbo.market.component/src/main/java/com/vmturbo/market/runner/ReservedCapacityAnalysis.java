@@ -175,7 +175,7 @@ public class ReservedCapacityAnalysis {
                 String key = scalingGroupId.get() + ":" + commBought.getCommodityType().getType();
                 ReservationGroup rg = reservationGroups_.get(key);
                 if (rg == null) {
-                    rg = new ReservationGroup(scalingGroupId);
+                    rg = new ReservationGroup(scalingGroupId, usedIncrement);
                     reservationGroups_.put(key, rg);
                 }
                 rg.addReservation(oid, commBought, (float)newReservedCapacity);
@@ -274,11 +274,15 @@ public class ReservedCapacityAnalysis {
     class ReservationGroup {
         private Optional<String> scalingGroupId_;
         private float maxReservation_;
+        // Since all scaling group members share the same policies/settings, the used increment
+        // setting will be the same for all of the members, so we only need to save one copy.
+        private float usedIncrement_;
         private List<TentativeReservation> reservations_;
 
-        ReservationGroup(Optional<String> scalingGroupId) {
+        ReservationGroup(Optional<String> scalingGroupId, final float usedIncrement) {
             this.scalingGroupId_ = scalingGroupId;
             this.maxReservation_ = 0;
+            this.usedIncrement_ = usedIncrement;
             this.reservations_ = new ArrayList<>();
         }
 
@@ -303,9 +307,11 @@ public class ReservedCapacityAnalysis {
          */
         public void generateReservations() {
             if (maxReservation_ > 0) {
+                float actionThreshold = maxReservation_ + usedIncrement_;
                 reservations_.stream()
-                    // Do not generate a reservation if there's no change or if it's a resize up.
-                    .filter(tr -> maxReservation_ < tr.commBought_.getReservedCapacity())
+                    // Do not generate a reservation if the change is less than the used increment
+                    // or if it's a resize up.
+                    .filter(tr -> actionThreshold <= tr.commBought_.getReservedCapacity())
                     .forEach(tr -> generateResizeReservationAction(scalingGroupId_, tr.oid_,
                             tr.commBought_, maxReservation_));
             }
