@@ -52,21 +52,15 @@ public class SnapshotCreator
      */
     public SnapshotCreator(boolean fullMarket,
                     @Nonnull SharedPropertyPopulator<Long> longProducerIdPopulator) {
-        final CapacityRecordVisitor capacityRecordVisitor =
-                        new CapacityRecordVisitor(StatsConfig.CAPACITY_POPULATOR);
         final Collection<RecordVisitor<?>> statsVisitors =
-                        createRequestStatsVisitors(fullMarket, longProducerIdPopulator,
-                                        capacityRecordVisitor);
+                createRequestStatsVisitors(fullMarket, longProducerIdPopulator);
         final Multimap<Class<? extends Record>, RecordVisitor<?>> specialVisitors =
-                        createRequestSpecialVisitors(fullMarket, longProducerIdPopulator,
-                                        capacityRecordVisitor);
+                createRequestSpecialVisitors(fullMarket, longProducerIdPopulator);
         this.dbRecordsProcessor = new DbRecordsProcessor(statsVisitors, specialVisitors);
-
     }
 
     private static Collection<RecordVisitor<?>> createRequestStatsVisitors(boolean fullMarket,
-                    @Nonnull SharedPropertyPopulator<Long> producerIdPopulator,
-                    @Nonnull RecordVisitor<?> capacityRecordVisitor) {
+            @Nonnull SharedPropertyPopulator<Long> producerIdPopulator) {
         final ImmutableCollection.Builder<RecordVisitor<?>> builder = ImmutableList.builder();
         builder.add(new UsageRecordVisitor(fullMarket, StatsConfig.USAGE_POPULATOR),
                         new PropertyTypeVisitor<>(fullMarket, StringConstants.PROPERTY_TYPE,
@@ -78,13 +72,12 @@ public class SnapshotCreator
                                         StatsConfig.RELATED_ENTITY_TYPE_POPULATOR, String.class),
                         new BasePropertyVisitor<>(StringConstants.RELATION, BI_FUNCTION_IDENTITY,
                                         StatsConfig.RELATION_POPULATOR, String.class),
-                        capacityRecordVisitor);
+                        new CapacityRecordVisitor(StatsConfig.CAPACITY_POPULATOR));
         return builder.build();
     }
 
     private static Multimap<Class<? extends Record>, RecordVisitor<?>> createRequestSpecialVisitors(
-                    boolean fullMarket, @Nonnull SharedPropertyPopulator<Long> producerIdPopulator,
-                    RecordVisitor<?> capacityVisitor) {
+            boolean fullMarket, @Nonnull SharedPropertyPopulator<Long> producerIdPopulator) {
         final ImmutableMultimap.Builder<Class<? extends Record>, RecordVisitor<?>> builder =
                         ImmutableMultimap.builder();
         builder.putAll(HistUtilizationRecord.class, Arrays.stream(HistoryUtilizationType.values())
@@ -97,7 +90,8 @@ public class SnapshotCreator
                         StatsConfig.PROPERTY_TYPE_POPULATOR), new ProducerIdVisitor(fullMarket,
                         HistUtilization.HIST_UTILIZATION.PRODUCER_OID.getName(),
                         producerIdPopulator));
-        builder.put(HistUtilizationRecord.class, capacityVisitor);
+        builder.put(HistUtilizationRecord.class,
+                new CapacityRecordVisitor(StatsConfig.CAPACITY_POPULATOR));
         return builder.build();
     }
 

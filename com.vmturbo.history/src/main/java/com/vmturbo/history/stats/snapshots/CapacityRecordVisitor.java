@@ -5,9 +5,9 @@
 package com.vmturbo.history.stats.snapshots;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +30,7 @@ import com.vmturbo.components.common.utils.StringConstants;
 public class CapacityRecordVisitor
                 extends AbstractVisitor<Record, Pair<StatsAccumulator, StatsAccumulator>> {
     private static final Logger LOGGER = LogManager.getLogger(CapacityRecordVisitor.class);
-    private final BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> capacityPopulator;
+    private final SharedPropertyPopulator<Pair<StatValue, Float>> capacityPopulator;
 
     /**
      * Creates {@link CapacityRecordVisitor} instance.
@@ -39,7 +39,7 @@ public class CapacityRecordVisitor
      *                 related stuff.
      */
     public CapacityRecordVisitor(
-                    @Nonnull BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> capacityPopulator) {
+            @Nonnull SharedPropertyPopulator<Pair<StatValue, Float>> capacityPopulator) {
         super((state) -> {
             state.first.clear();
             state.second.clear();
@@ -77,7 +77,7 @@ public class CapacityRecordVisitor
         final StatsAccumulator effectiveCapacityAccumulator = state.second;
         final float reserved = (float)(capacityAccumulator.getTotal() - effectiveCapacityAccumulator
                         .getTotal());
-        capacityPopulator.accept(builder, new Pair<>(capacityAccumulator.toStatValue(), reserved));
+        capacityPopulator.accept(builder, new Pair<>(capacityAccumulator.toStatValue(), reserved), record);
     }
 
     private static Pair<StatsAccumulator, StatsAccumulator> createAccumulators() {
@@ -88,12 +88,12 @@ public class CapacityRecordVisitor
      * {@link CapacityPopulator} populates capacity and reserved values in {@link
      * StatRecord.Builder}.
      */
-    public static class CapacityPopulator
-                    implements BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> {
+    public static class CapacityPopulator extends SharedPropertyPopulator<Pair<StatValue, Float>> {
 
         @Override
-        public void accept(Builder builder, Pair<StatValue, Float> capacityReserved) {
-            if (capacityReserved.first != null) {
+        public void accept(@Nonnull Builder builder,
+                @Nullable Pair<StatValue, Float> capacityReserved, @Nullable Record record) {
+            if (capacityReserved.first != null && whetherToSet(builder.hasCapacity(), record)) {
                 builder.setCapacity(capacityReserved.first);
                 if (capacityReserved.second != null) {
                     builder.setReserved(capacityReserved.second);
