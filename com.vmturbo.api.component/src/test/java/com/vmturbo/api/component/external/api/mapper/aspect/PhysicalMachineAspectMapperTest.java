@@ -8,17 +8,23 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.google.common.collect.Lists;
+import com.google.protobuf.util.JsonFormat;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.PMDiskAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.PMDiskGroupAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -73,4 +79,33 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(CONNECTED_ENTITY_NAME_LIST, pmAspect.getProcessorPools());
     }
 
+    /**
+     * Test vSAN host for disk groups.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testDiskGroups() throws Exception {
+        InputStream is = PhysicalMachineAspectMapperTest.class
+                .getResourceAsStream("/PhysicalMachineAspectMapperTest.json");
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
+        JsonFormat.parser().merge(new InputStreamReader(is), builder);
+
+        PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(null);
+        PMEntityAspectApiDTO result = (PMEntityAspectApiDTO)mapper
+                .mapEntityToAspect(builder.build());
+
+        List<PMDiskGroupAspectApiDTO> diskGroups = result.getDiskGroups();
+        Assert.assertTrue(diskGroups.size() > 0);
+
+        for (PMDiskGroupAspectApiDTO group : diskGroups) {
+            List<PMDiskAspectApiDTO> disks = group.getDisks();
+            Assert.assertTrue(disks.size() > 0);
+
+            for (PMDiskAspectApiDTO disk : disks) {
+                Assert.assertTrue(disk.getDiskCapacity() > 0);
+                Assert.assertNotNull(disk.getDiskRole());
+            }
+        }
+    }
 }
