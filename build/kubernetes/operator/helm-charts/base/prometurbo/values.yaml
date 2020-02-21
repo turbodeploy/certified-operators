@@ -5,9 +5,9 @@
 # Replace the image with desired version
 image:
   promerepository: turbonomic/prometurbo
-  prometag: 6.4dev
+  prometag: 7.21.0
   apprepository: turbonomic/appmetric
-  apptag: 6.4dev
+  apptag: 7.21.0
   pullPolicy: IfNotPresent
 
 #nameOverride: ""
