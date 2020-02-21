@@ -734,6 +734,21 @@ enum ActionPhase {
     POST = 2;
 }
 
+enum ActionCostType {
+    // Actions will have a cost type based on whether they provide savings or if they require
+    // an investment.
+
+    // A cost type whose savings and investments are both 0
+    // 'NONE' must have a prefix as there is a sibling enum with 'NONE' already defined
+    ACTION_COST_TYPE_NONE = 0;
+
+    // A cost type where the action provides savings.
+    SAVINGS = 1;
+
+    // A cost type where the action requires investment.
+    INVESTMENT = 2;
+}
+
 // The ActionDecision provides information about why OperationsManager
 // decided to execute or not to execute a particular action.
 message ActionDecision {
@@ -1336,6 +1351,9 @@ message CurrentActionStatsQuery {
         // All actions with no associated resource group will go into a single group with
         // an explicitly set "0" value for the resource group ID.
         RESOURCE_GROUP_ID = 10;
+
+        // Group by the cost type of the action to bucket SAVINGS/INVESTMENT actions.
+        COST_TYPE = 11;
     }
 }
 
@@ -1532,6 +1550,10 @@ message CurrentActionStat {
         // May be explicitly set to "0" for a stat group representing actions that are not
         // associated with any resource groups.
         optional int64 resource_group_id = 9;
+
+        // Cost Type of the action, only present if the "group_by" in the query contains
+        // "COST_TYPE".
+        optional ActionCostType cost_type = 10;
     }
 
     // The stat group this action stat is in.

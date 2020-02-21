@@ -147,6 +147,10 @@ class ActionStatsMapper {
             groupByFilters.setType(actionStat.getStatGroup().getActionType());
         }
 
+        if (actionStat.getStatGroup().hasCostType()) {
+            groupByFilters.setActionCostType(actionStat.getStatGroup().getCostType());
+        }
+
         if (actionStat.getStatGroup().hasTargetEntityType()) {
             groupByFilters.setTargetEntityType(actionStat.getStatGroup().getTargetEntityType());
         }
