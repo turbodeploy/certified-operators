@@ -511,6 +511,7 @@ public class MarketsService implements IMarketsService {
             final int limit = Math.max(paginationRequest.getLimit(), 1);
 
             final List<ServiceEntityApiDTO> nextPage = allConvertedResults.stream()
+                // assumes that ServiceEntityApiDTO::getDisplayName will never return null
                 .sorted(Comparator.comparing(ServiceEntityApiDTO::getDisplayName)
                         .thenComparing(ServiceEntityApiDTO::getUuid))
                 .skip(skipCount)
@@ -519,7 +520,7 @@ public class MarketsService implements IMarketsService {
 
             final Optional<String> nextCursor;
             if (nextPage.size() > limit) {
-                nextCursor = Optional.of(Integer.toString(limit));
+                nextCursor = Optional.of(Integer.toString(skipCount + limit));
                 // Remove the last element from the results. It was only there to check if there
                 // are more results.
                 nextPage.remove(limit);
