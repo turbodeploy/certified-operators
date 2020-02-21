@@ -112,6 +112,8 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -409,8 +411,8 @@ public class MarketsServiceTest {
     }
 
     /**
-     * Test that getting entities by real market Id causes a retrieveTopologyEntities call
-     * to the repository rpc service.
+     * Test that getting entities by real market Id causes a searchEntities call
+     * to the search rpc service.
      *
      * @throws Exception If anything goes wrong.
      */
@@ -442,6 +444,75 @@ public class MarketsServiceTest {
         verify(searchBackend).searchEntities(any());
         verify(priceIndexPopulator).populateRealTimeEntities(Collections.singletonList(se1));
         verify(severityPopulator).populate(REALTIME_CONTEXT_ID, Collections.singletonList(se1));
+    }
+
+    /**
+     * Test that getting entities by plan market Id causes a retrieveTopologyEntities call
+     * to the repository rpc service and then properly paginates that response.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrievePaginatedPlanEntities() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
+        se1.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setDisplayName("SE1");
+        se1.setUuid("1");
+        ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
+        se2.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se2.setDisplayName("SE2");
+        se2.setUuid("2");
+        ServiceEntityApiDTO se3 = new ServiceEntityApiDTO();
+        se3.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se3.setDisplayName("SE3");
+        se3.setUuid("3");
+        ServiceEntityApiDTO se4 = new ServiceEntityApiDTO();
+        se4.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se4.setDisplayName("SE4");
+        se4.setUuid("4");
+        final List<PartialEntity> partialEntities = Stream.of(1, 2, 3, 4)
+            .map(id -> PartialEntity.newBuilder()
+                .setApi(ApiPartialEntity.newBuilder()
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setOid(id))
+                .build())
+            .collect(Collectors.toList());
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(123)
+                .setProjectedTopologyId(projectedPlanTopologyId)
+                .setStatus(PlanStatus.SUCCEEDED))
+            .build())
+            .when(planBackend).getPlan(any());
+        doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+            .addAllEntities(partialEntities)
+            .build())).when(repositoryBackend).retrieveTopologyEntities(any());
+        when(serviceEntityMapper.toServiceEntityApiDTO(any(TopologyEntityDTO.class)))
+            .thenReturn(se1).thenReturn(se2).thenReturn(se3).thenReturn(se4);
+
+        when(paginationMapper.toProtoParams(any())).thenReturn(PaginationParameters.getDefaultInstance());
+
+        // Pagination parameters - asks for records 2-3
+        final String cursor = "1";
+        final Integer limit = 2;
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(
+            planUuid,
+            new EntityPaginationRequest(cursor, limit, true, null));
+
+        // verify
+        assertThat(response.getRawResults(), containsInAnyOrder(se2, se3));
+        Assert.assertEquals("3", response.getRestResponse().getHeaders().get("X-Next-Cursor").get(0));
+        Assert.assertEquals("4", response.getRestResponse().getHeaders().get("X-Total-Record-Count").get(0));
+        verify(planBackend).getPlan(any());
+        verify(repositoryBackend).retrieveTopologyEntities(any());
+        verify(priceIndexPopulator)
+            .populatePlanEntities(projectedPlanTopologyId, Arrays.asList(se2, se3));
+        verify(severityPopulator).populate(REALTIME_PLAN_ID, Arrays.asList(se2, se3));
     }
 
     /**

@@ -26,6 +26,7 @@ data:
         authHost: auth
         consul_host: consul
         consul_port: 8500
+        consulNamespace : {{ .Release.Namespace }}
         clusterMgrHost: clustermgr
         clustermgr_port : 8080
         costHost: cost
@@ -41,7 +42,7 @@ data:
         # Auth
         authRetryDelaySecs: 10
         # Consul Key/Value and Service Discovery Utility
-        kvStoreTimeoutSeconds: 120
+        kvStoreRetryIntervalMillis: 1000
         # Default stat retention times
         retention.numRetainedMinutes: 130
         # DB

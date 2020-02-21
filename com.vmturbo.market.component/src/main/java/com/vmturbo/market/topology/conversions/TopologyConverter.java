@@ -145,7 +145,16 @@ public class TopologyConverter {
     private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
 
     @VisibleForTesting
-    CloudTopologyConverter cloudTc;
+    private CloudTopologyConverter cloudTc;
+
+    public CloudTopologyConverter getCloudTc() {
+        return cloudTc;
+    }
+
+    @VisibleForTesting
+    protected void setCloudTc(final CloudTopologyConverter cloudTc) {
+        this.cloudTc = cloudTc;
+    }
 
     /**
      * Entities that are providers of containers.
@@ -244,11 +253,22 @@ public class TopologyConverter {
     private Map<Long, TopologyEntityDTO> unmodifiableEntityOidToDtoMap
             = Collections.unmodifiableMap(entityOidToDto);
 
+    public Map<Long, TopologyEntityDTO> getUnmodifiableEntityOidToDtoMap() {
+        return unmodifiableEntityOidToDtoMap;
+    }
+
     // a map to keep the oid to projected traderTO mapping
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap = Maps.newHashMap();
 
     // a map to keep the oid to original traderTO mapping
     private final Map<Long, TraderTO> oidToOriginalTraderTOMap = new HashMap<>();
+
+    private final Map<Long, TraderTO> unmodifiableOidToOriginalTraderTOMap
+            = Collections.unmodifiableMap(oidToOriginalTraderTOMap);
+
+    public Map<Long, TraderTO> getUnmodifiableOidToOriginalTraderTOMap() {
+        return unmodifiableOidToOriginalTraderTOMap;
+    }
 
     // Bicliquer created based on datastore
     private final BiCliquer dsBasedBicliquer = new BiCliquer();
@@ -545,22 +565,21 @@ public class TopologyConverter {
             pmBasedBicliquer.compute(oidToUuidMap);
             logger.debug("Done creating bicliques");
 
-            final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
             // Convert market tier traderTO builders to traderTOs
             marketTierTraderTOBuilders.stream()
                     .map(t -> t.addAllCliques(pmBasedBicliquer.getBcIDs(String.valueOf(t.getOid()))))
                     .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
-                    .forEach(t -> returnBuilder.add(t.build()));
+                    .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t.build()));
             // Iterate over all scaling groups and compute top usage
             calculateScalingGroupUsageData(entityOidToDto);
             entityOidToDto.values().stream()
                     .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
                     .map(this::topologyDTOtoTraderTO)
                     .filter(Objects::nonNull)
-                    .forEach(returnBuilder::add);
+                    .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t));
 
             logger.info("Converted topologyEntityDTOs to traderTOs");
-            return returnBuilder.build();
+            return new HashSet<>(oidToOriginalTraderTOMap.values());
         } catch (RuntimeException e) {
             logger.error("RuntimeException in convertToMarket");
             throw e;
@@ -940,8 +959,15 @@ public class TopologyConverter {
                 originalCloudTopology, projectedCosts, topologyCostCalculator);
             action.ifPresent(actions::add);
         });
-        tierExcluder.clearStateNeededForActionInterpretation();
         return actions;
+    }
+
+    /**
+     * After actions have been interpreted, we don't need some state.
+     * So we clear that.
+     */
+    public void clearStateNeededForActionInterpretation() {
+        tierExcluder.clearStateNeededForActionInterpretation();
     }
 
     /**
@@ -1871,7 +1897,6 @@ public class TopologyConverter {
                 .ifPresent(traderDTOBuilder::setScalingGroupId);
             traderDTOBuilder.setSettings(settingsBuilder);
             traderDTO = traderDTOBuilder.build();
-            oidToOriginalTraderTOMap.put(traderDTO.getOid(), traderDTO);
         } catch (RuntimeException e) {
             logger.error(entityDebugInfo(topologyDTO) + " could not be converted to traderTO:", e);
             throw e;
@@ -2164,11 +2189,13 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
-            // Create Coupon Comm
-            Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid);
-            if (coupon.isPresent()) {
-                values.add(coupon.get());
-                addGroupFactor = true;
+            if (!enableSMA) {
+                // Create Coupon Comm
+                Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid);
+                if (coupon.isPresent()) {
+                    values.add(coupon.get());
+                    addGroupFactor = true;
+                }
             }
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, buyerOid));
@@ -2290,7 +2317,7 @@ public class TopologyConverter {
      * @param buyerOid oid of the buyer of the shopping list
      * @return The coupon commodity bought TO
      */
-    private Optional<CommodityBoughtTO> createCouponCommodityBoughtForCloudEntity(
+    public Optional<CommodityBoughtTO> createCouponCommodityBoughtForCloudEntity(
             long providerOid, long buyerOid) {
         MarketTier marketTier = cloudTc.getMarketTier(providerOid);
         int providerEntityType = marketTier.getTier().getEntityType();
@@ -2431,27 +2458,7 @@ public class TopologyConverter {
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
                 final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
                 if (riData != null) {
-                    final TopologyEntityDTO computeTier =
-                            entityOidToDto.get(riData.getReservedInstanceSpec()
-                                    .getReservedInstanceSpecInfo().getTierId());
-                    final long businessAccountId = riData.getReservedInstanceBought()
-                            .getReservedInstanceBoughtInfo().getBusinessAccountId();
-                    final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
-                            .getBillingFamilyForEntity(businessAccountId);
-                    if (!billingFamilyGroup.isPresent()) {
-                        logger.error("Billing family group not found for RI Data: {}",
-                                riData.getReservedInstanceBought());
-                    }
-                    final long billingFamilyId = billingFamilyGroup.map(group ->
-                            group.group().getId()).orElse(businessAccountId);
-                    final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
-                            computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
-                            billingFamilyId);
-                    final ReservedInstanceAggregate riAggregate =
-                            new ReservedInstanceAggregate(riData, riKey, computeTier,
-                                    Collections.emptySet());
-                    providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
-                            region, riAggregate));
+                    providerId = getRIDiscountedMarketTierIDFromRIData(riData, region);
                     resultType = RiDiscountedMarketTier.class;
                 } else {
                     logger.error("RI: {} for topology entity: {} not found in scope.",
@@ -2467,6 +2474,37 @@ public class TopologyConverter {
             }
         }
         return new Pair<>(providerId, resultType);
+    }
+
+    /**
+     * find the oid of the RIDiscountedMarketTier for the given riData.
+     * @param riData given RI data.
+     * @param region the region of the RI
+     * @return the oid of the RIDiscountedMarketTier.
+     */
+    public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData,
+                                                      TopologyEntityDTO region) {
+        final TopologyEntityDTO computeTier =
+                entityOidToDto.get(riData.getReservedInstanceSpec()
+                        .getReservedInstanceSpecInfo().getTierId());
+        final long businessAccountId = riData.getReservedInstanceBought()
+                .getReservedInstanceBoughtInfo().getBusinessAccountId();
+        final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
+                .getBillingFamilyForEntity(businessAccountId);
+        if (!billingFamilyGroup.isPresent()) {
+            logger.error("Billing family group not found for RI Data: {}",
+                    riData.getReservedInstanceBought());
+        }
+        final long billingFamilyId = billingFamilyGroup.map(group ->
+                group.group().getId()).orElse(businessAccountId);
+        final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
+                computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
+                billingFamilyId);
+        final ReservedInstanceAggregate riAggregate =
+                new ReservedInstanceAggregate(riData, riKey, computeTier,
+                        Collections.emptySet());
+        return cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
+                region, riAggregate));
     }
 
     private CommodityDTOs.CommodityBoughtTO convertCommodityBought(

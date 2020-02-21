@@ -63,6 +63,8 @@ metron:
   enabled: false
 kubeturbo:
   enabled: false
+prometurbo:
+  enabled: false
 training:
   enabled: false
 

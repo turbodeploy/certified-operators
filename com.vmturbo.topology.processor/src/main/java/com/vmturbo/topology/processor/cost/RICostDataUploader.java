@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -50,8 +49,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
-import com.vmturbo.topology.processor.entity.Entity;
-import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -251,6 +248,9 @@ public class RICostDataUploader {
 
                     // create an RI spec based on the details of the entity
                     ReservedInstanceData riData = riStitchingEntity.getEntityBuilder().getReservedInstanceData();
+                    double riDuration = (double)riData.getDuration() / MILLIS_PER_YEAR;
+                    // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years
+                    if (riDuration == 1.0 || riDuration == 3.0) {
                     ReservedInstanceSpecInfo.Builder riSpecInfoBuilder = ReservedInstanceSpecInfo.newBuilder()
                             .setType(ReservedInstanceType.newBuilder()
                                     .setOfferingClass(OfferingClass.forNumber(riData.getOfferingClass().getNumber()))
@@ -368,6 +368,7 @@ public class RICostDataUploader {
                         scopeInfo);
 
                     riBoughtByLocalId.put(riStitchingEntity.getLocalId(), riBought);
+                    }
                 });
 
         // add the extracted data to the cost component data object.

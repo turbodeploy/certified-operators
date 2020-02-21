@@ -129,6 +129,10 @@ dependencies:
     repository: file://../base/kubeturbo
     version: 0.1.0
     condition: kubeturbo.enabled
+  - name: prometurbo
+    repository: file://../base/prometurbo
+    version: 0.1.0
+    condition: prometurbo.enabled
   - name: chronograf
     repository: file://../base/chronograf
     version: 1.1.0

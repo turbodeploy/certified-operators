@@ -16,6 +16,11 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriUtils;
+
 import com.ecwid.consul.ConsulException;
 import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.Response;
@@ -26,9 +31,6 @@ import com.google.common.base.CharMatcher;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.web.util.UriUtils;
 
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.Operation;
@@ -76,7 +78,7 @@ public class ConsulKeyValueStore implements KeyValueStore {
      * Constructor to allow consul dependency injection for tests.
      *
      * @param consul      Consul interface to use.
-     * @param namespace   See: {@link #ConsulKeyValueStore(String, String, String, long,
+     * @param namespace   See: {@link #ConsulKeyValueStore(String, String, String, String, long,
      *                    TimeUnit)}.
      * @param timeout     Time period before stop retrying.
      * @param timeoutTimeUnit Time unit for timeout.
@@ -99,23 +101,28 @@ public class ConsulKeyValueStore implements KeyValueStore {
     /**
      * Create a new ConsulKeyValueStore. It has to be initialized before usage.
      *
-     * @param namespace   The namespace to use for all keys stored with this key-value-store
-     *                    instance. It has to be non-null and non-empty, so as to not pollute the
-     *                    global namespace. Cannot contain "/" or "\".
-     * @param consulHost  Hostname of the consul service.
-     * @param consulPort  Port to use to connect to consul.
-     * @param timeout     Time period before stop retrying.
+     * @param namespacePrefix Namespace prefix to be prepended to namespace of all keys.
+     * @param namespace       The namespace to use for all keys stored with this key-value-store
+     *                        instance. It has to be non-null and non-empty, so as to not pollute the
+     *                        global namespace. Cannot contain "/" or "\".
+     * @param consulHost      Hostname of the consul service.
+     * @param consulPort      Port to use to connect to consul.
+     * @param timeout         Time period before stop retrying.
      * @param timeoutTimeUnit Time unit for timeout.
      * @throws IllegalArgumentException If the timeout or namespace is invalid.
      */
-    public ConsulKeyValueStore(@Nonnull final String namespace, @Nonnull final String consulHost,
-            @Nonnull final String consulPort, final long timeout, final TimeUnit timeoutTimeUnit) {
+    public ConsulKeyValueStore(@Nonnull final String namespacePrefix,
+                               @Nonnull final String namespace,
+                               @Nonnull final String consulHost,
+                               @Nonnull final String consulPort,
+                               final long timeout,
+                               final TimeUnit timeoutTimeUnit) {
         validateNamespace(namespace);
         if (timeout <= 0) {
             throw new IllegalArgumentException("Illegal timeout: " + timeout);
         }
 
-        this.namespace = namespace;
+        this.namespace = namespacePrefix + namespace;
         this.consul = new ConsulClient(consulHost, Integer.valueOf(consulPort));
         this.timeout = timeout;
         this.timeoutTimeUnit = timeoutTimeUnit;
@@ -197,6 +204,26 @@ public class ConsulKeyValueStore implements KeyValueStore {
     public boolean containsKey(@Nonnull final String key) {
         List<String> keys = execute(() -> consul.getKVKeysOnly(fullKey(key))).getValue();
         return keys != null && keys.size() > 0;
+    }
+
+    /**
+     * Construct consul namespace prefix to be prepended to consul key of each k/v store and service
+     * name.
+     *
+     * @param consulNamespace       Given consulNamespace.
+     * @param enableConsulNamespace True if consulNamespace is enabled.
+     * @return Constructed consul namespace prefix. If enableConsulNamespace is true and consulNamespace
+     * is not empty, return the constructed constructNamespacePrefix, otherwise return empty string.
+     */
+    @Nonnull
+    public static String constructNamespacePrefix(String consulNamespace, boolean enableConsulNamespace) {
+        if (!enableConsulNamespace) {
+            return "";
+        } else if (StringUtils.isEmpty(consulNamespace)) {
+            return "";
+        } else {
+            return consulNamespace + "/";
+        }
     }
 
     @Nonnull

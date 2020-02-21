@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.ImmutableGroupByBucketKe
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -76,6 +77,7 @@ class CombinedStatsBuckets {
                 bucketKey.category().ifPresent(bldr::setActionCategory);
                 bucketKey.explanation().ifPresent(bldr::setActionExplanation);
                 bucketKey.type().ifPresent(bldr::setActionType);
+                bucketKey.costType().ifPresent(bldr::setCostType);
                 bucketKey.targetEntityType().ifPresent(bldr::setTargetEntityType);
                 bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
@@ -138,6 +140,13 @@ class CombinedStatsBuckets {
         Optional<ActionType> type();
 
         /**
+         * The {@link ActionCostType} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the cost type.
+         */
+        Optional<ActionCostType> costType();
+
+        /**
          * The type of the primary/target entity for this bucket.
          *
          * @return Value, or {@link Optional} if the requested group-by included the target entity type.
@@ -192,6 +201,9 @@ class CombinedStatsBuckets {
         }
         if (groupBy.contains(GroupBy.ACTION_TYPE)) {
             keyBuilder.type(ActionDTOUtil.getActionInfoActionType(action));
+        }
+        if (groupBy.contains(GroupBy.COST_TYPE)) {
+            keyBuilder.costType(ActionDTOUtil.getActionCostTypeFromAction(action));
         }
         if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {
             try {

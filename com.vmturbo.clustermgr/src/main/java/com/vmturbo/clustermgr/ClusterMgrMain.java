@@ -21,10 +21,9 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 
-import com.vmturbo.clustermgr.api.ClusterConfiguration;
-import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationService;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
+import com.vmturbo.components.common.config.PropertiesLoader;
 
 /**
  * The ClusterMgrMain is a utility to launch each of the VmtComponent Docker Containers configured to run on the
@@ -93,6 +92,7 @@ public class ClusterMgrMain {
             server.setHandler(contextServer);
             final AnnotationConfigWebApplicationContext applicationContext =
                     new AnnotationConfigWebApplicationContext();
+            PropertiesLoader.addConfigurationPropertySources(applicationContext);
             applicationContext.register(ClusterMgrMain.class);
             final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
             final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
@@ -117,7 +117,9 @@ public class ClusterMgrMain {
      * When ClusterMgr begins running, launch a background task to configure Kafka.
      */
     public void run() {
-
+        // When clusterMgr begins running, mark kvInitialized as true to ClusterMgrService since
+        // default configuration properties have been loaded from configMap.
+        clusterMgrConfig.clusterMgrService().setClusterKvStoreInitialized(true);
         log.info(">>>>>>>>>  clustermgr beginning for " + nodeName);
         // configure kafka
         try {

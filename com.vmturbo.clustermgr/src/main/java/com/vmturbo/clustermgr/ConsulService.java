@@ -1,5 +1,6 @@
 package com.vmturbo.clustermgr;
 
+import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
@@ -36,7 +37,9 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriUtils;
 
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
@@ -52,10 +55,9 @@ import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 @Component
 public class ConsulService {
 
-    @org.springframework.beans.factory.annotation.Value("${clustermgr.consul.host:consul}")
     private final String consulHost;
-    @org.springframework.beans.factory.annotation.Value("${clustermgr.consul.port:8500}")
     private final int consulPort;
+    private String consulNamespacePrefix;
 
     @org.springframework.beans.factory.annotation.Value("${consulMaxRetrySecs:60}")
     private int consulMaxRetrySecs;
@@ -65,9 +67,18 @@ public class ConsulService {
     // lazy-fetched handle for the Consul client API
     private Consul consulClientApi;
 
-    public ConsulService(@Nonnull final String consulHost, final int consulPort) {
+    /**
+     * Create a new {@link ConsulService}.
+     *
+     * @param consulHost            Consul host.
+     * @param consulPort            Consul port.
+     * @param consulNamespacePrefix Given consul namespace prefix to be prepended to keys.
+     */
+    public ConsulService(@Nonnull final String consulHost, final int consulPort,
+                         @Nonnull final String consulNamespacePrefix) {
         this.consulHost = Objects.requireNonNull(consulHost);
         this.consulPort = consulPort;
+        this.consulNamespacePrefix = consulNamespacePrefix;
     }
 
     /**
@@ -80,7 +91,7 @@ public class ConsulService {
      */
     public @Nonnull List<String> getKeys(@Nonnull String keyStem) {
         try {
-            return getConsulKeyValueClient().getKeys(keyStem);
+            return getConsulKeyValueClient().getKeys(fullKey(keyStem));
         } catch (ConsulException ce) {
             if (ce.getCode() != HttpURLConnection.HTTP_NOT_FOUND) {
                 throw ce;
@@ -91,11 +102,11 @@ public class ConsulService {
     }
 
     public void putValue(String keyToPut) {
-        getConsulKeyValueClient().putValue(keyToPut);
+        getConsulKeyValueClient().putValue(fullKey(keyToPut));
     }
 
     public void putValue(String key, String value) {
-        getConsulKeyValueClient().putValue(key, value);
+        getConsulKeyValueClient().putValue(fullKey(key), value);
     }
 
     /**
@@ -152,7 +163,7 @@ public class ConsulService {
     }
 
     public List<Value> getValues(String keyStem) {
-        return getConsulKeyValueClient().getValues(keyStem);
+        return getConsulKeyValueClient().getValues(fullKey(keyStem));
     }
 
     /**
@@ -227,10 +238,21 @@ public class ConsulService {
     @Nonnull
     public Map<String, List<ComponentInstance>> getAllServiceInstances() {
         final CatalogClient catalogClient = getConsulCatalogClient();
+        final boolean isConsulNamespacePrefixEmpty = Strings.isEmpty(consulNamespacePrefix);
+        // TODO Find out a way to query all services by tag when calling getServices.
+        // Currently Consul doesn't support listing services by tags:
+        // https://github.com/hashicorp/consul/issues/4811
+        // https://www.consul.io/api/catalog.html#list-services
+        // QueryOptions with tag specification only works for getting a specific service but not
+        // working for getting a list of services.
         final Set<String> registeredComponents = catalogClient.getServices().getResponse().entrySet().stream()
             // Include only services that have the turbonomic component tag. This will exclude
             // services like "consul" itself.
-            .filter(entry -> entry.getValue().contains(ConsulHealthcheckRegistration.COMPONENT_TAG))
+            // If consulNamespacePrefix is not empty, include only services whose names contain
+            // consulNamespacePrefix
+            .filter(entry -> (isConsulNamespacePrefixEmpty ||
+                entry.getKey().contains(consulNamespacePrefix)) &&
+                entry.getValue().contains(ConsulHealthcheckRegistration.COMPONENT_TAG))
             .map(Entry::getKey)
             .collect(Collectors.toSet());
         final Map<String, List<ComponentInstance>> retMap = new HashMap<>(registeredComponents.size());
@@ -238,7 +260,9 @@ public class ConsulService {
             try {
                 ConsulResponse<List<CatalogService>> instances = catalogClient.getService(service);
                 if (instances.getResponse() != null) {
-                    retMap.put(service, instances.getResponse().stream()
+                    // Extract component type from service name without the consulNamespacePrefix.
+                    String componentType = service.substring(consulNamespacePrefix.length());
+                    retMap.put(componentType, instances.getResponse().stream()
                         .map(ComponentInstance::new)
                         .collect(Collectors.toList()));
                 }
@@ -261,10 +285,10 @@ public class ConsulService {
      * @param key key to remove
      */
     public void deleteKey(String key) {
-        getConsulKeyValueClient().deleteKey(key);
+        getConsulKeyValueClient().deleteKey(fullKey(key));
         try {
-            for (String subKey : getConsulKeyValueClient().getKeys(key)) {
-                getConsulKeyValueClient().deleteKey(subKey);
+            for (String subKey : getConsulKeyValueClient().getKeys(fullKey(key))) {
+                getConsulKeyValueClient().deleteKey(fullKey(subKey));
             }
         } catch (ConsulException ce) {
             //skip NotFoundErrors
@@ -275,18 +299,38 @@ public class ConsulService {
     }
 
     public Optional<String> getValueAsString(String instanceNodeKey) {
-        return getConsulKeyValueClient().getValueAsString(instanceNodeKey);
+        return getConsulKeyValueClient().getValueAsString(fullKey(instanceNodeKey));
     }
 
     public String getValueAsString(String key, String defaultValue) {
-        return getConsulKeyValueClient().getValueAsString(key).or(defaultValue);
+        return getConsulKeyValueClient().getValueAsString(fullKey(key)).or(defaultValue);
     }
 
     public boolean keyExist(String key) {
         try {
-            return !getConsulKeyValueClient().getKeys(key).isEmpty();
+            return !getConsulKeyValueClient().getKeys(fullKey(key)).isEmpty();
         } catch (ConsulException e) {
             return false;
+        }
+    }
+
+    /**
+     * Get consulNamespacePrefix.
+     *
+     * @return constructed consulNamespacePrefix.
+     */
+    public String getConsulNamespacePrefix() {
+        return consulNamespacePrefix;
+    }
+
+    @Nonnull
+    private String fullKey(@Nonnull final String key) {
+        final String fullKey = consulNamespacePrefix + key;
+        try {
+            return UriUtils.encodeFragment(fullKey, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            logger.error(e); // Should never happen unless UTF-8 encoding support is somehow dropped
+            return "";
         }
     }
 }

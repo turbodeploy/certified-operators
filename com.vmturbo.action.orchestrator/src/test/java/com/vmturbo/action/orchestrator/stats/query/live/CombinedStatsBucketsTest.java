@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -160,6 +161,94 @@ public class CombinedStatsBucketsTest {
                 .setStatGroup(StatGroup.newBuilder()
                     .setActionCategory(ActionCategory.COMPLIANCE)
                     .setActionState(ActionState.READY))
+                .setActionCount(1)
+                .setEntityCount(1)
+                .setSavings(0.0)
+                .setInvestments(0.0)
+                .build()));
+    }
+
+    /**
+     * Test that Grouping by CostType appropriately buckets the investment/savings/no savings.
+     */
+    @Test
+    public void testGroupByCostType() {
+        final QueryInfo queryInfo = mock(QueryInfo.class);
+        when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
+            .addGroupBy(GroupBy.ACTION_STATE)
+            .addGroupBy(GroupBy.ACTION_CATEGORY)
+            .addGroupBy(GroupBy.COST_TYPE)
+            .build());
+        when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
+        final SingleActionInfo savingsAction = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(500.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo investmentAction1 = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(-200.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo investmentAction2 = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(-100.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo noSavingsOrInvestment = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(0.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+
+        buckets.addActionInfo(savingsAction);
+        buckets.addActionInfo(investmentAction1);
+        buckets.addActionInfo(investmentAction2);
+        buckets.addActionInfo(noSavingsOrInvestment);
+        final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
+        assertThat(stats, containsInAnyOrder(
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setActionState(ActionState.READY)
+                    .setCostType(ActionCostType.INVESTMENT))
+                .setActionCount(2)
+                .setEntityCount(1)
+                .setSavings(0.0)
+                .setInvestments(300.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setActionState(ActionState.READY)
+                    .setCostType(ActionCostType.SAVINGS))
+                .setActionCount(1)
+                .setEntityCount(1)
+                .setSavings(500.0)
+                .setInvestments(0.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setActionState(ActionState.READY)
+                    .setCostType(ActionCostType.ACTION_COST_TYPE_NONE))
                 .setActionCount(1)
                 .setEntityCount(1)
                 .setSavings(0.0)
