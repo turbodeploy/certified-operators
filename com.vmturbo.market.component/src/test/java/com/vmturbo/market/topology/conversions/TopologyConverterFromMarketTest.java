@@ -1298,7 +1298,7 @@ public class TopologyConverterFromMarketTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, cloudTopology));
-        converter.setCloudTc(mockCloudTc);
+        converter.cloudTc = mockCloudTc;
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE,
@@ -1391,7 +1391,7 @@ public class TopologyConverterFromMarketTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology));
-        converter.setCloudTc(mockCloudTc);
+        converter.cloudTc = mockCloudTc;
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE,

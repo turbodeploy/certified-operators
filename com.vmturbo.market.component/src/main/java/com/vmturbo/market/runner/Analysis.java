@@ -70,8 +70,6 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
-import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -81,7 +79,6 @@ import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
-import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -156,8 +153,6 @@ public class Analysis {
     private final String logPrefix;
 
     private TopologyConverter converter;
-
-    private SMAConverter smaConverter;
 
     private Map<Long, ProjectedTopologyEntity> projectedEntities = null;
 
@@ -307,7 +302,6 @@ public class Analysis {
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 originalCloudTopology);
-        this.smaConverter = new SMAConverter(converter);
         final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
                 && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);
         DataMetricTimer processResultTime = null;
@@ -436,13 +430,6 @@ public class Analysis {
                             }
                             cloudVmOIDToProvidersOIDMap.put(cloudVmToTpsThatFitEntry.getKey(), providerOIDList);
                         }
-                        boolean isOptimizeCloudPlan = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
-                                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN));
-                        SMAInput smaInput = new SMAInput(originalCloudTopology,
-                                cloudVmOIDToProvidersOIDMap,
-                                topologyCostCalculator.getCloudCostData(),
-                                marketPriceTable, converter.getConsistentScalingHelper(), isOptimizeCloudPlan);
-                        smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                     }
                     // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
                     converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -502,10 +489,6 @@ public class Analysis {
                         } else {
                             projectedTraderDTO = results.getProjectedTopoEntityTOList();
                         }
-                        if (config.isEnableSMA()) {
-                            smaConverter.updateWithSMAOutput(projectedTraderDTO);
-                            projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
-                        }
                     }
                     // Set projectedTraderDTO identical to topologyDTOs if we run
                     // buyRI only plan
@@ -558,13 +541,7 @@ public class Analysis {
                 converter.interpretAllActions(actionsList, projectedEntities,
                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator)
                         .forEach(actionPlanBuilder::addAction);
-                if (config.isEnableSMA()) {
-                    converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
-                            originalCloudTopology, projectedEntityCosts, topologyCostCalculator)
-                            .forEach(actionPlanBuilder::addAction);
-                }
-                // clear the state only after interpretAllActions is called for both M2 and SMA.
-                converter.clearStateNeededForActionInterpretation();
+
                 // TODO move wasted files action out of main analysis once we have a framework
                 // to support multiple analyses for the same topology ID
                 actionPlanBuilder.addAllAction(wastedFileActions);

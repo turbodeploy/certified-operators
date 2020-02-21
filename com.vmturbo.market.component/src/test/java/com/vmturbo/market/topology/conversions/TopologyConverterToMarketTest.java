@@ -630,9 +630,7 @@ public class TopologyConverterToMarketTest {
                     .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.CPU_VALUE))))
             .build();
-        TraderTO trader = convertToMarketTO(Sets.newHashSet(unknownStorage, entityDTO),
-                REALTIME_TOPOLOGY_INFO).stream()
-                .filter(a->a.getShoppingListsList().size() > 0).findFirst().get();
+        TraderTO trader = convertToMarketTO(Sets.newHashSet(unknownStorage, entityDTO), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertFalse(trader.getShoppingLists(0).getMovable());
     }
 

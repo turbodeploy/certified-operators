@@ -328,23 +328,6 @@ public class CloudTopologyConverter {
     }
 
     /**
-     * Get the index of the compute shopping list for the trader.
-     * @param trader the trader of interest.
-     * @return index of the compute shopping list. -1 if there is none.
-     */
-    int getIndexOfSlSuppliedByPrimaryTier(TraderTO trader) {
-        for (int i = 0; i < trader.getShoppingListsList().size(); i++) {
-            ShoppingListTO sl = trader.getShoppingListsList().get(i);
-            MarketTier mTier = traderTOOidToMarketTier.get(sl.getSupplier());
-            if (mTier != null && TopologyDTOUtil.isPrimaryTierEntityType(
-                    mTier.getTier().getEntityType())) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    /**
      * Gets the primary market tier(compute tier) which is a supplier
      * for the trader.
      *
