@@ -16,7 +16,6 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -96,10 +95,6 @@ public class GroupByFilters {
 
     public void setType(@Nonnull final ActionType type) {
         setValue(StringConstants.ACTION_TYPES, ActionTypeMapper.toApiApproximate(type).name());
-    }
-
-    public void setActionCostType(@Nonnull final ActionDTO.ActionCostType costType) {
-        setValue(StringConstants.ACTION_COST_TYPE, costType.name());
     }
 
     public void setReasonCommodity(final int reasonCommodityBaseType) {

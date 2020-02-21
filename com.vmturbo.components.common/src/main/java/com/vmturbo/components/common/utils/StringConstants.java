@@ -101,7 +101,6 @@ public class StringConstants {
     public static final String ACTION_TYPE = "actionType";
     public static final String ACTION_MODES = "actionModes";
     public static final String ACTION_STATES = "actionStates";
-    public static final String ACTION_COST_TYPE = "costType";
     public static final String RISK_SEVERITY = "riskSeverity";
     public static final String RISK_SUB_CATEGORY = "riskSubCategory";
     public static final String RISK_DESCRIPTION = "risk";

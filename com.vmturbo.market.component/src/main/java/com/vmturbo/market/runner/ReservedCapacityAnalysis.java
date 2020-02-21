@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -88,8 +87,7 @@ public class ReservedCapacityAnalysis {
             long oid = entry.getKey();
             TopologyEntityDTO entity = entry.getValue();
             if (!reservedEntityType.contains(entity.getEntityType()) ||
-                !entity.getAnalysisSettings().getControllable() ||
-                entity.getEntityState() != EntityState.POWERED_ON) {
+                !entity.getAnalysisSettings().getControllable()) {
                 continue;
             }
             for (CommoditiesBoughtFromProvider commBoughtGrouping :
