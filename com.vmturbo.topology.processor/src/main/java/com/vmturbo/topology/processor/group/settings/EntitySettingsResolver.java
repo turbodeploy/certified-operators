@@ -5,7 +5,6 @@ import static com.vmturbo.common.protobuf.ListUtil.mergeTwoSortedListsAndRemoveD
 
 import java.text.MessageFormat;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,9 +33,6 @@ import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -134,7 +130,7 @@ public class EntitySettingsResolver {
      * Resolve the groups associated with the SettingPolicies and associate the
      * entities with their settings.
      *
-     * Do conflict resolution when an Entity has the same Setting from
+     * <p>Do conflict resolution when an Entity has the same Setting from
      * different SettingPolicies.
      *
      * @param groupResolver Group resolver to resolve the groups associated with the settings.
@@ -187,6 +183,24 @@ public class EntitySettingsResolver {
         final Map<Long, Schedule> schedules = getSchedules(userAndDiscoveredSettingPolicies,
             Instant.now());
 
+        // Initial pass over policies map to identify scaling groups. This will pre-populate
+        // the SettingAndPolicyIdRecord maps such that all members of a scaling group point
+        // to the same map.  This way, all policies applied to any scaling group member will
+        // be applied to all other entities in the scaling group as well.
+        groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
+                final Grouping group = groups.get(groupId);
+                if (group != null ) {
+                    final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
+                    consistentScalingManager.addEntities(group,
+                        topologyGraph.getEntities(allEntitiesInGroup), settingPolicies);
+                }
+        });
+        // Now that all scaling group members have been identified, call the CSM to build the
+        // scaling groups.  This will also populate userSettingsByEntityAndName with pre-merged
+        // empty settings entries for all scaling group members.
+        consistentScalingManager.buildScalingGroups(topologyGraph, groupResolver,
+            userSettingsByEntityAndName);
+
         // For each group, resolve it to get its entities. Then apply the settings
         // from the SettingPolicies associated with the group to the resolved entities
         groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
@@ -197,8 +211,6 @@ public class EntitySettingsResolver {
                 final Grouping group = groups.get(groupId);
                 if (group != null ) {
                     final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
-                    consistentScalingManager.addEntities(group,
-                        topologyGraph.getEntities(allEntitiesInGroup), settingPolicies);
                     resolveAllEntitySettings(allEntitiesInGroup, settingPolicies,
                         userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules);
                 } else {
@@ -210,22 +222,11 @@ public class EntitySettingsResolver {
             }
         });
 
-        // Now that all scaling group members have been identified, call the CSM to build the
-        // scaling groups.
-        consistentScalingManager.buildScalingGroups(topologyGraph, groupResolver);
-        // For each scaling group, apply all of the policies discovered in the group.  This will
-        // not only merge template exclusions, but also all all other settings.  The tiebreaker for
-        // each setting will determine which setting will be used for the entire scaling group.
-        consistentScalingManager.getPoliciesStream()
-            .forEach(p -> resolveAllEntitySettings(p.first, p.second,
-                    userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules));
         final List<SettingPolicy> defaultSettingPolicies =
                 SettingDTOUtil.extractDefaultSettingPolicies(policyById.values());
-
         // entityType -> SettingPolicyId mapping
         final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType =
                 SettingDTOUtil.arrangeByEntityType(defaultSettingPolicies);
-
         final Map<Long, SettingPolicy> defaultSettingPoliciesById = defaultSettingPolicies.stream()
             .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
 
@@ -274,7 +275,10 @@ public class EntitySettingsResolver {
         checkNotNull(userSettingsByEntityAndName);
 
         for (Long oid: entities) {
-            // settingSpecName-> Setting mapping
+            // settingSpecName-> Setting mapping. userSettingsByEntityAndName has already been
+            // populated by the consistent scaling manager with shared settings maps for all
+            // scaling group members.  By using a shared map, adding setting for a scaling group
+            // member automatically adds it for the rest of them.
             Map<String, SettingAndPolicyIdRecord> settingsByName =
                 userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
 
@@ -317,7 +321,7 @@ public class EntitySettingsResolver {
         }
         final long scheduleId = sp.getInfo().getScheduleId();
         if (!schedules.containsKey(scheduleId)) {
-            logger.error("Unexpectedly scheule ID {} not found in list if schedules used by " +
+            logger.error("Unexpectedly schedule ID {} not found in list if schedules used by " +
                 "setting policy {}", () -> scheduleId, () -> sp.getId());
         } else {
             return schedules.get(scheduleId).hasActive();
@@ -756,7 +760,7 @@ public class EntitySettingsResolver {
          * Resolve conflict when 2 settings have the same spec but
          * different values.
          *
-         * The tie-breaker to resolve conflict is defined in the SettingSpec.
+         * <p>The tie-breaker to resolve conflict is defined in the SettingSpec.
          *
          * @param setting1 Setting message
          * @param setting2 Setting message
@@ -787,7 +791,7 @@ public class EntitySettingsResolver {
         /**
          * Compare two setting values.
          *
-         * No validation is done in this method. Assumes all the
+         * <p>No validation is done in this method. Assumes all the
          * input types and values are correct.
          *
          * @param setting1 Setting message

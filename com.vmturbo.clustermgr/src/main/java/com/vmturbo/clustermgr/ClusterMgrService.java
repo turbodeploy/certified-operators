@@ -7,7 +7,6 @@ import static com.vmturbo.clustermgr.api.ClusterMgrClient.UNKNOWN_VERSION_STRING
 
 import java.io.EOFException;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
@@ -241,48 +239,21 @@ public class ClusterMgrService {
         this.consulService = Objects.requireNonNull(consulService);
         this.osCommandProcessRunner = osCommandProcessRunner;
         this.diagEnvironmentSummary = Objects.requireNonNull(diagEnvironmentSummary);
-        loadGlobalDefaultProperties();
-    }
-
-    /**
-     * Read the Global Default Configuration properties from the .properties file.
-     * These properties will be used for setting Default Configuration properties for
-     * each component when they register. This method is called during a static {} initializer.
-     */
-    @VisibleForTesting
-    void loadGlobalDefaultProperties() {
-        Properties globalDefaultsFromFile = new Properties();
-        log.info("Loading global default properties from file: {}",
-                GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH);
-        try (InputStream configPropertiesStream = ClusterMgrService.class.getClassLoader()
-                .getResourceAsStream(GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH)) {
-            if (configPropertiesStream == null) {
-                throw new RuntimeException("Cannot find default configuration properties file: " +
-                        GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH, new FileNotFoundException());
-            }
-            globalDefaultsFromFile.load(configPropertiesStream);
-        } catch (IOException e) {
-            // if the component defaults cannot be found we still need to send an empty
-            // default properties to ClusterMgr where the global defaults will be used.
-            throw new RuntimeException("Cannot read global default configuration properties file:" +
-                    GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH, e);
-        }
-        // clear any previous global defaults and then populate the defaults from the file
-        synchronized (globalDefaultProperties) {
-            globalDefaultProperties.clear();
-            globalDefaultsFromFile.forEach((defaultKey, defaultValue) ->
-                    globalDefaultProperties.put(defaultKey.toString(), defaultValue.toString()));
-        }
-
-        // Mark the KV store as initialized.
-        kvInitialized.set(true);
-
-        // log the result
-        globalDefaultProperties.forEach((key, value) -> log.info("   {} = >{}<", key, value));
     }
 
     public boolean isClusterKvStoreInitialized() {
         return kvInitialized.get();
+    }
+
+    /**
+     * Set kvInitialized to true if default configuration properties are loaded from configMap so
+     * that clustermgr can be marked as healthy.
+     *
+     * @param clusterKvStoreInitialized True if default configuration properties are loaded from
+     *                                  configMap.
+     */
+    public void setClusterKvStoreInitialized(boolean clusterKvStoreInitialized) {
+        kvInitialized.set(clusterKvStoreInitialized);
     }
 
     /**
@@ -600,6 +571,10 @@ public class ClusterMgrService {
                 DIAGNOSTIC_OPERATION_BUSY);
         }
         try {
+            String consulNamespace = getConsulNamespace();
+            if (!StringUtils.isEmpty(consulNamespace)) {
+                log.info("Collecting diagnostics for namespace '{}'.", consulNamespace);
+            }
             ZipOutputStream diagnosticZip = new ZipOutputStream(responseOutput);
             String acceptTypes = MediaType.toString(Arrays.asList(
                 MediaType.parseMediaType("application/zip"),
@@ -655,6 +630,18 @@ public class ClusterMgrService {
         } finally {
             log.debug("unlocking diagnosticLock");
             diagnosticsLock.unlock();
+        }
+    }
+
+    private String getConsulNamespace() {
+        String consulNamespacePrefix = consulService.getConsulNamespacePrefix();
+        // If consulNamespacePrefix is not empty, then consulNamespace is enabled for multi tenant
+        // Consul.
+        if (!StringUtils.isEmpty(consulService.getConsulNamespacePrefix())) {
+            // If not empty, consulNamespacePrefix is constructed by consulNamespace + "/".
+            return consulNamespacePrefix.substring(0, consulNamespacePrefix.length() - 1);
+        } else {
+            return "";
         }
     }
 
@@ -750,7 +737,7 @@ public class ClusterMgrService {
         log.info(" - recording diagnostics environment summary");
         try {
             diagnosticZip.putNextEntry(zipEntry);
-            final byte[] data = diagEnvironmentSummary.getDiagSummary(globalDefaultProperties).getBytes();
+            final byte[] data = diagEnvironmentSummary.getDiagSummary().getBytes();
             diagnosticZip.write(data, 0, data.length);
         } catch (EOFException e) {
             log.error("Output Stream EOF inserting diag environment summary.");
@@ -1498,7 +1485,11 @@ public class ClusterMgrService {
             log.error("Error preparing diagnostics directory.", e);
             return false;
         }
-        final String fileName = DIAGNOTICS_OUTPUT_FILE_PATH +            diagEnvironmentSummary.getDiagFileName(globalDefaultProperties);
+        String consulNamespace = getConsulNamespace();
+        if (!StringUtils.isEmpty(consulNamespace)) {
+            log.info("Exporting diagnostics for namespace '{}'.", consulNamespace);
+        }
+        final String fileName = DIAGNOTICS_OUTPUT_FILE_PATH + diagEnvironmentSummary.getDiagFileName();
         final File diagsFile = new File(fileName);
 
         // 1. write to file

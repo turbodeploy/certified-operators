@@ -254,12 +254,11 @@ public class EntitySettingsResolverTest {
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2));
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
-        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
                 topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager);
 
-        verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
+        verify(groupResolver, times(2)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
         assertEquals(entitiesSettings.getEntitySettings().size(), 2);
         // Both entities expected to resolve to policy1 for both settings
@@ -279,7 +278,6 @@ public class EntitySettingsResolverTest {
         // Only default setting policy used
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.singletonList(defaultSettingPolicy));
-        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(
@@ -306,13 +304,12 @@ public class EntitySettingsResolverTest {
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2, defaultSettingPolicy));
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
-        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
                 settingOverrides, rtTopologyInfo, consistentScalingManager);
 
-        verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
+        verify(groupResolver, times(2)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
         assertEquals(entitiesSettings.getEntitySettings().size(), 2);
         assertThat(entitiesSettings.getEntitySettings(), containsInAnyOrder(
@@ -333,7 +330,6 @@ public class EntitySettingsResolverTest {
            .thenReturn(Collections.singletonList(settingPolicy2));
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
-        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
@@ -355,7 +351,6 @@ public class EntitySettingsResolverTest {
            .thenReturn(Collections.emptyList());
         when(testGroupService.getGroups(any()))
             .thenReturn(Collections.singletonList(group));
-        when(consistentScalingManager.getPoliciesStream()).thenReturn(Stream.empty());
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,

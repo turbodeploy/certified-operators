@@ -145,7 +145,7 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("instance_id", testName.getMethodName());
         environment.setProperty("instance_ip", "10.10.10.10");
         environment.setProperty("identityGeneratorPrefix", "0");
-        environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+        environment.setProperty("kvStoreTimeoutSeconds", "5");
         environment.setProperty("websocket.pong.timeout", "10000");
         environment.setProperty("serverGrpcPort", "0");
         environment.setProperty("consul_port", "0");
@@ -326,7 +326,7 @@ public abstract class AbstractIntegrationTest {
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");
-            environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+            environment.setProperty("kvStoreTimeoutSeconds", "5");
 
             // Alter JMX domain in order to start multiple spring-boot applications inside one
             // JVM

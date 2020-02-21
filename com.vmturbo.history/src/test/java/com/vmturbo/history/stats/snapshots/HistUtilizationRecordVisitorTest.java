@@ -68,7 +68,7 @@ public class HistUtilizationRecordVisitorTest {
         return new HistUtilizationRecord(777L, null, UICommodityType.POOL_CPU.typeNumber(),
                         PropertySubType.Utilization.ordinal(), null,
                         HistoryUtilizationType.Timeslot.ordinal(), slot,
-                        BigDecimal.valueOf(utilization), 100D);
+                        BigDecimal.valueOf(utilization / 100D), 100D);
     }
 
 }

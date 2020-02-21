@@ -12,6 +12,7 @@ import org.springframework.validation.Errors;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -47,13 +48,17 @@ public class PoliciesService implements IPoliciesService {
     }
 
     @Override
-    public PolicyApiDTO getPolicyByUuid(String uuid) {
+    public PolicyApiDTO getPolicyByUuid(String uuid) throws UnknownObjectException {
         try {
             final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
                     .setPolicyId(Long.valueOf(uuid))
                     .build();
 
-            final PolicyDTO.Policy policy = policyService.getPolicy(request).getPolicy();
+            final PolicyDTO.PolicyResponse response = policyService.getPolicy(request);
+            if (!response.hasPolicy()) {
+                throw new UnknownObjectException("No policy found with id: " + uuid);
+            }
+            final PolicyDTO.Policy policy = response.getPolicy();
             return toPolicyApiDTO(policy);
         } catch (RuntimeException e) {
             LOG.error("Cannot get policy with id " + uuid, e);

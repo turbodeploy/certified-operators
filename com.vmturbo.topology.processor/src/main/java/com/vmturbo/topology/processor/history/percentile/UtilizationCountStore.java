@@ -28,7 +28,6 @@ public class UtilizationCountStore {
     private final UtilizationCountArray latest;
     private final UtilizationCountArray full;
     private final PercentileBuckets buckets;
-    private final int unavailableDataPeriodInMins;
     private int periodDays;
 
     /**
@@ -36,14 +35,11 @@ public class UtilizationCountStore {
      *
      * @param buckets specification of percent buckets
      * @param fieldReference commodity field for which the history is retained
-     * @param unavailableDataPeriodInMins maximum amount of time between two data points.
      * @throws HistoryCalculationException when construction fails
      */
     public UtilizationCountStore(@Nonnull PercentileBuckets buckets,
-                    @Nonnull EntityCommodityFieldReference fieldReference,
-                    int unavailableDataPeriodInMins)
+                    @Nonnull EntityCommodityFieldReference fieldReference)
                     throws HistoryCalculationException {
-        this.unavailableDataPeriodInMins = unavailableDataPeriodInMins;
         if (buckets == null || buckets.size() == 0) {
             throw new HistoryCalculationException("Invalid percentile buckets provided for " + fieldReference);
         }
@@ -66,7 +62,6 @@ public class UtilizationCountStore {
         full = new UtilizationCountArray(other.full);
         latest = new UtilizationCountArray(other.latest);
         this.periodDays = other.periodDays;
-        this.unavailableDataPeriodInMins = other.unavailableDataPeriodInMins;
     }
 
     /**
@@ -99,8 +94,7 @@ public class UtilizationCountStore {
          representation would have timestamp for the last point before maintenance.
          */
         return latest.isMinHistoryDataAvailable(config.getClock().millis(), fieldReference.toString(),
-                        config.getMinObservationPeriod(context, fieldReference.getEntityOid()),
-                        config.getUnavailableDataPeriodInMins());
+                        config.getMinObservationPeriod(context, fieldReference.getEntityOid()));
     }
 
     /**

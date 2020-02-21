@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
@@ -76,7 +77,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  *   heuristicThreshold: 100
  *
  */
-public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
+public class V_01_00_00__Probe_Metadata_Change_Migration extends AbstractMigration {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -89,12 +90,6 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
     private final IdentityServiceUnderlyingStore identityInMemoryStore;
 
     private final IdentityProvider identityProvider;
-
-    private final Object migrationInfoLock = new Object();
-
-    @GuardedBy("migrationInfoLock")
-    private final MigrationProgressInfo.Builder migrationInfo =
-            MigrationProgressInfo.newBuilder();
 
     private static final String NEW_HEURISTIC_PROPERTY =
             "entityPropertiesList(name,targetAddress)/value*";
@@ -118,19 +113,8 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
-    public MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    public MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    public MigrationProgressInfo startMigration() {
+    @Override
+    public MigrationProgressInfo doStartMigration() {
         // 1. Update the probe metadata with the new heuristic properties.
         // 2. As we currently don't store entityType, we can't decide which
         //    entity to update. So we add a new entity_type column to the
@@ -151,7 +135,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         if (!probeId.isPresent()) {
             String msg ="No vCenter probe to upgrade. Upgrade finished.";
             logger.info(msg);
-            return createMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100, msg);
+            return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100, msg);
         }
 
         Optional<ProbeInfo> oldProbeInfo =
@@ -167,7 +151,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         if (!vmIdentityMetadataIndex.isPresent()) {
             String msg = "Missing VM EntityMetadata for vCenter probe";
             logger.error(msg);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 0, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
         }
 
         EntityIdentityMetadata.Builder newVmIdentityMetadata =
@@ -203,17 +187,12 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
             } catch (ProbeException pe) {
                 String msg = "Error while persisting new probeInfo {}";
                 logger.error(msg, newProbeInfo, pe);
-                return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+                return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
             }
 
         }
-        // Done with updating the probe. Update the migration status.
-        synchronized (migrationInfoLock) {
-            migrationInfo
-                    .setStatus(MigrationStatus.RUNNING)
-                    .setCompletionPercentage(50)
-                    .setStatusMessage("Successfully updated the probeInfo. Starting migration of entities");
-        }
+        updateMigrationProgress(MigrationStatus.RUNNING, 50,
+            "Successfully updated the probeInfo. Starting migration of entities");
 
         // 4. Now update the VM entities which are discovered by this vCenter probe.
         // The EntityId->EntityType mapping is fetched from history and is used to set the EntityType for the entities
@@ -229,7 +208,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         } catch (DataAccessException ex) {
             String msg = "Error getting entities with no entityType from DB";
             logger.error(msg, ex);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
         }
 
         Map<Long, EntityType> entityIdToEntityTypeMap = new HashMap<>();
@@ -247,7 +226,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
             } catch (DataAccessException ex) {
                 String msg = "Error getting entities with no entityType from DB";
                 logger.error(msg, ex);
-                return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+                return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
             }
         }
 
@@ -260,7 +239,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         } catch (DataAccessException ex) {
             String msg = "Failed to update the entity types in DB.";
             logger.error(msg, ex);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
         }
 
         // TODO: before deleting the entities, query and log these entities.
@@ -270,7 +249,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         } catch (DataAccessException ex) {
             String msg = "Error deleting entries with no associated entityTypes.";
             logger.error(msg, ex);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
         }
 
         //6. Now start the migration of the heuristicProperties.
@@ -280,7 +259,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         } catch (DataAccessException ex) {
             String msg = "Error fetching entities to migrate";
             logger.error(msg, ex);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
         }
 
         logger.info("Migrating vCenter VM entities with the new heuristic properties.");
@@ -289,14 +268,14 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
         } catch (DataAccessException ex) {
             String msg = "Error inserting entityType for entityId";
             logger.error(msg, ex);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
         }
 
         // Reload the IdentityMetadataInMemory store so that it picks up the updated entries
         // with the dummy-values.
         identityProvider.updateProbeInfo(newProbeInfo.build());
         identityInMemoryStore.reloadEntityDescriptors();
-        return createMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100,
+        return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100,
                 "Successfully migrated the probeInfo and the" +
                         " corresponding entities to use the new heuristic properties.");
     }
@@ -458,22 +437,6 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
                 }
             });
 
-        }
-    }
-
-    /**
-     *  Update the migrationInfo and return a new MigrationProgressInfo
-     *  with the updated status.
-     */
-    private MigrationProgressInfo createMigrationProgressInfo(@Nonnull MigrationStatus status,
-                                                              @Nonnull float completionPercentage,
-                                                              @Nonnull String msg) {
-        synchronized (migrationInfoLock) {
-            return migrationInfo
-                    .setStatus(status)
-                    .setCompletionPercentage(completionPercentage)
-                    .setStatusMessage(msg)
-                    .build();
         }
     }
 

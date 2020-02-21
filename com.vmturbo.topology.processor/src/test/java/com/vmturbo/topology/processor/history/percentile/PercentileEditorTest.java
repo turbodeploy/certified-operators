@@ -74,8 +74,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long MAINTENANCE_WINDOW_MS = MAINTENANCE_WINDOW_HOURS * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
     private static final String PERCENTILE_BUCKETS_SPEC = "0,1,5,99,100";
     private static final PercentileHistoricalEditorConfig PERCENTILE_HISTORICAL_EDITOR_CONFIG =
-            new PercentileHistoricalEditorConfig(1, 30,
-                            MAINTENANCE_WINDOW_HOURS, 10, 100,
+            new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 10, 100,
                             ImmutableMap.of(CommodityType.VCPU, PERCENTILE_BUCKETS_SPEC,
                                             CommodityType.IMAGE_CPU, PERCENTILE_BUCKETS_SPEC), null,
                             Clock.systemUTC());

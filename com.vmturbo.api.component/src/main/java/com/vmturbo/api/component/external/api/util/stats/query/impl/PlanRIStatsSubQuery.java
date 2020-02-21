@@ -11,7 +11,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -28,6 +27,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStats
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -46,10 +46,10 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
      * @param riUtilizationCoverageService the RI utilization and coverage service
      * @param buyRiScopeHandler buy RI scope handler.
      */
-    public PlanRIStatsSubQuery(@Nonnull RepositoryApi repositoryApi,
-                    @Nonnull PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
-                    @Nonnull ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
-                    @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
+    public PlanRIStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
+            @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
+            @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
         super(repositoryApi, buyRiScopeHandler);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
@@ -57,13 +57,13 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
     }
 
     @Override
-    public boolean applicableInContext(StatsQueryContext context) {
+    public boolean applicableInContext(final StatsQueryContext context) {
         return context.getInputScope().isPlan();
     }
 
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(Set<StatApiInputDTO> stats, StatsQueryContext context)
-                    throws OperationFailedException {
+    public List<StatSnapshotApiDTO> getAggregateStats(final Set<StatApiInputDTO> stats,
+            final StatsQueryContext context) throws OperationFailedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
         final Optional<PlanInstance> planInstanceOpt = context.getPlanInstance();
         if (!planInstanceOpt.isPresent()) {
@@ -80,8 +80,11 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
             snapshots.addAll(getRIUtilizationSnapshots(context));
         }
         if (containsStat(StringConstants.RI_COST, stats)) {
-            final boolean includeBuyRi = planInstance.getScenario().getScenarioInfo().getChangesList().stream()
-                            .anyMatch(change -> change.hasRiSetting());
+            final boolean includeBuyRi = planInstance.getScenario()
+                    .getScenarioInfo()
+                    .getChangesList()
+                    .stream()
+                    .anyMatch(ScenarioChange::hasRiSetting);
             final GetPlanReservedInstanceCostStatsRequest riCostRequest =
                             GetPlanReservedInstanceCostStatsRequest.newBuilder()
                                             .setPlanId(planInstance.getPlanId())
@@ -95,33 +98,33 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
         return mergeStatsByDate(snapshots);
     }
 
-    private List<StatSnapshotApiDTO> getRICoverageSnapshots(StatsQueryContext context)
+    private List<StatSnapshotApiDTO> getRICoverageSnapshots(final StatsQueryContext context)
             throws OperationFailedException {
         final GetReservedInstanceCoverageStatsRequest coverageRequest =
                 createCoverageRequest(context);
         final GetReservedInstanceCoverageStatsResponse coverageResponse =
-                riUtilizationCoverageService.getReservedInstanceCoverageStats(coverageRequest).toBuilder().build();
+                riUtilizationCoverageService.getReservedInstanceCoverageStats(coverageRequest);
         return internalConvertRIStatsRecordsToStatSnapshotApiDTO(
                 coverageResponse.getReservedInstanceStatsRecordsList(), true);
     }
 
-    private List<StatSnapshotApiDTO> getRIUtilizationSnapshots(StatsQueryContext context)
+    private List<StatSnapshotApiDTO> getRIUtilizationSnapshots(final StatsQueryContext context)
             throws OperationFailedException {
         final GetReservedInstanceUtilizationStatsRequest utilizationRequest =
                 createUtilizationRequest(context);
         final GetReservedInstanceUtilizationStatsResponse utilizationResponse =
-                riUtilizationCoverageService.getReservedInstanceUtilizationStats(utilizationRequest).toBuilder().build();
+                riUtilizationCoverageService.getReservedInstanceUtilizationStats(
+                        utilizationRequest);
         return internalConvertRIStatsRecordsToStatSnapshotApiDTO(
                 utilizationResponse.getReservedInstanceStatsRecordsList(), false);
     }
 
-
-    private List<StatSnapshotApiDTO> getNumRIStatsSnapshots(long planId) {
+    private List<StatSnapshotApiDTO> getNumRIStatsSnapshots(final long planId) {
         final GetPlanReservedInstanceBoughtCountRequest countRequest =
-                        GetPlanReservedInstanceBoughtCountRequest.newBuilder().setPlanId(planId).build();
+                GetPlanReservedInstanceBoughtCountRequest.newBuilder().setPlanId(planId).build();
         final GetPlanReservedInstanceBoughtCountByTemplateResponse response =
-                        planReservedInstanceService.getPlanReservedInstanceBoughtCountByTemplateType(countRequest)
-                                                .toBuilder().build();
+                planReservedInstanceService.getPlanReservedInstanceBoughtCountByTemplateType(
+                        countRequest);
         final Map<String, Long> riBoughtCountByTierName = response.getReservedInstanceCountMapMap();
         return convertNumRIStatsMapToStatSnapshotApiDTO(riBoughtCountByTierName);
     }
@@ -130,25 +133,21 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
     GetReservedInstanceCoverageStatsRequest createCoverageRequest(
             @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final long planId = context.getPlanInstance().get().getPlanId();
-        final ApiId inputScope = context.getInputScope();
-        final GetReservedInstanceCoverageStatsRequest.Builder reqBuilder =
+        return internalCreateCoverageRequest(context,
                 GetReservedInstanceCoverageStatsRequest.newBuilder()
                         .setTopologyContextId(planId)
-                        .setIncludeBuyRiCoverage(
-                                buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
-        return internalCreateCoverageRequest(context, reqBuilder, inputScope);
+                        .setIncludeBuyRiCoverage(buyRiScopeHandler.shouldIncludeBuyRiDiscount(
+                                context.getInputScope())));
     }
 
     @Nonnull
     GetReservedInstanceUtilizationStatsRequest createUtilizationRequest(
             @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final long planId = context.getPlanInstance().get().getPlanId();
-        final ApiId inputScope = context.getInputScope();
-        final GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder =
+        return internalCreateUtilizationRequest(context,
                 GetReservedInstanceUtilizationStatsRequest.newBuilder()
                         .setTopologyContextId(planId)
-                        .setIncludeBuyRiUtilization(
-                                buyRiScopeHandler.shouldIncludeBuyRiDiscount(inputScope));
-        return internalCreateUtilizationRequest(context, reqBuilder, inputScope);
+                        .setIncludeBuyRiUtilization(buyRiScopeHandler.shouldIncludeBuyRiDiscount(
+                                context.getInputScope())));
     }
 }

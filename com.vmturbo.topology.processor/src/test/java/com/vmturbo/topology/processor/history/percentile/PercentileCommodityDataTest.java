@@ -53,7 +53,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     public void before() {
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(0L));
-        config = new PercentileHistoricalEditorConfig(1, UNAVAILABLE_DATA_PERIOD, 24, 10, 100,
+        config = new PercentileHistoricalEditorConfig(1, 24, 10, 100,
                         Collections.emptyMap(), null, clock);
         context = Mockito.mock(HistoryAggregationContext.class);
     }

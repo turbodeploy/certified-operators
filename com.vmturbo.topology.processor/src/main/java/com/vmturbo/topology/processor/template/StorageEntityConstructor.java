@@ -10,6 +10,7 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.up
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -120,9 +121,9 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
             Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_IOPS, ZERO));
 
         CommoditySoldDTO storageAmoutCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, Optional.ofNullable(diskSize));
         CommoditySoldDTO storageAccessCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, Optional.ofNullable(diskIops));
         // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
         // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
         // will set it to the default value from EntitySettingSpecs.LatencyCapacity.

@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -24,7 +25,7 @@ import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
  * includes Plan Overhaul, multi-tenancy and other breaking changes/improvements.
  *
  */
-public class V_01_00_00__PURGE_ALL_PLANS implements Migration {
+public class V_01_00_00__PURGE_ALL_PLANS extends AbstractMigration {
 
     /**
      * For logging migration status.
@@ -44,18 +45,6 @@ public class V_01_00_00__PURGE_ALL_PLANS implements Migration {
     private final ScenarioDao scenarioDao;
 
     /**
-     * For reporting migration progress.
-     */
-    //TODO: Improve this with an abstract superclass.
-    @GuardedBy("migrationInfoLock")
-    private final MigrationProgressInfo.Builder migrationInfo = MigrationProgressInfo.newBuilder();
-
-    /**
-     * For synchronizing access to the migrationInfo.
-     */
-    private final Object migrationInfoLock = new Object();
-
-    /**
      * Create an instance of the Purge all Plans migration.
      *
      * @param planDao to delete plan data
@@ -68,43 +57,13 @@ public class V_01_00_00__PURGE_ALL_PLANS implements Migration {
     }
 
     /**
-     * Retrieve the current status of the migration.
-     *
-     * <p>See {@link MigrationStatus} for the list of states.</p>
-     *
-     * @return the current {@link MigrationStatus}
-     */
-    @Override
-    public MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    /**
-     * Retrieve the current info about the migration.
-     *
-     * @return the current {@link MigrationProgressInfo}
-     */
-    @Override
-    public MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    /**
      * Start the migration, deleting all obsolete plan topologies.
      *
      * @return {@link MigrationProgressInfo} describing the details
      * of the migration
      */
     @Override
-    public MigrationProgressInfo startMigration() {
-        logger.info("Starting migration...");
-        synchronized (migrationInfoLock) {
-            migrationInfo.setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.RUNNING);
-        }
+    public MigrationProgressInfo doStartMigration() {
         return deleteOldPlans();
     }
 
@@ -138,32 +97,5 @@ public class V_01_00_00__PURGE_ALL_PLANS implements Migration {
             return migrationFailed(e.getMessage());
         }
         return migrationSucceeded();
-    }
-
-    /**
-     * Generate a migrationInfo indicating a successful migration.
-     *
-     * @return migrationInfo indicating a successful migration
-     */
-    @Nonnull
-    private MigrationProgressInfo migrationSucceeded() {
-        return migrationInfo
-            .setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.SUCCEEDED)
-            .setCompletionPercentage(100)
-            .build();
-    }
-
-    /**
-     * Generate a migrationInfo indicating a failed migration.
-     *
-     * @param errorMessage a message indicating why the migration failed
-     * @return migrationInfo indicating a failed migration
-     */
-    @Nonnull
-    private MigrationProgressInfo migrationFailed(@Nonnull String errorMessage) {
-        return migrationInfo
-            .setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.FAILED)
-            .setStatusMessage("Migration failed: " + errorMessage)
-            .build();
     }
 }

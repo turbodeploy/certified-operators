@@ -52,7 +52,7 @@ public class PercentileCommodityData
             if (utilizationCounts == null) {
                 utilizationCounts = new UtilizationCountStore(
                                 config.getPercentileBuckets(field.getCommodityType().getType()),
-                                field, config.getUnavailableDataPeriodInMins());
+                                field);
                 utilizationCounts.setPeriodDays(config.getObservationPeriod(context, field.getEntityOid()));
             }
             if (dbValue != null) {

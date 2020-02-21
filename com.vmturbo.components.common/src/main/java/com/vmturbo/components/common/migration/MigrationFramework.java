@@ -101,16 +101,19 @@ public class MigrationFramework {
                     migrationRecords.getOrDefault(migrationName,
                             MigrationRecord.newBuilder());
 
+            final boolean forcedMigration = forceStartFailedMigration
+                && migrationRecordBuilder.getProgressInfo().getStatus() == MigrationStatus.FAILED;
             if (migrationRecordBuilder.getProgressInfo().getStatus() == MigrationStatus.NOT_STARTED
-                    || (migrationRecordBuilder.getProgressInfo().getStatus() == MigrationStatus.FAILED
-                        && forceStartFailedMigration)) {
-
+                    || forcedMigration) {
+                if (forcedMigration) {
+                    logger.info("Forcing previously-failed migration {} to start.", migration);
+                }
                 logger.info("Starting migration: {}", migrationName);
                 migrationRecordBuilder.setMigrationName(migrationName);
                 migrationRecordBuilder.setStartTime(LocalDateTime.now().toString());
                 migrationRecords.put(migrationName, migrationRecordBuilder);
                 MigrationProgressInfo migrationInfo;
-                if (migrationVersion.compareTo(currentDataVersion) <= 0 ) {
+                if (!forcedMigration && migrationVersion.compareTo(currentDataVersion) <= 0 ) {
                     String msg = "Skipping Migration: " + migrationVersion +
                             " as it's version is <= current data version:" + currentDataVersion;
                     logger.info(msg);

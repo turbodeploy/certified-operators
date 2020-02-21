@@ -13,7 +13,7 @@ import com.vmturbo.components.api.SetOnce;
 public class PricingDataIdentifier {
     private final Optional<Discount> discount;
 
-    private final PriceTable priceTable;
+    private final Long priceTableOid;
 
     private final SetOnce<Integer> hashCode = new SetOnce<>();
 
@@ -21,24 +21,32 @@ public class PricingDataIdentifier {
      * Constructor for the Pricing Data Identifier.
      *
      * @param discount The discount.
-     * @param priceTable The price table.
+     * @param priceTableOid price table identifier
      */
-    public PricingDataIdentifier(Optional<Discount> discount, PriceTable priceTable) {
+    public PricingDataIdentifier(Optional<Discount> discount, Long priceTableOid) {
         this.discount = discount;
-        this.priceTable = priceTable;
+        this.priceTableOid = priceTableOid;
+    }
+
+    @Override
+    public String toString() {
+        return "PricingDataIdentifier [hashCode=" + hashCode
+                + ", discount.hashCode=" + discount.hashCode()
+                + ", priceTableOid=" + priceTableOid
+                + "]";
     }
 
     public Optional<Discount> getDiscount() {
         return this.discount;
     }
 
-    public PriceTable getPriceTable() {
-        return this.priceTable;
+    public Long getPriceTableOid() {
+        return this.priceTableOid;
     }
 
     @Override
     public int hashCode() {
-        return hashCode.ensureSet(() -> Objects.hash(discount.orElse(null), priceTable));
+        return hashCode.ensureSet(() -> Objects.hash(discount.orElse(null), priceTableOid));
     }
 
     @Override
@@ -54,6 +62,6 @@ public class PricingDataIdentifier {
         PricingDataIdentifier otherPricingIdentifier = (PricingDataIdentifier)other;
 
         return this.getDiscount().equals(otherPricingIdentifier.getDiscount())
-                && this.getPriceTable().equals(otherPricingIdentifier.getPriceTable());
+                && this.getPriceTableOid().equals(otherPricingIdentifier.getPriceTableOid());
     }
 }

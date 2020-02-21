@@ -1,18 +1,22 @@
 package com.vmturbo.topology.processor.template;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VSTORAGE_VALUE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -75,5 +79,18 @@ public class TemplatesConverterUtilsTest {
             .map(CommoditySoldDTO::getAccesses)
             .collect(Collectors.toList()),
             containsInAnyOrder(originalHost.getOid(), replacementHost.getOid()));
+    }
+
+    /**
+     * Verify creating CommoditySoldDTO.
+     */
+    @Test
+    public void testCreateCommoditySoldDTO() {
+        final CommoditySoldDTO soldDTO =
+                TemplatesConverterUtils.createCommoditySoldDTO(VSTORAGE_VALUE);
+        assertFalse(soldDTO.getIsResizeable());
+        assertTrue(soldDTO.getActive());
+        // if capacity is not set, it will have default capacity.
+        assertEquals(CommoditySoldDTO.getDefaultInstance().getCapacity(), soldDTO.getCapacity(), 0.1);
     }
 }

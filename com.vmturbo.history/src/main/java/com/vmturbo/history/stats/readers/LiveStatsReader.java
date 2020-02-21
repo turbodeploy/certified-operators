@@ -561,15 +561,16 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
     /**
      * Return the display name for the Entity for the given entity ID (OID).
      * <p>
-     * If the entity ID is not known, then return null.
+     * If the entity ID is null or not known, then return null.
      *
      * TODO: Should probably be moved to a new EntityReader class.
      *
      * @param entityOID the OID for the entity to look up
      * @return the display name for the given OID, if found, otherwise null
      */
-    public String getEntityDisplayNameForId(Long entityOID) {
-        return historydbIO.getEntityDisplayNameForId(entityOID);
+    @Nullable
+    public String getEntityDisplayNameForId(@Nullable Long entityOID) {
+        return entityOID != null ? historydbIO.getEntityDisplayNameForId(entityOID) : null;
     }
 
 }

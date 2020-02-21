@@ -161,18 +161,5 @@ public class MigrationFrameworkTest {
                     .setStatusMessage("Migrated 100 records")
                     .build();
         }
-
-        @Override
-        public MigrationProgressInfo getMigrationInfo() {
-            return migrationBuilder
-                    .setStatus(MigrationStatus.RUNNING)
-                    .setCompletionPercentage(60.0f)
-                    .build();
-        }
-
-        @Override
-        public MigrationStatus getMigrationStatus() {
-            return MigrationStatus.RUNNING;
-        }
     }
 }

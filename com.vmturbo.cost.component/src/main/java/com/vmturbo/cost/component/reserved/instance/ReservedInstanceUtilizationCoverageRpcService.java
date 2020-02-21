@@ -130,8 +130,10 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             } else {
                 // Add projected RI Utilization point
                 statRecords.add(
-                    projectedRICoverageStore.getReservedInstanceUtilizationStats(
-                            filter, request.getIncludeBuyRiUtilization()));
+                        projectedRICoverageStore.getReservedInstanceUtilizationStats(
+                            filter, request.getIncludeBuyRiUtilization(),
+                                request.getEndDate()));
+
             }
             final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
@@ -184,7 +186,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 // Add projected RI Coverage point
                 statRecords.add(
                     projectedRICoverageStore.getReservedInstanceCoverageStats(
-                            filter, request.getIncludeBuyRiCoverage()));
+                            filter, request.getIncludeBuyRiCoverage(), request.getEndDate()));
             }
 
             final GetReservedInstanceCoverageStatsResponse response =

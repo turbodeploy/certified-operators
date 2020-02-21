@@ -9,7 +9,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,19 +26,19 @@ public class StatsUtils {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final static String KBIT_SEC = "Kbit/sec";
-    private final static String BIT_SEC = "bit/sec";
+    private static final String KBIT_SEC = "Kbit/sec";
+    private static final String BIT_SEC = "bit/sec";
 
     // map of commodity number to units-multiplier pair
-    private final static Map<Integer, Pair<String, Integer>> UNITS_CONVERTER = ImmutableMap.of(
+    private static final Map<Integer, Pair<String, Integer>> UNITS_CONVERTER = ImmutableMap.of(
         CommodityType.PORT_CHANEL_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.NET_THROUGHPUT_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.IO_THROUGHPUT_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.SWAPPING_VALUE, new Pair<>(BIT_SEC, 8));
 
     private static final Set<UIEntityType> SUPPORTED_RI_FILTER_TYPES =
-            ImmutableSet.of(UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE,
-                    UIEntityType.BUSINESS_ACCOUNT);
+            Sets.immutableEnumSet(UIEntityType.AVAILABILITY_ZONE, UIEntityType.BUSINESS_ACCOUNT,
+                    UIEntityType.REGION, UIEntityType.SERVICE_PROVIDER);
 
     /**
      * Convert the default commodity units into converted units with multiplier that we need to

@@ -6,6 +6,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -26,6 +27,8 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -57,6 +60,7 @@ import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
@@ -117,6 +121,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
  * Unit test for {@link MarketsService}.
  */
 public class MarketsServiceTest {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private static final long REALTIME_CONTEXT_ID = 777777;
 
@@ -557,7 +563,13 @@ public class MarketsServiceTest {
                     .build();
             doReturn(createGroupResponse).when(groupBackend).createGroup(createGroupRequest);
             // Act
-            marketsService.addPolicy(MARKET_UUID, policyApiInputDTO);
+            try {
+                marketsService.addPolicy(MARKET_UUID, policyApiInputDTO);
+            } catch (UnknownObjectException e) {
+                // this should never happen
+                logger.error("UnknownObjectException caught while creating policy", e);
+                fail("Policy creation failed");
+            }
         });
     }
 

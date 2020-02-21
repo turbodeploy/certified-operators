@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -41,6 +43,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntityDTO> {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final int MAX_SP_LOCATOR_DEPTH = 1000;
+    private static final Set<Integer> SERVICE_PROVIDE =
+            ImmutableSet.of(EntityType.SERVICE_PROVIDER_VALUE);
+    private static final Set<Integer> REGION_AND_AVZONE =
+            ImmutableSet.of(EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE);
 
     private final Map<Long, TopologyEntityDTO> topologyEntitiesById;
 
@@ -52,6 +59,28 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
             = new SetOnce<>();
 
     private final GroupMemberRetriever groupMemberRetriever;
+
+    private final Map<Integer, Function<TopologyEntityDTO, Optional<TopologyEntityDTO>>> spLocator =
+            ImmutableMap.<Integer, Function<TopologyEntityDTO, Optional<TopologyEntityDTO>>>builder()
+                    .put(EntityType.VIRTUAL_MACHINE_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.COMPUTE_TIER_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.VIRTUAL_VOLUME_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.DATABASE_TIER_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.DATABASE_SERVER_TIER_VALUE,
+                            v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.DATABASE_SERVER_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.DATABASE_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.STORAGE_TIER_VALUE, v -> getAggregator(v, REGION_AND_AVZONE))
+                    .put(EntityType.AVAILABILITY_ZONE_VALUE, this::getOwner)
+                    .put(EntityType.APPLICATION_VALUE,
+                            v -> getProviderByType(v, EntityType.VIRTUAL_MACHINE_VALUE))
+                    .put(EntityType.CLOUD_SERVICE_VALUE, this::getOwner)
+                    .put(EntityType.REGION_VALUE, this::getOwner)
+                    .put(EntityType.BUSINESS_ACCOUNT_VALUE, v -> getAggregator(v, SERVICE_PROVIDE))
+                    .put(EntityType.VIRTUAL_APPLICATION_VALUE, this::getOwner)
+                    .put(EntityType.LOAD_BALANCER_VALUE,
+                            v -> getProviderByType(v, EntityType.VIRTUAL_APPLICATION_VALUE))
+                    .build();
 
     /**
      * Creates an instance of TopologyEntityCloudTopology with the provided topologyEntities and
@@ -275,6 +304,13 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
             .flatMap(this::getEntity);
     }
 
+    @Nonnull
+    @Override
+    public Optional<TopologyEntityDTO> getServiceProvider(long entityId) {
+        Optional<TopologyEntityDTO> entity = getEntity(entityId);
+        return entity.flatMap(this::getServiceProvider);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -467,4 +503,84 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                                 .build())
                         .build());
     }
+
+    /**
+     * Get aggregator of provided entity. Aggregator is the entity connected to provided entity by
+     * {@link ConnectionType#AGGREGATED_BY_CONNECTION}
+     *
+     * @param entity the entity
+     * @param aggregatorTypeFilter include only aggregators of given types
+     * @return aggregator of provided entity
+     */
+    @Nonnull
+    public Optional<TopologyEntityDTO> getAggregator(@Nonnull TopologyEntityDTO entity,
+            @Nonnull Set<Integer> aggregatorTypeFilter) {
+        return entity.getConnectedEntityListList()
+                .stream()
+                .filter(e -> e.getConnectionType() == ConnectionType.AGGREGATED_BY_CONNECTION &&
+                        aggregatorTypeFilter.contains(e.getConnectedEntityType()))
+                .findFirst()
+                .flatMap(e -> getEntity(e.getConnectedEntityId()));
+    }
+
+    /**
+     * Get owner for provided entity. Owner is the entity that has 'owns' connection with provided
+     * entity.
+     *
+     * @param entity the entity
+     * @return owner for provided entity.
+     */
+    @Nonnull
+    public Optional<TopologyEntityDTO> getOwner(@Nonnull TopologyEntityDTO entity) {
+        return getOwner(entity.getOid());
+    }
+
+    /**
+     * Get entity provider of the given type. Entity provide is the entity from which it buys
+     * commodities.
+     *
+     * @param entity     the entity
+     * @param entityType provider entity type
+     * @return entity provider of the given type.
+     */
+    @Nonnull
+    public Optional<TopologyEntityDTO> getProviderByType(@Nonnull TopologyEntityDTO entity,
+            int entityType) {
+        return entity.getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .filter(c -> c.getProviderEntityType() == entityType)
+                .findFirst()
+                .flatMap(c -> getEntity(c.getProviderId()));
+    }
+
+    /**
+     * Get ServiceProvider for provided entity.
+     *
+     * @param entity the entity
+     * @return ServiceProvider
+     */
+    @Nonnull
+    public Optional<TopologyEntityDTO> getServiceProvider(@Nonnull TopologyEntityDTO entity) {
+        Optional<TopologyEntityDTO> current = Optional.of(entity);
+        int c = 0;
+        while (current.isPresent() &&
+                current.get().getEntityType() != EntityType.SERVICE_PROVIDER_VALUE) {
+            final Function<TopologyEntityDTO, Optional<TopologyEntityDTO>> extractor =
+                    spLocator.get(current.get().getEntityType());
+            if (extractor != null) {
+                current = extractor.apply(current.get());
+            } else {
+                logger.error("Cannot find ServiceProvider extractor for EntityType: {}",
+                        entity.getEntityType());
+                return Optional.empty();
+            }
+            if (c++ >= MAX_SP_LOCATOR_DEPTH) {
+                logger.error("Cannot get ServiceProvider extractor for entity: {}." +
+                        " Iteration depth exceeded.", entity.getOid());
+                return Optional.empty();
+            }
+        }
+        return current;
+    }
+
 }
