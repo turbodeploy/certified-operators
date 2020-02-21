@@ -22,16 +22,21 @@ public class HistoricalUtilizationDatabase {
         this.dsl = dsl;
     }
 
+    /**
+     * Persist the historical utilization blob to database.
+     *
+     * @param histInfo the historical info containing the historical values
+     */
     public void saveInfo(HistoricalInfo histInfo) {
         Instant startTime = Instant.now();
         try {
             HistoricalUtilizationRecord rec = new HistoricalUtilizationRecord();
-            HistoricalInfoRecord record = new HistoricalInfoRecord(Conversions.convertToDto(histInfo).toByteArray());
+            byte[] info = Conversions.convertToDto(histInfo).toByteArray();
 
             rec.setId(1L);
-            rec.setInfo(record.getInfo());
+            rec.setInfo(info);
             dsl.insertInto(HistoricalUtilization.HISTORICAL_UTILIZATION).set(rec).onDuplicateKeyUpdate()
-                    .set(HistoricalUtilization.HISTORICAL_UTILIZATION.INFO, record.getInfo()).execute();
+                    .set(HistoricalUtilization.HISTORICAL_UTILIZATION.INFO, info).execute();
             Instant completionTime = Instant.now();
             logger.info("Time taken for historical data insertion : " +
                     startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds.");
@@ -40,20 +45,23 @@ public class HistoricalUtilizationDatabase {
         }
     }
 
-    public HistoricalInfoRecord getInfo() {
-        HistoricalInfoRecord record = new HistoricalInfoRecord();
+    /**
+     * Query the historical utilization blob from database and return it.
+     *
+     * @return the byte array represents the full topology historical utilization.
+     */
+    public byte[] getInfo() {
         Instant startTime = Instant.now();
+        byte[] bytes = null;
         try {
             Result<Record1<byte[]>> result = dsl.select(HistoricalUtilization.HISTORICAL_UTILIZATION.INFO)
                     .from(HistoricalUtilization.HISTORICAL_UTILIZATION)
                     .fetch();
             if (result.size() == 1) {
                 Record record1 = result.get(0);
-                byte[] bytes = null;
                 if (record1 != null) {
                     bytes = record1.getValue(HistoricalUtilization.HISTORICAL_UTILIZATION.INFO);
                 }
-                record.setInfo(bytes);
             }
             Instant completionTime = Instant.now();
             logger.info("Time taken for historical data retrieval : " +
@@ -61,7 +69,7 @@ public class HistoricalUtilizationDatabase {
         } catch (Exception ex) {
             logger.error("Exception in historical information retrieval : ", ex);
         }
-        return record;
+        return bytes;
     }
 
 }

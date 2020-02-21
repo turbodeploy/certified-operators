@@ -55,7 +55,7 @@ public class HistoricalUtilizationDatabaseTest {
         soldCommInfo.setHistoricalPeak(20);
         soldCommInfo.setSourceId(123);
         soldCommInfo.setMatched(true);
-        soldCommInfo.setExisting(false);
+        soldCommInfo.setUpdated(false);
 
         // Creating HistoricalCommodityInfo for bought commodities
         HistoricalCommodityInfo boughtCommInfo = new HistoricalCommodityInfo();
@@ -64,13 +64,11 @@ public class HistoricalUtilizationDatabaseTest {
         boughtCommInfo.setHistoricalPeak(40);
         boughtCommInfo.setSourceId(456);
         boughtCommInfo.setMatched(false);
-        boughtCommInfo.setExisting(true);
+        boughtCommInfo.setUpdated(true);
 
         // Creating HistoricalServiceEntityInfo
         HistoricalServiceEntityInfo seInfo = new HistoricalServiceEntityInfo();
         seInfo.setSeOid(12345678);
-        seInfo.setUsedHistoryWeight(0.5f);
-        seInfo.setPeakHistoryWeight(0.99f);
         seInfo.getHistoricalCommoditySold().add(soldCommInfo);
         seInfo.getHistoricalCommodityBought().add(boughtCommInfo);
 
@@ -85,9 +83,8 @@ public class HistoricalUtilizationDatabaseTest {
         db.saveInfo(info);
 
         // Reading the BLOB
-        HistoricalInfoRecord record = db.getInfo();
-        if (record != null) {
-            byte[] bytes = record.getInfo();
+        byte[] bytes = db.getInfo();
+        if (bytes != null) {
             if (bytes != null) {
                 HistoricalInfoDTO histInfo = null;
                 try {
@@ -103,8 +100,6 @@ public class HistoricalUtilizationDatabaseTest {
         HistoricalServiceEntityInfo resultSeInfo = resultInfo.get(12345678);
         assertNotNull(resultSeInfo);
         assertEquals(12345678, resultSeInfo.getSeOid());
-        assertEquals(0.5, resultSeInfo.getUsedHistoryWeight(), 0.00001);
-        assertEquals(0.99, resultSeInfo.getPeakHistoryWeight(), 0.00001);
 
         HistoricalCommodityInfo resultSoldCommInfo = resultSeInfo.getHistoricalCommoditySold().get(0);
         assertNotNull(resultSoldCommInfo);
@@ -113,7 +108,7 @@ public class HistoricalUtilizationDatabaseTest {
         assertEquals(20, soldCommInfo.getHistoricalPeak(), 0.00001);
         assertEquals(123, soldCommInfo.getSourceId());
         assertTrue(soldCommInfo.getMatched());
-        assertFalse(soldCommInfo.getExisting());
+        assertFalse(soldCommInfo.getUpdated());
 
         HistoricalCommodityInfo resultBoughtCommInfo = resultSeInfo.getHistoricalCommodityBought().get(0);
         assertNotNull(resultBoughtCommInfo);
@@ -122,6 +117,6 @@ public class HistoricalUtilizationDatabaseTest {
         assertEquals(40, boughtCommInfo.getHistoricalPeak(), 0.00001);
         assertEquals(456, boughtCommInfo.getSourceId());
         assertFalse(boughtCommInfo.getMatched());
-        assertTrue(boughtCommInfo.getExisting());
+        assertTrue(boughtCommInfo.getUpdated());
     }
 }

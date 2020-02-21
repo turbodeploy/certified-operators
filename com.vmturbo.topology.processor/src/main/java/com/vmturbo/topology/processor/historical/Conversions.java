@@ -12,11 +12,9 @@ public class Conversions {
     public static HistoricalCommodityInfo convertFromDto(HistoricalCommInfoDTO source) {
         HistoricalCommodityInfo histCommInfo = new HistoricalCommodityInfo();
         histCommInfo.setCommodityTypeAndKey(source.getCommType());
-        histCommInfo.setHistoricalUsed(source.getHistUsed());
-        histCommInfo.setHistoricalPeak(source.getHistPeak());
         histCommInfo.setSourceId(source.getSourceId());
         histCommInfo.setMatched(source.getMatched());
-        histCommInfo.setExisting(source.getExisting());
+        histCommInfo.setUpdated(source.getExisting());
         return histCommInfo;
     }
 
@@ -29,8 +27,6 @@ public class Conversions {
         for (HistoricalCommInfoDTO histCommBoughtDto : source.getHistCommBoughtList()) {
             histSeInfo.addHistoricalCommodityBought(convertFromDto(histCommBoughtDto));
         }
-        histSeInfo.setUsedHistoryWeight(source.getUsedHistoryWeight());
-        histSeInfo.setPeakHistoryWeight(source.getPeakHistoryWeight());
         return histSeInfo;
     }
 
@@ -46,11 +42,9 @@ public class Conversions {
     public static HistoricalCommInfoDTO convertToDto(HistoricalCommodityInfo source) {
         return HistoricalCommInfoDTO.newBuilder()
                 .setCommType(source.getCommodityTypeAndKey())
-                .setHistUsed(source.getHistoricalUsed())
-                .setHistPeak(source.getHistoricalPeak())
                 .setSourceId(source.getSourceId())
                 .setMatched(source.getMatched())
-                .setExisting(source.getExisting())
+                .setExisting(source.getUpdated())
                 .build();
     }
 
@@ -66,8 +60,6 @@ public class Conversions {
         return HistoricalSEInfoDTO.newBuilder().setSeOid(source.getSeOid())
                 .addAllHistCommSold(histCommSoldDto)
                 .addAllHistCommBought(histCommBoughtDto)
-                .setUsedHistoryWeight(source.getUsedHistoryWeight())
-                .setPeakHistoryWeight(source.getPeakHistoryWeight())
                 .build();
     }
 
