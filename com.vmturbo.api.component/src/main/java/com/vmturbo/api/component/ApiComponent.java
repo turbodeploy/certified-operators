@@ -33,6 +33,7 @@ import com.vmturbo.api.external.controller.ProbesController;
 import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.config.PropertiesLoader;
 
 /**
  * This is the "main()" for the API Component. The API component implements
@@ -148,7 +149,7 @@ public class ApiComponent extends BaseVmtComponent {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
         rootContext.register(ApiComponent.class);
-        addConfigurationPropertySources(rootContext);
+        PropertiesLoader.addConfigurationPropertySources(rootContext);
         final Servlet dispatcherServlet = new DispatcherServlet(rootContext);
         final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
         contextServer.addServlet(servletHolder, "/*");

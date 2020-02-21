@@ -16,7 +16,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.clustermgr.DiagEnvironmentSummary.ChannelFactory;
-import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.LicensingMoles.LicenseManagerServiceMole;
@@ -50,20 +49,16 @@ public class DiagEnvironmentSummaryTest {
 
     private ChannelFactory channelFactory = mock(ChannelFactory.class);
 
-    private ComponentProperties componentProperties = mock(ComponentProperties.class);
-
     /**
      * Common setup code for all tests.
      */
     @Before
     public void setup() {
-        when(componentProperties.get("authHost")).thenReturn("auth");
-        when(componentProperties.get("serverGrpcPort")).thenReturn("192");
         when(channelFactory.getChannel("auth", 192)).thenReturn(grpcTestServer.getChannel());
         diagEnvironmentSummary = new DiagEnvironmentSummary(
             buildProperties,
             clock,
-            channelFactory);
+            channelFactory, "auth", 192);
         when(buildProperties.getVersion()).thenReturn(VERSION);
         when(buildProperties.getShortCommitId()).thenReturn(SHORT_COMMIT);
     }
@@ -73,7 +68,7 @@ public class DiagEnvironmentSummaryTest {
      */
     @Test
     public void testNoLicense() {
-        final String diagFileName = diagEnvironmentSummary.getDiagFileName(componentProperties);
+        final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
         assertThat(diagFileName, containsString(SHORT_COMMIT));
         assertThat(diagFileName, containsString(LocalDateTime.now(clock).toLocalDate().toString()));
@@ -91,7 +86,7 @@ public class DiagEnvironmentSummaryTest {
                 .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
-        final String diagFileName = diagEnvironmentSummary.getDiagFileName(componentProperties);
+        final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
         assertThat(diagFileName, containsString(SHORT_COMMIT));
         assertThat(diagFileName, containsString(LocalDateTime.now(clock).toLocalDate().toString()));
@@ -110,7 +105,7 @@ public class DiagEnvironmentSummaryTest {
                 .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
-        final String diagFileName = diagEnvironmentSummary.getDiagFileName(componentProperties);
+        final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
         assertThat(diagFileName, containsString(SHORT_COMMIT));
         assertThat(diagFileName, containsString(LocalDateTime.now(clock).toLocalDate().toString()));
@@ -128,7 +123,7 @@ public class DiagEnvironmentSummaryTest {
                 .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
-        final String diagFileName = diagEnvironmentSummary.getDiagFileName(componentProperties);
+        final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
         assertThat(diagFileName, containsString(SHORT_COMMIT));
         assertThat(diagFileName, containsString("turbonomic.com"));
@@ -147,7 +142,7 @@ public class DiagEnvironmentSummaryTest {
                 .setEmail("myemail@vmturbo.com"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
-        final String diagFileName = diagEnvironmentSummary.getDiagFileName(componentProperties);
+        final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
         assertThat(diagFileName, containsString(SHORT_COMMIT));
         assertThat(diagFileName, containsString("turbonomic.com_vmturbo.com"));

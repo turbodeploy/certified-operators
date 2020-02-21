@@ -26,6 +26,7 @@ data:
         authHost: auth
         consul_host: consul
         consul_port: 8500
+        consulNamespace : {{ .Release.Namespace }}
         clusterMgrHost: clustermgr
         clustermgr_port : 8080
         costHost: cost

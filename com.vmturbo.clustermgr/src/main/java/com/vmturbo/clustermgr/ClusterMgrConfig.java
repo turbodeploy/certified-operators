@@ -36,6 +36,7 @@ import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.OsProcessFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.utils.BuildProperties;
+import com.vmturbo.kvstore.ConsulKeyValueStore;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 
 /**
@@ -47,7 +48,7 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
 
     @Value("${consul_host}")
     private String consulHost;
-    @Value("${clustermgr.consul.port:8500}")
+    @Value("${consul_port:8500}")
     private int consulPort;
 
     /**
@@ -89,6 +90,18 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      */
     @Value("${anonymized:false}")
     private boolean anonymized;
+
+    @Value("${authHost:auth}")
+    private String authHost;
+
+    @Value("${serverGrpcPort:9001}")
+    private int serverGrpcPort;
+
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
 
     /**
      * The hardLock key.
@@ -159,7 +172,7 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Bean
     public DiagEnvironmentSummary diagFileNameFormatter() {
         return new DiagEnvironmentSummary(BuildProperties.get(),
-            Clock.systemUTC(), (host, port) -> GrpcChannelFactory.newChannelBuilder(host, port).build());
+            Clock.systemUTC(), (host, port) -> GrpcChannelFactory.newChannelBuilder(host, port).build(), authHost, serverGrpcPort);
     }
 
     /**
@@ -200,7 +213,8 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public ConsulService consulService() {
-        return new ConsulService(consulHost, consulPort);
+        return new ConsulService(consulHost, consulPort,
+            ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace));
     }
 
     /**
