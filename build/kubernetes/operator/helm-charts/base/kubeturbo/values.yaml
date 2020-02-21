@@ -9,7 +9,7 @@ image:
   pullPolicy: IfNotPresent
 
 #nameOverride: ""
-#fullnameOverride: ""
+fullnameOverride: kubeturbo
 
 # Specify custom turbo-cluster-reader or turbo-cluster-admin role instead of the default cluster-admin role
 roleName: "cluster-admin"
