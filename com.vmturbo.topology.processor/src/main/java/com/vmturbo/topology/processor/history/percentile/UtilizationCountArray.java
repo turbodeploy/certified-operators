@@ -77,15 +77,12 @@ public class UtilizationCountArray {
      *                 stored.
      * @param minObservationPeriodDays minimum amount of days for which entity
      *                 should have percentile data.
-     * @param unavailableDataPeriodInMins maximum amount of minutes between two data
-     *                 points.
      * @return {@code true} in case minimum observation period is disabled, i.e. it's value
      *                 equal to 0, or in case there are enough data point collected for specified
      *                 minimum observation period in days, otherwise return {@code false}.
      */
-    public boolean isMinHistoryDataAvailable(long currentTimestamp,
-                    @Nonnull String fieldReference,
-                    int minObservationPeriodDays, int unavailableDataPeriodInMins) {
+    public boolean isMinHistoryDataAvailable(long currentTimestamp, @Nonnull String fieldReference,
+                    int minObservationPeriodDays) {
         if (minObservationPeriodDays <= 0) {
             return true;
         }
@@ -101,20 +98,7 @@ public class UtilizationCountArray {
         logger.debug("Percentile data available for '{}' since '{}'. Minimum required timestamp for history data '{}'.",
                         () -> fieldReference, () -> Instant.ofEpochMilli(startTimestamp),
                         () -> Instant.ofEpochMilli(minTimestampSinceWhichHistory));
-        if (!historyDataAvailable) {
-            return false;
-        }
-        final long unavailableDataTimestamp =
-                        now.minus(Duration.ofMinutes(unavailableDataPeriodInMins)).toEpochMilli();
-        final boolean historyDataComprehensive =
-                        endTimestamp > unavailableDataTimestamp;
-        logger.debug("Last successful discovery was '{}', minimum timestamp, after which data treated as unavailable: {}",
-                        () -> Instant.ofEpochMilli(endTimestamp),
-                        () -> Instant.ofEpochMilli(unavailableDataTimestamp));
-        if (!historyDataComprehensive) {
-            startTimestamp = currentTimestamp;
-        }
-        return historyDataComprehensive;
+        return historyDataAvailable;
     }
 
     /**

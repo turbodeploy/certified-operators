@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
+import com.vmturbo.kvstore.ConsulKeyValueStore;
 
 /**
  * This configuration holds all the dependency configuration, required to run Consul client.
@@ -48,6 +49,10 @@ public class ConsulRegistrationConfig {
     private String instanceIp;
     @Value("${" + BaseVmtComponent.PROP_INSTANCE_ROUTE + ":}")
     private String instanceRoute;
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
 
     /**
      * This property is used to disable consul registration. This is necessary for tests and
@@ -67,7 +72,8 @@ public class ConsulRegistrationConfig {
         final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
         final ConsulClient consulClient = new ConsulClient(rawClient);
         return new ConsulHealthcheckRegistration(consulClient, enableConsulRegistration,
-            componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs);
+            componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs,
+            ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace));
     }
 
     /**

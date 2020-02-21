@@ -48,8 +48,8 @@ class UtilProbeComponent extends MediationComponentMain {
     private String consulPort;
     @Value("${topologyProcessorInstance:}")
     private String topologyProcessorInstance;
-    @Value("${kvStoreRetryIntervalMillis:1000}")
-    private String kvStoreRetryIntervalMillis;
+    @Value("${kvStoreTimeoutSeconds:120}")
+    private String kvStoreTimeoutSeconds;
     @Value("${probe-directory:probe-jars}")
     private File probeDirectory;
     @Value("${rediscoveryIntervalSeconds:600}")
@@ -118,11 +118,11 @@ class UtilProbeComponent extends MediationComponentMain {
                 .append("Retry interval: {} ms\n")
                 .toString();
         logger.info(logMessage, topologyProcessorInstance, consulHost,
-                consulPort, kvStoreRetryIntervalMillis);
+                consulPort, kvStoreTimeoutSeconds);
         return new ConsulKeyValueStore(topologyProcessorInstance,
                 this.consulHost,
                 this.consulPort,
-                Long.parseLong(kvStoreRetryIntervalMillis),
+                Long.parseLong(kvStoreTimeoutSeconds),
                 TimeUnit.MILLISECONDS);
     }
 

@@ -7,22 +7,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.ListUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value;
-
 import com.google.common.collect.Lists;
 
+import org.apache.commons.collections4.ListUtils;
+import org.immutables.value.Value;
+
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -30,14 +24,13 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Factory to create {@link StatsQueryContext} instances.
  */
 public class StatsQueryContextFactory {
-    private static final Logger logger = LogManager.getLogger();
-
-    private static final int DAYS_IN_MONTH = 30;
 
     private final Duration liveStatsRetrievalWindow;
 

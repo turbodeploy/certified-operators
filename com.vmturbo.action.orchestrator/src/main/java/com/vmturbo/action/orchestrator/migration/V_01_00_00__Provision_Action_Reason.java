@@ -8,7 +8,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,40 +25,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class V_01_00_00__Provision_Action_Reason implements Migration {
+/**
+ * Migrating old provision actions to the new format.
+ */
+public class V_01_00_00__Provision_Action_Reason extends AbstractMigration {
 
     private static final Logger logger = LogManager.getLogger();
-    private final Object migrationInfoLock = new Object();
-    private final DSLContext dslContext;
 
-    @GuardedBy("migrationInfoLock")
-    private final com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo.Builder migrationInfo = com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo.newBuilder();
+    private final DSLContext dslContext;
 
     public V_01_00_00__Provision_Action_Reason(@Nonnull DSLContext dslContext) {
         this.dslContext = Objects.requireNonNull(dslContext);
     }
 
     @Override
-    public com.vmturbo.common.protobuf.common.Migration.MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    @Override
-    public com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    @Override
-    public com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo startMigration() {
-        logger.info("Starting migration...");
-        synchronized (migrationInfoLock) {
-            migrationInfo.setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.RUNNING);
-        }
-
+    public MigrationProgressInfo doStartMigration() {
         final List<MarketActionRecord> recordsToUpdate = new ArrayList<>();
 
         try {
@@ -132,19 +115,4 @@ public class V_01_00_00__Provision_Action_Reason implements Migration {
         return true;
     }
 
-    @Nonnull
-    private com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo migrationSucceeded() {
-        return migrationInfo
-                .setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.SUCCEEDED)
-                .setCompletionPercentage(100)
-                .build();
-    }
-
-    @Nonnull
-    private com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo migrationFailed(@Nonnull String errorMessage) {
-        return migrationInfo
-                .setStatus(com.vmturbo.common.protobuf.common.Migration.MigrationStatus.FAILED)
-                .setStatusMessage("Migration failed: " + errorMessage)
-                .build();
-    }
 }

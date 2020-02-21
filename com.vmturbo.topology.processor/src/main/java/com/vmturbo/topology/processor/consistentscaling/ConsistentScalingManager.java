@@ -29,7 +29,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -71,21 +70,6 @@ public class ConsistentScalingManager {
     }
 
     /**
-     * Return stream consisting of merged set of setting policies applied to all members of this
-     * scaling group.  After scaling groups are built, this set of setting policies will be applied
-     * to all members of the group.
-     *
-     * @return stream of setting policies
-     */
-    public Stream<Pair<Set<Long>, List<SettingPolicy>>> getPoliciesStream() {
-        return this.groups.values().stream()
-            .filter(sg -> !sg.getSettingPolicies().isEmpty())
-            .distinct()
-            .map(group -> new Pair<>(group.getMemberList(),
-                new ArrayList<>(group.getSettingPolicies())));
-    }
-
-    /**
      * Return the scaling group ID of the indicated entity OID.
      * @param entityOid the OID of the entity to look up
      * @return Optional scaling group ID if the entity is in a scaling group.  If the OID is invalid or
@@ -100,7 +84,7 @@ public class ConsistentScalingManager {
 
     /**
      * Add a scaling group membership setting to each member of a scaling group.  These settings are
-     * uploaded to the group component so that other components (especially market) can query
+     * uploaded to the group component so that other components (e.g., market, SMA) can query
      * scaling group definitions.
      *
      * @param userSettingsByEntityAndName existing map of Topology entity to setting and policy
@@ -111,23 +95,26 @@ public class ConsistentScalingManager {
                                             userSettingsByEntityAndName) {
         groups.values().forEach(group -> {
             String groupName = group.getScalingGroupId();
-            // Add a scaling group membership setting to each member
-            group.getMemberList().forEach(oid -> {
-                Map<String, SettingAndPolicyIdRecord> policies = userSettingsByEntityAndName.get(oid);
-                if (policies == null) {
-                    policies = new HashMap<>();
-                    userSettingsByEntityAndName.put(oid, policies);
-                }
-                Setting setting = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.ScalingGroupMembership
-                        .getSettingName())
-                    .setStringSettingValue(StringSettingValue.newBuilder()
-                        .setValue(groupName)).build();
-                SettingAndPolicyIdRecord settingAndPolicyIdRecord =
-                    new SettingAndPolicyIdRecord(setting, 0L, Type.USER, false);
-                policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
-                    settingAndPolicyIdRecord);
-            });
+            // Add a scaling group membership setting to each group.
+            group.getMemberList().stream()
+                // Since the settings are shared amongst all members of the scaling group, the
+                // setting will apply to all of them.
+                .findAny()
+                .ifPresent(oid -> {
+                    // policies cannot be null, because all scaling group members have an entry
+                    // pre-populated in userSettingsByEntityAndName.
+                    Map<String, SettingAndPolicyIdRecord> policies =
+                        userSettingsByEntityAndName.get(oid);
+                    Setting setting = Setting.newBuilder()
+                        .setSettingSpecName(EntitySettingSpecs.ScalingGroupMembership
+                            .getSettingName())
+                        .setStringSettingValue(StringSettingValue.newBuilder()
+                            .setValue(groupName)).build();
+                    SettingAndPolicyIdRecord settingAndPolicyIdRecord =
+                        new SettingAndPolicyIdRecord(setting, 0L, Type.USER, false);
+                    policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
+                        settingAndPolicyIdRecord);
+                });
         });
     }
 
@@ -139,20 +126,17 @@ public class ConsistentScalingManager {
         public TopologyEntity entity;
         public List<SettingPolicy> policies;
 
-        ScalingGroupMember(final Grouping grouping, final TopologyEntity entity,
-                           final List<SettingPolicy> policies) {
+        ScalingGroupMember(final Grouping grouping, final TopologyEntity entity) {
             this.grouping = grouping;
             this.entity = entity;
-            this.policies = policies;
         }
     }
 
     private void addPolicyOverride(final boolean enabled, final Grouping grouping,
-                                   final List<TopologyEntity> allEntitiesInGroup,
-                                   final List<SettingPolicy> policies) {
+                                   final List<TopologyEntity> allEntitiesInGroup) {
         if (enabled) {
             allEntitiesInGroup.forEach(e -> enabledEntities
-                .add(new ScalingGroupMember(grouping, e, policies)));
+                .add(new ScalingGroupMember(grouping, e)));
         } else {
             allEntitiesInGroup.forEach(e -> disabledEntities.add(e.getOid()));
         }
@@ -183,7 +167,7 @@ public class ConsistentScalingManager {
                         .equals(EntitySettingSpecs.EnableConsistentResizing.getSettingName())) {
                         if (setting.hasBooleanSettingValue()) {
                             addPolicyOverride(setting.getBooleanSettingValue().getValue(),
-                                grouping, allEntitiesInGroup, settingPolicies);
+                                grouping, allEntitiesInGroup);
                             break;
                         }
                     }
@@ -250,8 +234,6 @@ public class ConsistentScalingManager {
                 }
                 memberOf.getMemberList().addAll(scalingGroup.getMemberList());
                 scalingGroup.getMemberList().forEach(id -> entityToScalingGroup.put(id, memberOf));
-                // Merge template exclusions
-                memberOf.getSettingPolicies().addAll(scalingGroup.getSettingPolicies());
                 memberOf.getContributingGroups().addAll(scalingGroup.getContributingGroups());
                 groups.put(groupKey, memberOf); // both keys now point to same scaling group
             }
@@ -280,9 +262,6 @@ public class ConsistentScalingManager {
             entityToScalingGroup.put(entityId, scalingGroup);
             scalingGroup.addEntity(entityId, grouping);
         }
-        if (member.policies != null) {
-            scalingGroup.getSettingPolicies().addAll(member.policies);
-        }
     }
 
     /**
@@ -293,9 +272,11 @@ public class ConsistentScalingManager {
      *
      * @param graph        the topology
      * @param groupingList List of known groups
+     * @param settings entity OID to settings map that is to be populated with shared settings
      */
     public void buildScalingGroups(final TopologyGraph<TopologyEntity> graph,
-                                   final @Nonnull Iterator<Grouping> groupingList) {
+                       final @Nonnull Iterator<Grouping> groupingList,
+                       final @Nonnull  Map<Long, Map<String, SettingAndPolicyIdRecord>> settings) {
         if (!config_.isEnabled()) {
             return;
         }
@@ -310,7 +291,7 @@ public class ConsistentScalingManager {
                     .getMembersByTypeList().forEach(g -> {
                         g.getMembersList().forEach(oid -> {
                             graph.getEntity(oid).ifPresent(entity -> {
-                                enabledEntities.add(new ScalingGroupMember(grouping, entity, null));
+                                enabledEntities.add(new ScalingGroupMember(grouping, entity));
                             });
                         });
                     });
@@ -322,16 +303,32 @@ public class ConsistentScalingManager {
         enabledEntities.stream()
             .filter(member -> !disabledEntities.contains(member.entity.getOid()))
             .forEach(member -> addEntity(member));
+
+        /*
+         * Now pre-populate the settings map. The EntitySettingsResolver populates a single
+         * SettingAndPolicyIdRecord map for each scaling group.  This function populates the
+         * map from OID to settings map with empty settings such that all members in each scaling
+         * group point to the same settings map. This way, when the EntitySettingsResolver
+         * resolves a setting is for any entity in a scaling group, that setting is automatically
+         * applied to all members of that group.
+         */
+        for (ScalingGroup group : groups.values()) {
+            Map<String, SettingAndPolicyIdRecord> records = new HashMap<>();
+            for (Long oid : group.getMemberList()) {
+                settings.put(oid, records);
+            }
+        }
     }
 
     /**
      * Query the list of groups and building internal scaling groups.  See above for details.
-     *
      * @param graph         topology
      * @param groupResolver group resolver
+     * @param settings entity OID to settings map that is to be populated with shared settings
      */
     public void buildScalingGroups(final TopologyGraph<TopologyEntity> graph,
-                                   final @Nonnull GroupResolver groupResolver) {
+                       final @Nonnull GroupResolver groupResolver,
+                       final @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> settings) {
         ListFilter.Builder listFilter = ListFilter.newBuilder();
         GroupFilter groupFilter = GroupFilter.newBuilder()
             // Need to exclude clusters, resource groups, etc. to make the query more efficient.
@@ -342,7 +339,8 @@ public class ConsistentScalingManager {
                 .setEntity(EntityType.CONTAINER_VALUE))
             .build();
         buildScalingGroups(graph, groupResolver.getGroupServiceClient()
-            .getGroups(GetGroupsRequest.newBuilder().setGroupFilter(groupFilter).build()));
+            .getGroups(GetGroupsRequest.newBuilder().setGroupFilter(groupFilter).build()),
+            settings);
     }
 
     /**
@@ -365,7 +363,6 @@ public class ConsistentScalingManager {
         }
     }
 
-
     /**
      * Contains state for internal scaling groups.
      */
@@ -374,7 +371,6 @@ public class ConsistentScalingManager {
         private final String key;
         private Set<Long> memberList;
         private Set<String> contributingGroups;
-        private Set<SettingPolicy> policies;
 
         @Override
         public String toString() {
@@ -387,7 +383,6 @@ public class ConsistentScalingManager {
             this.isCloud = environmentType == EnvironmentType.CLOUD;
             this.memberList = new HashSet<>();
             this.contributingGroups = new HashSet<>();
-            this.policies = new HashSet<>();
         }
 
         Set<Long> getMemberList() {
@@ -406,10 +401,6 @@ public class ConsistentScalingManager {
 
         Set<String> getContributingGroups() {
             return this.contributingGroups;
-        }
-
-        public Set<SettingPolicy> getSettingPolicies() {
-            return this.policies;
         }
 
         /**

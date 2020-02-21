@@ -355,4 +355,10 @@ public class CoverageTopologyImpl implements CoverageTopology {
     public Optional<GroupAndMembers> getBillingFamilyForEntity(final long entityId) {
         return cloudTopology.getBillingFamilyForEntity(entityId);
     }
+
+    @Nonnull
+    @Override
+    public Optional<TopologyEntityDTO> getServiceProvider(long entityId) {
+        return cloudTopology.getServiceProvider(entityId);
+    }
 }

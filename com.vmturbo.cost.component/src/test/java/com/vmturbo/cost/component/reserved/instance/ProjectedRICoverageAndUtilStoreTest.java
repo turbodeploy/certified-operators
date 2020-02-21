@@ -5,13 +5,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +22,6 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -49,7 +48,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -183,7 +181,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
 
         // Get the stats record for coverage
         final ReservedInstanceStatsRecord statsRecord =
-                store.getReservedInstanceCoverageStats(filter, false);
+                store.getReservedInstanceCoverageStats(filter, false,
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
 
         // Assertions
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(100.0F));
@@ -334,7 +333,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
 
         // Get the stats record for coverage
         final ReservedInstanceStatsRecord statsRecord =
-                store.getReservedInstanceCoverageStats(filter, true);
+                store.getReservedInstanceCoverageStats(filter, true,
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
 
         // Assertions
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(300.0F));
@@ -369,7 +369,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
         store.updateProjectedRICoverage(topoInfo,
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceStatsRecord statsRecord =
-                store.getReservedInstanceUtilizationStats(riUtilizationFilter, false);
+                store.getReservedInstanceUtilizationStats(riUtilizationFilter, false,
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
 
 
         // Assertions
@@ -420,7 +421,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
         store.updateProjectedRICoverage(topoInfo,
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceStatsRecord statsRecord =
-                store.getReservedInstanceUtilizationStats(riUtilizationFilter, true);
+                store.getReservedInstanceUtilizationStats(riUtilizationFilter, true,
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
 
 
         // Assertions

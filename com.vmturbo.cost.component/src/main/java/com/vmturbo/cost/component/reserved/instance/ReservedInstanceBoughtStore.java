@@ -287,7 +287,7 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                         .collect(Collectors.toSet());
 
         final Map<Long, Integer> riSpecToTermInYearMap =
-            getReservedInstanceCostCalculator().getRiSpecIdToTermInYearMap(newReservedInstances);
+            getReservedInstanceCostCalculator().getRiSpecIdToTermInYearMap(newReservedInstances, context);
 
         final Map<String, Double> probeRIIDToAmortizedCost =
             getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(newReservedInstances,

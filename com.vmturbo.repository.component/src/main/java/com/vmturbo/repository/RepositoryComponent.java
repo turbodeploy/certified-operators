@@ -140,6 +140,10 @@ public class RepositoryComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         getHealthMonitor().addHealthCheck(apiConfig.kafkaHealthMonitor());
+        // Temporarily force all Repository migrations to retry, in order to address some
+        // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
+        // previous versions.
+        setForceRetryMigrations(true);
     }
 
     @Bean

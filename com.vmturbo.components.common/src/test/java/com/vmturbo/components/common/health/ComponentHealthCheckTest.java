@@ -60,7 +60,7 @@ public class ComponentHealthCheckTest {
         environmentVariables.set("serverGrpcPort", "9001");
         environmentVariables.set("consul_host", "consul");
         environmentVariables.set("consul_port", "5");
-        environmentVariables.set("kvStoreRetryIntervalMillis", "4");
+        environmentVariables.set("kvStoreTimeoutSeconds", "5");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_PORT, "8889");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_RETRY_S, "10");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_HOST, "clustermgr");

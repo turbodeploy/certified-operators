@@ -1,0 +1,301 @@
+[{
+		"entityType": 63,
+		"oid": "73337012129045",
+		"displayName": "AWS",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"entityPropertyMap": {},
+		"connectedEntityList": [{
+			"connectedEntityId": "73337012128457",
+			"connectedEntityType": 43,
+			"connectionType": "OWNS_CONNECTION"
+		}, {
+			"connectedEntityId": "73337012128915",
+			"connectedEntityType": 54,
+			"connectionType": "OWNS_CONNECTION"
+		}]
+	},
+
+	{
+		"entityType": 10,
+		"oid": "73337015923196",
+		"displayName": "jbd-eks-rancher-jbd-eks-rancher-node-group-Node",
+		"environmentType": "CLOUD",
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": [{
+				"connectedEntityId": "73337015923118",
+				"connectedEntityType": 60,
+				"connectionType": "NORMAL_CONNECTION"
+			},
+			{
+				"connectedEntityId": "73337012128353",
+				"connectedEntityType": 55,
+				"connectionType": "AGGREGATED_BY_CONNECTION"
+			}
+		]
+	},
+	{
+		"entityType": 55,
+		"oid": "73337012128353",
+		"displayName": "aws-us-east-1c",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON"
+	},
+	{
+		"entityType": 54,
+		"oid": "73337012128915",
+		"displayName": "aws-US East (N. Virginia)",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": [{
+			"connectedEntityId": "73337012128353",
+			"connectedEntityType": 55,
+			"connectionType": "OWNS_CONNECTION"
+		}]
+	},
+	{
+		"entityType": 43,
+		"oid": "73337012128457",
+		"displayName": "Amazon Cloud Directory",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON"
+	},
+	{
+		"entityType": 33,
+		"oid": "73337015923206",
+		"displayName": "GuestLoad [jbd-eks-rancher-jbd-eks-rancher-node-group-Node]",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [{
+			"providerId": "73337015923196",
+			"providerEntityType": 10,
+			"commodityBought": [{
+					"commodityType": {
+						"type": 56,
+						"key": "73337015923196"
+					},
+					"used": 1.0,
+					"peak": 0.0,
+					"active": true,
+					"displayName": "",
+					"aggregates": []
+				},
+				{
+					"commodityType": {
+						"type": 26
+					},
+					"used": 40.49676664687336,
+					"peak": 0.0,
+					"active": true,
+					"historicalUsed": {
+						"histUtilization": 40.14492416381836,
+						"timeSlot": []
+					},
+					"historicalPeak": {
+						"histUtilization": 0.0,
+						"timeSlot": []
+					},
+					"displayName": "",
+					"aggregates": [],
+					"reservedCapacity": 0.0
+				}
+			]
+		}],
+		"entityState": "POWERED_ON"
+	},
+	{
+		"entityType": 28,
+		"oid": "73337017137904",
+		"displayName": "Turbonomic SaaS",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": [{
+				"connectedEntityId": "73337012129045",
+				"connectedEntityType": 63,
+				"connectionType": "AGGREGATED_BY_CONNECTION"
+			},
+			{
+				"connectedEntityId": "73337015923097",
+				"connectedEntityType": 26,
+				"connectionType": "OWNS_CONNECTION"
+			}
+		]
+	},
+	{
+		"entityType": 4,
+		"oid": "73337015923142",
+		"displayName": "idf-prod",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [{
+			"providerId": "73337012128824",
+			"providerEntityType": 59,
+			"commodityBought": [{
+					"commodityType": {
+						"type": 53
+					},
+					"used": 1.0,
+					"peak": 0.0,
+					"active": true,
+					"historicalUsed": {
+						"histUtilization": 1.0,
+						"timeSlot": []
+					},
+					"historicalPeak": {
+						"histUtilization": 0.0,
+						"timeSlot": []
+					},
+					"displayName": "",
+					"aggregates": [],
+					"reservedCapacity": 0.0
+				},
+				{
+					"commodityType": {
+						"type": 84,
+						"key": "MySql:null:SingleAz:NoLicenseRequired"
+					},
+					"used": 1.0,
+					"peak": 0.0,
+					"active": true,
+					"displayName": "",
+					"aggregates": []
+				}
+			]
+		}],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": [{
+			"connectedEntityId": "73337012128353",
+			"connectedEntityType": 55,
+			"connectionType": "AGGREGATED_BY_CONNECTION"
+		}]
+	},
+	{
+		"entityType": 26,
+		"typeSpecificInfo": {},
+		"oid": "73337015923097",
+		"displayName": "cert1",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON"
+	},
+	{
+		"entityType": 47,
+		"typeSpecificInfo": {},
+		"oid": "73337015923258",
+		"displayName": "dbf1-alb",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [{
+			"providerId": "73337015923097",
+			"providerEntityType": 26,
+			"commodityBought": [{
+				"commodityType": {
+					"type": 49,
+					"key": "Application::targetgroup/dbf1-tg/8930d154aa57b4ab"
+				},
+				"used": 0.0,
+				"peak": 0.0,
+				"active": true,
+				"historicalUsed": {
+					"histUtilization": 0.0,
+					"timeSlot": []
+				},
+				"historicalPeak": {
+					"histUtilization": 0.0,
+					"timeSlot": []
+				},
+				"displayName": "",
+				"aggregates": []
+			}]
+		}],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": []
+	},
+	{
+		"entityType": 59,
+		"typeSpecificInfo": {},
+		"oid": "73337012128318",
+		"displayName": "db.cv11.9xlarge",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": [{
+			"connectedEntityId": "73337012128915",
+			"connectedEntityType": 54,
+			"connectionType": "AGGREGATED_BY_CONNECTION"
+		}]
+	},
+	{
+		"entityType": 56,
+		"oid": "73344719015705",
+		"displayName": "c3.2xlarge",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"connectedEntityList": [
+			{
+				"connectedEntityId": "73344719015194",
+				"connectedEntityType": 57,
+				"connectionType": "NORMAL_CONNECTION"
+			},
+			{
+				"connectedEntityId": "73337012128915",
+				"connectedEntityType": 54,
+				"connectionType": "AGGREGATED_BY_CONNECTION"
+			}
+		]
+	},
+	 {
+			"entityType": 60,
+			"oid": "73344719015707",
+			"displayName": "vol-044bb8b3ead32ea3a",
+			"environmentType": "CLOUD",
+			"commoditySoldList": [],
+			"commoditiesBoughtFromProviders": [],
+			"entityState": "POWERED_ON",
+			"connectedEntityList": [
+				{
+					"connectedEntityId": "73344719015619",
+					"connectedEntityType": 57,
+					"connectionType": "NORMAL_CONNECTION"
+				},
+				{
+					"connectedEntityId": "73337012128915",
+					"connectedEntityType": 55,
+					"connectionType": "AGGREGATED_BY_CONNECTION"
+				}
+			]
+	},
+	{
+		"entityType": 57,
+		"typeSpecificInfo": {},
+		"oid": "73344719015619",
+		"displayName": "GP2",
+		"environmentType": "CLOUD",
+		"commoditySoldList": [],
+		"commoditiesBoughtFromProviders": [],
+		"entityState": "POWERED_ON",
+		"entityPropertyMap": {},
+		"connectedEntityList": [
+			{
+				"connectedEntityId": "73337012128915",
+				"connectedEntityType": 54,
+				"connectionType": "AGGREGATED_BY_CONNECTION"
+			}
+		]
+	}
+]

@@ -36,6 +36,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.KeyValueStoreOperationException;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -202,7 +203,7 @@ public class KVBackedTargetStore implements TargetStore {
                     final Target retTarget = new Target(newTargetId, probeStore, spec, true);
                     registerTarget(retTarget);
                     return retTarget;
-                } catch (InvalidTargetException e) {
+                } catch (InvalidTargetException | KeyValueStoreOperationException e ) {
                     // clean up identity store if we failed to create the Target
                     identityStore.removeItemOids(Sets.newHashSet(newTargetId));
                     throw e;

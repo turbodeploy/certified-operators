@@ -35,6 +35,7 @@ import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
 /**
@@ -131,7 +132,7 @@ public class AuthComponent extends BaseVmtComponent {
             @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
-        addConfigurationPropertySources(rootContext);
+        PropertiesLoader.addConfigurationPropertySources(rootContext);
         rootContext.register(AuthComponent.class);
 
         final AnnotationConfigWebApplicationContext restContext =

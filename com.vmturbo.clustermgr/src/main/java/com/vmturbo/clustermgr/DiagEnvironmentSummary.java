@@ -21,7 +21,6 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
@@ -46,6 +45,10 @@ public class DiagEnvironmentSummary {
 
     private final ChannelFactory channelFactory;
 
+    private final String authHost;
+
+    private final int serverGrpcPort;
+
     /**
      * The domain of the installation, extracted from the license added to the product.
      * (i.e. if the license is for me@turbonomic.com the domain will be turbonomic.com).
@@ -57,28 +60,30 @@ public class DiagEnvironmentSummary {
 
     DiagEnvironmentSummary(@Nonnull final BuildProperties buildProperties,
                            @Nonnull final Clock clock,
-                           @Nonnull final ChannelFactory channelFactory) {
+                           @Nonnull final ChannelFactory channelFactory,
+                           @Nonnull final String authHost,
+                           final int serverGrpcPort) {
         this.buildProperties = buildProperties;
         this.clock = clock;
         this.channelFactory = channelFactory;
+        this.authHost = authHost;
+        this.serverGrpcPort = serverGrpcPort;
     }
 
     /**
      * Get the file name to use for the diags.
      *
-     * @param componentProperties {@link ComponentProperties} used to look up connection information
-     *                            to other components, if necessary.
      * @return A string representing the file name. Note that this does not include the path.
      */
     @Nonnull
-    public String getDiagFileName(@Nonnull final ComponentProperties componentProperties) {
+    public String getDiagFileName() {
         // The file name will start with turbonomic-diags, followed by some "-"-separated properties.
         // Something like:
         // turbonomic-diags-2019-09-25-turbonomic.com-7.21.0-SNAPSHOT-cd49c13-_1569431182577.zip
         final StringJoiner stringJoiner = new StringJoiner("-");
         stringJoiner.add(DIAG_FILE_PREFIX);
         stringJoiner.add(LocalDateTime.now(clock).toLocalDate().toString());
-        getLicenseDomain(componentProperties).ifPresent(stringJoiner::add);
+        getLicenseDomain().ifPresent(stringJoiner::add);
         stringJoiner.add(buildProperties.getVersion());
         stringJoiner.add(buildProperties.getShortCommitId());
         stringJoiner.add("_" + clock.millis());
@@ -91,14 +96,12 @@ public class DiagEnvironmentSummary {
      * <p>At the time of this writing this only returns the build properties used to make this version
      * of the component and the domain name used for the license.
      *
-     * @param componentProperties {@link ComponentProperties} used to look up connection information
-     *                            to other components, if necessary.
      * @return A string containing the summary of the diagnostics environment.
      */
     @Nonnull
-    public String getDiagSummary(@Nonnull final ComponentProperties componentProperties) {
+    public String getDiagSummary() {
         final StringJoiner stringJoiner = new StringJoiner("\n");
-        stringJoiner.add("Domain: " + getLicenseDomain(componentProperties).orElse("UNKNOWN"));
+        stringJoiner.add("Domain: " + getLicenseDomain().orElse("UNKNOWN"));
         stringJoiner.add(buildProperties.toString());
         return stringJoiner.toString();
     }
@@ -107,15 +110,13 @@ public class DiagEnvironmentSummary {
      * Get the domain name for this installation, extracted from the license(s) used to activate
      * the product.
      *
-     * @param componentProperties {@link ComponentProperties} used to look up connection information
-     *                            to other components, if necessary.
      * @return An {@link Optional} containing the domain, if it could be successfully extracted
      *         from the licenses. An empty optional otherwise.
     */
-    private Optional<String> getLicenseDomain(@Nonnull final ComponentProperties componentProperties) {
+    private Optional<String> getLicenseDomain() {
         domain.trySetValue(() -> {
             try {
-                return computeLicenseDomain(componentProperties);
+                return computeLicenseDomain();
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to get licenses. Error: {}", e.getLocalizedMessage());
                 // Return null so that we don't save the result, and retry on the next
@@ -129,12 +130,9 @@ public class DiagEnvironmentSummary {
     }
 
     @Nonnull
-    private Optional<String> computeLicenseDomain(@Nonnull final ComponentProperties componentProperties)
+    private Optional<String> computeLicenseDomain()
             throws StatusRuntimeException {
-        final String authHost = componentProperties.get("authHost");
-        final int grpcPort = Integer.parseInt(componentProperties.get("serverGrpcPort"));
-
-        final ManagedChannel authChannel = channelFactory.getChannel(authHost, grpcPort);
+        final ManagedChannel authChannel = channelFactory.getChannel(authHost, serverGrpcPort);
 
         final LicenseManagerServiceBlockingStub licenseManagerService =
             LicenseManagerServiceGrpc.newBlockingStub(authChannel);

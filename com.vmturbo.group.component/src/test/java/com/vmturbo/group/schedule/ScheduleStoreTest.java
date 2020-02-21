@@ -334,6 +334,37 @@ public class ScheduleStoreTest {
     }
 
     /**
+     * Test update schedule with recurrence start time set.
+     *
+     * @throws Exception If test throws any exceptions.
+     */
+    @Test
+    public void testUpdateScheduleWithRecurrenceStartTimeSet() throws Exception {
+        Schedule schedule = scheduleStore.createSchedule(testSchedulePerpetual);
+        assertFalse(schedule.hasRecurrenceStart());
+        Schedule scheduleWithRecurrence = scheduleStore.updateSchedule(schedule.getId(),
+            schedule.toBuilder().setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TINE)
+                .build())
+                .build());
+        assertTrue(scheduleWithRecurrence.hasRecurrenceStart());
+        assertEquals(RECURRENCE_START_TINE, scheduleWithRecurrence.getRecurrenceStart()
+            .getRecurrenceStartTime());
+
+        // Note that UI may not send deferred start time with every request so make sure we don't
+        // overwrite the one that's already set
+        Schedule scheduleWithRecurrenceAndUpdatedLastDate = scheduleStore.updateSchedule(
+            scheduleWithRecurrence.getId(), scheduleWithRecurrence.toBuilder()
+                .clearRecurrenceStart()
+                .setLastDate(LAST_DATE)
+                .build());
+        assertEquals(LAST_DATE, scheduleWithRecurrenceAndUpdatedLastDate.getLastDate());
+        assertTrue(scheduleWithRecurrenceAndUpdatedLastDate.hasRecurrenceStart());
+        assertEquals(RECURRENCE_START_TINE, scheduleWithRecurrenceAndUpdatedLastDate.getRecurrenceStart()
+            .getRecurrenceStartTime());
+    }
+
+    /**
      * Test update schedule with invalid ID.
      * @throws Exception If test throws any exceptions
      */

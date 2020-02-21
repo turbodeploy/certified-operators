@@ -50,7 +50,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
             ImmutableMap.of(EntityType.VIRTUAL_MACHINE,
                     EntitySettingSpecs.MinObservationPeriodVirtualMachine);
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
-    private final int unavailableDataPeriodInMins;
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;
     private final int blobReadWriteChunkSizeKb;
@@ -59,7 +58,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     /**
      * Initialize the percentile configuration values.
      * @param calculationChunkSize chunk size for percentile calculation
-     * @param allowableDataGapInMins maximum amount of time between two data points.
      * @param maintenanceWindowHours how often to checkpoint cache to persistent store
      * @param grpcStreamTimeoutSec the timeout for history access streaming operations
      * @param blobReadWriteChunkSizeKb the size of chunks for reading and writing from persistent store
@@ -67,12 +65,11 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @param kvConfig the config to access the topology processor key value store.
      * @param clock provides information about current time.
      */
-    public PercentileHistoricalEditorConfig(int calculationChunkSize, int allowableDataGapInMins,
-                    int maintenanceWindowHours, int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
+    public PercentileHistoricalEditorConfig(int calculationChunkSize, int maintenanceWindowHours,
+                    int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
                     @Nonnull Map<CommodityType, String> commType2Buckets,
                     @Nullable KVConfig kvConfig, @Nonnull Clock clock) {
         super(0, calculationChunkSize, clock);
-        this.unavailableDataPeriodInMins = allowableDataGapInMins;
         // maintenance window cannot exceed minimum observation window
         final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
@@ -85,15 +82,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
         this.kvConfig = kvConfig;
-    }
-
-    /**
-     * Returns maximum amount of time between two data points in minutes.
-     *
-     * @return maximum amount of time between two data points in minutes
-     */
-    public int getUnavailableDataPeriodInMins() {
-        return unavailableDataPeriodInMins;
     }
 
     /**

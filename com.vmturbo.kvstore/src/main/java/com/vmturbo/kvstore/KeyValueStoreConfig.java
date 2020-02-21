@@ -24,17 +24,24 @@ public class KeyValueStoreConfig {
     @Value("${component_type}-1")
     private String applicationName;
 
-    @Value("${kvStoreRetryIntervalMillis}")
-    private long kvStoreRetryIntervalMillis;
+    @Value("${kvStoreTimeoutSeconds:120}")
+    private long kvStoreTimeoutSeconds;
+
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
 
     @Bean
     public KeyValueStore keyValueStore() {
         return new ConsulKeyValueStore(
+                ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
                 applicationName,
                 consulHost,
                 consulPort,
-                kvStoreRetryIntervalMillis,
-                TimeUnit.MILLISECONDS
+                kvStoreTimeoutSeconds,
+                TimeUnit.SECONDS
         );
     }
 
@@ -50,7 +57,7 @@ public class KeyValueStoreConfig {
         return applicationName;
     }
 
-    protected long getKvStoreRetryIntervalMillis() {
-        return kvStoreRetryIntervalMillis;
+    protected long getKvStoreTimeoutSecond() {
+        return kvStoreTimeoutSeconds;
     }
 }

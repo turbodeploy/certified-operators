@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,14 +12,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -38,10 +38,13 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Abstract sub-query responsible for getting reserved instance stats from the cost component.
@@ -61,14 +64,14 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
      * @param repositoryApi repository API.
      * @param buyRiScopeHandler buy RI scope handler.
      */
-    public AbstractRIStatsSubQuery(@Nonnull RepositoryApi repositoryApi,
-                    @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
+    public AbstractRIStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.buyRiScopeHandler = Objects.requireNonNull(buyRiScopeHandler);
     }
 
     @Override
-    public SubQuerySupportedStats getHandledStats(StatsQueryContext context) {
+    public SubQuerySupportedStats getHandledStats(final StatsQueryContext context) {
         return SubQuerySupportedStats.some(context.findStats(SUPPORTED_STATS));
     }
 
@@ -96,20 +99,22 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
      * @param snapshots list of stats to merge.
      * @return list of merged {@link StatSnapshotApiDTO}.
      */
-    protected static List<StatSnapshotApiDTO> mergeStatsByDate(List<StatSnapshotApiDTO> snapshots) {
-        return snapshots.stream()
-                        .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
-                                        Function.identity(), (v1, v2) -> {
-                                            // Merge stats lists with the same date.
-                                            final List<StatApiDTO> stats1 = v1.getStatistics();
-                                            final List<StatApiDTO> stats2 = v2.getStatistics();
-                                            final List<StatApiDTO> combinedList =
-                                                new ArrayList<>(stats1.size() + stats2.size());
-                                            combinedList.addAll(stats1);
-                                            combinedList.addAll(stats2);
-                                            v1.setStatistics(combinedList);
-                                            return v1;
-                                        })).values().stream().collect(Collectors.toList());
+    protected static List<StatSnapshotApiDTO> mergeStatsByDate(
+            final List<StatSnapshotApiDTO> snapshots) {
+        return new ArrayList<>(snapshots.stream()
+                .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
+                        Function.identity(), (v1, v2) -> {
+                            // Merge stats lists with the same date.
+                            final List<StatApiDTO> stats1 = v1.getStatistics();
+                            final List<StatApiDTO> stats2 = v2.getStatistics();
+                            final List<StatApiDTO> combinedList =
+                                    new ArrayList<>(stats1.size() + stats2.size());
+                            combinedList.addAll(stats1);
+                            combinedList.addAll(stats2);
+                            v1.setStatistics(combinedList);
+                            return v1;
+                        }))
+                .values());
     }
 
     /**
@@ -214,55 +219,40 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
     }
 
     @Nonnull
-    protected static GetReservedInstanceCoverageStatsRequest internalCreateCoverageRequest(
+    protected GetReservedInstanceCoverageStatsRequest internalCreateCoverageRequest(
             @Nonnull final StatsQueryContext context,
-            @Nonnull GetReservedInstanceCoverageStatsRequest.Builder reqBuilder,
-            @Nonnull ApiId inputScope) throws OperationFailedException {
+            @Nonnull final GetReservedInstanceCoverageStatsRequest.Builder reqBuilder)
+            throws OperationFailedException {
         context.getTimeWindow().ifPresent(timeWindow -> {
             reqBuilder.setStartDate(timeWindow.startTime());
             reqBuilder.setEndDate(timeWindow.endTime());
         });
 
-        if (inputScope.getScopeTypes().isPresent()
-                && !inputScope.getScopeTypes().get().isEmpty()) {
-
-            final Set<Long> scopeEntities = new HashSet<>();
-            if (inputScope.isGroup()) {
-                if (inputScope.getCachedGroupInfo().isPresent()) {
-                    scopeEntities.addAll(inputScope.getCachedGroupInfo().get().getEntityIds());
-                }
-            } else if (inputScope.isPlan()) {
-                scopeEntities.addAll(context.getPlanInstance()
-                        .map(MarketMapper::getPlanScopeIds)
-                        .orElse(Collections.emptySet()));
-            } else {
-                scopeEntities.add(inputScope.oid());
-            }
-
-            if (inputScope.getScopeTypes().get().size() != 1) {
+        final ApiId inputScope = context.getInputScope();
+        if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
+            final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
+            if (uiEntityTypes.size() != 1) {
                 //TODO (mahdi) Change the logic to support scopes with more than one type
                 throw new IllegalStateException("Scopes with more than one type is not supported.");
             }
-
-            final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-
-            if (CollectionUtils.isEmpty(uiEntityTypes)) {
-                throw new OperationFailedException("Entity type not present");
-            }
-            final UIEntityType type = uiEntityTypes.stream().findFirst().get();
-
+            final UIEntityType type = uiEntityTypes.iterator().next();
             switch (type) {
                 case REGION:
-                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                            .addAllRegionId(scopeEntities));
+                    reqBuilder.setRegionFilter(
+                            RegionFilter.newBuilder().addAllRegionId(getScopeEntities(context)));
                     break;
                 case AVAILABILITY_ZONE:
                     reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(scopeEntities));
+                            .addAllAvailabilityZoneId(getScopeEntities(context)));
                     break;
                 case BUSINESS_ACCOUNT:
-                    reqBuilder.setAccountFilter(AccountFilter.newBuilder()
-                            .addAllAccountId(scopeEntities));
+                    reqBuilder.setAccountFilter(
+                            AccountFilter.newBuilder().addAllAccountId(getScopeEntities(context)));
+                    break;
+                case SERVICE_PROVIDER:
+                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                            .addAllRegionId(
+                                    translateServiceProvidersToRegions(getScopeEntities(context))));
                     break;
                 default:
                     reqBuilder.setEntityFilter(EntityFilter.newBuilder()
@@ -270,63 +260,92 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                     break;
             }
         } else if (!context.isGlobalScope()) {
-            throw new OperationFailedException("Invalid context - must be global or have entity type");
+            throw new OperationFailedException(
+                    "Invalid scope for query. Must be global or have an entity type.");
         }
         return reqBuilder.build();
     }
 
     @Nonnull
-    protected static GetReservedInstanceUtilizationStatsRequest internalCreateUtilizationRequest(
+    protected GetReservedInstanceUtilizationStatsRequest internalCreateUtilizationRequest(
             @Nonnull final StatsQueryContext context,
-            @Nonnull GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder,
-            @Nonnull ApiId inputScope) throws OperationFailedException {
+            @Nonnull final GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder)
+            throws OperationFailedException {
         context.getTimeWindow().ifPresent(timeWindow -> {
             reqBuilder.setStartDate(timeWindow.startTime());
             reqBuilder.setEndDate(timeWindow.endTime());
         });
 
+        final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent()) {
-            final Set<Long> scopeEntities = new HashSet<>();
-            if (inputScope.isGroup()) {
-                if (inputScope.getCachedGroupInfo().isPresent()) {
-                    scopeEntities.addAll(inputScope.getCachedGroupInfo().get().getEntityIds());
-                }
-            } else if (inputScope.isPlan()) {
-                scopeEntities.addAll(context.getPlanInstance()
-                        .map(MarketMapper::getPlanScopeIds)
-                        .orElse(Collections.emptySet()));
-            } else {
-                scopeEntities.add(inputScope.oid());
-            }
             final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-
             if (CollectionUtils.isEmpty(uiEntityTypes)) {
                 throw new OperationFailedException("Entity type not present");
             }
-            final UIEntityType type = uiEntityTypes.stream().findFirst().get();
-
+            final UIEntityType type = uiEntityTypes.iterator().next();
             switch (type) {
                 case REGION:
-                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                            .addAllRegionId(scopeEntities));
+                    reqBuilder.setRegionFilter(
+                            RegionFilter.newBuilder().addAllRegionId(getScopeEntities(context)));
                     break;
                 case AVAILABILITY_ZONE:
                     reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(scopeEntities));
+                            .addAllAvailabilityZoneId(getScopeEntities(context)));
                     break;
                 case BUSINESS_ACCOUNT:
-                    reqBuilder.setAccountFilter(AccountFilter.newBuilder()
-                            .addAllAccountId(scopeEntities));
+                    reqBuilder.setAccountFilter(
+                            AccountFilter.newBuilder().addAllAccountId(getScopeEntities(context)));
+                    break;
+                case SERVICE_PROVIDER:
+                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                            .addAllRegionId(
+                                    translateServiceProvidersToRegions(getScopeEntities(context))));
                     break;
                 default:
-                    throw new OperationFailedException("Invalid scope for query: " + type.apiStr());
+                    throw new OperationFailedException(
+                            String.format("Invalid scope for query: %s", type.apiStr()));
             }
         } else if (!context.isGlobalScope()) {
-            throw new OperationFailedException("Invalid scope for query." +
-                    " Must be global or have an entity type.");
+            throw new OperationFailedException(
+                    "Invalid scope for query. Must be global or have an entity type.");
         }
-
         return reqBuilder.build();
+    }
+
+    protected Set<Long> getScopeEntities(@Nonnull final StatsQueryContext context) {
+        final ApiId inputScope = context.getInputScope();
+        if (inputScope.isGroup()) {
+            return inputScope.getCachedGroupInfo()
+                    .map(CachedGroupInfo::getEntityIds)
+                    .orElse(Collections.emptySet());
+        } else if (inputScope.isPlan()) {
+            return context.getPlanInstance()
+                    .map(MarketMapper::getPlanScopeIds)
+                    .orElse(Collections.emptySet());
+        } else {
+            return Collections.singleton(inputScope.oid());
+        }
+    }
+
+    /**
+     * Translate the service providers to regions for RI coverage/utilization requests.
+     * TODO: short-term solution for 7.21.200, until the cost component supports queries
+     *       for cost/RI attributes based on a ServiceProviderFilter.
+     *       OM-53727: Cost + API: Support RI coverage & utilization queries by ServiceProvider
+     *
+     * @param serviceProviders the service providers
+     * @return the regions belonging to the service providers
+     */
+    protected Set<Long> translateServiceProvidersToRegions(final Set<Long> serviceProviders) {
+        return getRepositoryApi().entitiesRequest(serviceProviders)
+                .getEntitiesWithConnections()
+                .flatMap(e -> e.getConnectedEntitiesList().stream())
+                .filter(ConnectedEntity::hasConnectedEntityId)
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE &&
+                        c.getConnectionType() == ConnectionType.OWNS_CONNECTION)
+                .map(ConnectedEntity::getConnectedEntityId)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -335,10 +354,10 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
      * @param rICostStats list of RI cost stat.
      * @return list of {@link StatSnapshotApiDTO}.
      */
-    protected static List<StatSnapshotApiDTO> convertRICostStatsToSnapshots(List<ReservedInstanceCostStat> rICostStats) {
+    protected static List<StatSnapshotApiDTO> convertRICostStatsToSnapshots(
+            final List<ReservedInstanceCostStat> rICostStats) {
         final List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
-
-        for (ReservedInstanceCostStat stat : rICostStats) {
+        for (final ReservedInstanceCostStat stat : rICostStats) {
             final StatApiDTO statApiDTO = new StatApiDTO();
             statApiDTO.setName(StringConstants.RI_COST);
             statApiDTO.setUnits(StringConstants.DOLLARS_PER_HOUR);
@@ -357,5 +376,4 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         }
         return statSnapshotApiDTOS;
     }
-
 }

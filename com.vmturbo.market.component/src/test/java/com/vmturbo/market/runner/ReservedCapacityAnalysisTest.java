@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -80,7 +81,8 @@ public class ReservedCapacityAnalysisTest {
     VMScenario[] vmData = {
         new VMScenario(2L, 100, 10, 20, 15, false),
         new VMScenario(3L, 100, 30, 60, 15, true),
-        new VMScenario(4L, 50,  10, 20, 15, true)
+        new VMScenario(4L, 50,  10, 20, 15, true),
+        new VMScenario(5L, 50,  10, 20, 50, true)
     };
 
     private CommodityBoughtDTO.Builder makeMemBought(double capacity) {
@@ -164,6 +166,19 @@ public class ReservedCapacityAnalysisTest {
     @Test
     public void testNotControllable() {
         VM.getAnalysisSettingsBuilder().setControllable(false);
+        ReservedCapacityAnalysis rca = makeRCA(VM);
+        rca.execute(null);
+
+        assertEquals(0, rca.getActions().size());
+    }
+
+    /**
+     * We don't generate reservation resize actions for an idle VM or an idle container.
+     */
+    @Test
+    public void testIdleVM() {
+        VM.getAnalysisSettingsBuilder().setControllable(true);
+        VM.setEntityState(EntityState.POWERED_OFF);
         ReservedCapacityAnalysis rca = makeRCA(VM);
         rca.execute(null);
 
@@ -329,13 +344,15 @@ public class ReservedCapacityAnalysisTest {
         /*
          * VM-1 has current reservation = 100, new reservation = 60
          * VM-2 has current reservation = 50, new reservation = 20
+         * VM-3 has current reservation = 100, new reservation = 60, increment = 50
          *
          * The maximum new reservation for the scaling group is therefore 60.
          * Since 60 is greater than the current reservation in VM-2, no
          * reservation action will be generated for it.  We should see a single
-         * reservation from 100 -> 60 for VM-1.
+         * reservation from 100 -> 60 for VM-1.  VM-3 also wants to go from 100 -> 60, but the
+         * delta of 40 is less than its used increment is 50, so the action will not be generated.
          */
-        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], PM);
+        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], VMs[3], PM);
         rca.execute(csh);
 
         assertEquals(1, rca.getActions().size());
@@ -350,6 +367,41 @@ public class ReservedCapacityAnalysisTest {
         Resize resize = action.getInfo().getResize();
         assertEquals(60, resize.getNewCapacity(), FLOATING_POINT_DELTA);
         assertEquals(100, resize.getOldCapacity(), FLOATING_POINT_DELTA);
+        assertEquals(MEM, resize.getCommodityType());
+        assertEquals(CommodityAttribute.RESERVED, resize.getCommodityAttribute());
+        assertTrue(resize.hasScalingGroupId());
+        assertTrue(explanation.hasScalingGroupId());
+        assertEquals("scaling-group-1", explanation.getScalingGroupId());
+    }
+
+    /**
+     * Verify consistent reservation actions with idle VM.
+     */
+    @Test
+    public void testConsistentReservationActionsWithIdleVM() {
+        /*
+         * VM-1 has current reservation = 100, and is powered off
+         * VM-2 has current reservation = 50, new reservation = 20
+         *
+         * The maximum new reservation for the scaling group is therefore 20.
+         * We should see a single reservation from 50 -> 20 for VM-2.
+         */
+        VMs[1].setEntityState(EntityState.POWERED_OFF);
+        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], PM);
+        rca.execute(csh);
+
+        assertEquals(1, rca.getActions().size());
+        assertEquals(20, rca.getReservedCapacity(VMs[2].getOid(), MEM), FLOATING_POINT_DELTA);
+        Action action = rca.getActions().iterator().next();
+        assertTrue(action.getExecutable());
+        assertTrue(action.hasExplanation());
+        assertTrue(action.getExplanation().hasResize());
+        ResizeExplanation explanation = action.getExplanation().getResize();
+        assertEquals(20, explanation.getStartUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(50, explanation.getEndUtilization(), FLOATING_POINT_DELTA);
+        Resize resize = action.getInfo().getResize();
+        assertEquals(20, resize.getNewCapacity(), FLOATING_POINT_DELTA);
+        assertEquals(50, resize.getOldCapacity(), FLOATING_POINT_DELTA);
         assertEquals(MEM, resize.getCommodityType());
         assertEquals(CommodityAttribute.RESERVED, resize.getCommodityAttribute());
         assertTrue(resize.hasScalingGroupId());

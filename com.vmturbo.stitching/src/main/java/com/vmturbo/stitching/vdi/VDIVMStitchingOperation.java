@@ -2,7 +2,6 @@ package com.vmturbo.stitching.vdi;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -17,8 +16,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 
 /**
@@ -78,14 +75,14 @@ public class VDIVMStitchingOperation extends VDIStitchingOperation {
                                 .build());
                                 vmSessionFound = true;
                             } else {
-                                newSessionList.add(sessionData.toBuilder().build());
+                                newSessionList.add(sessionData);
                             }
                         } else {
                             logger.error(" No Virtual machine data in session data for" +
                                             " consumer {} of VM {}. Session data  retained as is" +
                                             " for the VM oid resolution.",
                                     consumerEntity.getOid(), vcVMEntity.getOid());
-                            newSessionList.add(sessionData.toBuilder().build());
+                            newSessionList.add(sessionData);
                         }
                     }
                     if (!vmSessionFound) {

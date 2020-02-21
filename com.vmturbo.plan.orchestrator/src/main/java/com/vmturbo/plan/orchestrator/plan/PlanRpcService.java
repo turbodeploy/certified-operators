@@ -329,7 +329,9 @@ public class PlanRpcService extends PlanServiceImplBase {
             if (scenarioInfo.hasType()) {
                 builder.setPlanType(scenarioInfo.getType());
             }
-            builder.setPlanSubType(PlanRpcServiceUtil.getPlanSubType(scenarioInfo));
+            if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType())) {
+                builder.setPlanSubType(PlanRpcServiceUtil.getPlanSubType(scenarioInfo));
+            }
         }
         builder.setPlanProjectType(planInstance.getProjectType());
         startAnalysis(builder.build());

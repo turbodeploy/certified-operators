@@ -36,10 +36,9 @@ public class ClusterMgrServiceIT {
 
     @Before
     public void startup() {
-        final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort());
+        final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort(), "");
         final OsCommandProcessRunner runner = new OsCommandProcessRunner();
         svc = new ClusterMgrService(consulService, runner, mock(DiagEnvironmentSummary.class));
-        svc.loadGlobalDefaultProperties();
         final ComponentProperties defaultProperties = new ComponentProperties();
         defaultProperties.put(PROP_1, PROP_1_DEF_VAL);
         defaultProperties.put(PROP_2, PROP_2_DEF_VAL);
@@ -73,7 +72,6 @@ public class ClusterMgrServiceIT {
      */
     @Test
     public void testsChangeOfPropertiesSet() {
-        svc.loadGlobalDefaultProperties();
         final String instanceId = svc.getComponentInstanceIds(COMP_TYPE_1).iterator().next();
         Assert.assertEquals(Sets.newHashSet(PROP_1, PROP_2),
                 svc.getComponentInstanceProperties(COMP_TYPE_1, instanceId).keySet());
@@ -98,7 +96,6 @@ public class ClusterMgrServiceIT {
      */
     @Test
     public void testGetInstanceProperties() {
-        svc.loadGlobalDefaultProperties();
         final String instanceId = svc.getComponentInstanceIds(COMP_TYPE_1).iterator().next();
         svc.setPropertyForComponentInstance(COMP_TYPE_1, instanceId, PROP_1, "new value");
         final Map<String, String> props =

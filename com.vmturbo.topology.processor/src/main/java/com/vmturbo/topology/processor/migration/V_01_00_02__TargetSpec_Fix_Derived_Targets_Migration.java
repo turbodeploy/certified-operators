@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -28,13 +29,11 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * Handle migration of saved targets.  Remove the parentId field and make sure derivedTargetIds
  * field is correctly populated based on parentId values.
  */
-public class V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration implements Migration {
+public class V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration extends AbstractMigration {
 
     private final Logger logger = LogManager.getLogger();
 
     private final KeyValueStore keyValueStore;
-
-    private final Object migrationInfoLock = new Object();
 
     private static final String TARGET_INFO = "targetInfo";
 
@@ -43,10 +42,6 @@ public class V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration implements Mig
     private static final String DERIVED_TARGETS = "derivedTargetIds";
 
     private static final String PARENT_ID = "parentId";
-
-    @GuardedBy("migrationInfoLock")
-    private final MigrationProgressInfo.Builder migrationInfo =
-        MigrationProgressInfo.newBuilder();
 
     /**
      * Constructor.
@@ -58,21 +53,7 @@ public class V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration implements Mig
     }
 
     @Override
-    public MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    @Override
-    public MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    @Override
-    public MigrationProgressInfo startMigration() {
+    public MigrationProgressInfo doStartMigration() {
         // We want to handle 2 different migrations here:
         // 1. Migrating from 7.17.  TargetSpec contains parentId field for derived targets but no
         // derived targets field for the parent targets.  We want to clear out the parent target id
@@ -131,10 +112,10 @@ public class V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration implements Mig
         if (targetsNeedingMigration.isEmpty()) {
             String msg = "No targets with parentId to upgrade. Upgrade finished.";
             logger.info(msg);
-            return updateMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100, msg);
+            return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100, msg);
         }
 
-        updateMigrationProgressInfo(MigrationStatus.RUNNING, 0F,
+        updateMigrationProgress(MigrationStatus.RUNNING, 0F,
             "Migrating " + targetsNeedingMigration.size() + " targets.");
         // Now iterate over targets and update those we previously identified as needing migration.
         // Remove any parentId fields and update derivedTargetIds fields.
@@ -176,27 +157,6 @@ public class V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration implements Mig
             });
         final String msg = "All targets with parentId migrated. Upgrade finished.";
         logger.info(msg);
-        return updateMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100, msg);
-    }
-
-    /**
-     *  Update the migrationInfo and return a new MigrationProgressInfo
-     *  with the updated status.
-     *
-     * @param status {@link MigrationStatus} to update to.
-     * @param completionPercentage percent of the migration that is complete.
-     * @param msg the message to include in the {@link MigrationProgressInfo}.
-     * @return MigrationProgressInfo representing the values that were passed in.
-     */
-    private MigrationProgressInfo updateMigrationProgressInfo(@Nonnull MigrationStatus status,
-                                                              @Nonnull float completionPercentage,
-                                                              @Nonnull String msg) {
-        synchronized (migrationInfoLock) {
-            return migrationInfo
-                .setStatus(status)
-                .setCompletionPercentage(completionPercentage)
-                .setStatusMessage(msg)
-                .build();
-        }
+        return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100, msg);
     }
 }
