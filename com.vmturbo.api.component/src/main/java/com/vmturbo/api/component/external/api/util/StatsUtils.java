@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -122,5 +125,19 @@ public class StatsUtils {
         public int getPrecision() {
             return precision;
         }
+    }
+
+    /**
+     * Determines if any cloud cost stats stats are in list.
+     *
+     * @param statistics The list of stats to check
+     * @return true if costComponent relevant stats are in array
+     */
+    public static boolean containsCloudCostStats(List<StatApiInputDTO> statistics) {
+        if (statistics == null || statistics.isEmpty()) {
+            return false;
+        }
+        Set<String> costStatsSet = CloudCostsStatsSubQuery.COST_STATS_SET;
+        return statistics.stream().anyMatch(stat -> costStatsSet.contains(stat.getName()));
     }
 }

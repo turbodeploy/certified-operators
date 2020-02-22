@@ -11,7 +11,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 
 /**
  * A utility class to do in-memory pagination of entities given a way to access their
@@ -78,6 +77,7 @@ public class EntityStatsPaginator {
         if (maxEndIdx < entityIds.size()) {
             paginationResponse.setNextCursor(Integer.toString(maxEndIdx));
         }
+        paginationResponse.setTotalRecordCount(entityIds.size());
 
         final List<Long> nextStatsPage =
             entityIdsList.subList(skipCount, Math.min(maxEndIdx, entityIds.size()));

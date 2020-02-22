@@ -138,7 +138,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     private static final String CURRENT_NUM_VOLUMES = "currentNumVolumes";
 
-    private static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE,
+    /**
+     *Collection of cloud cost stats metrics.
+     */
+    public static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE,
         CURRENT_COST_PRICE);
 
     private final RepositoryApi repositoryApi;
@@ -311,7 +314,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 }
             } else {
                 statSnapshots = cloudCostStatRecords.stream()
-                    .map(this::toCloudStatSnapshotApiDTO)
+                    .map(CloudCostsStatsSubQuery::toCloudStatSnapshotApiDTO)
                     .sorted(Comparator.comparing(StatSnapshotApiDTO::getDate))
                     .collect(toList());
             }
@@ -954,40 +957,49 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     /**
-     * Convert Cloud related stat snap shot to StatSnapshotApiDTO
+     * Convert Cloud related stat snap shot to StatSnapshotApiDTO.
+     *
      * @param statSnapshot stat snap shot
      * @return StatSnapshotApiDTO
      */
-    private StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
+    public static StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
-            .map(statRecord -> {
-                final StatApiDTO statApiDTO = toStatApiDTO(statRecord.getName(), statRecord);
-
-                if (statRecord.hasCategory()) {
-                    // Build filters
-                    final List<StatFilterApiDTO> filters = new ArrayList<>();
-                    final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-                    resultsTypeFilter.setType(COST_COMPONENT);
-                    resultsTypeFilter.setValue(getCostCategoryString(statRecord));
-                    filters.add(resultsTypeFilter);
-
-                    if (filters.size() > 0) {
-                        statApiDTO.setFilters(filters);
-                    }
-                }
-                // set related entity type
-                if (statRecord.hasAssociatedEntityType()) {
-                    statApiDTO.setRelatedEntityType(UIEntityType.fromType(
-                        statRecord.getAssociatedEntityType()).apiStr());
-                }
-                return statApiDTO;
-            })
-            .collect(toList()));
+                .map(CloudCostsStatsSubQuery::mapStatRecordToStatApiDTO)
+                .collect(toList()));
         return dto;
+    }
+
+    /**
+     * Converts {@link StatRecord} to {@link StatApiDTO}
+     *
+     * @param statRecord to convert to {@link StatApiDTO}
+     * @return {@link StatApiDTO} mapped from statRecord
+     */
+    public static StatApiDTO mapStatRecordToStatApiDTO(StatRecord statRecord) {
+        final StatApiDTO statApiDTO = toStatApiDTO(statRecord.getName(), statRecord);
+
+        if (statRecord.hasCategory()) {
+            // Build filters
+            final List<StatFilterApiDTO> filters = new ArrayList<>();
+            final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
+            resultsTypeFilter.setType(COST_COMPONENT);
+            resultsTypeFilter.setValue(getCostCategoryString(statRecord));
+            filters.add(resultsTypeFilter);
+
+            if (filters.size() > 0) {
+                statApiDTO.setFilters(filters);
+            }
+        }
+        // set related entity type
+        if (statRecord.hasAssociatedEntityType()) {
+            statApiDTO.setRelatedEntityType(UIEntityType.fromType(
+                    statRecord.getAssociatedEntityType()).apiStr());
+        }
+        return statApiDTO;
     }
 
     @Nullable
