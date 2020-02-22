@@ -92,7 +92,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testCreate() throws DuplicateNameException {
+    public void testCreate() throws Exception {
         final long id = 1234L;
 
         final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
@@ -136,7 +136,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testCreatePolicyDuplicateName() throws DuplicateNameException {
+    public void testCreatePolicyDuplicateName() throws Exception {
         final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
                 .setName("Test Input Policy")
                 .build();
@@ -159,7 +159,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testEditPolicy() throws PolicyNotFoundException, DuplicateNameException {
+    public void testEditPolicy() throws Exception {
         final long id = 1234L;
         final PolicyDTO.PolicyInfo newPolicyInfo = PolicyDTO.PolicyInfo.newBuilder()
                 .setName("Test Policy")
@@ -189,7 +189,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testEditNonExistingPolicy() throws PolicyNotFoundException, DuplicateNameException {
+    public void testEditNonExistingPolicy() throws Exception {
         final long id = 1234L;
         final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
                 .setName("Test Input Policy")
@@ -214,7 +214,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testEditDuplicateNamePolicy() throws PolicyNotFoundException, DuplicateNameException {
+    public void testEditDuplicateNamePolicy() throws Exception {
         final long id = 1234L;
         final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
                 .setName("Test Input Policy")

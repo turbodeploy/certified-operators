@@ -6,13 +6,14 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -34,7 +35,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
@@ -46,8 +46,6 @@ import com.vmturbo.group.db.tables.records.PolicyRecord;
 import com.vmturbo.group.group.DbCleanupRule;
 import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
-import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class PolicyStoreTest {
@@ -90,6 +88,8 @@ public class PolicyStoreTest {
 
     private PolicyStore policyStore;
 
+    private PolicyValidator policyValidator = mock(PolicyValidator.class);
+
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
 
     private DiscoveredPoliciesMapperFactory mapperFactory =
@@ -100,13 +100,13 @@ public class PolicyStoreTest {
     @Before
     public void setup() {
         final DSLContext dslContext = dbConfig.getDslContext();
-        policyStore = new PolicyStore(dslContext, mapperFactory, identityProvider);
+        policyStore = new PolicyStore(dslContext, mapperFactory, identityProvider, policyValidator);
         injectGroup(CONSUMER_GROUP_ID);
         injectGroup(PRODUCER_GROUP_ID);
     }
 
     @Test
-    public void testCreateAndGet() throws DuplicateNameException {
+    public void testCreateAndGet() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
         assertThat(policy.getId(), is(POLICY_ID));
@@ -122,7 +122,7 @@ public class PolicyStoreTest {
     }
 
     @Test
-    public void testGetAll() throws DuplicateNameException {
+    public void testGetAll() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
 
@@ -134,7 +134,7 @@ public class PolicyStoreTest {
     }
 
     @Test(expected = DuplicateNameException.class)
-    public void testCreateDuplicateName() throws DuplicateNameException {
+    public void testCreateDuplicateName() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID).thenReturn(POLICY_ID + 1);
         policyStore.newUserPolicy(POLICY_INFO);
 
@@ -142,8 +142,21 @@ public class PolicyStoreTest {
         policyStore.newUserPolicy(POLICY_INFO);
     }
 
+    /**
+     * Test that creation attempts for policies that fail validation throw the expected exception.
+     *
+     * @throws Exception To satisfy the compiler.
+     */
+    @Test(expected = InvalidPolicyException.class)
+    public void testCreateInvalidPolicy() throws Exception {
+        doThrow(new InvalidPolicyException(Collections.singletonList("Bad policy.")))
+            .when(policyValidator).validatePolicy(any(), any());
+        when(identityProvider.next()).thenReturn(POLICY_ID).thenReturn(POLICY_ID + 1);
+        policyStore.newUserPolicy(POLICY_INFO);
+    }
+
     @Test
-    public void testEditNewGroupAssociation() throws DuplicateNameException, PolicyNotFoundException {
+    public void testEditNewGroupAssociation() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
 
@@ -170,7 +183,7 @@ public class PolicyStoreTest {
     }
 
     @Test(expected = DuplicateNameException.class)
-    public void testEditDuplicateName() throws DuplicateNameException, PolicyNotFoundException {
+    public void testEditDuplicateName() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID).thenReturn(POLICY_ID + 1);
         final String dupeName = "the DUPE";
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
@@ -184,13 +197,30 @@ public class PolicyStoreTest {
                 .build());
     }
 
+    /**
+     * Test that edit attempts for policies that fail validation throw the expected exception.
+     *
+     * @throws Exception To satisfy the compiler.
+     */
+    @Test(expected = InvalidPolicyException.class)
+    public void testEditInvalidPolicy() throws Exception {
+        when(identityProvider.next()).thenReturn(POLICY_ID).thenReturn(POLICY_ID + 1);
+        final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
+
+        doThrow(new InvalidPolicyException(Collections.singletonList("Bad policy.")))
+            .when(policyValidator).validatePolicy(any(), any());
+
+        policyStore.editPolicy(policy.getId(), POLICY_INFO);
+    }
+
+
     @Test(expected = PolicyNotFoundException.class)
-    public void testEditPoliyNotFound() throws PolicyNotFoundException, DuplicateNameException {
+    public void testEditPoliyNotFound() throws Exception {
         policyStore.editPolicy(1L, POLICY_INFO);
     }
 
     @Test
-    public void testDelete() throws DuplicateNameException, ImmutablePolicyUpdateException, PolicyNotFoundException {
+    public void testDelete() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
 
@@ -223,8 +253,7 @@ public class PolicyStoreTest {
     }
 
     @Test
-    public void testDeletePoliciesForGroup()
-            throws DuplicateNameException, PolicyDeleteException, StoreOperationException {
+    public void testDeletePoliciesForGroup() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         policyStore.newUserPolicy(POLICY_INFO.toBuilder().setName("User Policy").build());
 
@@ -310,7 +339,7 @@ public class PolicyStoreTest {
     }
 
     @Test
-    public void testDiagsRoundTrip() throws DuplicateNameException, DiagnosticsException {
+    public void testDiagsRoundTrip() throws Exception {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
 
@@ -321,7 +350,7 @@ public class PolicyStoreTest {
         dbConfig.getDslContext().deleteFrom(Tables.POLICY);
 
         final PolicyStore newPolicyStore =
-                new PolicyStore(dbConfig.getDslContext(), mapperFactory, identityProvider);
+                new PolicyStore(dbConfig.getDslContext(), mapperFactory, identityProvider, policyValidator);
         newPolicyStore.restoreDiags(diags.getAllValues());
 
         final Policy gotPolicy = policyStore.get(POLICY_ID).get();

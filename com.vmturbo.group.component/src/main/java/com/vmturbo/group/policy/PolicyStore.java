@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.reflect.TypeToken;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,6 +37,7 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.Policy;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
+import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
@@ -72,7 +74,7 @@ public class PolicyStore implements DiagsRestorable {
             .build()
             .register();
 
-    private final static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final DSLContext dslContext;
 
@@ -80,12 +82,24 @@ public class PolicyStore implements DiagsRestorable {
 
     private final DiscoveredPoliciesMapperFactory discoveredPoliciesMapperFactory;
 
-    public PolicyStore(@Nonnull final DSLContext dslContext,
+    private final PolicyValidator policyValidator;
+
+    PolicyStore(@Nonnull final DSLContext dslContext,
+                @Nonnull final DiscoveredPoliciesMapperFactory mapperFactory,
+                @Nonnull final IdentityProvider identityProvider,
+                @Nonnull final GroupDAO groupDAO) {
+        this(dslContext, mapperFactory, identityProvider, new PolicyValidator(groupDAO));
+    }
+
+    @VisibleForTesting
+    PolicyStore(@Nonnull final DSLContext dslContext,
                        @Nonnull final DiscoveredPoliciesMapperFactory mapperFactory,
-                       @Nonnull final IdentityProvider identityProvider) {
+                       @Nonnull final IdentityProvider identityProvider,
+                       @Nonnull final PolicyValidator policyValidator) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.discoveredPoliciesMapperFactory = Objects.requireNonNull(mapperFactory);
+        this.policyValidator = Objects.requireNonNull(policyValidator);
     }
 
     /**
@@ -164,10 +178,11 @@ public class PolicyStore implements DiagsRestorable {
      * @param policyInfo The customizable properties of the policy.
      * @return The {@link PolicyDTO.Policy} describing the newly created policy.
      * @throws DuplicateNameException If a policy with the same name already exists.
+     * @throws InvalidPolicyException If the policy is invalid.
      */
     @Nonnull
     public PolicyDTO.Policy newUserPolicy(@Nonnull final PolicyInfo policyInfo)
-            throws DuplicateNameException {
+        throws DuplicateNameException, InvalidPolicyException {
         final long id = identityProvider.next();
         try {
             return dslContext.transactionResult(configuration ->
@@ -179,7 +194,9 @@ public class PolicyStore implements DiagsRestorable {
         } catch (DataAccessException e) {
             POLICY_STORE_ERROR_COUNT.labels(CREATE_LABEL).increment();
             if (e.getCause() instanceof DuplicateNameException) {
-                throw (DuplicateNameException) e.getCause();
+                throw e.getCause(DuplicateNameException.class);
+            } else if (e.getCause() instanceof InvalidPolicyException) {
+                throw e.getCause(InvalidPolicyException.class);
             } else {
                 throw e;
             }
@@ -189,7 +206,7 @@ public class PolicyStore implements DiagsRestorable {
     /**
      * Edit an existing policy.
      *
-     * Right now both discovered and user-created policies can be edited freely.
+     * <p>Right now both discovered and user-created policies can be edited freely.
      * TODO (roman, June 2018): We should only allow enabling/disabling discovered policies
      * instead of actually editing them. Any other edits will be written over in the next
      * broadcast anyway.
@@ -200,11 +217,12 @@ public class PolicyStore implements DiagsRestorable {
      * @return The new {@link PolicyDTO.Policy} describing the newly edited policies.
      * @throws PolicyNotFoundException If the policy described by the ID doesn't exist.
      * @throws DuplicateNameException If a policy with the same name already exists.
+     * @throws InvalidPolicyException If the new policy info is not valid.
      */
     @Nonnull
     public PolicyDTO.Policy editPolicy(final long id,
                                        @Nonnull final PolicyInfo policyInfo)
-            throws PolicyNotFoundException, DuplicateNameException {
+            throws PolicyNotFoundException, DuplicateNameException, InvalidPolicyException {
         try {
             final PolicyDTO.Policy existingPolicy =
                     get(id).orElseThrow(() -> new PolicyNotFoundException(id));
@@ -260,7 +278,7 @@ public class PolicyStore implements DiagsRestorable {
     /**
      * Delete a policy created by {@link PolicyStore#newUserPolicy(PolicyInfo)}.
      *
-     * Only user policies can be deleted - attempting to delete discovered policies will throw
+     * <p>Only user policies can be deleted - attempting to delete discovered policies will throw
      * an {@link ImmutablePolicyUpdateException}.
      *
      * @param id The ID of the policy to delete.
@@ -374,11 +392,14 @@ public class PolicyStore implements DiagsRestorable {
      * @return The protobuf representation of the policy.
      * @throws DataAccessException If there is an issue connecting to the database.
      * @throws DuplicateNameException If a policy with the same name already exists in the database.
+     * @throws InvalidPolicyException If the policy is invalid.
      */
     @Nonnull
     private PolicyDTO.Policy internalCreate(@Nonnull final DSLContext context,
                                             @Nonnull final PolicyDTO.Policy policyProto)
-            throws DataAccessException, DuplicateNameException {
+            throws DataAccessException, DuplicateNameException, InvalidPolicyException {
+
+        policyValidator.validatePolicy(context, policyProto);
         checkForDuplicates(context, policyProto.getId(), policyProto.getPolicyInfo().getName());
 
         final Policy policy = new Policy(policyProto.getId(),
@@ -403,7 +424,7 @@ public class PolicyStore implements DiagsRestorable {
     @Nonnull
     private PolicyDTO.Policy internalUpdate(@Nonnull final DSLContext context,
                                             @Nonnull final PolicyDTO.Policy newPolicyProto)
-            throws PolicyNotFoundException, DataAccessException, DuplicateNameException {
+        throws PolicyNotFoundException, DataAccessException, DuplicateNameException, InvalidPolicyException {
         final PolicyRecord existingRecord =
                 context.fetchOne(Tables.POLICY, Tables.POLICY.ID.eq(newPolicyProto.getId()));
         if (existingRecord == null) {
@@ -412,6 +433,7 @@ public class PolicyStore implements DiagsRestorable {
 
         final PolicyDTO.Policy existingPolicyProto = toPolicyProto(existingRecord.into(Policy.class));
 
+        policyValidator.validatePolicy(context, newPolicyProto);
         checkForDuplicates(context, newPolicyProto.getId(), newPolicyProto.getPolicyInfo().getName());
 
         existingRecord.setName(newPolicyProto.getPolicyInfo().getName());
@@ -490,37 +512,6 @@ public class PolicyStore implements DiagsRestorable {
         return toPolicyProto(existingRecord.into(Policy.class));
     }
 
-    /**
-     * Check if there is a duplicate group.
-     * A duplicate group has the same name as the group definition but a different id.
-     *
-     * @param context The {@link DSLContext} for the current transaction.
-     * @param id The id of the new group.
-     * @param name The name for the new group.
-     * @throws DuplicateNameException If there is a group with the same name but a different ID.
-     */
-    private void checkForDuplicates(@Nonnull final DSLContext context,
-                            final long id,
-                            @Nonnull final String name)
-            throws DuplicateNameException {
-        final List<Long> sameNameDiffId = context.select(Tables.POLICY.ID)
-                .from(Tables.POLICY)
-                .where(Tables.POLICY.NAME.eq(name))
-                .and(Tables.POLICY.ID.ne(id))
-                .fetch()
-                .getValues(Tables.POLICY.ID);
-        if (!sameNameDiffId.isEmpty()) {
-            if (sameNameDiffId.size() > 1) {
-                // This shouldn't happen, because there is a constraint on the name.
-                logger.error("Multiple policies ({}) exist with the name {}. " +
-                                "This should never happen because the name column is unique.",
-                        sameNameDiffId, name);
-            }
-            // TODO - add metric here
-            throw new DuplicateNameException(sameNameDiffId.get(0), name);
-        }
-    }
-
     @Nonnull
     private PolicyDTO.Policy toPolicyProto(@Nonnull final Policy policy) {
         final PolicyDTO.Policy.Builder policyBuilder = PolicyDTO.Policy.newBuilder()
@@ -538,16 +529,33 @@ public class PolicyStore implements DiagsRestorable {
     }
 
     /**
-     * A custom exception for policy delete failure.
+     * Check if there is a duplicate group.
+     * A duplicate group has the same name as the group definition but a different id.
+     *
+     * @param context The {@link DSLContext} for the current transaction.
+     * @param id The id of the new group.
+     * @param name The name for the new group.
+     * @throws DuplicateNameException If there is a group with the same name but a different ID.
      */
-    public static class PolicyDeleteException extends RuntimeException {
-        public PolicyDeleteException(List<Long> ids) {
-            super("Failed to delete policies " + ids);
-        }
-
-        public PolicyDeleteException(final long id, final long groupId, final Throwable cause) {
-            super("Could not delete policy " + id + " associated with group " + groupId, cause);
+    private void checkForDuplicates(@Nonnull final DSLContext context,
+                                    final long id,
+                                    @Nonnull final String name)
+        throws DuplicateNameException {
+        final List<Long> sameNameDiffId = context.select(Tables.POLICY.ID)
+            .from(Tables.POLICY)
+            .where(Tables.POLICY.NAME.eq(name))
+            .and(Tables.POLICY.ID.ne(id))
+            .fetch()
+            .getValues(Tables.POLICY.ID);
+        if (!sameNameDiffId.isEmpty()) {
+            if (sameNameDiffId.size() > 1) {
+                // This shouldn't happen, because there is a constraint on the name.
+                logger.error("Multiple policies ({}) exist with the name {}. " +
+                        "This should never happen because the name column is unique.",
+                    sameNameDiffId, name);
+            }
+            // TODO - add metric here
+            throw new DuplicateNameException(sameNameDiffId.get(0), name);
         }
     }
-
 }
