@@ -49,6 +49,8 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable {
 
     public static final long MILLIS_PER_YEAR = 31536000000L; // ms per year
 
+    public static final long MILLIS_PER_3_YEAR = 3 * MILLIS_PER_YEAR;
+
     protected static final DataMetricSummary CLOUD_COST_UPLOAD_TIME = DataMetricSummary.builder()
             .withName("tp_cloud_cost_upload_seconds")
             .withHelp("Time taken to perform cloud cost upload (in seconds). This metric is separated"+
