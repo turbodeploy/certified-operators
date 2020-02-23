@@ -27,8 +27,10 @@ data:
         {{- if .Values.prometurboTargetConfig.scope }}
         "scope": "{{ .Values.prometurboTargetConfig.scope }}"
         {{- end }}
-      },
       {{- if .Values.targetTypeSuffix }}
+      },
       "targetTypeSuffix": "{{ .Values.targetTypeSuffix }}"
+      {{- else }}
+      }
       {{- end }}
     }

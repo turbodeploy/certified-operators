@@ -34,7 +34,7 @@ public class ActionOrchestratorDiagnostics implements DiagsRestorable {
 
     private static final String SERIALIZED_FILE_NAME = "serializedActions";
 
-    private static final Gson GSON = ComponentGsonFactory.createGson();
+    private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final ActionStorehouse actionStorehouse;
 

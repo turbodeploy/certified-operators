@@ -336,8 +336,7 @@ public class StatsMapper {
      * @return a new instance of {@link StatApiDTO} initialized from given protobuf.
      */
     @Nonnull
-    @VisibleForTesting
-    protected StatApiDTO toStatApiDto(StatRecord statRecord) {
+    public StatApiDTO toStatApiDto(StatRecord statRecord) {
         // for some records, we want to convert the units before returning them
         // in particular, data transfer records may be coming in Byte/sec (or multiples)
         // but we want to send them in bit/sec (or multiples)
