@@ -22,7 +22,7 @@ serverMeta:
 # Turbo server api user and password stored in a secret or optionally specified as username and password
 # The opsManagerUserName requires Turbo administrator role
 restAPIConfig:
-  turbonomicCredentials: turbonomic-credentials
+  turbonomicCredentialsSecretName: turbonomic-credentials
   opsManagerUserName: administrator
   opsManagerPassword: administrator
 
