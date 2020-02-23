@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -86,6 +87,7 @@ public class LocalCostPricingResolverTest {
      */
     @Before
     public void setup() {
+        IdentityGenerator.initPrefix(0);
         localCostPricingResolver = new LocalCostPricingResolver(priceTableStore,
                 businessAccountPriceTableKeyStore, identityProvider, discountStore, discountApplicatorFactory,
                 topologyEntityInfoExtractor);
