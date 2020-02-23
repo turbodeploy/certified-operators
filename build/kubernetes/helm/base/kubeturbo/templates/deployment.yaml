@@ -15,8 +15,17 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+{{- if .Values.global }}
+  {{- if or .Values.annotations .Values.global.annotations }}
       annotations:
-        kubeturbo.io/controllable: "false"
+    {{- with .Values.annotations }}
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+    {{- with .Values.global.annotations }}
+{{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
       labels:
         app.kubernetes.io/name: {{ include "kubeturbo.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
