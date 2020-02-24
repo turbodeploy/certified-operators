@@ -33,7 +33,7 @@
         <spring.version>4.3.8.RELEASE</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
         <spring.security.version>4.2.2.RELEASE</spring.security.version>
-        <guava.version>23.0</guava.version>
+        <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
         <grpc.version>1.21.0</grpc.version>
