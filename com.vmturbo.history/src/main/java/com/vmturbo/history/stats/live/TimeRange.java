@@ -1,20 +1,15 @@
 package com.vmturbo.history.stats.live;
 
 import java.sql.Timestamp;
-import java.util.Calendar;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
-
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.commons.TimeFrame;
@@ -165,10 +160,10 @@ public class TimeRange {
                         + statsFilter.getStartDate() + ":" + statsFilter.getEndDate());
                 }
 
-                long resolvedStartTime = -1;
-                long resolvedEndTime = -1;
-                List<Timestamp> timestampsInRange = null;
-                TimeFrame timeFrame = null;
+                final long resolvedStartTime;
+                final long resolvedEndTime;
+                final List<Timestamp> timestampsInRange;
+                final TimeFrame timeFrame;
 
                 // Right now we are only dealing with a single specific entity, not a group
                 // of them. let's check if a single entity has been specified
@@ -198,47 +193,35 @@ public class TimeRange {
 
                 } else {
                     // in this case we have a start and end date
+
                     Preconditions.checkArgument(statsFilter.hasEndDate());
-
+                    // if the startTime and endTime are equal, and within the LATEST table window, open
+                    // up the window a bit so that we will catch a stats value
                     timeFrame = getTimeFrame(statsFilter.getStartDate(), statsFilter);
-                    List<TimeFrame> timeFrames = timeFrameCalculator.getAllRelevantTimeFrames(timeFrame);
 
-                    // Iterate over all applicable time frames in chronological order
-                    // (for example : latest->hourly->daily->monthly)
-                    for (TimeFrame currentTimeFrame : timeFrames) {
-                        if (!CollectionUtils.isEmpty(timestampsInRange)) {
-                            break;
-                        }
-                        timeFrame = currentTimeFrame;
-
-                        // if the startTime and endTime are equal, and within the LATEST table window, open
-                        // up the window a bit so that we will catch a stats value
-                        if (statsFilter.getStartDate() == statsFilter.getEndDate() &&
-                                timeFrame.equals(TimeFrame.LATEST)) {
-                            // resolve the most recent time stamp with regard to the start date
-                            Optional<Timestamp> closestTimestamp = historydbIO
-                                    .getClosestTimestampBefore(statsFilter, entityTypeOpt, entityOidForQuery,
-                                            Optional.of(statsFilter.getStartDate()), paginationParams);
-                            if (closestTimestamp.isPresent()) {
-                                resolvedEndTime = statsFilter.getStartDate();
-                                resolvedStartTime = closestTimestamp.get().getTime();
-                                timestampsInRange = Collections.singletonList(closestTimestamp.get());
-                            }
+                    if (statsFilter.getStartDate() == statsFilter.getEndDate() &&
+                        timeFrame.equals(TimeFrame.LATEST)) {
+                        // resolve the most recent time stamp with regard to the start date
+                        Optional<Timestamp> closestTimestamp = historydbIO
+                                .getClosestTimestampBefore(statsFilter, entityTypeOpt, entityOidForQuery,
+                                        Optional.of(statsFilter.getStartDate()), paginationParams);
+                        if (!closestTimestamp.isPresent()) {
+                            // no data persisted yet; just return an empty answer
+                            return Optional.empty();
                         } else {
-                            if (timeFrame == TimeFrame.MONTH && statsFilter.getStartDate() == statsFilter.getEndDate()) {
-                                resolvedStartTime = resolveDateForMonthlyTimeFrame(statsFilter.getStartDate());
-                                resolvedEndTime = resolvedStartTime;
-                            } else {
-                                resolvedStartTime = statsFilter.getStartDate();
-                                resolvedEndTime = statsFilter.getEndDate();
-                            }
-                            timestampsInRange = historydbIO.getTimestampsInRange(timeFrame, resolvedStartTime,
-                                    resolvedEndTime, entityTypeOpt, entityOidForQuery);
+                            resolvedEndTime = statsFilter.getStartDate();
+                            resolvedStartTime = closestTimestamp.get().getTime();
+                            timestampsInRange = Collections.singletonList(closestTimestamp.get());
                         }
+                    } else {
+                        resolvedStartTime = statsFilter.getStartDate();
+                        resolvedEndTime = statsFilter.getEndDate();
+                        timestampsInRange = historydbIO.getTimestampsInRange(timeFrame, resolvedStartTime,
+                            resolvedEndTime, entityTypeOpt, entityOidForQuery);
                     }
                 }
 
-                if (CollectionUtils.isEmpty(timestampsInRange)) {
+                if (timestampsInRange.isEmpty()) {
                     // No data persisted in range.
                     return Optional.empty();
                 } else {
@@ -246,25 +229,6 @@ public class TimeRange {
                     return Optional.of(new TimeRange(resolvedStartTime, resolvedEndTime, timeFrame, timestampsInRange));
                 }
 
-            }
-
-            /**
-             * Convert given timestamp to end of month date to query the db.
-             * Sometimes, a timestamp meant to query monthly data will not match any records because
-             * the timestamp sent by the UI is for the first day of the month,
-             * while the monthly stats data is always saved with the last date of the month.
-             * This happens when a monthly timestamp returned from a prior query appears in a subsequent correlated query,
-             * since in responding to the first query, the timestamp was adjusted to beginning-of-month for presentation purposes.
-             * @param startDate date to resolve.
-             * @return date to end of month date w.r.t given startDate.
-             */
-            private long resolveDateForMonthlyTimeFrame(long startDate) {
-                Calendar cal = Calendar.getInstance();
-                cal.setTimeZone(TimeZone.getTimeZone("UTC"));
-                cal.setTime(new Date(startDate));
-                cal.add(Calendar.MONTH, 1);
-                cal.add(Calendar.DATE, -1);
-                return cal.getTimeInMillis();
             }
 
             @Nonnull

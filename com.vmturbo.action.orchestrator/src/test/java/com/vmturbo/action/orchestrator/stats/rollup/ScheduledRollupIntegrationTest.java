@@ -730,8 +730,8 @@ public class ScheduledRollupIntegrationTest {
             m1A1SecondRecord.setDayTime(secondTime);
             m1A1SecondRecord.setActionGroupId(m1A1FirstRecord.getActionGroupId());
             m1A1SecondRecord.setMgmtUnitSubgroupId(m1A1FirstRecord.getMgmtUnitSubgroupId());
-            m1A1SecondRecord.setPriorActionCount(9);
-            m1A1SecondRecord.setNewActionCount(99);
+            m1A1FirstRecord.setPriorActionCount(9);
+            m1A1FirstRecord.setNewActionCount(99);
             m1A1SecondRecord.setMinActionCount(m1A1FirstRecord.getMinActionCount() - 1);
             m1A1SecondRecord.setAvgActionCount(m1A1FirstRecord.getAvgActionCount().subtract(BigDecimal.ONE));
             m1A1SecondRecord.setMaxActionCount(m1A1FirstRecord.getMaxActionCount() - 1);
@@ -751,8 +751,6 @@ public class ScheduledRollupIntegrationTest {
             m1A2SecondRecord.setMgmtUnitSubgroupId(m1A1SecondRecord.getMgmtUnitSubgroupId());
             m1A2SecondRecord.setActionGroupId(actionGroup2);
             // One field to distinguish it from the first AG.
-            m1A2SecondRecord.setPriorActionCount(m1A1SecondRecord.getPriorActionCount() + 10);
-            m1A2SecondRecord.setNewActionCount(m1A1SecondRecord.getNewActionCount() + 10);
             m1A2SecondRecord.setMinEntityCount(m1A1SecondRecord.getMinEntityCount() + 10);
             m1A2SecondRecord.setAvgEntityCount(m1A1SecondRecord.getAvgEntityCount().add(BigDecimal.valueOf(10)));
             m1A2SecondRecord.setMaxEntityCount(m1A1SecondRecord.getMaxEntityCount() + 10);
@@ -809,70 +807,64 @@ public class ScheduledRollupIntegrationTest {
 
         // Verify the first management subunit's first action group record.
         {
-            final ActionStatsByMonthRecord mu1A1MonthRecord =
+            final ActionStatsByMonthRecord mu1A1DayRecord =
                 monthStatsByMgmtUnitAndActionGroup.get(mgmtSubgroup1).get(actionGroup1);
-            assertThat(mu1A1MonthRecord.getMonthTime(), is(rollupMonthTime));
-            assertThat(mu1A1MonthRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
-            assertThat(mu1A1MonthRecord.getActionGroupId(), is(actionGroup1));
+            assertThat(mu1A1DayRecord.getMonthTime(), is(rollupMonthTime));
+            assertThat(mu1A1DayRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
+            assertThat(mu1A1DayRecord.getActionGroupId(), is(actionGroup1));
 
             // Max should come from the first record.
             // Min should come from the second record.
-            assertThat(mu1A1MonthRecord.getMaxActionCount(), is(3));
-            assertThat(mu1A1MonthRecord.getMinActionCount(), is(0));
-            assertThat(mu1A1MonthRecord.getAvgActionCount().doubleValue(),
+            assertThat(mu1A1DayRecord.getMaxActionCount(), is(3));
+            assertThat(mu1A1DayRecord.getMinActionCount(), is(0));
+            assertThat(mu1A1DayRecord.getAvgActionCount().doubleValue(),
                 closeTo((2 + 1) / 2.0, 0.0001));
 
-            assertThat(mu1A1MonthRecord.getNewActionCount(), is(100 + 99));
-            assertThat(mu1A1MonthRecord.getPriorActionCount(), is(10));
-
-            assertThat(mu1A1MonthRecord.getMaxEntityCount(), is(6));
-            assertThat(mu1A1MonthRecord.getMinEntityCount(), is(3));
-            assertThat(mu1A1MonthRecord.getAvgEntityCount().doubleValue(),
+            assertThat(mu1A1DayRecord.getMaxEntityCount(), is(6));
+            assertThat(mu1A1DayRecord.getMinEntityCount(), is(3));
+            assertThat(mu1A1DayRecord.getAvgEntityCount().doubleValue(),
                 closeTo((5 + 4) / 2.0, 0.0001));
 
-            assertThat(mu1A1MonthRecord.getMaxSavings().doubleValue(), is(9.0));
-            assertThat(mu1A1MonthRecord.getMinSavings().doubleValue(), is(6.0));
-            assertThat(mu1A1MonthRecord.getAvgSavings().doubleValue(),
+            assertThat(mu1A1DayRecord.getMaxSavings().doubleValue(), is(9.0));
+            assertThat(mu1A1DayRecord.getMinSavings().doubleValue(), is(6.0));
+            assertThat(mu1A1DayRecord.getAvgSavings().doubleValue(),
                 closeTo((7 + 8) / 2.0, 0.0001));
 
-            assertThat(mu1A1MonthRecord.getMaxInvestment().doubleValue(), is(12.0));
-            assertThat(mu1A1MonthRecord.getMinInvestment().doubleValue(), is(9.0));
-            assertThat(mu1A1MonthRecord.getAvgInvestment().doubleValue(),
+            assertThat(mu1A1DayRecord.getMaxInvestment().doubleValue(), is(12.0));
+            assertThat(mu1A1DayRecord.getMinInvestment().doubleValue(), is(9.0));
+            assertThat(mu1A1DayRecord.getAvgInvestment().doubleValue(),
                 closeTo((10 + 11) / 2.0, 0.0001));
         }
 
         // Verify the first management subunit's second action group record.
         // This tests that different action groups get rolled up correctly.
         {
-            final ActionStatsByMonthRecord mu1A2MonthRecord =
+            final ActionStatsByMonthRecord mu1A2DayRecord =
                 monthStatsByMgmtUnitAndActionGroup.get(mgmtSubgroup1).get(actionGroup2);
-            assertThat(mu1A2MonthRecord.getMonthTime(), is(rollupMonthTime));
-            assertThat(mu1A2MonthRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
-            assertThat(mu1A2MonthRecord.getActionGroupId(), is(actionGroup2));
+            assertThat(mu1A2DayRecord.getMonthTime(), is(rollupMonthTime));
+            assertThat(mu1A2DayRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
+            assertThat(mu1A2DayRecord.getActionGroupId(), is(actionGroup2));
 
             // Entities was the different stat for ag2
-            assertThat(mu1A2MonthRecord.getMaxEntityCount(), is(6 + 10));
-            assertThat(mu1A2MonthRecord.getMinEntityCount(), is(3 + 10));
-            assertThat(mu1A2MonthRecord.getAvgEntityCount().doubleValue(),
+            assertThat(mu1A2DayRecord.getMaxEntityCount(), is(6 + 10));
+            assertThat(mu1A2DayRecord.getMinEntityCount(), is(3 + 10));
+            assertThat(mu1A2DayRecord.getAvgEntityCount().doubleValue(),
                 closeTo((10 + 5 + 10 + 4) / 2.0, 0.0001));
 
-            assertThat(mu1A2MonthRecord.getPriorActionCount(), is(10 + 10));
-            assertThat(mu1A2MonthRecord.getNewActionCount(), is(100 + 99 + 10 + 10));
-
             // The rest of the comparison is the same as for the first action group.
-            assertThat(mu1A2MonthRecord.getMaxActionCount(), is(3));
-            assertThat(mu1A2MonthRecord.getMinActionCount(), is(0));
-            assertThat(mu1A2MonthRecord.getAvgActionCount().doubleValue(),
+            assertThat(mu1A2DayRecord.getMaxActionCount(), is(3));
+            assertThat(mu1A2DayRecord.getMinActionCount(), is(0));
+            assertThat(mu1A2DayRecord.getAvgActionCount().doubleValue(),
                 closeTo((2 + 1) / 2.0, 0.0001));
 
-            assertThat(mu1A2MonthRecord.getMaxSavings().doubleValue(), is(9.0));
-            assertThat(mu1A2MonthRecord.getMinSavings().doubleValue(), is(6.0));
-            assertThat(mu1A2MonthRecord.getAvgSavings().doubleValue(),
+            assertThat(mu1A2DayRecord.getMaxSavings().doubleValue(), is(9.0));
+            assertThat(mu1A2DayRecord.getMinSavings().doubleValue(), is(6.0));
+            assertThat(mu1A2DayRecord.getAvgSavings().doubleValue(),
                 closeTo((7 + 8) / 2.0, 0.0001));
 
-            assertThat(mu1A2MonthRecord.getMaxInvestment().doubleValue(), is(12.0));
-            assertThat(mu1A2MonthRecord.getMinInvestment().doubleValue(), is(9.0));
-            assertThat(mu1A2MonthRecord.getAvgInvestment().doubleValue(),
+            assertThat(mu1A2DayRecord.getMaxInvestment().doubleValue(), is(12.0));
+            assertThat(mu1A2DayRecord.getMinInvestment().doubleValue(), is(9.0));
+            assertThat(mu1A2DayRecord.getAvgInvestment().doubleValue(),
                 closeTo((10 + 11) / 2.0, 0.0001));
         }
 
@@ -895,9 +887,6 @@ public class ScheduledRollupIntegrationTest {
             // The zero-action snapshot affects the average.
             assertThat(m2DayRecord.getAvgActionCount().doubleValue(),
                 closeTo(2 / 2.0, 0.0001));
-
-            assertThat(m2DayRecord.getPriorActionCount(), is(10));
-            assertThat(m2DayRecord.getNewActionCount(), is(100));
 
             assertThat(m2DayRecord.getMaxEntityCount(), is(6));
             assertThat(m2DayRecord.getMinEntityCount(), is(4));

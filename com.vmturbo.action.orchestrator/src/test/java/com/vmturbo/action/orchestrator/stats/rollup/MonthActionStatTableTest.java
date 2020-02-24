@@ -84,8 +84,6 @@ public class MonthActionStatTableTest {
         assertThat(record.getMonthTime(), is(time));
         assertThat(record.getActionGroupId(), is(actionGroupId));
         assertThat(record.getMgmtUnitSubgroupId(), is(mgmtSubgroupId));
-        assertThat(record.getPriorActionCount(), is(10));
-        assertThat(record.getNewActionCount(), is(3));
         assertThat(record.getAvgActionCount().doubleValue(), closeTo(3.0, 0.0001));
         assertThat(record.getAvgEntityCount().doubleValue(), closeTo(4.0, 0.0001));
         assertThat(record.getAvgInvestment().doubleValue(), closeTo(5.0, 0.0001));
@@ -119,8 +117,8 @@ public class MonthActionStatTableTest {
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final RolledUpActionGroupStat rolledUpStat = ImmutableRolledUpActionGroupStat.builder()
-            .priorActionCount(1)
-            .newActionCount(2)
+            .priorActionCount(0)
+            .newActionCount(0)
             .avgActionCount(3)
             .avgEntityCount(4)
             .avgInvestment(5.0)

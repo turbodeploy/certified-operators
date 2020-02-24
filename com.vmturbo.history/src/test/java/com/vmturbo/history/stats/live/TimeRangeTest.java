@@ -8,14 +8,11 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
-import java.time.Clock;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +27,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
@@ -45,8 +41,7 @@ public class TimeRangeTest {
 
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
 
-    private TimeFrameCalculator timeFrameCalculator = spy(new TimeFrameCalculator(mock(Clock.class),
-            mock(RetentionPeriodFetcher.class)));
+    private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
     private final TimeRangeFactory timeRangeFactory =
             new DefaultTimeRangeFactory(historydbIO,
@@ -77,7 +72,7 @@ public class TimeRangeTest {
         when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty()))
                 .thenReturn(Optional.of(timestamp));
-        doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(1L);
+        when(timeFrameCalculator.millis2TimeFrame(1L)).thenReturn(TimeFrame.LATEST);
 
         final TimeRange timeRange =
                 timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
@@ -109,7 +104,7 @@ public class TimeRangeTest {
                 .setEndDate(startAndEndTime)
                 .build();
         // Window expansion should only apply when time frame is latest.
-        doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startAndEndTime);
+        when(timeFrameCalculator.millis2TimeFrame(startAndEndTime)).thenReturn(TimeFrame.LATEST);
         when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any(), any(), any(), any()))
                 .thenReturn(Optional.of(timestamp));
 
@@ -133,7 +128,7 @@ public class TimeRangeTest {
         final long startTime = 10L;
         final long endTime = 15L;
         // Time frame still latest, but start and end time are no longer equal.
-        doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
+        when(timeFrameCalculator.millis2TimeFrame(startTime)).thenReturn(TimeFrame.LATEST);
         when(historydbIO.getTimestampsInRange(TimeFrame.LATEST,
                 startTime, endTime, Optional.empty(), Optional.empty()))
             .thenReturn(Collections.singletonList(timestamp));
@@ -161,7 +156,7 @@ public class TimeRangeTest {
         final long startTime = 10L;
         final long endTime = 15L;
         // Time frame not latest.
-        doReturn(TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(startTime);
+        when(timeFrameCalculator.millis2TimeFrame(startTime)).thenReturn(TimeFrame.DAY);
         when(historydbIO.getTimestampsInRange(TimeFrame.DAY,
                 startTime, endTime, Optional.empty(), Optional.empty()))
             .thenReturn(Collections.singletonList(timestamp));
@@ -188,7 +183,7 @@ public class TimeRangeTest {
         final long startTime = 10L;
         final long endTime = 15L;
         // Window expansion should only apply when time frame is latest.
-        doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
+        when(timeFrameCalculator.millis2TimeFrame(startTime)).thenReturn(TimeFrame.LATEST);
         when(historydbIO.getTimestampsInRange(TimeFrame.LATEST,
                 startTime, endTime, Optional.empty(), Optional.empty()))
             .thenReturn(Collections.emptyList());
@@ -214,7 +209,7 @@ public class TimeRangeTest {
                         .addCommodityRequests(CommodityRequest.newBuilder()
                                 .setCommodityName(StringConstants.CPU))
                         .build();
-        doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
+        when(timeFrameCalculator.millis2TimeFrame(startTime)).thenReturn(TimeFrame.LATEST);
         when(historydbIO.getClosestTimestampBefore(filterWithMixedComm, Optional.empty(), Optional.empty(),
                 Optional.of(startTime), Optional.empty())).thenReturn(Optional.of(cpuTimestamp));
         when(historydbIO.getClosestTimestampBefore(filterWithMixedComm, Optional.empty(), Optional.empty(),
@@ -245,8 +240,8 @@ public class TimeRangeTest {
         final long endTime = 15L;
         final long rollupPeriod = 30L;
         // Time frame not latest.
-        doReturn(TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(startTime);
-        doReturn(TimeFrame.MONTH).when(timeFrameCalculator).millis2TimeFrame(rollupPeriod);
+        Mockito.when(timeFrameCalculator.millis2TimeFrame(startTime)).thenReturn(TimeFrame.DAY);
+        Mockito.when(timeFrameCalculator.millis2TimeFrame(rollupPeriod)).thenReturn(TimeFrame.MONTH);
         Mockito.when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
                         startTime, endTime, Optional.empty(), Optional.empty()))
                         .thenReturn(Collections.singletonList(timestamp));

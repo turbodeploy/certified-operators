@@ -96,9 +96,10 @@ public class MonthActionStatTable implements ActionStatTable {
 
         @Override
         protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByMonthRecord record) {
+            // note: priorActionCount and newActionCount are not recorded for action_stats_by_month
             return ImmutableRolledUpActionGroupStat.builder()
-                .priorActionCount(record.getPriorActionCount())
-                .newActionCount(record.getNewActionCount())
+                .priorActionCount(0)
+                .newActionCount(0)
                 .avgActionCount(record.getAvgActionCount().doubleValue())
                 .minActionCount(record.getMinActionCount())
                 .maxActionCount(record.getMaxActionCount())
@@ -136,9 +137,6 @@ public class MonthActionStatTable implements ActionStatTable {
             record.setMonthTime(startTime);
             record.setActionGroupId(actionGroupId);
             record.setMgmtUnitSubgroupId(mgmtUnitSubgroupId);
-
-            record.setPriorActionCount(rolledUpActionGroupStats.priorActionCount());
-            record.setNewActionCount(rolledUpActionGroupStats.newActionCount());
 
             record.setAvgActionCount(BigDecimal.valueOf(rolledUpActionGroupStats.avgActionCount()));
             record.setMaxActionCount(rolledUpActionGroupStats.maxActionCount());
