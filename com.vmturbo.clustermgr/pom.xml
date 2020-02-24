@@ -83,6 +83,7 @@
                         <phase>prepare-package</phase>
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
                             <useBaseVersion>false</useBaseVersion>
                         </configuration>
                     </execution>
@@ -328,7 +329,7 @@
         <dependency>
             <groupId>com.pszymczyk.consul</groupId>
             <artifactId>embedded-consul</artifactId>
-            <version>0.2.2</version>
+            <version>2.1.4</version>
             <scope>test</scope>
         </dependency>
         <dependency>
