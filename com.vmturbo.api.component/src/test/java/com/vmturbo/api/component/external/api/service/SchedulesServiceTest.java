@@ -397,6 +397,9 @@ public class SchedulesServiceTest {
             .build());
         doReturn(Arrays.asList(SETTINGS_POLICY_API_DTO, SETTINGS_POLICY_API_DTO))
             .when(settingsMapper).convertSettingPolicies(settingPolicies);
+        doReturn(GetScheduleResponse.newBuilder().setSchedule(SCHEDULE).build())
+                .when(grpcScheduleService).getSchedule(GetScheduleRequest.newBuilder().setOid(ID)
+                .build());
 
         List<SettingsPolicyApiDTO> retList = schedulesService.getPoliciesUsingTheSchedule(
             String.valueOf(ID));
