@@ -497,6 +497,11 @@ data:
         # How often to expire the timeslot cached data going out of observation window
         historyAggregation.timeslotMaintenanceWindowHours: 23
         fullAzureEARIDiscovery: false
+        # Used to determine whether the plan Bought RIs (newly recommended RI purchases) should be fed to the market,
+        # and the market should perform analysis on them, or if the Buy RI Impact Analysis should be performed.
+        # BUY_RI_IMPACT_ANALYSIS is evaluated to true if either it's OCP with RI Buy only, or it's OCP with RI Buy + Market Optimization,
+        # and allowBoughtRiInAnalysis is false.
+        allowBoughtRiInAnalysis: false
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}
