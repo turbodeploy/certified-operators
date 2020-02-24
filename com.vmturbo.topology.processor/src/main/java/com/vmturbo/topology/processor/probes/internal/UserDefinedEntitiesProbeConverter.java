@@ -26,6 +26,8 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -53,6 +55,8 @@ class UserDefinedEntitiesProbeConverter {
             BUSINESS_APPLICATION_VALUE, BUSINESS_TRANSACTION_VALUE, SERVICE_VALUE
     );
 
+    private static final Logger LOGGER = LogManager.getLogger();
+
     /**
      * Map of entity name to the corresponding group ID (EntityDefinition ID).
      * When an entity is created based on an EntityDefinition, we save the group ID that was used
@@ -75,6 +79,7 @@ class UserDefinedEntitiesProbeConverter {
                 .filter(entry -> !entry.getValue().isEmpty())
                 .flatMap(entry -> convertGroupAndMembers(entry.getKey(), entry.getValue()).stream())
                 .collect(Collectors.toSet());
+        LOGGER.info("Internal probe: adding {} entities to discovery response.", dtos.size());
         builder.addAllEntityDTO(dtos);
         return builder.build();
     }
@@ -175,6 +180,7 @@ class UserDefinedEntitiesProbeConverter {
         final String groupId = String.valueOf(group.getId());
         final String originGroupName = group.getDefinition().getDisplayName();
         final String name = StringUtils.isNotEmpty(originGroupName) ? originGroupName : groupId;
+        LOGGER.info("Internal probe: converting entity definition {} to EntityDTO", name);
         final Set<ApplicationBought> applicationBought = memberIds.stream()
                 .map(memberId -> createApplicationBought(memberId, groupId))
                 .collect(Collectors.toSet());

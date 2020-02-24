@@ -489,7 +489,6 @@ defaultProperties:
         # The chunk size for history access streaming operations
         historyAggregation.blobReadWriteChunkSizeKb: 128
         consistentScalingEnabled: true
-        enableInternalProbes: false
         # How many timeslot-related commodities trigger background history loading vs synchronous
         historyAggregation.backgroundLoadingThreshold: 5000
         # How many background history loading retries are tolerated before stopping and sending up a notification

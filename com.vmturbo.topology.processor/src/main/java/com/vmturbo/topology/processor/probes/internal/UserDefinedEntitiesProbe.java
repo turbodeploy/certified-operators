@@ -77,13 +77,15 @@ public class UserDefinedEntitiesProbe implements IDiscoveryProbe<UserDefinedEnti
                                             @Nullable Discovery.DiscoveryContextDTO context)
             throws InterruptedException {
         final String targetName = account.getTargetName();
+        LOGGER.info("Internal probe {} discovery started.", targetName);
         try {
-            return converter.convertToResponse(explorer.getUserDefinedGroups());
+            DiscoveryResponse response = converter.convertToResponse(explorer.getUserDefinedGroups());
+            LOGGER.info("Internal probe {} discovery finished.", targetName);
+            return response;
         } catch (Exception e) {
             LOGGER.info("Internal probe {} discovery error.", targetName);
             return SDKUtil.createDiscoveryError(e.getMessage());
         }
-
     }
 
 }
