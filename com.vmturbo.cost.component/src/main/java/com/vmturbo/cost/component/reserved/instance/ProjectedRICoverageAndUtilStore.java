@@ -18,12 +18,12 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -194,6 +194,7 @@ public class ProjectedRICoverageAndUtilStore {
      *               data.
      * @param includeBuyRICoverage A flag indicating whether coverage from Buy RI instances should be
      *                             included in the returned stats record.
+     * @param endDate                 time to be used for projectedStats.
      * @return A {@link ReservedInstanceStatsRecord}, in which capacity represents the coverage capacity
      * of entities within scope and the value of the record represented the covered amount (assumed
      * to be in coupons) of the entities within scope.
@@ -201,7 +202,7 @@ public class ProjectedRICoverageAndUtilStore {
     @Nonnull
     public ReservedInstanceStatsRecord getReservedInstanceCoverageStats(
             @Nonnull ReservedInstanceCoverageFilter filter,
-            boolean includeBuyRICoverage) {
+            boolean includeBuyRICoverage, final long endDate) {
 
         final Map<Long, EntityReservedInstanceCoverage> projectedEntitiesRICoverages =
                 getScopedProjectedEntitiesRICoverages(filter);
@@ -228,7 +229,7 @@ public class ProjectedRICoverageAndUtilStore {
 
             entityCouponsCapTotal += entityRICoverage.getEntityCouponCapacity();
         }
-        final long projectedTime = clock.instant()
+        final long projectedTime = endDate != 0 ? endDate : clock.instant()
                 .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
         return ReservedInstanceUtil.createRIStatsRecord((float)entityCouponsCapTotal,
                 (float)usedCouponsTotal, projectedTime);
@@ -239,17 +240,19 @@ public class ProjectedRICoverageAndUtilStore {
      * determined by {@code filter}. RIs in scope are determined by converting the
      * {@link ReservedInstanceUtilizationFilter} to a {@link ReservedInstanceBoughtFilter} and querying
      * the {@link ReservedInstanceBoughtStore}.
-     * @param filter The {@link ReservedInstanceUtilizationFilter} instance, assumed to be applied to
-     *               all utilization records for a larger stats request.
+     *
+     * @param filter                  The {@link ReservedInstanceUtilizationFilter} instance, assumed to be applied to
+     *                                all utilization records for a larger stats request.
      * @param includeBuyRIUtilization Indicates whether utilization of Buy RI instances should be included
      *                                in the returned stats record.
+     * @param endDate                 time to be used for projectedStats.
      * @return An instance of {@link ReservedInstanceStatsRecord}, in which the capacity is the coupon
      * capacity of all RIs in scope and the value is the coverage amount used for all RIs in scope.
      */
     @Nonnull
     public ReservedInstanceStatsRecord getReservedInstanceUtilizationStats(
             @Nonnull ReservedInstanceUtilizationFilter filter,
-            boolean includeBuyRIUtilization) {
+            boolean includeBuyRIUtilization, long endDate) {
 
         // First, query the RI bought store to determine the RIs in scope. The full ReservedInstanceBoughtInfo
         // is queried, in order to determine the RI capacity as well.
@@ -267,7 +270,7 @@ public class ProjectedRICoverageAndUtilStore {
                 .map(ReservedInstanceBought::getId)
                 .collect(ImmutableSet.toImmutableSet());
 
-        final long projectedTime = clock.instant()
+        final long projectedTime = endDate != 0 ? endDate : clock.instant()
                 .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
 
         // Determine the capacity of both RI inventory and buy RI instances.

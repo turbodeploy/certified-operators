@@ -25,9 +25,17 @@ public class AuthKVConfig {
     @Value("${kvStoreTimeoutSeconds:120}")
     private long kvStoreTimeoutSeconds;
 
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
+
     @Bean
     public KeyValueStore authKeyValueStore() {
-        return new ConsulKeyValueStore(AuthApiKVConfig.AUTH_NAMESPACE,
+        return new ConsulKeyValueStore(
+                ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
+                AuthApiKVConfig.AUTH_NAMESPACE,
                 consulHost,
                 consulPort,
                 kvStoreTimeoutSeconds,

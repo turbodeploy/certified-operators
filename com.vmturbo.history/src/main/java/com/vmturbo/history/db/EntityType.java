@@ -5,12 +5,20 @@ import static com.vmturbo.components.common.utils.StringConstants.INTERNAL_NAME;
 import static com.vmturbo.components.common.utils.StringConstants.RECORDED_ON;
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.history.schema.abstraction.Tables.APP_SERVER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.APP_SERVER_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.APP_SERVER_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.APP_SERVER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.BUSINESS_APP_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.BUSINESS_APP_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.BUSINESS_APP_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.BUSINESS_APP_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.BU_STATS_BY_MONTH;
@@ -31,6 +39,16 @@ import static com.vmturbo.history.schema.abstraction.Tables.CPOD_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.DA_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.DA_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.DA_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.DB_SERVER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.DB_SERVER_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.DB_SERVER_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.DB_SERVER_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.DB_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.DB_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.DESKTOP_POOL_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.DESKTOP_POOL_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.DESKTOP_POOL_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.DESKTOP_POOL_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.DPOD_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.DPOD_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.DPOD_STATS_BY_MONTH;
@@ -40,6 +58,10 @@ import static com.vmturbo.history.schema.abstraction.Tables.DS_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.IOM_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.IOM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.IOM_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.LOAD_BALANCER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.LOAD_BALANCER_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.LOAD_BALANCER_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.LOAD_BALANCER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.LP_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.LP_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.LP_STATS_BY_MONTH;
@@ -68,6 +90,10 @@ import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_BY_DA
 import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.VIEW_POD_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.VIRTUAL_APP_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.VIRTUAL_APP_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.VIRTUAL_APP_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.VIRTUAL_APP_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_SPEND_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_SPEND_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_SPEND_BY_MONTH;
@@ -80,6 +106,8 @@ import static com.vmturbo.history.schema.abstraction.Tables.VPOD_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.tables.AppStatsLatest.APP_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.ChStatsLatest.CH_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.DaStatsLatest.DA_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.tables.DbStatsByDay.DB_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.tables.DbStatsByMonth.DB_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.tables.DpodStatsLatest.DPOD_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.DsStatsLatest.DS_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.IomStatsLatest.IOM_STATS_LATEST;
@@ -119,11 +147,11 @@ public enum EntityType {
             (0, StringConstants.CLUSTER, "cluster", null, null, CLUSTER_STATS_BY_DAY,  CLUSTER_STATS_BY_MONTH),
 
     //DataCenter stats are stored in the PM stats tables
-    DATA_CENTER (
-            1, StringConstants.DATA_CENTER,       "pm",  PM_STATS_LATEST, PM_STATS_BY_HOUR, PM_STATS_BY_DAY, PM_STATS_BY_MONTH),
+    DATA_CENTER(
+        1, StringConstants.DATA_CENTER,       "pm",  PM_STATS_LATEST, PM_STATS_BY_HOUR,
+        PM_STATS_BY_DAY, PM_STATS_BY_MONTH),
     //The DATACENTER Enum defined in CommonDTO.proto, used by SDK probes, has no '_'
-    DATACENTER
-            (91, StringConstants.DATA_CENTER,      "pm",  PM_STATS_LATEST, PM_STATS_BY_HOUR, PM_STATS_BY_DAY, PM_STATS_BY_MONTH),
+    DATACENTER(91, StringConstants.DATA_CENTER,      "pm",  PM_STATS_LATEST, PM_STATS_BY_HOUR, PM_STATS_BY_DAY, PM_STATS_BY_MONTH),
 
     PHYSICAL_MACHINE
             (2, StringConstants.PHYSICAL_MACHINE,  "pm",   PM_STATS_LATEST, PM_STATS_BY_HOUR,  PM_STATS_BY_DAY,  PM_STATS_BY_MONTH),
@@ -178,27 +206,23 @@ public enum EntityType {
 
     SPEND_APP(19, StringConstants.APPLICATION, "app_spend", null, APP_SPEND_BY_HOUR, APP_SPEND_BY_DAY, APP_SPEND_BY_MONTH),
 
-    BUSINESS_APPLICATION
-            (20, StringConstants.BUSINESS_APPLICATION,      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+    BUSINESS_APPLICATION(20, StringConstants.BUSINESS_APPLICATION,      "ba",  BUSINESS_APP_STATS_LATEST, BUSINESS_APP_STATS_BY_HOUR, BUSINESS_APP_STATS_BY_DAY, BUSINESS_APP_STATS_BY_MONTH),
 
     RESERVED_INSTANCE
             (21, StringConstants.RESERVED_INSTANCE, "ri", RI_STATS_LATEST, RI_STATS_BY_HOUR, RI_STATS_BY_DAY, RI_STATS_BY_MONTH),
 
-    LOAD_BALANCER
-            (22, StringConstants.LOAD_BALANCER,      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+    LOAD_BALANCER(22, StringConstants.LOAD_BALANCER,      "lb",  LOAD_BALANCER_STATS_LATEST, LOAD_BALANCER_STATS_BY_HOUR, LOAD_BALANCER_STATS_BY_DAY, LOAD_BALANCER_STATS_BY_MONTH),
 
-    DATABASE_SERVER
-            (23, StringConstants.DATABASE_SERVER,      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+    DATABASE_SERVER(23, StringConstants.DATABASE_SERVER,      "db_server",  DB_SERVER_STATS_LATEST, DB_SERVER_STATS_BY_HOUR, DB_SERVER_STATS_BY_DAY, DB_SERVER_STATS_BY_MONTH),
 
-    VIRTUAL_APPLICATION
-            (24, StringConstants.VIRTUAL_APPLICATION,      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+    VIRTUAL_APPLICATION(24, StringConstants.VIRTUAL_APPLICATION,      "vapp",  VIRTUAL_APP_STATS_LATEST, VIRTUAL_APP_STATS_BY_HOUR, VIRTUAL_APP_STATS_BY_DAY, VIRTUAL_APP_STATS_BY_MONTH),
 
-    APPLICATION_SERVER
-            (25, StringConstants.APPSRV,      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
-    DESKTOP_POOL(26, StringConstants.DESKTOP_POOL, "dp", VDC_STATS_LATEST, VDC_STATS_BY_HOUR, VDC_STATS_BY_DAY, VDC_STATS_BY_MONTH),
+    APPLICATION_SERVER(25, StringConstants.APPSRV,      "app_server",  APP_SERVER_STATS_LATEST, APP_SERVER_STATS_BY_HOUR, APP_SERVER_STATS_BY_DAY, APP_SERVER_STATS_BY_MONTH),
+    DESKTOP_POOL(26, StringConstants.DESKTOP_POOL, "dp", DESKTOP_POOL_STATS_LATEST, DESKTOP_POOL_STATS_BY_HOUR, DESKTOP_POOL_STATS_BY_DAY, DESKTOP_POOL_STATS_BY_MONTH),
     BUSINESS_USER(27, StringConstants.BUSINESS_USER, "bu", BU_STATS_LATEST, BU_STATS_BY_HOUR, BU_STATS_BY_DAY, BU_STATS_BY_MONTH),
     VIEW_POD(28, StringConstants.VIEW_POD, "view_pod", VIEW_POD_STATS_LATEST, VIEW_POD_STATS_BY_HOUR, VIEW_POD_STATS_BY_DAY, VIEW_POD_STATS_BY_MONTH),
-    DATABASE(29, StringConstants.DATABASE,      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH)
+    DATABASE(29, StringConstants.DATABASE,      "app",  DB_STATS_LATEST, DB_STATS_BY_HOUR,
+        DB_STATS_BY_DAY, DB_STATS_BY_MONTH)
     ;
 
     private static final Collection<Function<EntityType, ? extends Table<?>>> TABLE_GETTERS =

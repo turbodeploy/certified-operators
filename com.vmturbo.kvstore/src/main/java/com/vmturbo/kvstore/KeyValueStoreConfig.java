@@ -27,9 +27,16 @@ public class KeyValueStoreConfig {
     @Value("${kvStoreTimeoutSeconds:120}")
     private long kvStoreTimeoutSeconds;
 
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
+
     @Bean
     public KeyValueStore keyValueStore() {
         return new ConsulKeyValueStore(
+                ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
                 applicationName,
                 consulHost,
                 consulPort,

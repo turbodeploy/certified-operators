@@ -175,6 +175,22 @@ public class ReservedInstanceSpecStore {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get {@link ReservedInstanceSpec} by input ids.
+     *
+     * @param ids a set of spec ids.
+     * @param context a DSLContext object.
+     * @return a list of {@link ReservedInstanceSpec}
+     */
+    public List<ReservedInstanceSpec> getReservedInstanceSpecByIdsWithContext(@Nonnull final Set<Long> ids,
+                    DSLContext context) {
+        return context.selectFrom(RESERVED_INSTANCE_SPEC)
+                        .where(RESERVED_INSTANCE_SPEC.ID.in(ids))
+                        .fetch().stream()
+                        .map(this::reservedInstancesToProto)
+                        .collect(Collectors.toList());
+    }
+
     private List<ReservedInstanceSpecRecord> internalGetAllReservedInstanceSpecs(
             @Nonnull final DSLContext context) {
         return context.selectFrom(RESERVED_INSTANCE_SPEC).fetch();

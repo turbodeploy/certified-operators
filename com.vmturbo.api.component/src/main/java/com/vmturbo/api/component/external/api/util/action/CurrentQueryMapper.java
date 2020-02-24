@@ -369,6 +369,8 @@ class CurrentQueryMapper {
                         case StringConstants.ACTION_TYPE:
                         case StringConstants.ACTION_TYPES:
                             return Optional.of(GroupBy.ACTION_TYPE);
+                        case StringConstants.ACTION_COST_TYPE:
+                            return Optional.of(GroupBy.COST_TYPE);
                         case StringConstants.TARGET_TYPE:
                             return Optional.of(GroupBy.TARGET_ENTITY_TYPE);
                         case StringConstants.TEMPLATE:

@@ -2,15 +2,13 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Xl","metadata":{"name":"xl-release"},"spec":{"global":{"repository":"turbonomic","tag":"7.17.0"}}}]'
+    alm-examples: '[{"apiVersion":"charts.helm.k8s.io/v1alpha1","kind":"Xl","metadata":{"name":"xl-release"},"spec":{"global":{"repository":"turbonomic","tag":"7.21.0"}}}]'
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
     containerImage: turbonomic/t8c-operator:7.21
     createdAt: "2019-07-01T00:00:00.000Z"
-    description: Turbonomic Workload Automation for Multicloud simultaneously optimizes
-      performance, compliance, and cost in real-time. Workloads are precisely resourced,
-      automatically, to perform while satisfying business constraints.
+    description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/t8c-install/tree/master/operator
     support: Turbonomic, Inc.
   name: t8c-operator.v7.21.0
@@ -19,9 +17,7 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes
-          performance, compliance, and cost in real-time. Workloads are precisely resourced,
-          automatically, to perform while satisfying business constraints.
+      - description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
         displayName: Turbonomic Platform Operator
         kind: Xl
         name: xls.charts.helm.k8s.io
@@ -45,112 +41,88 @@ spec:
   install:
     spec:
       deployments:
-      - name: t8c-operator
-        spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              name: t8c-operator
-          strategy: {}
-          template:
-            metadata:
-              labels:
+        - name: t8c-operator
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
                 name: t8c-operator
-            spec:
+            strategy: {}
+            template:
+              metadata:
+                labels:
+                  name: t8c-operator
+              spec:
+                containers:
+                  - env:
+                      - name: WATCH_NAMESPACE
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.annotations['olm.targetNamespaces']
+                      - name: POD_NAME
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.name
+                      - name: OPERATOR_NAME
+                        value: t8c-operator
+                    image: turbonomic/t8c-operator:7.21
+                    imagePullPolicy: Always
+                    name: t8c-operator
+                    resources: {}
               serviceAccountName: t8c-operator
-              containers:
-              - env:
-                  - name: WATCH_NAMESPACE
-                    valueFrom:
-                      fieldRef:
-                        fieldPath: metadata.annotations['olm.targetNamespaces']
-                  - name: POD_NAME
-                    valueFrom:
-                      fieldRef:
-                        fieldPath: metadata.name
-                  - name: OPERATOR_NAME
-                    value: t8c-operator
-                image: turbonomic/t8c-operator:7.21
-                imagePullPolicy: Always
-                name: t8c-operator
-                resources: {}
-                securityContext:
-                  readOnlyRootFilesystem: true
-                  capabilities:
-                    drop:
-                      - ALL
-                volumeMounts:
-                - mountPath: /tmp
-                  name: operator-tmpfs0
-              volumes:
-              - name: operator-tmpfs0
-                emptyDir: {}
       permissions:
-      - rules:
-        - apiGroups:
-            - ''
-          resources:
-            - pods
-            - services
-            - endpoints
-            - persistentvolumeclaims
-            - events
-            - configmaps
-            - secrets
-          verbs:
-            - '*'
-        - apiGroups:
-            - apps
-          resources:
-            - deployments
-            - replicasets
-          verbs:
-            - '*'
-        - apiGroups:
-            - apps
-          resources:
-            - deployments/finalizers
-          verbs:
-            - update
-        - apiGroups:
-            - extensions
-          resources:
-            - deployments
-          verbs:
-            - '*'
-        - apiGroups:
-            - ''
-          resources:
-            - namespaces
-          verbs:
-            - get
-        - apiGroups:
-            - ''
-          resources:
-            - configmaps
-            - secrets
-          verbs:
-            - '*'
-        - apiGroups:
-            - charts.helm.k8s.io
-          resources:
-            - '*'
-          verbs:
-            - '*'
-        - apiGroups:
-            - networking.istio.io
-          resources:
-            - gateways
-            - virtualservices
-          verbs:
-            - '*'
-        - apiGroups:
-            - cert-manager.io
-          resources:
-            - certificates
-          verbs:
-            - '*'
-        serviceAccountName: t8c-operator
+        - rules:
+            - apiGroups:
+                - ''
+              resources:
+                - pods
+                - services
+                - endpoints
+                - persistentvolumeclaims
+                - events
+                - configmaps
+                - secrets
+              verbs:
+                - '*'
+            - apiGroups:
+                - apps
+              resources:
+                - deployments
+              verbs:
+                - '*'
+            - apiGroups:
+                - ''
+              resources:
+                - namespaces
+              verbs:
+                - get
+            - apiGroups:
+                - ''
+              resources:
+                - configmaps
+                - secrets
+              verbs:
+                - '*'
+            - apiGroups:
+                - charts.helm.k8s.io
+              resources:
+                - '*'
+              verbs:
+                - '*'
+            - apiGroups:
+                - networking.istio.io
+              resources:
+                - gateways
+                - virtualservices
+              verbs:
+                - '*'
+            - apiGroups:
+                - certmanager.k8s.io
+              resources:
+                - certificates
+              verbs:
+                - '*'
+          serviceAccountName: t8c-operator
     strategy: deployment
   installModes:
     - supported: true

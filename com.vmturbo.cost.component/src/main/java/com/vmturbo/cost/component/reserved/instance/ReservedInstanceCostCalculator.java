@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -45,11 +46,13 @@ public class ReservedInstanceCostCalculator {
      * to calculate the per instance amortized cost = (fixedCost/730 * 12 * term) + recurringCost.
      *
      * @param reservedInstanceBoughtInfos List of ReservedInstanceBoughtInfo.
+     * @param context a DSLContext object.
      * @return Map of getProbeReservedInstanceId -> amortizedCost.
      */
-    public Map<String, Double> calculateReservedInstanceAmortizedCost(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos) {
+    public Map<String, Double> calculateReservedInstanceAmortizedCost(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos,
+                    DSLContext context) {
         @Nonnull final Map<Long, Integer> riSpecToTermMap =
-            getRiSpecIdToTermInYearMap(reservedInstanceBoughtInfos);
+            getRiSpecIdToTermInYearMap(reservedInstanceBoughtInfos, context);
         return calculateReservedInstanceAmortizedCost(reservedInstanceBoughtInfos, riSpecToTermMap);
     }
 
@@ -126,14 +129,16 @@ public class ReservedInstanceCostCalculator {
      * For input list of RI bought returns a map from associated spec IDs to their terms.
      *
      * @param reservedInstanceBoughtInfos the list of RI bought.
+     * @param context a DSLContext object.
      * @return map from specs ids to their term in year.
      */
-    public Map<Long, Integer> getRiSpecIdToTermInYearMap(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos) {
+    public Map<Long, Integer> getRiSpecIdToTermInYearMap(@Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos,
+                    DSLContext context) {
         final Set<Long> riSpecIdSet = reservedInstanceBoughtInfos.stream()
             .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
             .collect(Collectors.toSet());
 
-        return reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIdSet).stream()
+        return reservedInstanceSpecStore.getReservedInstanceSpecByIdsWithContext(riSpecIdSet, context).stream()
             .collect(Collectors.toMap(Cost.ReservedInstanceSpec::getId,
                 a -> a.getReservedInstanceSpecInfo()
                     .getType().getTermYears()));

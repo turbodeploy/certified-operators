@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.cost;
 import static org.mockito.Mockito.spy;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,9 +86,9 @@ public class RIDataUploaderTest {
     private IdentityProvider identityProvider = new IdentityProviderImpl(
             new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
                     Mockito.mock(IdentityDatabaseStore.class)),
-                new HeuristicsMatcher()),
-                keyValueStore,
-                new ProbeInfoCompatibilityChecker(), 0L);
+                    new HeuristicsMatcher()),
+            keyValueStore,
+            new ProbeInfoCompatibilityChecker(), 0L);
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
 
@@ -333,7 +334,7 @@ public class RIDataUploaderTest {
                                                 .setInstanceCount(2)
                                                 .setOfferingClass(OfferingClass.CONVERTIBLE)
                                                 .setOfferingType(OfferingType.ALL_UPFRONT)
-                                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
                                                 .setInstanceTenancy(InstanceTenancy.DEDICATED)
                                                 //.setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                                 .setPlatform(Platform.WINDOWS)
@@ -359,7 +360,7 @@ public class RIDataUploaderTest {
                                                 .setInstanceCount(1)
                                                 .setOfferingClass(OfferingClass.CONVERTIBLE)
                                                 .setOfferingType(OfferingType.ALL_UPFRONT)
-                                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
                                                 .setInstanceTenancy(InstanceTenancy.DEDICATED)
                                                 .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                                 .setPlatform(Platform.WINDOWS)
@@ -369,32 +370,115 @@ public class RIDataUploaderTest {
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
                                 .build()),
-        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
-                EntityDTO.newBuilder()
-                        .setEntityType(EntityType.RESERVED_INSTANCE)
-                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351A")
-                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
-                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
-                                .setStartTime(0)
-                                .setNumberOfCoupons(16)
-                                .setNumberOfCouponsUsed(4)
-                                .setFixedCost(10)
-                                .setUsageCost(12)
-                                .setRecurringCost(13)
-                                .setRegion("azure::australiaeast::DC::australiaeast")
-                                .setInstanceCount(1)
-                                .setOfferingClass(OfferingClass.CONVERTIBLE)
-                                .setOfferingType(OfferingType.ALL_UPFRONT)
-                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
-                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
-                                .setPlatform(Platform.UNKNOWN)
-                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
-                                .setPlatformFlexible(true)
-                                .setInstanceSizeFlexible(true)))
-                .oid(104)
-                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
-                .lastUpdatedTime(now)
-                .build())
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351A")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(104)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351A")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(105)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351D")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                //this shud be a valid Duration
+                                                .setDuration(Duration.ofMillis(DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                        .plusHours(23).toMillis())
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(108)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351E")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setDuration(
+                                                        Duration.ofMillis(DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                                .plusDays(12).toMillis())
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(109)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build())
+
                 )
         );
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)).thenAnswer(
@@ -426,8 +510,8 @@ public class RIDataUploaderTest {
 
         // there should be 4 RI bought but only 3 specs -- two of the RI should have mapped to the
         // same spec instance
-        Assert.assertEquals(3, riData.riSpecs.size());
-        Assert.assertEquals(4, riData.riBoughtByLocalId.size());
+        Assert.assertEquals(4, riData.riSpecs.size());
+        Assert.assertEquals(5, riData.riBoughtByLocalId.size());
         // Verify an RI Spec -- the data should have come from the stitching entities rather than
         // the nme's.
 

@@ -62,6 +62,7 @@ public class ConsulHealthcheckRegistration {
     private final String instanceIp;
     private final String instanceRoute;
     private final Integer serverPort;
+    private final String consulServiceNamePrefix;
 
     private int maxRetrySecs;
 
@@ -80,6 +81,7 @@ public class ConsulHealthcheckRegistration {
      * @param serverPort the PORT for health checks for the component instances, used to construct
      *                   a health-check for this service
      * @param maxRetrySecs the maximum time window in which to keep retrying retry-able consul operations.
+     * @param consulServiceNamePrefix Consul service name prefix to be appended to service name.
      */
     public ConsulHealthcheckRegistration(final ConsulClient consulClient,
                                          final Boolean enableConsulRegistration,
@@ -88,8 +90,8 @@ public class ConsulHealthcheckRegistration {
                                          final String instanceIp,
                                          final String instanceRoute,
                                          final Integer serverPort,
-                                         final int maxRetrySecs
-                                         ) {
+                                         final int maxRetrySecs,
+                                         final String consulServiceNamePrefix) {
         this.consulClient = consulClient;
         this.enableConsulRegistration = enableConsulRegistration;
         this.componentType = componentType;
@@ -107,6 +109,7 @@ public class ConsulHealthcheckRegistration {
         }
         this.serverPort = serverPort;
         this.maxRetrySecs = maxRetrySecs;
+        this.consulServiceNamePrefix = consulServiceNamePrefix;
     }
 
     /**
@@ -120,7 +123,10 @@ public class ConsulHealthcheckRegistration {
 
         // register this service instance
         final NewService svc = new NewService();
-        svc.setName(componentType);
+        // Prepend consulServiceNamePrefix to componentType as the service name to support multi
+        // tenancy. For single-tenant case, consulNamespace is not enabled and the prefix is empty
+        // string.
+        svc.setName(consulServiceNamePrefix + componentType);
         svc.setId(instanceId);
         svc.setAddress(instanceIp);
         svc.setPort(serverPort);

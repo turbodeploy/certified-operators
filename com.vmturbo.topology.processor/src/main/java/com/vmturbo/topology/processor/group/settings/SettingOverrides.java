@@ -141,7 +141,8 @@ public class SettingOverrides {
             settingsMap.forEach((settingName, setting) ->
                 EntitySettingSpecs.getSettingByName(settingName).ifPresent(entitySpec -> {
                     grpOverrideSpecs.putIfAbsent(settingName, entitySpec.getSettingSpec());
-                    groupOverrideSettings.put(setting, groupMemberOids);
+                    groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
+                                                            .addAll(groupMemberOids);
                 })
             );
         });

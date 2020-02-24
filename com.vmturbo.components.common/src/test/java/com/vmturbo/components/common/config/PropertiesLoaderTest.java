@@ -1,4 +1,4 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.common.config;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -14,7 +14,7 @@ import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationExcept
  * Test fetching external configuration properties from (1) properties.yaml file, and
  * (2) external .properties sources.
  */
-public class ExternalPropertiesTest {
+public class PropertiesLoaderTest {
 
     private static final String COMPONENT_TYPE = "test-component";
     private static final String GOOD_TEST_YAML_FILE_PATH = "configmap/sample_properties.yaml";
@@ -40,7 +40,7 @@ public class ExternalPropertiesTest {
     @Test
     public void testPropertiesYamlReaderSuccess() throws ContextConfigurationException {
         // act
-        final PropertySource<?> propertiesSource = BaseVmtComponent.fetchConfigurationProperties(
+        final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
             COMPONENT_TYPE, GOOD_TEST_YAML_FILE_PATH);
         // assert
         assertThat(propertiesSource.getProperty("foo"), equalTo("123"));
@@ -58,7 +58,7 @@ public class ExternalPropertiesTest {
     @Test(expected = ContextConfigurationException.class)
     public void testPropertiesYamlReaderMissingFile() throws ContextConfigurationException {
         // act
-        BaseVmtComponent.fetchConfigurationProperties(COMPONENT_TYPE, BAD_TEST_YAML_FILE_PATH);
+        PropertiesLoader.fetchConfigurationProperties(COMPONENT_TYPE, BAD_TEST_YAML_FILE_PATH);
         // assert
         fail("Should never reach here - exception should have been thrown");
     }
@@ -79,7 +79,7 @@ public class ExternalPropertiesTest {
     @Test
     public void testOtherPropertiesReader() throws ContextConfigurationException {
         // act
-        final PropertySource<?> propertiesSource = BaseVmtComponent.fetchOtherProperties(
+        final PropertySource<?> propertiesSource = PropertiesLoader.fetchOtherProperties(
             GOOD_OTHER_PROPERTIES_RESOURCE);
         // assert
         assertThat(propertiesSource.getProperty("key1"), equalTo("override"));

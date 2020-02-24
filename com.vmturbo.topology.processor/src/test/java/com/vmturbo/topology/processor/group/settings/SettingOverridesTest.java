@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -58,9 +59,19 @@ public class SettingOverridesTest {
             .newBuilder()
             .setOid(222L)
             .setEntityType(EntityType.PHYSICAL_MACHINE.getValue());
+    private static final TopologyEntityDTO.Builder entity3 = TopologyEntityDTO
+            .newBuilder()
+            .setOid(888L)
+            .setEntityType(EntityType.STORAGE.getValue());
+    private static final TopologyEntityDTO.Builder entity4 = TopologyEntityDTO
+            .newBuilder()
+            .setOid(999L)
+            .setEntityType(EntityType.STORAGE.getValue());
 
     private static final TopologyEntity topologyEntity1 = TopologyEntityUtils.topologyEntity(entity1);
     private static final TopologyEntity topologyEntity2 = TopologyEntityUtils.topologyEntity(entity2);
+    private static final TopologyEntity topologyEntity3 = TopologyEntityUtils.topologyEntity(entity3);
+    private static final TopologyEntity topologyEntity4 = TopologyEntityUtils.topologyEntity(entity4);
     private static final Set<Long> entities = ImmutableSet.of(333L);
     private static final Set<Long> pm1Set = ImmutableSet.of(111L);
 
@@ -101,6 +112,49 @@ public class SettingOverridesTest {
         Assert.assertTrue(10 == settingOverrides.overridesForEntity.get(333L)
             .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
             .getNumericSettingValue().getValue());
+    }
+
+    /**
+     * Test that same setting for multiple groups is applied to the members in those groups.
+     */
+    @Test
+    public void testResolveGroupOverridesSettingMultiGroup() {
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<>();
+        String disabled = "DISABLED";
+        groupsById.putAll(ImmutableMap.of(pmGroupId, hostGroup, stGroupId, storageGroup));
+        List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
+            .setSettingOverride(buildSettingOverrideStringValue(EntitySettingSpecs.Provision
+                .getSettingName(), disabled)
+                .setEntityType(EntityType.PHYSICAL_MACHINE.getValue())
+                .setGroupOid(pmGroupId)
+                .build())
+            .build(),
+            ScenarioChange.newBuilder()
+            .setSettingOverride(buildSettingOverrideStringValue(EntitySettingSpecs.Provision
+                .getSettingName(), disabled)
+                .setEntityType(EntityType.STORAGE.getValue())
+                .setGroupOid(stGroupId)
+                .build())
+            .build());
+        SettingOverrides settingOverrides = new SettingOverrides(changes);
+
+        when(topologyGraph.entitiesOfType(EntityType.PHYSICAL_MACHINE.getValue()))
+        .thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(topologyGraph.entitiesOfType(EntityType.STORAGE.getValue()))
+        .thenReturn(Stream.of(topologyEntity3, topologyEntity4));
+
+        when(groupResolver.resolve(hostGroup, topologyGraph))
+            .thenReturn(ImmutableSet.of(topologyEntity1.getOid(), topologyEntity2.getOid()));
+        when(groupResolver.resolve(storageGroup, topologyGraph))
+        .thenReturn(ImmutableSet.of(topologyEntity3.getOid(), topologyEntity4.getOid()));
+
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
+
+        Assert.assertTrue(settingOverrides.overridesForEntity.size() == 4);
+
+        Assert.assertTrue(settingOverrides.overridesForEntity.entrySet().stream()
+            .allMatch(entry -> entry.getValue().get(EntitySettingSpecs.Provision.getSettingName())
+            .getStringSettingValue().getValue().equals(disabled)));
     }
 
     /**

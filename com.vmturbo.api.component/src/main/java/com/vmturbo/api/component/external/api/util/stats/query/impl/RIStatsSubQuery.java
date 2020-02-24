@@ -234,6 +234,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
         return reqBuilder.setIncludeProjected(true)
                 .setGroupBy(GroupBy.SNAPSHOT_TIME)
                 .setTopologyContextId(inputScope.getTopologyContextId())
+                //todo: setTimeWindow if we have a context.getTimeWindow().
                 .setTimeWindow(StatsRequestTimeWindow.newBuilder().setQueryLatest(true))
                 .setIncludeBuyRi(getBuyRiScopeHandler().shouldIncludeBuyRiDiscount(inputScope))
                 .build();

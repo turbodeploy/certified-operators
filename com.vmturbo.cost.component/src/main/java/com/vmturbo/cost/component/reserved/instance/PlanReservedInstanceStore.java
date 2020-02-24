@@ -56,10 +56,10 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
         final List<ReservedInstanceBoughtInfo> newReservedInstanceBoughtInfos = newReservedInstances.stream()
                         .map(ReservedInstanceBought::getReservedInstanceBoughtInfo).collect(Collectors.toList());
         final Set<TableRecord<?>> records = new HashSet<>();
-        final Map<String, Double> probeRIIDToAmortizedCost =
-                        getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(newReservedInstanceBoughtInfos);
-
         final DSLContext dsl = getDsl();
+        final Map<String, Double> probeRIIDToAmortizedCost =
+                        getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(newReservedInstanceBoughtInfos, dsl);
+
         for (ReservedInstanceBought reservedInstanceBought : newReservedInstances) {
             final Long id = reservedInstanceBought.getId();
             final ReservedInstanceBoughtInfo reservedInstanceInfo = reservedInstanceBought.getReservedInstanceBoughtInfo();
