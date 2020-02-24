@@ -13,6 +13,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -206,13 +207,28 @@ public class SchedulesService implements ISchedulesService {
      * @throws Exception in case of error during retrieving the policies of the input schedule.
      */
     @Override
-    public List<SettingsPolicyApiDTO> getPoliciesUsingTheSchedule(String uuid) {
+    public List<SettingsPolicyApiDTO> getPoliciesUsingTheSchedule(String uuid) throws Exception {
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
-        settingPolicyService.getSettingPoliciesUsingSchedule(
-            GetSettingPoliciesUsingScheduleRequest.newBuilder()
-                .setScheduleId(Long.valueOf(uuid))
-                .build())
-            .forEachRemaining(settingPolicies::add);
+
+        try {
+            // verify the schedule is valid
+            GetScheduleResponse response = scheduleService.getSchedule(
+                    GetScheduleRequest.newBuilder()
+                            .setOid(Long.valueOf(uuid))
+                            .build());
+            if (!response.hasSchedule()) {
+                throw new UnknownObjectException("Schedule '" + uuid + "' not found");
+            }
+
+            settingPolicyService.getSettingPoliciesUsingSchedule(
+                    GetSettingPoliciesUsingScheduleRequest.newBuilder()
+                            .setScheduleId(Long.valueOf(uuid))
+                            .build())
+                    .forEachRemaining(settingPolicies::add);
+        } catch (StatusRuntimeException e) {
+            logger.error(e);
+            throw ExceptionMapper.translateStatusException(e);
+        }
 
         return settingsMapper.convertSettingPolicies(settingPolicies);
     }
