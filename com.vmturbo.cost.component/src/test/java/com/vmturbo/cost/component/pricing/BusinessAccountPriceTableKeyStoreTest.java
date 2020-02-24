@@ -17,6 +17,7 @@ import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -61,12 +62,18 @@ public class BusinessAccountPriceTableKeyStoreTest {
     private PriceTableKeyIdentityStore priceTableKeyIdentityStore;
 
     /**
+     * Set up identity generator.
+     */
+    @BeforeClass
+    public static void setupClass() {
+        IdentityGenerator.initPrefix(0L);
+    }
+
+    /**
      * Setup for this test class.
      */
     @Before
     public void setup() {
-
-        IdentityGenerator.initPrefix(0);
         flyway = dbConfig.flyway();
         dsl = dbConfig.dsl();
         priceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,

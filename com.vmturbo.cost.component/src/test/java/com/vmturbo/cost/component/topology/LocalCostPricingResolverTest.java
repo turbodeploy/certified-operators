@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
@@ -81,6 +82,14 @@ public class LocalCostPricingResolverTest {
     private CloudTopology<TopologyEntityDTO> topology;
 
     private final TopologyEntityInfoExtractor topologyEntityInfoExtractor = mock(TopologyEntityInfoExtractor.class);
+
+    /**
+     * Set up identity generator.
+     */
+    @BeforeClass
+    public static void setupClass() {
+        IdentityGenerator.initPrefix(0L);
+    }
 
     /**
      * Setup the test.
