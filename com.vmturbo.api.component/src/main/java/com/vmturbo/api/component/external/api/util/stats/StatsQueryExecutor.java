@@ -160,10 +160,12 @@ public class StatsQueryExecutor {
         // Sort the stats in ascending order by time.
         final Comparator<Entry<StatTimeAndEpoch, Map<String, StatApiDTO>>> ascendingByTime =
             Comparator.comparingLong(entry -> entry.getKey().getTime());
+        final String scopeDisplayName = scope.getDisplayName();
         final List<StatSnapshotApiDTO> stats = statsByDateAndId.rowMap().entrySet().stream()
             .sorted(ascendingByTime)
             .map(entry -> {
                 final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                statSnapshotApiDTO.setDisplayName(scopeDisplayName);
                 statSnapshotApiDTO.setDate(DateTimeUtil.toString(entry.getKey().getTime()));
                 statSnapshotApiDTO.setEpoch(entry.getKey().getEpoch());
                 statSnapshotApiDTO.setStatistics(new ArrayList<>(entry.getValue().values()));
@@ -194,6 +196,7 @@ public class StatsQueryExecutor {
             }
             stats.clear();
             StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+            statSnapshotApiDTO.setDisplayName(scopeDisplayName);
             statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
             statSnapshotApiDTO.setEpoch(Epoch.CURRENT);
             statSnapshotApiDTO.setStatistics(statistics);

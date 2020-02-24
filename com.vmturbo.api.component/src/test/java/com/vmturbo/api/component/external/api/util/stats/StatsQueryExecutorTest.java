@@ -19,11 +19,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.junit.Before;
+import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -86,6 +86,8 @@ public class StatsQueryExecutorTest {
     public void testGetStatsRequestAll() throws OperationFailedException {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
+        final String scopeDisplayName = "Market";
+        when(scope.getDisplayName()).thenReturn(scopeDisplayName);
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
         when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
@@ -110,6 +112,7 @@ public class StatsQueryExecutorTest {
         final StatSnapshotApiDTO resultSnapshot = results.get(0);
         assertThat(resultSnapshot.getDate(), is(DateTimeUtil.toString(MILLIS)));
         assertThat(resultSnapshot.getStatistics(), containsInAnyOrder(stat));
+        assertThat(resultSnapshot.getDisplayName(), is(scopeDisplayName));
     }
 
     @Test

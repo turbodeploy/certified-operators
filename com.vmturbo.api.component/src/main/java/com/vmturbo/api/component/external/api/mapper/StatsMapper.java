@@ -377,7 +377,11 @@ public class StatsMapper {
             statApiDTO.setRelatedEntityType(convertedStatRecord.getRelatedEntityType());
         }
 
-        statApiDTO.setUnits(convertedStatRecord.getUnits());
+        // do not set empty string is there is no units
+        if (convertedStatRecord.hasUnits()) {
+            statApiDTO.setUnits(convertedStatRecord.getUnits());
+        }
+
         // Only add capacity and reservation values when the stat is NOT a metric (ie when it is
         // a commodity)
         if (!METRIC_NAMES.contains(convertedStatRecord.getName())) {
@@ -385,8 +389,11 @@ public class StatsMapper {
             statApiDTO.setReserved(buildStatDTO(convertedStatRecord.getReserved()));
         }
 
-        // Set display name for this stat
-        statApiDTO.setDisplayName(buildStatDiplayName(convertedStatRecord));
+        // Set display name for this stat, do not set if it's empty
+        String displayName = buildStatDiplayName(convertedStatRecord);
+        if (!StringUtils.isEmpty(displayName)) {
+            statApiDTO.setDisplayName(displayName);
+        }
 
         // The "values" should be equivalent to "used".
         statApiDTO.setValues(toStatValueApiDTO(convertedStatRecord.getUsed()));
