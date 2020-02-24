@@ -126,7 +126,7 @@
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>
-        <kafka.version>1.1.0</kafka.version>
+        <kafka.version>2.4.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <failsafe.version>2.19.1</failsafe.version>
@@ -379,6 +379,13 @@
             <id>kafka</id>
             <modules>
                 <module>../kafka</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>zookeeper</id>
+            <modules>
+                <module>../zookeeper</module>
             </modules>
         </profile>
 

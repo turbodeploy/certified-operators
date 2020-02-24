@@ -43,8 +43,12 @@ test -n "$ZOO_MY_ID" || exit_error "ZOO_MY_ID variable must be specified"
 echo "$ZOO_MY_ID" > $ZOOCFGDIR/myid
 ln -fs /opt/zookeeper/conf/log4j.properties $ZOOCFGDIR/log4j.properties || exit_error "Could not create log4j config"
 
+export ZOO_LOG_DIR=/tmp/logs
+
+#-Dzookeeper.snapshot.trust.empty=true is required for the upgrade from zookeeper 3.4.x -> 3.5.x. We
+# should phase it out in the future.
 # Autoconfigure the max java heap based on container limit
-SERVER_JVMFLAGS="-Xms16m -XX:+UseG1GC -XX:MaxRAMPercentage=75.0"
+export SERVER_JVMFLAGS="-Dzookeeper.snapshot.trust.empty=true -Xms16m -XX:+UseG1GC -XX:MaxRAMPercentage=75.0"
 
 # Zookeeper doesn't handle SIGTERM. By design, ZK doesn't have graceful shutdown.
 exec /opt/zookeeper/bin/zkServer.sh start-foreground > >($LOGGER_COMMAND) 2>&1
