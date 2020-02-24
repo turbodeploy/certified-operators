@@ -141,7 +141,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
-    @Value("${enableInternalProbes:false}")
+    @Value("${enableInternalProbes:true}")
     private boolean enableInternalProbes;
 
     @PostConstruct

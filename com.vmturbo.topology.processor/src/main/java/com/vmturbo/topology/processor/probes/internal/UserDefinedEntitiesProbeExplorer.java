@@ -42,10 +42,16 @@ class UserDefinedEntitiesProbeExplorer {
         final Map<Grouping, Collection<TopologyEntityDTO>> groupMap = Maps.newHashMap();
         try {
             final Collection<Grouping> groups = retrieval.getGroups(ENTITY_DEFINITION);
+            LOGGER.info("Internal probe: found {} entity definitions", groups.size());
             for (Grouping group : groups) {
                 final Collection<TopologyEntityDTO> members = retrieval.getMembers(group.getId());
                 if (!members.isEmpty()) {
                     groupMap.put(group, members);
+                } else {
+                    LOGGER.warn("Internal probe: entity definition {} has no members, skipping it",
+                            group.getDefinition().hasDisplayName()
+                            ? group.getDefinition().getDisplayName()
+                            : "null");
                 }
             }
         } catch (Exception e) {
