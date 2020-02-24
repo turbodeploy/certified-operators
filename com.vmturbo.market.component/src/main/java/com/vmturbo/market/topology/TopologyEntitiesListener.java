@@ -42,6 +42,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private Optional<Integer> maxPlacementsOverride;
 
+    private boolean useQuoteCacheDuringSNM;
+
     private final float rightsizeLowerWatermark;
 
     private final float rightsizeUpperWatermark;
@@ -58,12 +60,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     TopologyEntitiesListener(@Nonnull MarketRunner marketRunner,
                              @Nonnull final Optional<Integer> maxPlacementsOverride,
+                             final boolean useQuoteCacheDuringSNM,
                              final float rightsizeLowerWatermark,
                              final float rightsizeUpperWatermark,
                              final float discountedComputeCostFactor,
                              @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
+        this.useQuoteCacheDuringSNM = useQuoteCacheDuringSNM;
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
@@ -120,7 +124,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     "context " + topologyContextId, e);
         }
         marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride,
-                rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
+                    useQuoteCacheDuringSNM, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                    discountedComputeCostFactor);
     }
 
     /**

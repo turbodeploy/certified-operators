@@ -17,7 +17,6 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
@@ -89,6 +88,10 @@ public class MarketRunner {
      * @param includeVDC should VDC's be included in the analysis
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
+     * @param useQuoteCacheDuringSNM Whether quotes should be cached for reuse during SNM-enabled
+     *                               placement analysis. Setting to true can improve performance in
+     *                               some cases. Usually those cases involve a high number of
+     *                               biclique overlaps and volumes per VM.
      * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
@@ -103,6 +106,7 @@ public class MarketRunner {
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
+                                     final boolean useQuoteCacheDuringSNM,
                                      final float rightsizeLowerWatermark,
                                      final float rightsizeUpperWatermark,
                                      final float discountedComputeCostFactor) {
@@ -128,6 +132,7 @@ public class MarketRunner {
                     configBuilder -> configBuilder
                         .setIncludeVDC(includeVDC)
                         .setMaxPlacementsOverride(maxPlacementsOverride)
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setDiscountedComputeCostFactor(discountedComputeCostFactor));

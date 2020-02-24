@@ -42,6 +42,8 @@ message AnalysisInput {
 
     optional int32 max_placements_override = 4;
 
+    optional bool use_quote_cache_during_snm = 10;
+
     optional float right_size_lower_watermark = 5;
 
     optional float right_size_upper_watermark = 6;

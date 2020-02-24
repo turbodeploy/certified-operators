@@ -25,16 +25,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
-
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.google.gson.stream.JsonReader;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -255,6 +255,7 @@ public class AnalysisDebuggingTest {
             analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
                     analysisInput.getSettingsMap())
                 .setIncludeVDC(analysisInput.getIncludeVdc())
+                .setUseQuoteCacheDuringSNM(analysisInput.getUseQuoteCacheDuringSnm())
                 .setRightsizeLowerWatermark(analysisInput.getRightSizeLowerWatermark())
                 .setRightsizeUpperWatermark(analysisInput.getRightSizeUpperWatermark());
         if (analysisInput.hasMaxPlacementsOverride()) {

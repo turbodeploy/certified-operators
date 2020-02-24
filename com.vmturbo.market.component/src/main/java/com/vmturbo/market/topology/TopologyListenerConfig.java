@@ -36,6 +36,9 @@ public class TopologyListenerConfig {
     @Value("${maxPlacementIterations}")
     private int maxPlacementIterations;
 
+    @Value("${useQuoteCacheDuringSNM:false}")
+    private boolean useQuoteCacheDuringSNM;
+
     @Value("${rightsizeLowerWatermark}")
     private float rightsizeLowerWatermark;
 
@@ -55,7 +58,7 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
+                marketRunnerConfig.marketRunner(), maxPlacementsOverride(), useQuoteCacheDuringSNM,
                 rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor,
                 licenseCheckClientConfig.licenseCheckClient());
         tpConfig.topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
