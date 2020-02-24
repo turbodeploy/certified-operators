@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -33,7 +34,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ActionOrchestratorDBConfig.class,
         ActionTranslationConfig.class,
         ActionStatsRollupConfig.class,
-        ActionOrchestratorGlobalConfig.class})
+        ActionOrchestratorGlobalConfig.class,
+        UserSessionConfig.class})
 public class ActionStatsConfig {
 
     @Autowired
@@ -60,6 +62,9 @@ public class ActionStatsConfig {
      */
     @Autowired
     private ActionStoreConfig actionStoreConfig;
+
+    @Autowired
+    private UserSessionConfig userSessionConfig;
 
     @Value("${actionStatsWriteBatchSize}")
     private int actionStatsWriteBatchSize;
@@ -113,7 +118,7 @@ public class ActionStatsConfig {
     @Bean
     public CurrentActionStatReader currentActionStatReader() {
         return new CurrentActionStatReader(globalConfig.realtimeTopologyContextId(),
-            actionStoreConfig.actionStorehouse());
+            actionStoreConfig.actionStorehouse(), userSessionConfig.userSessionContext());
     }
 
     @Bean

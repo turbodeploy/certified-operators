@@ -95,6 +95,48 @@ public interface OidFilter {
     }
 
     /**
+     * Given a collection of oids, return true if any oid in the collection pass the filter.
+     *
+     * @param oids the collection of oids to check.
+     * @return true, if any oid in the collection passes the filter. false, if none pass.
+     */
+    default boolean containsAny(Collection<Long> oids) {
+        if (oids == null) {
+            return false;
+        }
+
+        // return true if any are contained
+        for (Long oid: oids) {
+            if (contains(oid)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Given an {@link OidSet} of oids, return true if any oid in the OidSet passes the filter.
+     *
+     * @param oids the set of oids to check.
+     * @return true, if any oid in the collection passes the filter. false, if none pass.
+     */
+    default boolean containsAny(OidSet oids) {
+        if (oids == null) {
+            return false;
+        }
+        // return true if any are contained
+        PrimitiveIterator.OfLong iterator = oids.iterator();
+        while (iterator.hasNext()) {
+            if (this.contains(iterator.nextLong())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Utility function for checking "contains" on a collection of oids represented as strings. If
      * any entry cannot be converted, the result will be "false". Otherwise, the result will be
      * as described in the contains(Collection<Long>) method.

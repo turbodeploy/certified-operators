@@ -368,21 +368,13 @@ class LiveActions implements QueryableActionViews {
             final LocalDateTime endDate = getLocalDateTime(actionQueryFilter.getEndDate());
             final List<ActionView> succeededOrFailedActionList =
                 actionHistoryDao.getActionHistoryByDate(startDate, endDate);
-            boolean strictMatching = userSessionContext.isUserScoped(); // check this once for efficiency.
             Stream<ActionView> historical = succeededOrFailedActionList.stream()
                 .filter(view -> entitiesRestriction
                     .map(involvedEntities -> {
                         try {
-                            // if the entity restriction is "strict" then only include actions where
-                            // ALL involved entities are in the set. Otherwise, include actions with
-                            // ANY involved entities are in the set.
-                            if (strictMatching) {
-                                return involvedEntities.containsAll(
-                                        ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()));
-                            } else {
-                                return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
-                                        .anyMatch(involvedEntities::contains);
-                            }
+                            // include actions with ANY involved entities in the set.
+                            return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
+                                    .anyMatch(involvedEntities::contains);
                         } catch (UnsupportedActionException e) {
                             return false;
                         }
@@ -528,7 +520,7 @@ class LiveActions implements QueryableActionViews {
 
     /**
      * Check the current user's access to the action. The default case is that access is allowed,
-     * but if the user is scoped, then we'll check to make sure that all involved entities are in
+     * but if the user is scoped, then we'll check to make sure that at least one involved entity is in
      * the user's accessible entity set.
      *
      * @param action The action to check access on.
@@ -541,7 +533,7 @@ class LiveActions implements QueryableActionViews {
         if (userSessionContext.isUserScoped()) {
             try {
                 if (!userSessionContext.getUserAccessScope()
-                        .contains(ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation()))) {
+                        .containsAny(ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation()))) {
                     throw new UserAccessScopeException("User does not have access to all entities involved in action.");
                 }
             } catch (UnsupportedActionException uae) {

@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.Com
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.ScopeCase;
@@ -56,8 +57,9 @@ public class CurrentActionStatReader {
     private final ActionStorehouse actionStorehouse;
 
     public CurrentActionStatReader(final long realtimeContextId,
-                                   @Nonnull final ActionStorehouse actionStorehouse) {
-        this(new QueryInfoFactory(realtimeContextId),
+                                   @Nonnull final ActionStorehouse actionStorehouse,
+                                   final UserSessionContext userSessionContext) {
+        this(new QueryInfoFactory(realtimeContextId, userSessionContext),
             new CombinedStatsBucketsFactory(),
             actionStorehouse);
     }

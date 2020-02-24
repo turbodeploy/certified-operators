@@ -30,6 +30,10 @@ public class ArrayOidSet implements OidSet {
      * @param sourceOids
      */
     public ArrayOidSet(long[] sourceOids) {
+        if (null == sourceOids) {
+            oids = new long[0];
+            return;
+        }
         oids = sourceOids;
         // sort the oids
         Arrays.sort(oids);
