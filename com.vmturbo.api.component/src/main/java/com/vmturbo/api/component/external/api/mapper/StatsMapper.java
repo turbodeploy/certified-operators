@@ -377,7 +377,7 @@ public class StatsMapper {
             statApiDTO.setRelatedEntityType(convertedStatRecord.getRelatedEntityType());
         }
 
-        // do not set empty string is there is no units
+        // do not set empty string if there is no units
         if (convertedStatRecord.hasUnits()) {
             statApiDTO.setUnits(convertedStatRecord.getUnits());
         }
