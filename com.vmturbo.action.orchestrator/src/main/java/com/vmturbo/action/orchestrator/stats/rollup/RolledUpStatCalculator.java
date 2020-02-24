@@ -230,6 +230,7 @@ public class RolledUpStatCalculator {
         final List<AverageSummary> avgSummaries = new ArrayList<>(actionStats.size());
         for (StatWithSnapshotCnt<ActionStatsByDayRecord> recordAndCount : actionStats) {
             final ActionStatsByDayRecord actionStat = recordAndCount.record();
+            newActions += actionStat.getNewActionCount();
             minActionCount = Math.min(minActionCount, actionStat.getMinActionCount());
             minEntityCount = Math.min(minEntityCount, actionStat.getMinEntityCount());
             minInvestment = Math.min(minInvestment, actionStat.getMinInvestment().doubleValue());
