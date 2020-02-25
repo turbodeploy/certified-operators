@@ -9,16 +9,16 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -51,7 +51,9 @@ public class QuoteSummerTest {
                 .toArray(CommoditySpecification[]::new);
         Basket basket = new Basket(commodities);
         // Create an instance of the market
-        Market market = new Market(basket);
+        Economy e = new Economy();
+        Trader t = e.addTrader(0, TraderState.ACTIVE, new Basket());
+        Market market = e.getMarketsAsBuyer(t).get(e.addBasketBought(t, basket));
 
         // Create provider 1
         Basket basketProvider1 = new Basket(new CommoditySpecification(0, 1000));
