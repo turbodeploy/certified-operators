@@ -26,6 +26,7 @@
         "businessUserMove",
         "storageMove",
         "suspend",
+        "suspendIsDisabled",
         "delete",
         "resize",
         "provision",

@@ -94,6 +94,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     private static final Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
             .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
             .add(EntitySettingSpecs.Provision.getSettingName()).add(EntitySettingSpecs.Suspend.getSettingName())
+            .add(EntitySettingSpecs.DisabledSuspend.getSettingName())
             .add(EntitySettingSpecs.Activate.getSettingName()).add(EntitySettingSpecs.Resize.getSettingName())
             .add(EntitySettingSpecs.Reconfigure.getSettingName()).build();
 
