@@ -36,7 +36,7 @@ public class ActionTypeMapperTest {
 
     @Test
     public void testApiUnmatchedType() {
-        assertThat(ActionTypeMapper.fromApi(ActionType.RESERVE_ON_DA),
+        assertThat(ActionTypeMapper.fromApi(ActionType.NONE),
             Matchers.containsInAnyOrder(ActionDTO.ActionType.NONE));
     }
 
