@@ -869,7 +869,7 @@ public class GroupMapper {
     }
 
     @Nonnull
-    private static String convertGroupTypeToApiType(@Nonnull GroupType type) {
+    public static String convertGroupTypeToApiType(@Nonnull GroupType type) {
         return API_GROUP_TYPE_TO_GROUP_TYPE
                         .inverse().getOrDefault(type,
                                         type.name());

@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,11 +13,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -30,6 +35,9 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -42,6 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualMachineData.VMBillingType;
@@ -62,18 +71,21 @@ public class CloudAspectMapper extends AbstractAspectMapper {
 
     private final RepositoryApi repositoryApi;
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService;
+    private final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub;
 
     /**
      * Constructor.
      *
      * @param repositoryApi the {@link RepositoryApi}
      * @param riCoverageService service to retrieve entity RI coverage information.
+     * @param groupServiceBlockingStub do resource group reverse lookups (member to containing group)
      */
     public CloudAspectMapper(@Nonnull final RepositoryApi repositoryApi,
-                             @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub
-                                     riCoverageService) {
+                             @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService,
+                             @Nonnull final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.riCoverageService = Objects.requireNonNull(riCoverageService);
+        this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
     }
 
     /**
@@ -112,10 +124,17 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         final Optional<ConnectedEntity> connectedAvailabilityZoneOrRegion =
                 getConnectedAvailabilityZoneOrRegion(entity);
         connectedAvailabilityZoneOrRegion.ifPresent(e -> oids.add(e.getConnectedEntityId()));
-
         final Map<Long, MinimalEntity> oidToMinimalEntity = repositoryApi.entitiesRequest(oids)
                 .getMinimalEntities()
                 .collect(Collectors.toMap(MinimalEntity::getOid, e -> e));
+        final Long entityOid = entity.getOid();
+        Map<Long, Grouping> entityToResourceGroup = retrieveResourceGroupsForEntities(Sets.newHashSet(entityOid));
+        if (!CollectionUtils.isEmpty(entityToResourceGroup) && entityToResourceGroup.containsKey(entityOid)) {
+            final Grouping resourceGroup = entityToResourceGroup.get(entityOid);
+            if (resourceGroup != null) {
+                aspect.setResourceGroup(createBaseApiDTO(resourceGroup));
+            }
+        }
 
         templateOid.ifPresent(oid -> {
             final MinimalEntity template = oidToMinimalEntity.get(oid);
@@ -164,6 +183,39 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             setRiCoverageRelatedInformation(entity.getOid(), aspect);
         }
         return aspect;
+    }
+
+    @Nonnull
+    private Map<Long, Grouping> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
+        final GroupDTO.GetGroupsForEntitiesResponse response = groupServiceBlockingStub.getGroupsForEntities(
+            GroupDTO.GetGroupsForEntitiesRequest.newBuilder()
+                .addAllEntityId(entities)
+                .addGroupType(CommonDTO.GroupDTO.GroupType.RESOURCE)
+                .setLoadGroupObjects(true)
+                .build());
+        final Map<Long, Grouping> containedEntityToContainingGrouping = new HashMap<>();
+        if (Objects.isNull(response) || response.getGroupsCount() == 0) {
+            return containedEntityToContainingGrouping;
+        }
+        final Map<Long, Grouping> groupIdToDefinition = Maps.uniqueIndex(
+                response.getGroupsList(),
+                Grouping::getId);
+        for (Map.Entry<Long, GroupDTO.Groupings> groupingsEntry : response.getEntityGroupMap().entrySet()) {
+            final long entityId = groupingsEntry.getKey();
+            for (Long groupId : groupingsEntry.getValue().getGroupIdList()) {
+                if (groupIdToDefinition.containsKey(groupId)) {
+                    Grouping thisGrouping = groupIdToDefinition.get(groupId);
+                    Grouping oldGrouping = containedEntityToContainingGrouping.get(groupId);
+                    if (oldGrouping != null) {
+                        logger.info("Found multiple resource groups for entity {}: {} ({}) and {} ({})", entityId,
+                                oldGrouping.getId(), oldGrouping.getDefinition().getDisplayName(),
+                                thisGrouping.getId(), thisGrouping.getDefinition().getDisplayName());
+                    }
+                    containedEntityToContainingGrouping.put(entityId, thisGrouping);
+                }
+            }
+        }
+        return Collections.unmodifiableMap(containedEntityToContainingGrouping);
     }
 
     private void setRiCoverageRelatedInformation(final long oid, final CloudAspectApiDTO aspect) {
