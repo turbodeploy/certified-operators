@@ -45,6 +45,7 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
     private static final String MISSING_SCHED_ID_ERROR_MSG = "Missing ID in Schedule request";
     private static final String MISSING_SCHEDULE_ERROR_MSG = "Missing Schedule object in Create Schedule request";
     private static final String MISSING_ID_OR_SCHEDULE_MSG = "Missing ID or schedules in Update Schedule request";
+    private static final String SCHEDULE_NOT_FOUND_MSG = "Schedule not found";
     private static final Logger logger = LogManager.getLogger();
 
     private final ScheduleStore scheduleStore;
@@ -109,7 +110,10 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
                     .setSchedule(updatedSchedule)
                 .build();
             } else {
-                response = GetScheduleResponse.getDefaultInstance();
+                responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(SCHEDULE_NOT_FOUND_MSG)
+                    .asException());
+                return;
             }
             responseObserver.onNext(response);
             responseObserver.onCompleted();

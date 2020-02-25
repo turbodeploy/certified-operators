@@ -134,11 +134,9 @@ public class ScheduleRpcServiceTest {
         scheduleRpcService.getSchedule(GetScheduleRequest.newBuilder()
             .setOid(SCHEDULE_ID).build(), responseObserver);
 
-        final ArgumentCaptor<GetScheduleResponse> responseCaptor =
-            ArgumentCaptor.forClass(GetScheduleResponse.class);
-        verify(responseObserver).onNext(responseCaptor.capture());
-        verify(responseObserver).onCompleted();
-        assertEquals(0, responseCaptor.getValue().getSchedule().getId());
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+            ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
     }
 
     /**
