@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -46,7 +45,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.GCP));
-        converters.put(EntityType.AVAILABILITY_ZONE, new AvailabilityZoneConverter(SDKProbeType.GCP));
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));

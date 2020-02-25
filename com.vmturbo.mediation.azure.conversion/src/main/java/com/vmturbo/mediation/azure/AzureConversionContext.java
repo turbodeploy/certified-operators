@@ -14,7 +14,6 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
@@ -38,7 +37,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.AZURE));
-        converters.put(EntityType.AVAILABILITY_ZONE, new AvailabilityZoneConverter(SDKProbeType.AZURE));
         converters.put(EntityType.COMPUTE_TIER, new AzureComputeTierConverter());
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));

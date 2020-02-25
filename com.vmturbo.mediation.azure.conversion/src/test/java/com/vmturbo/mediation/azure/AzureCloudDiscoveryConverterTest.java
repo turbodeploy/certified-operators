@@ -18,13 +18,11 @@ import java.util.stream.Collectors;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -109,12 +107,6 @@ public class AzureCloudDiscoveryConverterTest {
                     .flatMap(commodityBought -> commodityBought.getBoughtList().stream())
                     .filter(VirtualMachineConverter.COMMODITIES_TO_CLEAR_ACTIVE::contains)
                     .forEach(commodityDTO -> assertTrue(commodityDTO.getActive()));
-
-            // check providers changed (vm may consumes multiple storages, convert each to new type)
-            verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
-                    EntityType.STORAGE, EntityType.STORAGE_TIER,
-                    EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER
-            ));
 
             // check old connected to
             assertEquals(0, oldVM.getLayeredOverCount());
@@ -359,16 +351,6 @@ public class AzureCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testAvailabilityZoneConverter() {
-        IEntityConverter converter = new AvailabilityZoneConverter(SDKProbeType.AZURE);
-        newEntitiesByType.get(EntityType.AVAILABILITY_ZONE).forEach(entity -> {
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entity.getId());
-            // check az IS removed
-            assertFalse(converter.convert(newEntity, azureConverter));
-        });
-    }
-
-    @Test
     public void testRegionConverter() {
         IEntityConverter converter = new DefaultConverter();
         newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
@@ -379,8 +361,7 @@ public class AzureCloudDiscoveryConverterTest {
             assertTrue(converter.convert(newEntity, azureConverter));
 
             // check entity property list
-            assertEquals(azureConverter.getNewEntityBuilder(
-                azureConversionContext.getAzIdFromRegionId(entityId)).getEntityPropertiesList(),
+            assertEquals(azureConverter.getNewEntityBuilder(entityId).getEntityPropertiesList(),
                 newEntity.getEntityPropertiesList());
 
             // check no bought commodities
@@ -455,18 +436,6 @@ public class AzureCloudDiscoveryConverterTest {
             Arrays.asList(tagEntityProperty, unknownEntityProperty));
 
         assertFalse(resultNoState.hasAttachmentState());
-    }
-
-
-    /**
-     * Verify that the commodity providers are changed to new types.
-     */
-    private static void verifyProvidersChanged(EntityDTO oldEntity, EntityDTO.Builder newEntity,
-            Map<EntityType, EntityType> oldToNewProviderTypeMapping) {
-        Object[] newProviderTypes = TestUtils.getOldProviderTypes(oldEntity, azureConverter).stream()
-                .map(entityType -> oldToNewProviderTypeMapping.getOrDefault(entityType, entityType))
-                .toArray();
-        assertThat(TestUtils.getNewProviderTypes(newEntity, azureConverter), containsInAnyOrder(newProviderTypes));
     }
 
     /**

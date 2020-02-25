@@ -29,7 +29,6 @@ import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -140,7 +139,8 @@ public class AwsCloudDiscoveryConverterTest {
             // check providers changed (vm may consumes multiple storages, convert each to new type)
             verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
                     EntityType.STORAGE, EntityType.STORAGE_TIER,
-                    EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER
+                    EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER,
+                    EntityType.AVAILABILITY_ZONE, EntityType.COMPUTE_TIER
             ), ImmutableList.of(EntityType.AVAILABILITY_ZONE));
 
             // check old connected
@@ -451,7 +451,7 @@ public class AwsCloudDiscoveryConverterTest {
 
     @Test
     public void testAvailabilityZoneConverter() {
-        IEntityConverter converter = new AvailabilityZoneConverter(SDKProbeType.AWS);
+        IEntityConverter converter = new DefaultConverter();
         newEntitiesByType.get(EntityType.AVAILABILITY_ZONE).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);

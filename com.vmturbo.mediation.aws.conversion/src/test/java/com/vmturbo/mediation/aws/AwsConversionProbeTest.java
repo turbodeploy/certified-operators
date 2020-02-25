@@ -55,7 +55,6 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(43, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
         assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(45, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
 
         // unmodified
         assertEquals(24, entitiesByType.get(EntityType.LOAD_BALANCER).size());
@@ -63,6 +62,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(187, entitiesByType.get(EntityType.APPLICATION).size());
         assertEquals(27, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
         assertEquals(15, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(45, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
@@ -92,7 +92,6 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(43, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
         assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(43, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
         assertEquals(15, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
@@ -100,6 +99,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(3, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
         assertEquals(20, entitiesByType.get(EntityType.APPLICATION).size());
         assertEquals(1, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
+        assertEquals(43, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);

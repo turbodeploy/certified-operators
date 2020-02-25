@@ -17,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -44,7 +43,6 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.AWS));
-        converters.put(EntityType.AVAILABILITY_ZONE, new AvailabilityZoneConverter(SDKProbeType.AWS));
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.AWS));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AWS));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));

@@ -53,8 +53,12 @@ public class DatabaseServerConverter implements IEntityConverter {
                     if (providerEntityType == EntityType.VIRTUAL_MACHINE) {
                         // find AZ of the VM and connect DBS to AZ
                         provider.getCommoditiesBoughtList().stream()
-                                .filter(c -> converter.getRawEntityDTO(c.getProviderId())
-                                        .getEntityType() == EntityType.PHYSICAL_MACHINE)
+                                .filter(c -> {
+                                    final EntityType providerType =
+                                        converter.getRawEntityDTO(c.getProviderId()).getEntityType();
+                                    return providerType == EntityType.PHYSICAL_MACHINE ||
+                                        providerType == EntityType.AVAILABILITY_ZONE;
+                                })
                                 .findAny()
                                 .ifPresent(c -> entity.addLayeredOver(c.getProviderId()));
 
