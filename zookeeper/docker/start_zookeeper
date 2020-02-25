@@ -30,6 +30,7 @@ echo "dataDir=/var/lib/zoo/data" >> $ZOOKEEPER_CONF
 echo "clientPort=2181" >> $ZOOKEEPER_CONF
 echo "initLimit=5" >> $ZOOKEEPER_CONF
 echo "syncLimit=2" >> $ZOOKEEPER_CONF
+echo "4lw.commands.whitelist=ruok" >> $ZOOKEEPER_CONF
 
 test -n "$ZOO_SERVERS" || exit_error "ZOO_SERVERS must be specified to contain cluster-related data"
 
