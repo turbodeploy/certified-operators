@@ -5,7 +5,6 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Map;
 import java.util.stream.IntStream;
 
@@ -18,7 +17,6 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -26,7 +24,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
@@ -36,58 +33,41 @@ import com.vmturbo.platform.analysis.utilities.QuoteCache;
  */
 @RunWith(JUnitParamsRunner.class)
 public class QuoteSummerTest {
-
-    private final long clique_ = 5;
-    Trader provider1 = Mockito.mock(Trader.class);
-    Trader provider2 = Mockito.mock(Trader.class);
-    private static Map.Entry<ShoppingList, Market> entry;
-    ShoppingList sl = Mockito.mock(ShoppingList.class);
-    private static QuoteCache qc = new QuoteCache(0, 0, 0);
+    // Fields
+    private Economy economy;
+    private Trader provider1;
+    private Trader provider2;
+    private Map.Entry<ShoppingList, Market> entry;
+    private ShoppingList sl;
+    private QuoteCache qc;
 
 
     @Before
     public void setUp() {
-        CommoditySpecification[] commodities = IntStream.range(0, 10).mapToObj(CommoditySpecification::new)
-                .toArray(CommoditySpecification[]::new);
-        Basket basket = new Basket(commodities);
-        // Create an instance of the market
-        Economy e = new Economy();
-        Trader t = e.addTrader(0, TraderState.ACTIVE, new Basket());
-        Market market = e.getMarketsAsBuyer(t).get(e.addBasketBought(t, basket));
+        Basket basketSold = new Basket(new CommoditySpecification(0, 1000));
+        Basket basketBought = new Basket(IntStream.range(0, 10)
+            .mapToObj(CommoditySpecification::new).toArray(CommoditySpecification[]::new));
+
+        economy = new Economy();
 
         // Create provider 1
-        Basket basketProvider1 = new Basket(new CommoditySpecification(0, 1000));
-        Mockito.when(provider1.getEconomyIndex()).thenReturn(0);
-        Mockito.when(provider1.getType()).thenReturn(0);
-        Mockito.when(provider1.getState()).thenReturn(TraderState.ACTIVE);
-        Mockito.when(provider1.getBasketSold()).thenReturn(basketProvider1);
+        provider1 = economy.addTrader(0, TraderState.ACTIVE, basketSold);
         // For provider 1, we set canSimulateAction to true
-        TraderSettings mockedtraderSettings = Mockito.mock(TraderSettings.class);
-        Mockito.when(mockedtraderSettings.isCanSimulateAction()).thenReturn(true);
-        Mockito.when(provider1.getSettings()).thenReturn(mockedtraderSettings);
+        provider1.getSettings().setCanSimulateAction(true);
 
         // Create provider 2
-        Basket basketProvider2 = new Basket(new CommoditySpecification(0, 1000));
-        Mockito.when(provider2.getEconomyIndex()).thenReturn(0);
-        Mockito.when(provider2.getType()).thenReturn(0);
-        Mockito.when(provider2.getState()).thenReturn(TraderState.ACTIVE);
-        Mockito.when(provider2.getBasketSold()).thenReturn(basketProvider2);
+        provider2 = economy.addTrader(0, TraderState.ACTIVE, basketSold);
         // For provider 2, we set canSimulateAction to false
-        TraderSettings mockedtraderSettings2 = Mockito.mock(TraderSettings.class);
-        Mockito.when(mockedtraderSettings2.isCanSimulateAction()).thenReturn(false);
-        Mockito.when(provider2.getSettings()).thenReturn(mockedtraderSettings2);
+        provider2.getSettings().setCanSimulateAction(false);
 
-        Trader buyer = Mockito.mock(Trader.class);
-        Basket basketBuyer = new Basket(new CommoditySpecification(0, 1000));
-        Mockito.when(buyer.getEconomyIndex()).thenReturn(0);
-        Mockito.when(buyer.getType()).thenReturn(0);
-        Mockito.when(buyer.getState()).thenReturn(TraderState.ACTIVE);
-        Mockito.when(buyer.getBasketSold()).thenReturn(basketBuyer);
+        // Including a basket bought will create a market.
+        Trader buyer = economy.addTrader(0, TraderState.ACTIVE, basketSold, basketBought);
 
-        Mockito.when(sl.getBuyer()).thenReturn(buyer);
+        // Get the entry for the shopping list and the market. It's guaranteed there is one.
+        entry = economy.getMarketsAsBuyer(buyer).entrySet().iterator().next();
+        sl = entry.getKey();
 
-        // Create an entry for a shopping list and a market
-        entry = new SimpleEntry<>(sl, market);
+        qc = new QuoteCache(0, 0, 0);
     }
 
     @Test
@@ -104,27 +84,27 @@ public class QuoteSummerTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestQuoteSummer_And_Getters() {
-        return new Object[][] {
-            {new Economy(),-3},
-            {new Economy(),0},
-            {new Economy(),42},
+        return new Object[][]{
+            {new Economy(), -3},
+            {new Economy(), 0},
+            {new Economy(), 42},
         };
     }
 
     @Test
     public void testSimulate() {
-        Economy e1 = new Economy();
-        QuoteMinimizer minimizer = new QuoteMinimizer(e1, sl, qc, 0);
+        QuoteMinimizer minimizer = new QuoteMinimizer(economy, sl, qc, 0);
 
         // Test for provider 1 which has canSimulate true
-        QuoteSummer mockedQuoteSummer = new QuoteSummer(e1, clique_, qc);
-        mockedQuoteSummer.simulate(minimizer, entry, provider1);
-        assertEquals(mockedQuoteSummer.getSimulatedActions().size(), 1);
+        final long clique_ = 5;
+        QuoteSummer quoteSummer1 = new QuoteSummer(economy, clique_, qc);
+        quoteSummer1.simulate(minimizer, entry, provider1);
+        assertEquals(1, quoteSummer1.getSimulatedActions().size());
 
         // Test for provider 2 which has canSimulate false
-        QuoteSummer mockedQuoteSummer2 = new QuoteSummer(e1, clique_, qc);
-        mockedQuoteSummer2.simulate(minimizer, entry, provider2);
-        assertEquals(mockedQuoteSummer2.getSimulatedActions().size(), 0);
+        QuoteSummer quoteSummer2 = new QuoteSummer(economy, clique_, qc);
+        quoteSummer2.simulate(minimizer, entry, provider2);
+        assertEquals(0, quoteSummer2.getSimulatedActions().size());
     }
 
     @Test
