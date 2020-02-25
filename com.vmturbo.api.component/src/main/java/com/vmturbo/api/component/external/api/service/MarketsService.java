@@ -63,6 +63,7 @@ import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -382,11 +383,14 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public ActionPaginationResponse getCurrentActionsByMarketUuid(String uuid,
+    public ActionPaginationResponse getCurrentActionsByMarketUuid(@Nonnull final String uuid,
                                                                   EnvironmentType environmentType,
-                                                                  ActionPaginationRequest paginationRequest) throws Exception {
+                                                                  @Nullable final ActionDetailLevel detailLevel,
+                                                                  ActionPaginationRequest paginationRequest)
+            throws Exception {
         ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setEnvironmentType(environmentType);
+        inputDto.setDetailLevel(detailLevel);
         return getActionsByMarketUuid(uuid, inputDto, paginationRequest);
     }
 
@@ -409,7 +413,7 @@ public class MarketsService implements IMarketsService {
                 response.getActionsList().stream()
                         .filter(ActionOrchestratorAction::hasActionSpec)
                         .map(ActionOrchestratorAction::getActionSpec)
-                        .collect(Collectors.toList()), apiId.oid());
+                        .collect(Collectors.toList()), apiId.oid(), inputDto.getDetailLevel());
         return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
                 .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
                 .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
@@ -418,13 +422,17 @@ public class MarketsService implements IMarketsService {
     /**
      * Get an action by the market.
      *
-     * @param marketUuid the market uuid.
-     * @param actionUuid the action uuid.
+     * @param marketUuid    the market uuid.
+     * @param actionUuid    the action uuid.
+     * @param detailLevel   the level of Action details to be returned
+     *
      * @return an action.
      * @throws Exception exception.
      */
     @Override
-    public ActionApiDTO getActionByMarketUuid(String marketUuid, String actionUuid) throws Exception {
+    public ActionApiDTO getActionByMarketUuid(@Nonnull final String marketUuid,
+                                              @Nonnull final String actionUuid,
+                                              @Nullable final ActionDetailLevel detailLevel) throws Exception {
         logger.debug("Request to get action by market UUID: {}, action ID: {}", marketUuid, actionUuid);
         ActionOrchestratorAction action = actionOrchestratorRpcService
                 .getAction(actionRequest(marketUuid, actionUuid));
@@ -433,7 +441,7 @@ public class MarketsService implements IMarketsService {
         }
         logger.debug("Mapping actions for: {}", marketUuid);
         final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, detailLevel);
         logger.trace("Result: {}", () -> answer.toString());
         return answer;
     }
@@ -681,6 +689,16 @@ public class MarketsService implements IMarketsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Get real-time Actions by Market.
+     *
+     * @param uuid              uuid of the Market
+     * @param environmentType   environment type filter
+     * @param detailLevel       the level of Action details to be returned
+     * @param paginationRequest pagination data
+     * @return {@link ActionPaginationResponse}
+     * @throws Exception
+     */
     @Override
     public MarketApiDTO deleteMarketByUuid(String uuid) throws Exception {
         logger.debug("Deleting market with UUID: {}", uuid);

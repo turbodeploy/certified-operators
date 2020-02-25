@@ -48,6 +48,7 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -465,7 +466,8 @@ public class EntitiesServiceTest {
     }
 
     /**
-     * An action returned by {@link EntitiesService#getActionByEntityUuid(String, String)}
+     * An action returned by {@link EntitiesService#getActionByEntityUuid(String, String,
+     * com.vmturbo.api.enums.ActionDetailLevel)}.
      * will be obtained through the action orchestrator service and the action mapper.
      *
      * @throws Exception should not happen.
@@ -482,7 +484,7 @@ public class EntitiesServiceTest {
         when(actionApiDTO.getCurrentEntity()).thenReturn(entity);
         when(actionsService.getAction(any())).thenReturn(dummyActionOrchestratorResponse);
         when(actionSpecMapper.mapActionSpecToActionApiDTO(
-                Matchers.eq(dummyActionSpec), Matchers.eq(CONTEXT_ID)))
+                Matchers.eq(dummyActionSpec), Matchers.eq(CONTEXT_ID), Matchers.eq(ActionDetailLevel.STANDARD)))
             .thenReturn(actionApiDTO);
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
@@ -498,7 +500,7 @@ public class EntitiesServiceTest {
 
         // call the service
         final ActionApiDTO result =
-            service.getActionByEntityUuid(Long.toString(VM_ID), Long.toString(dummy));
+                service.getActionByEntityUuid(Long.toString(VM_ID), Long.toString(dummy), ActionDetailLevel.STANDARD);
 
         // check that the result is the faked translation
         Assert.assertEquals(actionApiDTO, result);
@@ -527,7 +529,7 @@ public class EntitiesServiceTest {
 
         when(actionsService.getAllActions(any())).thenReturn(dummyActionOrchestratorResponse);
         final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
-        when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong()))
+        when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong(), any()))
             .thenReturn(Collections.singletonList(actionApiDTO));
         final ActionApiInputDTO trivialQuery = new ActionApiInputDTO();
         when(actionSpecMapper.createActionFilter(Matchers.eq(trivialQuery), any(), any()))

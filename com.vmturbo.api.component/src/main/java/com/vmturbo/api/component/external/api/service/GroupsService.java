@@ -76,6 +76,7 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -399,7 +400,10 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public ActionApiDTO getActionByGroupUuid(String uuid, String aUuid) throws Exception {
+    public ActionApiDTO getActionByGroupUuid(@Nonnull final String uuid,
+                                             @Nonnull final String aUuid,
+                                             @Nullable final ActionDetailLevel detailLevel)
+            throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 

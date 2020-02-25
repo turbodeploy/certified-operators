@@ -411,7 +411,8 @@ public class TargetsService implements ITargetsService {
         final List<ActionApiDTO> result = actionSpecMapper.mapActionSpecsToActionApiDTOs(
             response.getActionsList().stream()
                 .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), realtimeTopologyContextId);
+                    .collect(Collectors.toList()), realtimeTopologyContextId,
+                actionApiInputDTO.getDetailLevel());
         return result;
     }
 

@@ -28,6 +28,13 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
@@ -35,12 +42,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -54,8 +55,10 @@ import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -69,7 +72,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -162,6 +164,8 @@ public class ActionSpecMapperTest {
     private static final long DATACENTER2_ID = 200L;
     private static final String DC2_NAME = "DC-2";
     private static final String TARGET_VENDOR_ID = "qqq";
+
+    private static final long MILLIS_2020_01_01_00_00_00 = 1577854800000L;
 
     private ActionSpecMapper mapper;
 
@@ -1039,7 +1043,7 @@ public class ActionSpecMapperTest {
                         .setDecisionTime(System.currentTimeMillis()).build();
         String expectedUpdateTime = DateTimeUtil.toString(decision.getDecisionTime());
         final ActionSpec actionSpec = buildActionSpec(moveInfo, Explanation.newBuilder().build(),
-                        Optional.of(decision));
+                Optional.of(decision), Optional.empty());
 
         // Act
         ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -1072,8 +1076,8 @@ public class ActionSpecMapperTest {
                 .setCommodityType(CPU.getCommodityType()))
             .build();
 
-        final ActionSpec moveSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance(), Optional.empty());
-        final ActionSpec resizeSpec = buildActionSpec(resizeInfo, Explanation.getDefaultInstance(), Optional.empty());
+        final ActionSpec moveSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance());
+        final ActionSpec resizeSpec = buildActionSpec(resizeInfo, Explanation.getDefaultInstance());
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO("EntityToResize", goodTarget, EntityType.VIRTUAL_MACHINE_VALUE)));
@@ -1228,7 +1232,7 @@ public class ActionSpecMapperTest {
                                                              UnsupportedActionException, ExecutionException {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
-            .setActionState(ActionState.READY)
+                .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.RECOMMEND)
             .build();
         final ActionApiDTO actionApiDTO =
@@ -1240,7 +1244,7 @@ public class ActionSpecMapperTest {
     public void testMapReadyRecommendModeNotExecutable() throws InterruptedException, UnknownObjectException,
                                                                 UnsupportedActionException, ExecutionException {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
-            .setActionState(ActionState.READY)
+                .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.RECOMMEND)
             .setIsExecutable(false)
             .build();
@@ -1254,7 +1258,7 @@ public class ActionSpecMapperTest {
                                                                 UnsupportedActionException, ExecutionException {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
-            .setActionState(ActionState.READY)
+                .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .build();
         final ActionApiDTO actionApiDTO =
@@ -1266,7 +1270,7 @@ public class ActionSpecMapperTest {
     public void testMapReadyNotRecommendModeNotExecutable() throws InterruptedException, UnknownObjectException,
                                                                    UnsupportedActionException, ExecutionException {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
-            .setActionState(ActionState.READY)
+                .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(false)
             .build();
@@ -1279,7 +1283,7 @@ public class ActionSpecMapperTest {
     public void testMapNotReadyRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
         UnsupportedActionException, ExecutionException {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
-            .setActionState(ActionState.QUEUED)
+                .setActionState(ActionDTO.ActionState.QUEUED)
             .setActionMode(ActionMode.RECOMMEND)
             .build();
         final ActionApiDTO actionApiDTO =
@@ -1450,7 +1454,7 @@ public class ActionSpecMapperTest {
     @Test
     public void testMapClearedState() {
         Optional<ActionDTO.ActionState> state = mapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
-        assertThat(state.get(), is(ActionState.CLEARED));
+        assertThat(state.get(), is(ActionDTO.ActionState.CLEARED));
     }
 
     @Test (expected = IllegalArgumentException.class)
@@ -1490,7 +1494,7 @@ public class ActionSpecMapperTest {
     @Test
     public void testMapPostInProgress() {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
-            .setActionState(ActionState.POST_IN_PROGRESS);
+                .setActionState(ActionDTO.ActionState.POST_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
         com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
@@ -1499,7 +1503,7 @@ public class ActionSpecMapperTest {
     @Test
     public void testMapPreInProgress() {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
-            .setActionState(ActionState.PRE_IN_PROGRESS);
+                .setActionState(ActionDTO.ActionState.PRE_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
         com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
@@ -1510,6 +1514,178 @@ public class ActionSpecMapperTest {
         final String sampleUserUuid = "administrator(22222222222)";
         assertEquals("administrator", mapper.getUserName(sampleUserUuid));
         assertEquals(AuditLogUtils.SYSTEM, mapper.getUserName(AuditLogUtils.SYSTEM));
+    }
+
+    /**
+     * Test that the creation of the ActionExecutionAuditApiDTO is not created, when the Action is not executed.
+     */
+    @Test
+    public void testActionExecutionNull() throws Exception {
+        final ActionInfo actionInfo = getHostMoveActionInfo();
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setActionState(ActionDTO.ActionState.READY)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        final ActionExecutionAuditApiDTO executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+
+        // Assert
+        assertNull(executionDto);
+    }
+
+    /**
+     * Test the creation of the ActionExecutionAuditApiDTO, when status is in progress.
+     */
+    @Test
+    public void testActionExecutionStatusInProgress() throws Exception {
+        final int progress = 20;
+        final String startTimeToString = DateTimeUtil.toString(MILLIS_2020_01_01_00_00_00);
+
+        // In Progress
+        final ActionDTO.ExecutionStep executionStepProgress = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .setProgressPercentage(progress)
+                .build();
+        final ActionInfo actionInfo = getHostMoveActionInfo();
+        ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStepProgress)
+                .setActionState(ActionDTO.ActionState.IN_PROGRESS)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        ActionExecutionAuditApiDTO executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+        assertEquals(com.vmturbo.api.enums.ActionState.IN_PROGRESS, executionDto.getState());
+        assertEquals(new Integer(progress), executionDto.getProgress());
+        assertEquals(startTimeToString, executionDto.getExecutionTime());
+        assertNull(executionDto.getCompletionTime());
+
+        // Pre In Progress
+        final ActionDTO.ExecutionStep executionStepPre = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .setProgressPercentage(progress)
+                .build();
+        actionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStepPre)
+                .setActionState(ActionDTO.ActionState.PRE_IN_PROGRESS)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+        assertEquals(com.vmturbo.api.enums.ActionState.PRE_IN_PROGRESS, executionDto.getState());
+        assertEquals(startTimeToString, executionDto.getExecutionTime());
+        assertNull(executionDto.getCompletionTime());
+
+        // Post In Progress
+        final ActionDTO.ExecutionStep executionStepPost = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .setProgressPercentage(progress)
+                .build();
+        actionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStepPost)
+                .setActionState(ActionDTO.ActionState.POST_IN_PROGRESS)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+        assertEquals(com.vmturbo.api.enums.ActionState.POST_IN_PROGRESS, executionDto.getState());
+        assertEquals(startTimeToString, executionDto.getExecutionTime());
+        assertNull(executionDto.getCompletionTime());
+    }
+
+    /**
+     * Test the creation of the ActionExecutionAuditApiDTO, when status is succeeded.
+     */
+    @Test
+    public void testActionExecutionStatusSucceeded() throws Exception {
+        final int progress = 100;
+        final long completionTime = MILLIS_2020_01_01_00_00_00 + 10000;
+        final String startTimeToString = DateTimeUtil.toString(MILLIS_2020_01_01_00_00_00);
+        final String completionTimeToString = DateTimeUtil.toString(completionTime);
+        final ActionInfo actionInfo = getHostMoveActionInfo();
+        final ActionDTO.ExecutionStep executionStep = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .setProgressPercentage(progress)
+                .setCompletionTime(completionTime)
+                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStep)
+                .setActionState(ActionDTO.ActionState.SUCCEEDED)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        final ActionExecutionAuditApiDTO executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+
+        // Assert
+        assertEquals(com.vmturbo.api.enums.ActionState.SUCCEEDED, executionDto.getState());
+        assertNull(executionDto.getProgress());
+        assertEquals(startTimeToString, executionDto.getExecutionTime());
+        assertEquals(completionTimeToString, executionDto.getCompletionTime());
+    }
+
+    /**
+     * Test the creation of the ActionExecutionAuditApiDTO, when status is failed.
+     */
+    @Test
+    public void testActionExecutionStatusFailed() throws Exception {
+        final int progress = 100;
+        final long completionTime = MILLIS_2020_01_01_00_00_00 + 10000;
+        final String startTimeToString = DateTimeUtil.toString(MILLIS_2020_01_01_00_00_00);
+        final String completionTimeToString = DateTimeUtil.toString(completionTime);
+        final List<String> messages = Lists.newArrayList("msg1", "msg2");
+        final String lastMessage = Iterables.getLast(messages);
+        final ActionInfo actionInfo = getHostMoveActionInfo();
+        final ActionDTO.ExecutionStep executionStepPost = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .setProgressPercentage(progress)
+                .setCompletionTime(completionTime)
+                .addAllErrors(messages)
+                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStepPost)
+                .setActionState(ActionDTO.ActionState.FAILED)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        final ActionExecutionAuditApiDTO executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+
+        // Assert
+        assertEquals(com.vmturbo.api.enums.ActionState.FAILED, executionDto.getState());
+        assertNull(executionDto.getProgress());
+        assertEquals(startTimeToString, executionDto.getExecutionTime());
+        assertEquals(completionTimeToString, executionDto.getCompletionTime());
+        assertEquals(lastMessage, executionDto.getMessage());
+    }
+
+    /**
+     * Test the creation of the ActionExecutionAuditApiDTO, when status is succeeded.
+     */
+    @Test
+    public void testActionExecutionStatusQueued() throws Exception {
+        final String startTimeToString = DateTimeUtil.toString(MILLIS_2020_01_01_00_00_00);
+        final ActionInfo actionInfo = getHostMoveActionInfo();
+        final ActionDTO.ExecutionStep executionStep = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStep)
+                .setActionState(ActionDTO.ActionState.QUEUED)
+                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .build();
+        final ActionExecutionAuditApiDTO executionDto = mapper
+                .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
+                .getExecutionStatus();
+
+        // Assert
+        assertEquals(com.vmturbo.api.enums.ActionState.QUEUED, executionDto.getState());
+        assertEquals(startTimeToString, executionDto.getExecutionTime());
+        assertNull(executionDto.getProgress());
+        assertNull(executionDto.getCompletionTime());
     }
 
     private ActionInfo getHostMoveActionInfo() {
@@ -1600,20 +1776,21 @@ public class ActionSpecMapperTest {
     }
 
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation) {
-        return buildActionSpec(actionInfo, explanation, Optional.empty());
+        return buildActionSpec(actionInfo, explanation, Optional.empty(), Optional.empty());
     }
 
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation,
-                    Optional<ActionDTO.ActionDecision> decision) {
+                                       Optional<ActionDTO.ActionDecision> decision, Optional<ActionDTO.ExecutionStep> executionStep) {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setRecommendationTime(System.currentTimeMillis())
             .setRecommendation(buildAction(actionInfo, explanation))
-            .setActionState(ActionState.READY)
+                .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(true)
             .setExplanation(DEFAULT_EXPLANATION)
             .addPrerequisiteDescription(DEFAULT_PRE_REQUISITE_DESCRIPTION);
 
+        executionStep.ifPresent((builder::setExecutionStep));
         decision.ifPresent(builder::setDecision);
         return builder.build();
     }

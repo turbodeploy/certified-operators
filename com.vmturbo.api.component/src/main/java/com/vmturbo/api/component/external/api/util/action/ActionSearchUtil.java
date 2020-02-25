@@ -19,6 +19,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -111,11 +112,13 @@ public class ActionSearchUtil {
                             .build());
 
             // translate results
+            ActionDetailLevel detailLevel = inputDto != null ? inputDto.getDetailLevel() : ActionDetailLevel.STANDARD;
             final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
                     response.getActionsList().stream()
                         .map(ActionOrchestratorAction::getActionSpec)
                         .collect(Collectors.toList()),
-                    realtimeTopologyContextId);
+                    realtimeTopologyContextId,
+                    detailLevel);
 
             return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
                     .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
