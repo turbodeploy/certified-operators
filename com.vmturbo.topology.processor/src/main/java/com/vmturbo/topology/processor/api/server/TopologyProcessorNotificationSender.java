@@ -34,7 +34,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
-import com.vmturbo.communication.chunking.ProtobufChunkCollector;
+import com.vmturbo.components.api.chunking.OversizedElementException;
+import com.vmturbo.components.api.chunking.ProtobufChunkCollector;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -366,8 +367,8 @@ public class TopologyProcessorNotificationSender
             Preconditions.checkArgument(topologyInfo.hasCreationTime());
             Preconditions.checkArgument(topologyInfo.hasTopologyType());
             this.topologyInfo = topologyInfo;
-            this.chunk = new ProtobufChunkCollector<>();
-            this.extensionChunk = new ProtobufChunkCollector<>();
+            this.chunk = new ProtobufChunkCollector<>(messageSender.getRecommendedRequestSizeBytes(), messageSender.getMaxRequestSizeBytes());
+            this.extensionChunk = new ProtobufChunkCollector<>(messageSender.getRecommendedRequestSizeBytes(), messageSender.getMaxRequestSizeBytes());
             this.postBroadcastCommand = postBroadcastCommand;
             final Topology subMessage = Topology.newBuilder()
                     .setTopologyId(getTopologyId())
@@ -441,8 +442,8 @@ public class TopologyProcessorNotificationSender
         }
 
         @Override
-        public void append(@Nonnull TopologyEntityDTO entity) throws CommunicationException,
-                InterruptedException {
+        public void append(@Nonnull TopologyEntityDTO entity)
+            throws CommunicationException, InterruptedException, OversizedElementException {
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {
@@ -469,7 +470,7 @@ public class TopologyProcessorNotificationSender
          */
         @Override
         public void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
-            throws CommunicationException, InterruptedException {
+            throws CommunicationException, InterruptedException, OversizedElementException {
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {

@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -106,7 +107,7 @@ public abstract class HistoryPerformanceTest {
 
     protected abstract void broadcastSourceTopology(TopologyInfo topologyInfo,
                                                     Collection<TopologyEntityDTO> topoDTOs)
-                        throws CommunicationException, InterruptedException;
+        throws CommunicationException, InterruptedException, OversizedElementException;
 
     public static final long DEFAULT_STATS_TIMEOUT_MINUTES = 10;
 

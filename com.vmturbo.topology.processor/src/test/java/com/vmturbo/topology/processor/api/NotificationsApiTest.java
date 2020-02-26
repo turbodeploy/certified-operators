@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -17,6 +16,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -25,8 +26,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
@@ -39,6 +38,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.LoggingUncaughtExceptionHandler;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -535,7 +535,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
     private void sendEntities(final long topologyContextId, final long topologyId,
             @Nonnull final Collection<TopologyEntityDTO> entities)
-            throws CommunicationException, InterruptedException {
+        throws CommunicationException, InterruptedException, OversizedElementException {
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN)
                 .setTopologyId(topologyId)

@@ -2,7 +2,6 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -21,10 +20,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.chunking.OversizedElementException;
+import com.vmturbo.components.api.chunking.ProtobufChunkIterator;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 
@@ -32,8 +33,7 @@ import com.vmturbo.components.api.server.IMessageSender;
  * Handles the websocket connections with clients using the
  * {@link com.vmturbo.market.component.api.MarketComponent} API.
  */
-public class MarketNotificationSender extends
-        ComponentNotificationSender<ActionPlan> {
+public class MarketNotificationSender extends ComponentNotificationSender<ActionPlan> {
 
     private final IMessageSender<AnalysisSummary> analysisSummarySender;
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
@@ -89,23 +89,45 @@ public class MarketNotificationSender extends
                         .build())
                 .setTopologyId(sourceTopologyInfo.getTopologyId())
                 .build());
-        final Iterable<Collection<TopologyEntityDTO>> chunks = MessageChunker.chunk(topologyDTOs);
+
+        final ProtobufChunkIterator<TopologyEntityDTO> iterator = ProtobufChunkIterator.partition(topologyDTOs,
+            planAnalysisTopologySender.getRecommendedRequestSizeBytes(),
+            planAnalysisTopologySender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        for (Collection<TopologyEntityDTO> chunk : chunks) {
-            totalCount += chunk.size();
-            Collection<Topology.DataSegment> segments = chunk.stream().map(dto -> {
-                return Topology.DataSegment.newBuilder().setEntity(dto).build();
-            }).collect(Collectors.toList());
-            final Topology topology = Topology.newBuilder()
-                    .setData(Topology.Data.newBuilder().addAllEntities(segments).build())
-                    .setTopologyId(sourceTopologyInfo.getTopologyId())
-                    .build();
-            sendPlanAnalysisTopologySegment(topology);
+
+        while (iterator.hasNext()) {
+            final Collection<TopologyEntityDTO> nextChunk;
+            try {
+                nextChunk = iterator.next();
+            } catch (OversizedElementException e) {
+                // This MAY happen in some very unusual customer topologies. A single entity would have
+                // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
+                // we can.
+                logOversizedElement("plan analysis topology", e, sourceTopologyInfo);
+                continue;
+            }
+            totalCount += nextChunk.size();
+            final Topology.Builder topologyBldr = Topology.newBuilder()
+                .setTopologyId(sourceTopologyInfo.getTopologyId());
+            for (TopologyEntityDTO entity : nextChunk) {
+                topologyBldr.getDataBuilder().addEntities(DataSegment.newBuilder()
+                    .setEntity(entity));
+            }
+            sendPlanAnalysisTopologySegment(topologyBldr.build());
         }
+
         sendPlanAnalysisTopologySegment(Topology.newBuilder()
                 .setTopologyId(sourceTopologyInfo.getTopologyId())
                 .setEnd(Topology.End.newBuilder().setTotalCount(totalCount).build())
                 .build());
+    }
+
+    private void logOversizedElement(@Nonnull final String elementType,
+                                     @Nonnull final OversizedElementException e,
+                                     @Nonnull final TopologyInfo topologyInfo) {
+        getLogger().error("A chunk of the {} failed to be sent because an element is too " +
+            "large (topology {}, context {}). Message: {}", elementType,
+            topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(), e.getMessage());
     }
 
     private void sendPlanAnalysisTopologySegment(@Nonnull final Topology segment)
@@ -135,9 +157,23 @@ public class MarketNotificationSender extends
                         .build())
                 .setTopologyId(projectedTopologyId)
                 .build());
-        final Iterable<Collection<ProjectedTopologyEntity>> chunks = MessageChunker.chunk(projectedTopo);
+
+        final ProtobufChunkIterator<ProjectedTopologyEntity> chunkIterator =
+            ProtobufChunkIterator.partition(projectedTopo,
+                projectedTopologySender.getRecommendedRequestSizeBytes(),
+                projectedTopologySender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        for (Collection<ProjectedTopologyEntity> chunk : chunks) {
+        while (chunkIterator.hasNext()) {
+            Collection<ProjectedTopologyEntity> chunk = null;
+            try {
+                chunk = chunkIterator.next();
+            } catch (OversizedElementException e) {
+                // This MAY happen in some very unusual customer topologies. A single entity would have
+                // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
+                // we can.
+                logOversizedElement("projected topology", e, originalTopologyInfo);
+                continue;
+            }
             totalCount += chunk.size();
             final ProjectedTopology topology = ProjectedTopology.newBuilder()
                     .setData(Data.newBuilder().addAllEntities(chunk).build())
@@ -172,8 +208,20 @@ public class MarketNotificationSender extends
                         .setSourceTopologyInfo(originalTopologyInfo))
                 .setProjectedTopologyId(projectedTopologyId)
                 .build());
+        final ProtobufChunkIterator<EntityCost> chunkIterator =
+            ProtobufChunkIterator.partition(entityCosts,
+                projectedEntityCostsSender.getRecommendedRequestSizeBytes(),
+                projectedEntityCostsSender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        for (Collection<EntityCost> costChunk : MessageChunker.chunk(entityCosts)) {
+        while (chunkIterator.hasNext()) {
+            final Collection<EntityCost> costChunk;
+            try {
+                costChunk = chunkIterator.next();
+            } catch (OversizedElementException e) {
+                // This should never happen because costs are tiny (compared to the max request size)!
+                logOversizedElement("projected entity costs", e, originalTopologyInfo);
+                continue;
+            }
             totalCount += costChunk.size();
             sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
                 .setProjectedTopologyId(projectedTopologyId)
@@ -214,9 +262,21 @@ public class MarketNotificationSender extends
                         .setStart(ProjectedEntityReservedInstanceCoverage.Start.newBuilder()
                                         .setSourceTopologyInfo(originalTopologyInfo))
                         .setProjectedTopologyId(projectedTopologyId).build());
+        final ProtobufChunkIterator<EntityReservedInstanceCoverage> chunkIterator =
+            ProtobufChunkIterator.partition(projectedCoverage,
+                projectedEntityRiCoverageSender.getRecommendedRequestSizeBytes(),
+                projectedEntityRiCoverageSender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        for (Collection<EntityReservedInstanceCoverage> coverageChunk : MessageChunker
-                        .chunk(projectedCoverage)) {
+        while (chunkIterator.hasNext()) {
+            final Collection<EntityReservedInstanceCoverage> coverageChunk;
+            try {
+                coverageChunk = chunkIterator.next();
+            } catch (OversizedElementException e) {
+                // This should never happen because RI coverage messages are tiny
+                // (compared to the max request size)!
+                logOversizedElement("projected entity RI", e, originalTopologyInfo);
+                continue;
+            }
             totalCount += coverageChunk.size();
             sendProjectedEntityRiCoverageSegment(ProjectedEntityReservedInstanceCoverage
                             .newBuilder().setProjectedTopologyId(projectedTopologyId)

@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Channel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -20,7 +22,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -33,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -44,7 +46,6 @@ import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicServiceHealthCheck;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
@@ -136,9 +137,11 @@ public class RepositoryPerformanceTest {
      * @throws ExecutionException If the future execution fails.
      * @throws TimeoutException If the topology cannot be stored before a timeout expires.
      * @throws TimeoutException If communication error occurred
+     * @throws CommunicationException If communication error occurred.
+     * @throws OversizedElementException If an element in the topology is too large.
      */
     private void testStoreTopologyAndGetSupplyChain(final int topologySize)
-        throws CommunicationException, InterruptedException, ExecutionException, TimeoutException {
+        throws CommunicationException, InterruptedException, ExecutionException, TimeoutException, OversizedElementException {
 
         // Register for when the repository finishes storing the topology.
         final CompletableFuture<TopologyAndContext> topologyStoredFuture = new CompletableFuture<>();
@@ -181,9 +184,10 @@ public class RepositoryPerformanceTest {
      * @return The id of the datacenter in the topology sent.
      * @throws InterruptedException If the operation is interrupted.
      * @throws CommunicationException if sending operation failed
+     * @throws OversizedElementException If element in topology is too large.
      */
     private long sendTopology(final int topologySize)
-            throws CommunicationException, InterruptedException {
+        throws CommunicationException, InterruptedException, OversizedElementException {
         final List<TopologyEntityDTO> topoDTOs = TopologyUtils.generateTopology(topologySize);
 
         final TopologyProcessorNotificationSender topologySender = TopologyProcessorKafkaSender

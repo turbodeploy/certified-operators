@@ -35,4 +35,14 @@ public class SenderReceiverPair<T extends AbstractMessage> implements IMessageSe
             consumer.accept(serverMsg, () -> {});
         }
     }
+
+    @Override
+    public int getMaxRequestSizeBytes() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int getRecommendedRequestSizeBytes() {
+        return Integer.MAX_VALUE;
+    }
 }
