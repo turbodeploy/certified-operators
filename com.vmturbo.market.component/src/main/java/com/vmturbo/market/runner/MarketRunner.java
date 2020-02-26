@@ -324,7 +324,7 @@ public class MarketRunner {
         if (status == AnalysisState.FAILED.ordinal()) {
             logger.error("Sending analysis failure notification..");
         } else if (status == AnalysisState.SUCCEEDED.ordinal()) {
-            logger.info("Sending analysis sucsess notification..");
+            logger.info("Sending analysis success notification..");
         }
         serverApi.sendAnalysisStatus(analysis.getTopologyInfo(), status);
     }

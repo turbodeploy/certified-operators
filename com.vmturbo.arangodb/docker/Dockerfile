@@ -1,8 +1,8 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-ENV ARANGO_VERSION 3.3.23-1
-ENV ARANGO_URL https://download.arangodb.com/arangodb33/CentOS_7/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
+ENV ARANGO_VERSION 3.6.1-1.0
+ENV ARANGO_URL https://download.arangodb.com/arangodb36/RPM/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
 ENV OPENSSL_URL http://mirror.centos.org/centos/8/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-3.el8.x86_64.rpm
 
 # The systemd-coredump userid 999 would be the owner of the /var/lib/arangodb3 directory after the ubi8 update
@@ -47,6 +47,10 @@ ADD rsyslog.conf /etc
 
 # retain the database directory, the Foxx Application directory and the arango dump directory
 VOLUME ["/var/lib/arangodb3", "/var/lib/arangodb3-apps", "/home/arangodb/arangodb-dump"]
+
+# Copy scripts to dump/restore data during upgrades
+COPY mmfiles-dump.sh mmfiles-restore.sh /
+RUN chmod +x /mmfiles-dump.sh /mmfiles-restore.sh
 
 COPY docker-entrypoint.sh /entrypoint.sh
 COPY arango_dump_restore.py /
