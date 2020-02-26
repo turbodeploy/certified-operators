@@ -289,7 +289,7 @@ public class CloudDiscoveryConverter {
         String regionName = getRegionNameFromAzId(azId.get());
         entityDTO.getStorageData().getFileList().forEach(file ->
             conversionContext.getVolumeIdFromStorageFilePath(regionName, file.getPath())
-                .ifPresent(volumeId ->
+                .ifPresent(volumeId -> {
                     newEntityBuildersById.computeIfAbsent(volumeId, k -> {
                         EntityDTO.Builder volume = EntityDTO.newBuilder()
                             .setEntityType(EntityType.VIRTUAL_VOLUME)
@@ -322,7 +322,15 @@ public class CloudDiscoveryConverter {
                         }
                         volume.setVirtualVolumeData(vvData.build());
                         return volume;
-                    })));
+                    });
+                    newEntityBuildersById.computeIfPresent(volumeId, (id, vol) -> {
+                        for (final EntityProperty volumeProperty : file.getVolumePropertiesList()) {
+                            vol.addEntityProperties(volumeProperty);
+                        }
+                        return vol;
+                    });
+                })
+        );
     }
 
     /**
