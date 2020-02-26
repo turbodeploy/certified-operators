@@ -235,6 +235,7 @@
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.history</module>
                 <module>../com.vmturbo.history.schema</module>
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -863,6 +864,9 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -924,6 +928,9 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -1094,6 +1101,9 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
         <profile>
@@ -1918,6 +1928,12 @@
                 <artifactId>system-notification-receiver</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.testbases</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
 
             <dependency>
                 <groupId>com.vmturbo</groupId>
@@ -2726,6 +2742,11 @@
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
                 <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jgit</groupId>
+                <artifactId>org.eclipse.jgit</artifactId>
+                <version>5.6.0.201912101111-r</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

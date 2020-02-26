@@ -1,0 +1,14 @@
+v1:
+  violationType: CHANGE
+v2:
+  violationType: INSERT
+v3:
+  violationType: DELETE
+v4:
+  violationType: CHANGE
+  signatures:
+    - foo
+    - bar
+
+
+
