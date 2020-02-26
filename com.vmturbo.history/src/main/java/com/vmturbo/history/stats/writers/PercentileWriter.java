@@ -5,6 +5,7 @@
 package com.vmturbo.history.stats.writers;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.sql.Connection;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 
@@ -25,12 +27,14 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
+import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -90,23 +94,10 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
             content.writeTo(incomingData);
             final long current = this.processedChunks.getAndIncrement();
             logger.trace("Chunk#{} of percentile data '{}' for '{}' timestamp and '{}' period has been processed.",
-                            () -> current, content::size,
-                            percentileChunk::getStartTimestamp, percentileChunk::getPeriod);
-        } catch (IOException | SQLException ex) {
-            handleException(ex, () -> String.format(
-                            "Cannot execute update of percentile values for '%s' start timestamp",
-                            startTimestamp.get()));
-            try {
-                connection.rollback();
-            } catch (SQLException e) {
-                logger.warn(() -> String
-                                .format("rollback transaction which is updating '%s' table for '%s' start timestamp",
-                                                PERCENTILE_BLOBS_TABLE, startTimestamp.get()), e);
-            }
-        } catch (VmtDbException ex) {
-            handleException(ex, () -> String.format(
-                            "Cannot get connection to SQL database to do update percentile  for '%s' timestamp",
-                            startTimestamp.get()));
+                            () -> current, content::size, percentileChunk::getStartTimestamp,
+                            percentileChunk::getPeriod);
+        } catch (IOException | SQLException | VmtDbException ex) {
+            closeResources(new CloseResourceHandler(ex));
         }
     }
 
@@ -121,8 +112,8 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
         context = historydbIO.JooqBuilder();
         try (PreparedStatement deleteExistingRecord = this.connection.prepareStatement(
                         context.deleteFrom(PERCENTILE_BLOBS_TABLE)
-                                        .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP.eq(startTimestampMs))
-                                        .getSQL())) {
+                                        .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP
+                                                        .eq(startTimestampMs)).getSQL())) {
             deleteExistingRecord.setLong(1, startTimestampMs);
             deleteExistingRecord.execute();
         }
@@ -131,32 +122,89 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
                                         .columns(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP,
                                                         PERCENTILE_BLOBS_TABLE.AGGREGATION_WINDOW_LENGTH,
                                                         PERCENTILE_BLOBS_TABLE.DATA)
-                                        .values(startTimestampMs, percentileChunk.getPeriod(), data).getSQL());
+                                        .values(startTimestampMs, percentileChunk.getPeriod(), data)
+                                        .getSQL());
         insertNewValues.setLong(1, startTimestampMs);
         insertNewValues.setLong(2, percentileChunk.getPeriod());
         insertNewValues.setBinaryStream(3, dataToWrite);
         dataWritingPromise = statsWriterExecutorService.submit(() -> {
-            insertNewValues.execute();
-            connection.commit();
+            try {
+                insertNewValues.execute();
+                connection.commit();
+            } catch (SQLException e) {
+                doSilentlyIfInitialized(dataToWrite, InputStream::close);
+                throw e;
+            }
             return null;
         });
     }
 
-    private void handleException(Throwable ex, Supplier<String> message) {
-        logger.error(message.get(), ex);
-        responseObserver.onError(Status.INTERNAL.withDescription(ex.getMessage()).asException());
-    }
-
     @Override
     public void onError(Throwable throwable) {
-        closeResources(() -> handleException(throwable, () -> String.format(
-                        "Cannot write percentile data for '%s' timestamp in '%s'",
-                        startTimestamp.get(), dataMetricTimer.getTimeElapsedSecs())));
+        closeResources(new CloseResourceHandler(throwable));
     }
 
     @Override
     public void onCompleted() {
-        closeResources(() -> {
+        closeResources(new CloseResourceHandler(null));
+    }
+
+    private void closeResources(Runnable runnable) {
+        IOUtils.closeQuietly(incomingData);
+        try {
+            runnable.run();
+        } finally {
+            dataMetricTimer.close();
+            doSilentlyIfInitialized(insertNewValues, PreparedStatement::close);
+            doSilentlyIfInitialized(context, DSLContext::close);
+            doSilentlyIfInitialized(connection, Connection::close);
+        }
+        IOUtils.closeQuietly(dataToWrite);
+    }
+
+    private <T, E extends Exception> void doSilentlyIfInitialized(T item,
+                    ThrowingConsumer<T, E> method) {
+        doSilentlyIfInitialized(item, method, "close");
+    }
+
+    private <T, E extends Exception> void doSilentlyIfInitialized(T item,
+                    ThrowingConsumer<T, E> method, String methodName) {
+        if (item == null) {
+            return;
+        }
+        try {
+            method.accept(item);
+        } catch (Exception ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                logger.debug("Silent '{}' call for '{}' resource has been interrupted", methodName,
+                                item.getClass().getSimpleName(), ex);
+                return;
+            }
+            logger.debug("Cannot do '{}' silently for '{}'", methodName,
+                            item.getClass().getSimpleName(), ex);
+        }
+    }
+
+    /**
+     * Closes resources occupied by percentile writer.
+     */
+    private class CloseResourceHandler implements Runnable {
+        private final Throwable failure;
+
+        private CloseResourceHandler(@Nullable Throwable failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public void run() {
+            final Supplier<String> errorMsgSupplier = () -> String.format(
+                            "Attempt to update percentile data for '%s' failed in '%s' seconds, because:",
+                            startTimestamp.get(), dataMetricTimer.getTimeElapsedSecs());
+            if (dataWritingPromise == null) {
+                handleException(failure, errorMsgSupplier);
+                return;
+            }
             try {
                 dataWritingPromise.get();
                 responseObserver.onNext(SetPercentileCountsResponse.newBuilder().build());
@@ -166,49 +214,29 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
                 responseObserver.onCompleted();
             } catch (InterruptedException ex) {
                 handleException(ex, () -> String.format(
-                                "Attempt to update percentile data for '%s' was interrupted",
-                                startTimestamp.get()));
+                                "Attempt to update percentile data for '%s' was interrupted in '%s' seconds",
+                                startTimestamp.get(), dataMetricTimer.getTimeElapsedSecs()));
             } catch (ExecutionException ex) {
-                handleException(ex.getCause(), () -> String.format(
-                                "Attempt to update percentile data for '%s' failed",
-                                startTimestamp.get()));
-            }
-        });
-    }
-
-    private void closeResources(Runnable runnable) {
-        IOUtils.closeQuietly(incomingData);
-        if (connection != null) {
-            try {
-                runnable.run();
-            } finally {
-                dataMetricTimer.close();
-                closeSilentlyIfInitialized(insertNewValues, PreparedStatement::close);
-                closeSilentlyIfInitialized(context, DSLContext::close);
-                closeSilentlyIfInitialized(connection, Connection::close);
+                handleException(combineFailureReasons(ex.getCause()), errorMsgSupplier);
             }
         }
-        IOUtils.closeQuietly(dataToWrite);
-    }
 
-    private <T> void closeSilentlyIfInitialized(T item, SqlConsumer<T> method) {
-        if (item != null) {
-            try {
-                method.accept(item);
-            } catch (SQLException ex) {
-                logger.debug("Cannot close {}", item.getClass().getSimpleName(), ex);
+        private void handleException(Throwable ex, Supplier<String> message) {
+            doSilentlyIfInitialized(connection, Connection::rollback, "rollback");
+            logger.error(message.get(), ex);
+            responseObserver.onError(Status.INTERNAL.withCause(ex).asException());
+        }
+
+        @Nonnull
+        private Throwable combineFailureReasons(@Nonnull Throwable cause) {
+            if (failure != null && cause.getCause() == null) {
+                final Throwable failureRootCause = ExceptionUtils.getRootCause(failure);
+                final Throwable realFailureCause =
+                                failureRootCause == null ? failure : failureRootCause;
+                realFailureCause.initCause(cause);
+                return realFailureCause;
             }
+            return cause;
         }
     }
-
-    /**
-     * {@link SqlConsumer} consumer that can throw {@link SQLException} instance while calling its
-     * method.
-     *
-     * @param <T> type of the item which method will be called.
-     */
-    private interface SqlConsumer<T> {
-        void accept(T item) throws SQLException;
-    }
-
 }
