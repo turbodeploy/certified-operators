@@ -36,6 +36,9 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -209,7 +212,12 @@ public class DiscountMapper {
      */
     private List<CloudServicePriceAdjustmentApiDTO> toCloudServicePriceAdjustmentApiDTOs(@Nonnull final Discount discount)
             throws Exception {
-        final List<CloudServicePriceAdjustmentApiDTO> cloudServiceDiscountApiDTOs = getCloudServicePriceAdjustmentApiDTOs();
+        final List<CloudServicePriceAdjustmentApiDTO> cloudServiceDiscountApiDTOs;
+        if (discount.hasAssociatedAccountId()) {
+            cloudServiceDiscountApiDTOs = getCloudServicePriceAdjustmentApiDTOsForAccount(discount.getAssociatedAccountId());
+        } else {
+            cloudServiceDiscountApiDTOs = getCloudServicePriceAdjustmentApiDTOs();
+        }
         final DiscountInfo discountInfo = discount.getDiscountInfo();
         if (discountInfo.hasServiceLevelDiscount()) {
             discount.getDiscountInfo().getServiceLevelDiscount().getDiscountPercentageByServiceIdMap().forEach((serviceId, rate) -> {
@@ -253,6 +261,37 @@ public class DiscountMapper {
             .filter(Optional::isPresent)
             .map(Optional::get)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all discovered Cloud services for an account from search service.
+     *
+     * @param accountId oid of account
+     * @return CloudServicePriceAdjustmentApiDTO
+     * @throws InvalidOperationException if search operation failed
+     */
+    private List<CloudServicePriceAdjustmentApiDTO> getCloudServicePriceAdjustmentApiDTOsForAccount(long accountId) {
+
+        SearchParameters params = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(accountId))
+                .addSearchFilter(
+                        SearchFilter.newBuilder().setTraversalFilter(
+                                SearchProtoUtil.traverseToType(
+                                        TraversalFilter.TraversalDirection.AGGREGATED_BY,
+                                        "ServiceProvider")))
+                .addSearchFilter(
+                        SearchFilter.newBuilder().setTraversalFilter(
+                                SearchProtoUtil.traverseToType(
+                                        TraversalFilter.TraversalDirection.OWNS,
+                                        "CloudService")))
+                .build();
+
+        return
+                repositoryApi.newSearchRequest(params)
+                .getEntities()
+                .map(this::buildCloudServicePriceAdjustmentApiDTO)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
     }
 
     /**

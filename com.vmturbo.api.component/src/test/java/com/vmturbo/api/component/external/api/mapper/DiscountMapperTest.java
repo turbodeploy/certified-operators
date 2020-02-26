@@ -89,6 +89,11 @@ public class DiscountMapperTest {
         .setDiscountInfo(discountInfo1)
         .build();
 
+    private final Discount discount2 = Discount.newBuilder()
+            .setId(id)
+            .setDiscountInfo(discountInfo1)
+            .build();
+
     private DiscountMapper discountMapper = new DiscountMapper(repositoryApi);
 
     private static CloudServicePriceAdjustmentApiDTO populateServiceDto() {
@@ -189,5 +194,10 @@ public class DiscountMapperTest {
         assertEquals(1, businessUnitApiDTO.getServicePriceAdjustments().size());
         assertEquals(String.valueOf(1000), businessUnitApiDTO.getServicePriceAdjustments().get(0).getUuid());
         assertEquals(ServicePricingModel.ON_DEMAND, businessUnitApiDTO.getServicePriceAdjustments().get(0).getPricingModel());
+
+        BusinessUnitPriceAdjustmentApiDTO businessUnitApiDTO2 = discountMapper.toDiscountApiDTO(discount2);
+        assertEquals(1, businessUnitApiDTO2.getServicePriceAdjustments().size());
+        assertEquals(String.valueOf(1000), businessUnitApiDTO2.getServicePriceAdjustments().get(0).getUuid());
+        assertEquals(ServicePricingModel.ON_DEMAND, businessUnitApiDTO2.getServicePriceAdjustments().get(0).getPricingModel());
     }
 }
