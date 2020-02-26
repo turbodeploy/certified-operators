@@ -21,4 +21,8 @@ public class DuplicateNameException extends Exception {
                 + " because an object with the same name and type (id: "
                 + existingId + ") already exists.");
     }
+
+    public DuplicateNameException(final String message) {
+        super(message);
+    }
 }
