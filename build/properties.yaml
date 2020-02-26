@@ -341,9 +341,15 @@ defaultProperties:
         clustersSupported: true
     plan-orchestrator:
         dbSchemaName: plan
+        # DEPRECATED in 7.21.1 - replaced with clusterRollupTime, whose value should be a time
+        # formatted as HH:MM[:SS] denoting time each day to compute cluster rollups
+        # -------
         # cron spec for running cluster rollup at 1AM daily = second (0-60) ,minute (0-59), hour(0-23),
         #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
         clusterRollupSchedule: "0 0 1 * * *"
+        # DEPRECATED in 7.21.1 - replaced with planDeletionTime, whose value should be a time
+        # formatted as HH:MM[:SS] denoting time each day to compute cluster rollups
+        # -------
         # Run plan deletion at 2AM everyday
         planDeletionSchedule: "0 0 2 * * *"
         # Config parameter to control the batch size for deleting old plans.
