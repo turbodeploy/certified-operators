@@ -1279,7 +1279,9 @@ public class ResizerTest {
      * <p>As a scaling group, we should see three actions:
      * - Buyer-1, Buyer-2, Buyer-3: 10 -> 14
      *
-     * <p>Buyer-4 should not generate an action, because it is already at 14.
+     * <p>Buyer-4 should not generate an action, because it is already at 14.  Buyer-5 should not
+     * generate an actiom because it is at 13.5, and the delta of 0.5 is less than the capacity
+     * increment of 1.0.
      */
 
     @Test
@@ -1290,6 +1292,8 @@ public class ResizerTest {
             { 10.0, 2.0, 6.5 },  // Old = 10, new = 7
             { 10.0, 9.0, 6.5 },  // Old = 10, new = 14
             { 14.0, 9.0, 14.0 }, // Old 14, new 14, engage, but old == new, so no action
+            // Old 14, new 13.5, but delta is less than capacity increment of 1.0, so no action
+            { 13.5, 9.0, 13.5 },
         };
 
         Economy economy = createConsistentScalingEconomy(config, true);
