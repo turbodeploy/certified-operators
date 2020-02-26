@@ -60,6 +60,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
@@ -160,18 +161,22 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     private final StorageStatsSubQuery storageStatsSubQuery;
 
+    private  final UserSessionContext userSessionContext;
+
     public CloudCostsStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
                                    @Nonnull final CostServiceBlockingStub costServiceRpc,
                                    @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                    @Nonnull final ThinTargetCache thinTargetCache,
                                    @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
-                                   @Nonnull final StorageStatsSubQuery storageStatsSubQuery) {
+                                   @Nonnull final StorageStatsSubQuery storageStatsSubQuery,
+                                   @Nonnull final UserSessionContext userSessionContext) {
         this.repositoryApi = repositoryApi;
         this.costServiceRpc = costServiceRpc;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.thinTargetCache = thinTargetCache;
         this.buyRiScopeHandler = buyRiScopeHandler;
         this.storageStatsSubQuery = storageStatsSubQuery;
+        this.userSessionContext = userSessionContext;
         this.cloudTypeMapper = new CloudTypeMapper();
     }
 
@@ -810,7 +815,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     @VisibleForTesting
     AccountExpenseQueryScope.Builder getAccountScopeBuilder(@Nonnull final StatsQueryContext context) {
         Set<Long> entitiesInScope = new HashSet<>();
-
+        final AccountExpenseQueryScope.Builder scopeBuilder = AccountExpenseQueryScope.newBuilder();
+        if (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) {
+            return scopeBuilder;
+        }
         // If the scoped entity/entities are business accounts - use the as scope
         if (StatsQueryExecutor.scopeHasBusinessAccounts(context.getInputScope())) {
             // a scope can be a specific business account / billing family / group of accounts,
@@ -826,7 +834,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             }
         }
 
-        final AccountExpenseQueryScope.Builder scopeBuilder = AccountExpenseQueryScope.newBuilder();
         if (!entitiesInScope.isEmpty()) {
             scopeBuilder.setSpecificAccounts(IdList.newBuilder()
                     .addAllAccountIds(entitiesInScope));
