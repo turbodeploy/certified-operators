@@ -11,6 +11,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.ChecksumResponse;
@@ -148,16 +149,20 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
             && request.getReservedInstanceBoughtCount() > 0) {
             // if uploaded data has both RI bought and spec, then update them in one transaction.
             logger.debug("Updating {} ReservedInstance bought and spec...", request.getReservedInstanceSpecsCount());
-            dsl.transaction(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                final Map<Long, Long> riSpecIdMap =
-                        reservedInstanceSpecStore.updateReservedInstanceSpec(transactionContext,
-                                request.getReservedInstanceSpecsList());
-                final List<ReservedInstanceBoughtInfo> riBoughtInfoWithNewSpecIds =
-                        updateRIBoughtInfoWithNewSpecIds(request.getReservedInstanceBoughtList(), riSpecIdMap);
-                reservedInstanceBoughtStore.updateReservedInstanceBought(transactionContext,
-                        riBoughtInfoWithNewSpecIds);
-            });
+            try {
+                dsl.transaction(configuration -> {
+                    final DSLContext transactionContext = DSL.using(configuration);
+                    final Map<Long, Long> riSpecIdMap =
+                            reservedInstanceSpecStore.updateReservedInstanceSpec(transactionContext,
+                                    request.getReservedInstanceSpecsList());
+                    final List<ReservedInstanceBoughtInfo> riBoughtInfoWithNewSpecIds =
+                            updateRIBoughtInfoWithNewSpecIds(request.getReservedInstanceBoughtList(), riSpecIdMap);
+                    reservedInstanceBoughtStore.updateReservedInstanceBought(transactionContext,
+                            riBoughtInfoWithNewSpecIds);
+                });
+            } catch (DataAccessException e) {
+                logger.error("Error while updating RISpec or RIBought store", e);
+            }
         } else if (!request.getReservedInstanceBoughtList().isEmpty()
                 || !request.getReservedInstanceSpecsList().isEmpty()) {
             logger.error("There are {} RI bought, but there are {} RI spec!",

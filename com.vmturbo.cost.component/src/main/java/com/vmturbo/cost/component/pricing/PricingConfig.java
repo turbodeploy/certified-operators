@@ -12,6 +12,7 @@ import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 
 @Configuration
@@ -24,6 +25,9 @@ public class PricingConfig {
 
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -68,6 +72,7 @@ public class PricingConfig {
     public PricingRpcService pricingRpcService() {
         return new PricingRpcService(priceTableStore(), reservedInstanceSpecConfig
                 .reservedInstanceSpecStore(),
+                reservedInstanceConfig.reservedInstanceBoughtStore(),
                 businessAccountPriceTableKeyStore());
     }
 

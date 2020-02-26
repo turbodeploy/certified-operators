@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
@@ -45,6 +46,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeysRespo
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
@@ -58,18 +60,21 @@ public class PricingRpcService extends PricingServiceImplBase {
     private final PriceTableStore priceTableStore;
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
     private final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
-
+    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
     /**
      * Constructor.
      * @param priceTableStore price table store.
      * @param riSpecStore reserved instance spec store.
+     * @param reservedInstanceBoughtStore reserved Instance bought store.
      * @param businessAccountPriceTableKeyStore business account to price table key store.
      */
     public PricingRpcService(@Nonnull final PriceTableStore priceTableStore,
                              @Nonnull final ReservedInstanceSpecStore riSpecStore,
+                             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
                              @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(riSpecStore);
+        this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
         this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
     }
 
@@ -162,6 +167,8 @@ public class PricingRpcService extends PricingServiceImplBase {
                 priceDataForProbe.forEach((priceTableKey, probePriceData) -> {
                     ReservedInstancePriceTable riPriceTable =
                             updateRISpecsAndBuildRIPriceTable(probePriceData.riSpecPrices);
+                    reservedInstanceBoughtStore.updateRIBoughtFromRIPriceList(ImmutableMap.copyOf(
+                            riPriceTable.getRiPricesBySpecIdMap()));
                     tablesByProbeType.put(
                             priceTableKey,
                             new PriceTables(probePriceData.priceTable,

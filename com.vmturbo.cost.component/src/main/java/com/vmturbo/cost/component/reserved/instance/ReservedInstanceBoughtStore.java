@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
+import static java.util.stream.Collectors.toList;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
@@ -31,6 +33,8 @@ import org.jooq.Record3;
 import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SelectJoinStep;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -38,12 +42,17 @@ import reactor.core.publisher.FluxSink;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
@@ -59,6 +68,8 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
 
     private static final String RI_FIXED_COST = "ri_fixed_cost";
 
+    private final PriceTableStore priceTableStore;
+
     /**
      * The statusEmitter is used to push updates to the statusFlux subscribers.
      */
@@ -73,10 +84,12 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
 
     public ReservedInstanceBoughtStore(@Nonnull final DSLContext dsl,
                                        @Nonnull final IdentityProvider identityProvider,
-                    @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator) {
+                    @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator,
+                                       @Nonnull final PriceTableStore priceTableStore) {
         super(dsl, identityProvider, reservedInstanceCostCalculator);
         // create a flux that a listener can subscribe to group store update events on.
         updateEventFlux = Flux.create(emitter -> updateEventEmitter = emitter);
+        this.priceTableStore = priceTableStore;
         // start publishing immediately w/o waiting for a consumer to signal demand.
         updateEventFlux.publish().connect();
     }
@@ -97,7 +110,7 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
             @Nonnull final ReservedInstanceBoughtFilter filter) {
         return internalGet(context, filter).stream()
                 .map(this::reservedInstancesToProto)
-                .collect(Collectors.toList());
+                .collect(toList());
     }
 
     /**
@@ -259,15 +272,17 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
             @Nonnull final DSLContext context,
             @Nonnull final List<ReservedInstanceBoughtInfo> newReservedInstances) {
         getLogger().info("Updating reserved instance bought...");
+        final List<ReservedInstanceBoughtInfo> updatedNewReservedInstances =
+                internalCheckRIBoughtAndUpdatePrices(newReservedInstances);
         final List<ReservedInstanceBoughtRecord> existingReservedInstances =
                 internalGet(context, ReservedInstanceBoughtFilter.newBuilder()
                         .build());
         final Map<String, ReservedInstanceBoughtRecord> existingRIsProbeKeyToRecord =
                 existingReservedInstances.stream()
-                        .collect(Collectors.toMap(ri -> ri.getProbeReservedInstanceId(),
+                        .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
                                 Function.identity()));
         final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos =
-                        unsetNumberOfCouponsUsed(newReservedInstances);
+                unsetNumberOfCouponsUsed(updatedNewReservedInstances);
         final Map<String, ReservedInstanceBoughtInfo> newRIsProbeKeysToRI = reservedInstanceBoughtInfos.stream()
                 .collect(Collectors.toMap(ReservedInstanceBoughtInfo::getProbeReservedInstanceId,
                         Function.identity()));
@@ -275,7 +290,7 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                 Sets.difference(newRIsProbeKeysToRI.keySet(),
                         existingRIsProbeKeyToRecord.keySet()).stream()
                         .map(newRIsProbeKeysToRI::get)
-                        .collect(Collectors.toList());
+                        .collect(toList());
         final Map<String, ReservedInstanceBoughtInfo> reservedInstanceUpdates =
                 Sets.intersection(newRIsProbeKeysToRI.keySet(), existingRIsProbeKeyToRecord.keySet()).stream()
                         .collect(Collectors.toMap(
@@ -287,14 +302,14 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                         .collect(Collectors.toSet());
 
         final Map<Long, Integer> riSpecToTermInYearMap =
-            getReservedInstanceCostCalculator().getRiSpecIdToTermInYearMap(newReservedInstances, context);
+            getReservedInstanceCostCalculator().getRiSpecIdToTermInYearMap(updatedNewReservedInstances, context);
 
         final Map<String, Double> probeRIIDToAmortizedCost =
-            getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(newReservedInstances,
+            getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(updatedNewReservedInstances,
                         riSpecToTermInYearMap);
 
         final Map<String, Long> probeRIIDToExpiryDateInMillis = getReservedInstanceCostCalculator()
-            .calculateReservedInstanceExpiryDateMillis(newReservedInstances, riSpecToTermInYearMap);
+                .calculateReservedInstanceExpiryDateMillis(updatedNewReservedInstances, riSpecToTermInYearMap);
 
         internalInsert(context, reservedInstanceToAdd, probeRIIDToAmortizedCost, probeRIIDToExpiryDateInMillis);
         internalUpdate(context, reservedInstanceUpdates, existingRIsProbeKeyToRecord, probeRIIDToAmortizedCost);
@@ -307,13 +322,106 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
         getLogger().info("Finished updating reserved instance bought.");
     }
 
+    /**
+     * Update RIBought iff the recurringPrices and fixedCost both are 0.
+     *
+     * @param reservedInstanceSpecPrices PriceList for RI indexed by OID.
+     */
+    public void updateRIBoughtFromRIPriceList(
+            @Nonnull Map<Long, PricingDTO.ReservedInstancePrice> reservedInstanceSpecPrices) {
+        try {
+            getDsl().transaction(configuration -> {
+                DSLContext context = DSL.using(configuration);
+                final List<ReservedInstanceBoughtRecord> existingReservedInstances =
+                        internalGet(context, ReservedInstanceBoughtFilter.newBuilder()
+                                .build());
+                checkRIBoughtAndUpdatePrices(context, existingReservedInstances, reservedInstanceSpecPrices);
+            });
+        } catch (DataAccessException e) {
+            getLogger().error("Error while trying to update RIBoughtSpec.", e);
+        }
+    }
+
+    private List<ReservedInstanceBoughtInfo> internalCheckRIBoughtAndUpdatePrices(
+            @Nonnull List<ReservedInstanceBoughtInfo> riBoughtInfos) {
+        Map<String, ReservedInstanceBoughtInfo> retVal = riBoughtInfos.stream().collect(
+                Collectors.toMap(ReservedInstanceBoughtInfo::getProbeReservedInstanceId,
+                Function.identity()));
+        List<ReservedInstanceBoughtInfo> noCostReservedInstanceBoughtInfos = getRIInfoWithZeroCosts(riBoughtInfos);
+        if (!noCostReservedInstanceBoughtInfos.isEmpty()) {
+            ReservedInstancePriceTable reservedInstancePriceTable = priceTableStore.getMergedRiPriceTable();
+            Map<Long, ReservedInstancePrice> reservedInstancePriceMap =
+                    ImmutableMap.copyOf(reservedInstancePriceTable.getRiPricesBySpecIdMap());
+            noCostReservedInstanceBoughtInfos.forEach(riBoughtInfo -> {
+                ReservedInstanceBoughtInfo reservedInstanceBoughtInfo = updateRIBoughtInfoFromRIPriceTable(
+                        reservedInstancePriceMap, riBoughtInfo);
+                retVal.put(reservedInstanceBoughtInfo.getProbeReservedInstanceId(), reservedInstanceBoughtInfo);
+            });
+        }
+        return new ArrayList<>(retVal.values());
+    }
+
+    private void checkRIBoughtAndUpdatePrices(
+            @Nonnull final DSLContext context,
+            @Nonnull final List<ReservedInstanceBoughtRecord> existingReservedInstances,
+            @Nonnull Map<Long, PricingDTO.ReservedInstancePrice> reservedInstanceSpecPrices ) {
+            final Map<String, ReservedInstanceBoughtRecord> existingRIsProbeKeyToRecord =
+                existingReservedInstances.stream()
+                        .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
+                                Function.identity()));
+            //create map indexed by probeRIId to ReservedInstanceBoughtInfo.
+            final Map<String, ReservedInstanceBoughtInfo> existingRIBoughtInfo = existingReservedInstances.stream()
+                    .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
+                            existingReservedInstance -> updateRIBoughtInfoFromRIPriceTable(reservedInstanceSpecPrices,
+                                    existingReservedInstance.getReservedInstanceBoughtInfo())));
+            final Map<Long, Integer> riSpecToTermInYearMap =
+                    getReservedInstanceCostCalculator().getRiSpecIdToTermInYearMap(
+                            new ArrayList<>(existingRIBoughtInfo.values()), context);
+            //create map indexed by probeRIId and calculate AmortizedCost.
+            final Map<String, Double> probeRIIDToAmortizedCost =
+                    getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(
+                            new ArrayList<>(existingRIBoughtInfo.values()), riSpecToTermInYearMap);
+            //update DB.
+            internalUpdate(context, existingRIBoughtInfo, existingRIsProbeKeyToRecord, probeRIIDToAmortizedCost);
+    }
+
+    private List<ReservedInstanceBoughtInfo> getRIInfoWithZeroCosts(
+            @Nonnull final List<ReservedInstanceBoughtInfo> existingReservedInstances) {
+        return existingReservedInstances.stream().filter(this::isReservedInstanceBoughtInfoCostZero).collect(toList());
+    }
+
+    private boolean isReservedInstanceBoughtInfoCostZero(final ReservedInstanceBoughtInfo existingReservedInstance) {
+        return (existingReservedInstance.getReservedInstanceBoughtCost().getFixedCost().getAmount() == 0.0 &&
+                existingReservedInstance.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount() == 0.0);
+    }
+
+    private ReservedInstanceBoughtInfo updateRIBoughtInfoFromRIPriceTable(
+            @Nonnull final Map<Long, ReservedInstancePrice> reservedInstanceSpecPrices,
+            @Nonnull final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo) {
+        if (isReservedInstanceBoughtInfoCostZero(reservedInstanceBoughtInfo)) {
+            final PricingDTO.ReservedInstancePrice currentReservedInstancePrice =
+                    reservedInstanceSpecPrices.get(reservedInstanceBoughtInfo.getReservedInstanceSpec());
+            if (currentReservedInstancePrice == null) {
+                getLogger().warn("Was unable to lookup RISpec {} in RIPricetable.",
+                        reservedInstanceBoughtInfo.getReservedInstanceSpec());
+                return reservedInstanceBoughtInfo;
+            }
+            final ReservedInstanceBoughtCost updatedReservedInstancePrice =
+                    reservedInstanceBoughtInfo.getReservedInstanceBoughtCost().toBuilder().setRecurringCostPerHour(
+                            currentReservedInstancePrice.getRecurringPrice().getPriceAmount())
+                            .setFixedCost(currentReservedInstancePrice.getUpfrontPrice().getPriceAmount()).build();
+            return reservedInstanceBoughtInfo.toBuilder().setReservedInstanceBoughtCost(updatedReservedInstancePrice).build();
+        }
+        return reservedInstanceBoughtInfo;
+    }
+
     @Nonnull
     private static List<ReservedInstanceBoughtInfo> unsetNumberOfCouponsUsed(@Nonnull List<ReservedInstanceBoughtInfo> newReservedInstances) {
         return newReservedInstances.stream().map(ReservedInstanceBoughtInfo::toBuilder)
                         .peek(riInfoBuilder -> riInfoBuilder.getReservedInstanceBoughtCouponsBuilder()
                                         .setNumberOfCouponsUsed(0D))
                         .map(ReservedInstanceBoughtInfo.Builder::build)
-                        .collect(Collectors.toList());
+                        .collect(toList());
     }
 
     /**
@@ -344,7 +452,7 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                                 probeRIIDToExpiryDateInMillis.get(ri.getProbeReservedInstanceId())
                     ))
                 .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                .collect(toList());
         context.batchInsert(reservedInstancesRecordToAdd).execute();
     }
 
@@ -367,7 +475,7 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                         entry -> updateReservedInstanceRecord(entry.getValue(),
                                 reservedInstanceRecordMap.get(entry.getKey()),
                                         probeRIIDToAmortizedCost.get(entry.getValue().getProbeReservedInstanceId())))
-                .collect(Collectors.toList());
+                .collect(toList());
         context.batchUpdate(reservedInstanceRecordsUpdates).execute();
     }
 
