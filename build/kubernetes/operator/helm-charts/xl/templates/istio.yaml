@@ -105,6 +105,18 @@ spec:
 {{- if .Values.istioingress.routes }}
 {{ toYaml .Values.istioingress.routes | indent 2 }}
 {{- end }}
+{{- if .Values.istioingress.mtls }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: t8c-destinationrule
+spec:
+  host: "*.{{ .Release.Namespace }}.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -158,14 +170,14 @@ spec:
         - "15020"
 {{- if .Values.istioingress.mtls }}
         - --controlPlaneAuthPolicy
-        - NONE
-        - --discoveryAddress
-        - istio-pilot.istio-system.svc.cluster.local:15010
-{{ else }}
-        - --controlPlaneAuthPolicy
         - MUTUAL_TLS
         - --discoveryAddress
         - istio-pilot.istio-system.svc.cluster.local:15011
+{{ else }}
+        - --controlPlaneAuthPolicy
+        - NONE
+        - --discoveryAddress
+        - istio-pilot.istio-system.svc.cluster.local:15010
 {{- end }}
         env:
         - name: POD_NAME

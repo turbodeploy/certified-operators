@@ -55,6 +55,7 @@ nginxingress:
   enabled: true
 istioingress:
   enabled: false
+  mtls: true
 platform:
   enabled: true
 control:
