@@ -1295,7 +1295,9 @@ public class TopologyConverter {
                         // Use the first AZ or Region we get.
                         ConnectedEntity connectedAzOrRegion = ConnectedEntity.newBuilder()
                             .setConnectedEntityId(azOrRegion.get(0).getOid())
-                            .setConnectedEntityType(azOrRegion.get(0).getEntityType()).build();
+                            .setConnectedEntityType(azOrRegion.get(0).getEntityType())
+                            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                            .build();
                         volume.addConnectedEntityList(connectedAzOrRegion);
                     }
                     copyStaticAttributes(originalVolume, volume);
@@ -1368,7 +1370,7 @@ public class TopologyConverter {
                         ConnectedEntity az = ConnectedEntity.newBuilder()
                                 .setConnectedEntityId(destAZOrRegion.getOid())
                                 .setConnectedEntityType(destAZOrRegion.getEntityType())
-                                .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION).build();
                         connectedEntities.add(az);
                     }
                 }
