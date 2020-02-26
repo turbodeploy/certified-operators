@@ -1,6 +1,6 @@
 package com.vmturbo.stitching.vdi;
 
-import java.util.Collections;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -12,6 +12,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class VDIPMStitchingOperation extends VDIStitchingOperation {
 
     public VDIPMStitchingOperation() {
-        super(EntityType.PHYSICAL_MACHINE, Collections.singleton(CommodityType.CLUSTER));
+        super(EntityType.PHYSICAL_MACHINE,
+                ImmutableSet.of(CommodityType.CLUSTER, CommodityType.VMPM_ACCESS));
     }
 }
