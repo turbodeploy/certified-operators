@@ -64,8 +64,8 @@ public class StatSnapshotCreatorTest {
     private static final Timestamp SNAPSHOT_TIME = new Timestamp(123L);
     private static final String C_1 = "c1";
     private static final String C_2 = "c2";
-    private static final String C_1_SUBTYPE = "c1-subtype";
-    private static final String C_2_SUBTYPE = "c2-subtype";
+    private static final String C_1_SUBTYPE = PropertySubType.Utilization.getApiParameterName();
+    private static final String C_2_SUBTYPE = PropertySubType.Utilization.getApiParameterName();
     private static final String KEY_1 = "key1";
     private static final String KEY_2 = "key2";
     private static final String USED = PropertySubType.Used.getApiParameterName();
@@ -445,6 +445,7 @@ public class StatSnapshotCreatorTest {
         final VmStatsLatestRecord vmStatsLatestRecord = new VmStatsLatestRecord();
         vmStatsLatestRecord.setSnapshotTime(SNAPSHOT_TIME);
         vmStatsLatestRecord.setPropertyType(UICommodityType.VMEM.displayName());
+        vmStatsLatestRecord.setPropertySubtype(PropertySubType.Used.getApiParameterName());
         vmStatsLatestRecord.setCapacity(Double.valueOf(CAPACITY));
         multimap.put(TEST_RECORD_KEY, vmStatsLatestRecord);
         final SharedPropertyPopulator<Long> sharedPropertyPopulator =

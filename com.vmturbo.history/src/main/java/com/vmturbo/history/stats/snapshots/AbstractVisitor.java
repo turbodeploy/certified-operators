@@ -11,7 +11,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+
 import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -26,8 +32,10 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
  */
 @ThreadSafe
 public abstract class AbstractVisitor<R extends Record, S> implements RecordVisitor<R> {
+    private final Logger logger = LogManager.getLogger(getClass());
     private final MutablePair<R, S> recordToState = new MutablePair<>();
     private final Consumer<S> cleaner;
+    private final Multimap<String, R> problematicRecords = HashMultimap.create();
 
     /**
      * Creates {@link AbstractVisitor} instance.
@@ -44,8 +52,26 @@ public abstract class AbstractVisitor<R extends Record, S> implements RecordVisi
         final S state = getState();
         if (state != null) {
             buildInternally(builder, recordToState.getLeft(), recordToState.getRight());
+            problematicRecords.asMap().forEach((reason, records) -> {
+                final boolean debugEnabled = logger.isDebugEnabled();
+                final Level level = debugEnabled ? Level.DEBUG : Level.WARN;
+                logger.log(level, "Records treated as problematic, because '{}':'{}'", () -> reason,
+                                debugEnabled ?
+                                                records::toString :
+                                                () -> String.valueOf(records.size()));
+            });
             clear();
         }
+    }
+
+    /**
+     * Adds record to the collection of potentially problematic records.
+     *
+     * @param reason  reason why we are treating the record as problematic.
+     * @param record record which we are going to treat as problematic.
+     */
+    protected void addProblematicRecord(@Nonnull String reason, @Nonnull R record) {
+        problematicRecords.put(reason, record);
     }
 
     /**
@@ -97,5 +123,6 @@ public abstract class AbstractVisitor<R extends Record, S> implements RecordVisi
             }
         }
         recordToState.setRight(null);
+        problematicRecords.clear();
     }
 }

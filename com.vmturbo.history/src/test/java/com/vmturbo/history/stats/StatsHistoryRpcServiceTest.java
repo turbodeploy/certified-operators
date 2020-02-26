@@ -123,6 +123,7 @@ public class StatsHistoryRpcServiceTest {
     private static final long REALTIME_CONTEXT_ID = 7L;
     private static final String NUM_VMS = PropertySubType.NumVms.getApiParameterName();
     private static final String HEADROOM_VMS = PropertySubType.HeadroomVms.getApiParameterName();
+    private static final String UTILIZATION = PropertySubType.Utilization.getApiParameterName();
     private final long topologyContextId = 8L;
 
     private LiveStatsReader mockLivestatsreader = mock(LiveStatsReader.class);
@@ -411,9 +412,9 @@ public class StatsHistoryRpcServiceTest {
 
         // three rows for 'c1', values 1, 2, 3 respectively
         final List<Record> statsRecordsList = Lists.newArrayList(
-            newStatRecord(SNAPSHOT_TIME, 1f, "c1", "c1-subtype"),
-            newStatRecord(SNAPSHOT_TIME, 2f, "c1", "c1-subtype"),
-            newStatRecord(SNAPSHOT_TIME, 3f, "c1", "c1-subtype"));
+            newStatRecord(SNAPSHOT_TIME, 1f, "c1", UTILIZATION),
+            newStatRecord(SNAPSHOT_TIME, 2f, "c1", UTILIZATION),
+            newStatRecord(SNAPSHOT_TIME, 3f, "c1", UTILIZATION));
 
         when(mockLivestatsreader.getRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build())))
                 .thenReturn(statsRecordsList);
