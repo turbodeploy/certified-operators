@@ -54,7 +54,9 @@ public class MarketMapper {
         scenarioApiDTO.setOwners(Collections.singletonList(userApiDTO));
         retDto.setScenario(scenarioApiDTO);
 
-        retDto.setDisplayName(scenarioApiDTO.getDisplayName());
+        //We want the name to come from the plan
+        //For backwards compatibility we fallback to the scenario name
+        retDto.setDisplayName(instance.hasName() ? instance.getName() : scenarioApiDTO.getDisplayName());
 
         retDto.setSaved(true);
         if (instance.hasStartTime()) {

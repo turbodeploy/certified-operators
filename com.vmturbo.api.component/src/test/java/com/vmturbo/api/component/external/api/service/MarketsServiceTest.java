@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -50,6 +51,7 @@ import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -60,6 +62,7 @@ import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
@@ -98,6 +101,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioMoles.ScenarioServiceMole;
@@ -749,5 +753,53 @@ public class MarketsServiceTest {
             MERGE_GROUP_IDS.forEach(groupId -> Assert.assertTrue(
                     captor.getAllValues().contains(GroupID.newBuilder().setId(groupId).build())));
         });
+    }
+
+    /**
+     * Tests expected behavior when renaming plan.
+     *
+     * @throws Exception thrown if no plan matches marketUuid or user does not have plan access
+     */
+    @Test
+    public void testRenamePlan() throws Exception {
+        //GIVEN
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+        final PlanInstance plan = PlanInstance.newBuilder(planDefault)
+                .setPlanId(REALTIME_PLAN_ID)
+                .build();
+
+        doReturn(Optional.of(plan)).when(mockApi).getPlanInstance();
+
+        final ArgumentCaptor<UpdatePlanRequest> argument = ArgumentCaptor.forClass(UpdatePlanRequest.class);
+        doReturn(planDefault).when(planBackend).updatePlan(argument.capture());
+        final String displayName = "newPlanName";
+
+        //WHEN
+        marketsService.renameMarket(planUuid, displayName);
+
+        //THEN
+        assertEquals(argument.getValue().getName(), displayName);
+        assertEquals(argument.getValue().getPlanId(), REALTIME_PLAN_ID);
+        final ArgumentCaptor<PlanInstance> updatedPlanArgument = ArgumentCaptor.forClass(PlanInstance.class);
+        verify(marketMapper).dtoFromPlanInstance(updatedPlanArgument.capture());
+        assertEquals(updatedPlanArgument.getValue(), planDefault);
+    }
+
+    /**
+     * Test Exception thrown when no plan matches marketUuid.
+     *
+     * @throws Exception thrown if no plan matches marketUuid
+     */
+    @Test (expected = InvalidOperationException.class)
+    public void testRenamePlanInvalidMarketUuid() throws Exception {
+        //GIVEN
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        doReturn(Optional.empty()).when(mockApi).getPlanInstance();
+
+        //WHEN
+        marketsService.renameMarket(planUuid, "");
     }
 }

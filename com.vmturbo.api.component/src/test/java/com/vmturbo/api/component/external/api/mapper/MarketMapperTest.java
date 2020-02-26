@@ -123,6 +123,22 @@ public class MarketMapperTest {
         Assert.assertEquals(SCENARIO_NAME, failedDto.getDisplayName());
     }
 
+    /**
+     * Tests displayName mapped from {@link PlanInstance} name.
+     */
+    @Test
+    public void testDtoFromPlanInstanceGetsNameFromPlanInstance() {
+        //GIVEN
+        String planName = "planName";
+        PlanInstance planInstance = SUCCEEDED_INSTANCE.toBuilder().setName(planName).build();
+
+        //WHEN
+        MarketApiDTO dto = marketMapper.dtoFromPlanInstance(planInstance);
+
+        //THEN
+        Assert.assertEquals(dto.getDisplayName(), planName);
+    }
+
     @Test
     public void testNotificationFromPlanInstanceInProgress() {
         MarketNotification inProgress = MarketMapper.notificationFromPlanInstance(IN_PROGRESS_INSTANCE);

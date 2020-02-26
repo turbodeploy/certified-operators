@@ -117,6 +117,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -819,9 +820,40 @@ public class MarketsService implements IMarketsService {
         return marketMapper.dtoFromPlanInstance(updatedInstance);
     }
 
+    /**
+     * Renames a plan.
+     *
+     * @param marketUuid    interpreted as planUuid
+     * @param displayName   new name for plan
+     * @return
+     * @throws Exception    if no plan matches marketUuid or user does not have plan access
+     */
     @Override
     public MarketApiDTO renameMarket(String marketUuid, String displayName) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+
+        //marketUuid is interpreted as planUuid
+        final ApiId planInstanceId = uuidMapper.fromUuid(marketUuid);
+        final Optional<PlanInstance> planInstanceOptional = planInstanceId.getPlanInstance();
+
+        if (!planInstanceOptional.isPresent()) {
+            throw new InvalidOperationException("Invalid market id: " + marketUuid);
+        }
+
+        final PlanInstance planInstance = planInstanceOptional.get();
+
+        // verify the user can access the plan
+        if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+            throw new UserAccessException("User does not have access to modify this plan.");
+        }
+
+        final UpdatePlanRequest updatePlanRequest = UpdatePlanRequest.newBuilder()
+                .setPlanId(planInstance.getPlanId())
+                .setName(displayName)
+                .build();
+
+        final PlanInstance updatePlanInstance = planRpcService.updatePlan(updatePlanRequest);
+
+        return marketMapper.dtoFromPlanInstance(updatePlanInstance);
     }
 
     @Override

@@ -26,9 +26,9 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessExcep
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -471,5 +472,25 @@ public class PlanRpcService extends PlanServiceImplBase {
                         "to unexpected runtime exception.", e);
             }
         });
+    }
+
+    @Override
+    public void updatePlan(UpdatePlanRequest request, StreamObserver<PlanInstance> responseObserver) {
+        try {
+            PlanInstance planInstance = planDao.updatePlanInstance(request.getPlanId(),
+                    oldInstance -> oldInstance.setName(request.getName()));
+
+            responseObserver.onNext(planInstance);
+            responseObserver.onCompleted();
+        } catch (IntegrityException e) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription("Plan ID (" + request.getPlanId() + ") cannot be run: " +
+                            e.getMessage())
+                    .asException());
+        } catch (NoSuchObjectException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription("Plan ID (" + request.getPlanId() + ") not found.")
+                    .asException());
+        }
     }
 }
