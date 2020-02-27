@@ -64,7 +64,7 @@ public class SecurityConstant {
     /**
      * The role for the ADMINISTRATOR.
      */
-    public static final String ADMINISTRATOR = "administrator";
+    public static final String ADMINISTRATOR = "ADMINISTRATOR";
 
     /**
      * The role for observer.
@@ -85,6 +85,16 @@ public class SecurityConstant {
      * The role for advisor.
      */
     public static final String ADVISOR = "ADVISOR";
+
+    /**
+     * The role for shared_observer.
+     */
+    public static final String SHARED_OBSERVER = "SHARED_OBSERVER";
+
+    /**
+     * The role for shared_advisor.
+     */
+    public static final String SHARED_ADVISOR = "SHARED_ADVISOR";
 
     /**
      * The role for site_admin.

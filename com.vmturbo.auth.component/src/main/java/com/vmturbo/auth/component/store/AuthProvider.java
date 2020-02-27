@@ -840,7 +840,8 @@ public class AuthProvider {
             }
             info.uuid = String.valueOf(IdentityGenerator.next());
             info.unlocked = true;
-            info.roles = roleNames;
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
+            info.roles = roleNames.stream().map(String::toUpperCase).collect(Collectors.toList());
             info.scopeGroups = scopeGroups;
             putKVValue(composeUserInfoKey(provider, userName), GSON.toJson(info));
             logger_.info("AUDIT::SUCCESS: Success adding user: " + userName);
@@ -900,11 +901,13 @@ public class AuthProvider {
         synchronized (storeLock_) {
             users = keyValueStore_.getByPrefix(PREFIX);
         }
+        // ensure role are upper case for any I/O operations, here is retrieving from Consul.
         return users.values().stream()
             .map(jsonData -> {
                 UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
                 return new AuthUserDTO(info.provider, info.userName, null, null,
-                    info.uuid, null, info.roles, info.scopeGroups);
+                    info.uuid, null, info.roles.stream().map(String::toUpperCase)
+                        .collect(Collectors.toList()), info.scopeGroups);
             })
             .filter(authUserDTO -> mayAlterUserWithRoles(authUserDTO.getRoles()))
             .collect(Collectors.toList());
@@ -1103,7 +1106,8 @@ public class AuthProvider {
         }
 
         try {
-            info.roles = roleNames;
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
+            info.roles = roleNames.stream().map(String::toUpperCase).collect(Collectors.toList());
             info.scopeGroups = scopeGroups;
             // Update KV store.
             putKVValue(composeUserInfoKey(provider, userName), GSON.toJson(info));
@@ -1415,9 +1419,10 @@ public class AuthProvider {
         String adGroupName = adGroupInputDto.getDisplayName();
         try {
             ssoUtil.putSecurityGroup(adGroupName, adGroupInputDto);
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
                 adGroupInputDto.getType(),
-                adGroupInputDto.getRoleName(),
+                adGroupInputDto.getRoleName().toUpperCase(),
                 adGroupInputDto.getScopeGroups());
             putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
             return g;
@@ -1443,9 +1448,10 @@ public class AuthProvider {
 
         try {
             // recreate this object with type, role name and scope groups from the input param
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
                 adGroupInputDto.getType(),
-                adGroupInputDto.getRoleName(),
+                adGroupInputDto.getRoleName().toUpperCase(),
                 adGroupInputDto.getScopeGroups());
             putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
             return g;
@@ -1542,7 +1548,7 @@ public class AuthProvider {
         if (authentication == null) {
             return false;
         }
-        return (hasRoleAdministrator(authentication) || !roleNames.contains("ADMINISTRATOR"));
+        return (hasRoleAdministrator(authentication) || !roleMatched(roleNames, ADMINISTRATOR));
     }
 
     /**
@@ -1609,12 +1615,15 @@ public class AuthProvider {
     /**
      * Test if there is only one local admin user.
      *
-     * @param users the list of user
+     * @param userInfo the requested user information.
+     * @param users the list of user.
      * @return true if there is only one local user has ADMINISTRATOR role.
      */
-    private boolean isLastLocalAdminUser(@Nonnull final UserInfo userInfo,
+    boolean isLastLocalAdminUser(@Nonnull final UserInfo userInfo,
                                          @Nonnull final Map<String, String> users) {
-        if (userInfo.roles.contains(UserRole.ADMINISTRATOR.name()) // the user the admin user
+
+        if (roleMatched(userInfo.roles, UserRole.ADMINISTRATOR.name())
+                // the user the admin user
                 && userInfo.provider.equals(PROVIDER.LOCAL)) { // the provider is local
             List<UserInfo> userInfoList = new ArrayList<>();
             for (String jsonData : users.values()) {
@@ -1623,10 +1632,22 @@ public class AuthProvider {
             }
             long administratorCount = userInfoList.stream()
                     .filter(user -> user.provider.equals(PROVIDER.LOCAL)
-                            && user.roles.contains(UserRole.ADMINISTRATOR.name()))
+                            && roleMatched(user.roles, UserRole.ADMINISTRATOR.name()))
                     .count();
             return administratorCount == 1;
         }
         return false;
+    }
+
+    /**
+     * Match user roles and intended role case insensitively.
+     *
+     * @param roles            the list of roles user have
+     * @param intendedRoleName the  role name intended to be matched.
+     * @return true if one of the provided role match role name case insensitively.
+     */
+    private boolean roleMatched(final @Nonnull List<String> roles,
+            final @Nonnull String intendedRoleName) {
+        return roles.stream().anyMatch(role -> role.equalsIgnoreCase(intendedRoleName));
     }
 }

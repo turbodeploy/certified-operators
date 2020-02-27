@@ -1,5 +1,9 @@
 package com.vmturbo.auth.api.authorization.scoping;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_ADVISOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_OBSERVER;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,8 +34,15 @@ import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 public class UserScopeUtils {
     private static Logger logger = LogManager.getLogger();
 
-    public static final Set<String> SHARED_ROLES = ImmutableSet.of("SHARED_OBSERVER", "SHARED_ADVISOR");
-    public static final Set<String> OBSERVER_ROLES = ImmutableSet.of("OBSERVER", "SHARED_OBSERVER");
+    /**
+     * shared roles.
+     */
+    public static final Set<String> SHARED_ROLES = ImmutableSet.of(SHARED_OBSERVER, SHARED_ADVISOR);
+
+    /**
+     * observer roles.
+     */
+    public static final Set<String> OBSERVER_ROLES = ImmutableSet.of(OBSERVER, SHARED_OBSERVER);
 
     // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
     // ScopedUserUtil.java.

@@ -1,5 +1,7 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
 import static com.vmturbo.auth.component.store.AuthProviderRoleTest.getAuthentication;
 import static org.hamcrest.CoreMatchers.is;
@@ -608,7 +610,7 @@ public class KVBackedILocalAuthStoreTest {
         final SecurityGroupDTO g = store.getSecurityGroups().get(0);
         Assert.assertEquals("group1", g.getDisplayName());
         Assert.assertEquals("DedicatedCustomer", g.getType());
-        Assert.assertEquals("administrator", g.getRoleName());
+        Assert.assertEquals(ADMINISTRATOR, g.getRoleName());
     }
 
     @Test(expected = SecurityException.class)
@@ -643,7 +645,7 @@ public class KVBackedILocalAuthStoreTest {
         final SecurityGroupDTO g = store.getSecurityGroups().get(0);
         Assert.assertEquals("group1", g.getDisplayName());
         Assert.assertEquals("SharedCustomer", g.getType());
-        Assert.assertEquals("observer", g.getRoleName());
+        Assert.assertEquals(OBSERVER, g.getRoleName());
         Assert.assertEquals(Sets.newHashSet(11L), Sets.newHashSet(g.getScopeGroups()));
     }
 
