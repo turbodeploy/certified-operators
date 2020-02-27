@@ -46,6 +46,9 @@ public class ReservedCapacityAnalysisTest {
     private static TopologyEntityDTO.Builder PM;
     private static TopologyEntityDTO.Builder[] VMs;
     private static TopologyEntityDTO.Builder VM;
+    private static TopologyEntityDTO.Builder[] CONTAINERs;
+    private static TopologyEntityDTO.Builder CONTAINER;
+
     private static CommodityBoughtDTO.Builder MemBought;
     private static CommoditySoldDTO.Builder VMemSold;
     private static ConsistentScalingHelper csh = mock(ConsistentScalingHelper.class);
@@ -78,11 +81,42 @@ public class ReservedCapacityAnalysisTest {
         }
     }
 
+    /*
+     * Scenario data for test Container creation:
+     * { oid, current reservation, used, peak, increment, consistent-scaling }
+     */
+    class ContainerScenario {
+        Long oid;
+        double currentReservation;
+        double used;
+        double peak;
+        float increment;
+        boolean consistentScaling;
+
+        ContainerScenario(Long oid, double currentReservation, double used,
+                   double peak, float increment, boolean consistentScaling) {
+            this.oid = oid;
+            this.currentReservation = currentReservation;
+            this.used = used;
+            this.peak = peak;
+            this.increment = increment;
+            this.consistentScaling = consistentScaling;
+        }
+    }
+
+
     VMScenario[] vmData = {
         new VMScenario(2L, 100, 10, 20, 15, false),
         new VMScenario(3L, 100, 30, 60, 15, true),
-        new VMScenario(4L, 50,  10, 20, 15, true),
-        new VMScenario(5L, 50,  10, 20, 50, true)
+        new VMScenario(4L, 50, 10, 20, 15, true),
+        new VMScenario(5L, 50, 10, 20, 50, true)
+    };
+
+    ContainerScenario[] containerData = {
+        new ContainerScenario(6L, 100, 10, 20, 15, false),
+        new ContainerScenario(7L, 100, 30, 60, 15, true),
+        new ContainerScenario(8L, 50, 10, 20, 15, true),
+        new ContainerScenario(9L, 50, 10, 20, 50, true)
     };
 
     private CommodityBoughtDTO.Builder makeMemBought(double capacity) {
@@ -128,6 +162,33 @@ public class ReservedCapacityAnalysisTest {
         return vms;
     }
 
+    private TopologyEntityDTO.Builder[] createContainers() {
+        TopologyEntityDTO.Builder[] containers = new TopologyEntityDTO.Builder[containerData.length];
+        int i = 0;
+        for (ContainerScenario container : containerData) {
+            TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(container.oid)
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true));
+            if (!container.consistentScaling) {
+                // Our ancient version of mockito doesn't return Optional.empty() for optional
+                // return values, so I need to do it here.
+                when(csh.getScalingGroupId(eq(container.oid))).thenReturn(Optional.empty());
+            } else {
+                when(csh.getScalingGroupId(eq(container.oid))).thenReturn(Optional.of("scaling-group-1"));
+                // Pre-define comms bought/sold for scaling group VMs.  The pre-scaling group
+                // unit tests manually set them up.
+                builder
+                    .addCommoditySoldList(makeVMemSold(container.used, container.peak, container.increment))
+                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(VM_OID)
+                        .addCommodityBought(makeMemBought(container.currentReservation)));
+            }
+            containers[i++] = builder;
+        }
+        return containers;
+    }
+
     @Before
     public void setup() {
         PM = TopologyEntityDTO.newBuilder()
@@ -136,6 +197,8 @@ public class ReservedCapacityAnalysisTest {
             .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true));
         VMs = createVMs();
         VM = VMs[0];
+        CONTAINERs = createContainers();
+        CONTAINER = CONTAINERs[0];
         MemBought = makeMemBought(100);
         VMemSold = makeVMemSold(10, 20, 15);
     }
@@ -220,9 +283,9 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testProviderNotControllable() {
-       VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-           .setProviderId(PM_OID)
-           .addCommodityBought(MemBought));
+        VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(PM_OID)
+            .addCommodityBought(MemBought));
         PM.getAnalysisSettingsBuilder().setControllable(false);
         ReservedCapacityAnalysis rca = makeRCA(VM, PM);
         rca.execute(null);
@@ -417,7 +480,7 @@ public class ReservedCapacityAnalysisTest {
      * is still about capacity.
      */
     @Test
-    public void testReservationEqualToCapacity() {
+    public void testReservationEqualToCapacityVM() {
         VM.addCommoditySoldList(VMemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
@@ -426,5 +489,16 @@ public class ReservedCapacityAnalysisTest {
         rca.execute(null);
 
         assertEquals(0, rca.getActions().size());
+    }
+
+    @Test
+    public void testReservationEqualToCapacityContainer() {
+        CONTAINER.addCommoditySoldList(VMemSold)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(VM_OID)
+                .addCommodityBought(MemBought.setReservedCapacity(200)));
+        ReservedCapacityAnalysis rca = makeRCA(CONTAINER, VM);
+        rca.execute(null);
+        assertEquals(1, rca.getActions().size());
     }
 }
