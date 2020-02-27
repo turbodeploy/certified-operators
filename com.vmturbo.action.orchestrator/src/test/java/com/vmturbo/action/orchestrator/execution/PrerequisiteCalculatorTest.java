@@ -55,6 +55,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 public class PrerequisiteCalculatorTest {
 
     private static final Long VM1 = 1L;
+    private static final String LOCK_MESSAGE = "[Scope: vm1, name: vm-lock-1, notes: VM lock]";
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     private CoreQuotaStore coreQuotaStore = mock(CoreQuotaStore.class);
@@ -108,6 +109,9 @@ public class PrerequisiteCalculatorTest {
                     break;
                 case ARCHITECTURE:
                     builder.setArchitecture(Architecture.BIT_32);
+                    break;
+                case LOCKS:
+                    builder.setLocks(LOCK_MESSAGE);
                     break;
                 case VIRTUALIZATION_TYPE:
                     builder.setVirtualizationType(VirtualizationType.HVM);
@@ -252,6 +256,27 @@ public class PrerequisiteCalculatorTest {
             action, target, snapshot, ProbeCategory.CLOUD_MANAGEMENT),
             is(Collections.singleton(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.VIRTUALIZATION_TYPE).build())));
+    }
+
+    /**
+     * Tests whether prerequisite for (Azure) VM read-only lock is being set/computed correctly.
+     */
+    @Test
+    public void testCalculateGeneralPrerequisitesLocks() {
+        final long destinationId = 1;
+        final Action action = buildMoveAction(2, destinationId);
+        final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.LOCKS);
+        final ActionPartialEntity destination =
+                buildGeneralComputeTierActionPartialEntity(PrerequisiteType.LOCKS);
+
+        doReturn(Optional.of(destination)).when(snapshot).getEntityFromOid(destinationId);
+
+        assertThat(PrerequisiteCalculator.calculateGeneralPrerequisites(
+                action, target, snapshot, ProbeCategory.CLOUD_MANAGEMENT),
+                is(Collections.singleton(Prerequisite.newBuilder()
+                        .setPrerequisiteType(PrerequisiteType.LOCKS)
+                        .setLocks(LOCK_MESSAGE)
+                        .build())));
     }
 
     /**

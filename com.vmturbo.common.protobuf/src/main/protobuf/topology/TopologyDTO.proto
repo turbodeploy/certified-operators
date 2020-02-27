@@ -73,6 +73,9 @@ message TypeSpecificInfo {
         // Virtualization Type of the VM
         optional VirtualizationType virtualizationType = 10;
 
+        // If present, info about any read-only locks that might prevent VM action execution.
+        optional string locks = 11;
+
         message DriverInfo {
             // Does the VM have driver for Elastic Network adapter? It is an AWS specific driver.
             optional bool hasEnaDriver = 1;

@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
@@ -104,7 +106,8 @@ class PrerequisiteCalculator {
         PrerequisiteCalculator::calculateEnaPrerequisite,
         PrerequisiteCalculator::calculateNVMePrerequisite,
         PrerequisiteCalculator::calculateArchitecturePrerequisite,
-        PrerequisiteCalculator::calculateVirtualizationTypePrerequisite
+        PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
+            PrerequisiteCalculator::calculateLockPrerequisite
     );
 
     /**
@@ -220,6 +223,29 @@ class PrerequisiteCalculator {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Checks if a lock prerequisite needs to be added for the VM, based on whether we got info
+     * about any read-only locks for the VM from probe.
+     *
+     * @param virtualMachineInfo VM info which may have optional read-only lock message set.
+     * @param computeTierInfo Not used.
+     * @param settingsForTargetEntity Not used.
+     * @return Prerequisite if there is a valid read-only lock, or empty.
+     */
+    private static Optional<Prerequisite> calculateLockPrerequisite(
+            @Nonnull final VirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ComputeTierInfo computeTierInfo,
+            @Nonnull final Map<String, Setting> settingsForTargetEntity) {
+        if (!virtualMachineInfo.hasLocks() ||
+                StringUtils.isBlank(virtualMachineInfo.getLocks())) {
+            return Optional.empty();
+        }
+        return Optional.of(Prerequisite.newBuilder()
+                .setPrerequisiteType(PrerequisiteType.LOCKS)
+                .setLocks(virtualMachineInfo.getLocks())
+                .build());
     }
 
     /**

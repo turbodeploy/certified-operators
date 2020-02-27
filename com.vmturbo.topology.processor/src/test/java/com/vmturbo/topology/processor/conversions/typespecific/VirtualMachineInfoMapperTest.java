@@ -1,8 +1,16 @@
 package com.vmturbo.topology.processor.conversions.typespecific;
 
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.BIT_64;
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.HVM;
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_ARCHITECTURE;
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_IS_ENA_SUPPORTED;
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_LOCKS;
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_SUPPORTS_NVME;
+import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_VM_VIRTUALIZATION_TYPE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
@@ -22,7 +30,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 
 public class VirtualMachineInfoMapperTest {
@@ -31,6 +38,7 @@ public class VirtualMachineInfoMapperTest {
     private static final String CONNECTED_NETWORK_NAME_2 = "network 2";
     private static final List<String> CONNECTED_ENTITY_NAME_LIST = ImmutableList.of(
         CONNECTED_NETWORK_NAME_1, CONNECTED_NETWORK_NAME_2);
+    private static final String LOCK_MESSAGE = "[Scope: vm1, name: vm-lock-1, notes: VM lock]";
 
     private EntityDTOOrBuilder createEntityDTOBuilder(EntityDTO.LicenseModel licenseModel) {
         return EntityDTO.newBuilder()
@@ -87,25 +95,28 @@ public class VirtualMachineInfoMapperTest {
     }
 
     /**
-     * Test that the pre-requisite data is created correctly in the VirtualMachineInfo.
+     * Test that the prerequisites are created correctly in the VirtualMachineInfo.
      */
     @Test
-    public void testExtractTypeSpecificInfoForPreReqData() {
+    public void testExtractTypeSpecificInfoForPrerequisites() {
         // arrange
         final EntityDTOOrBuilder vmEntityDTO = createEntityDTOBuilder(EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final VirtualMachineInfoMapper testBuilder = new VirtualMachineInfoMapper();
         // act
         TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(vmEntityDTO,
             ImmutableMap.of(
-                "isEnaSupported", "true",
-                "NVMe", "true",
-                "architecture", "64-bit",
-                "virtualizationType", "HVM"));
+                    PROPERTY_IS_ENA_SUPPORTED, Boolean.TRUE.toString(),
+                    PROPERTY_SUPPORTS_NVME, Boolean.TRUE.toString(),
+                    PROPERTY_ARCHITECTURE, BIT_64,
+                    PROPERTY_VM_VIRTUALIZATION_TYPE, HVM,
+                    PROPERTY_LOCKS, LOCK_MESSAGE));
         // assert
-        assertEquals(result.getVirtualMachine().getDriverInfo().getHasEnaDriver(), true);
-        assertEquals(result.getVirtualMachine().getDriverInfo().getHasNvmeDriver(), true);
-        assertEquals(result.getVirtualMachine().getArchitecture(), Architecture.BIT_64);
-        assertEquals(result.getVirtualMachine().getVirtualizationType(), VirtualizationType.HVM);
+        VirtualMachineInfo vmInfo = result.getVirtualMachine();
+        assertTrue(vmInfo.getDriverInfo().getHasEnaDriver());
+        assertTrue(vmInfo.getDriverInfo().getHasNvmeDriver());
+        assertEquals(vmInfo.getArchitecture(), Architecture.BIT_64);
+        assertEquals(vmInfo.getVirtualizationType(), VirtualizationType.HVM);
+        assertEquals(vmInfo.getLocks(), LOCK_MESSAGE);
     }
 
     /**

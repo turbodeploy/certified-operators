@@ -506,6 +506,9 @@ message Action {
 
         // The quota name for which a quota increase is requested, only apply to CORE_QUOTAS
         optional string quota_name = 3;
+
+        // Read-only locks related message preventing (Azure) VM writes.
+        optional string locks = 4;
     }
 
     // The pre-requisite types supported
@@ -523,6 +526,9 @@ message Action {
         VIRTUALIZATION_TYPE = 4;
         // Azure execution pre-requisites
         CORE_QUOTAS = 5;
+
+        // Azure read-only locks preventing writes.
+        LOCKS = 6;
     }
 }
 

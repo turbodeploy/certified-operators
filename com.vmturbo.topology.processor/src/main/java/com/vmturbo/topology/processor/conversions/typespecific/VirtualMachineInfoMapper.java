@@ -115,6 +115,11 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
                     tenancyStr, sdkEntity.getDisplayName());
             }
         }
+        // If there are any (Azure) VM read-only lock prerequisites preventing action execution.
+        final String locks = entityPropertyMap.get(VirtualMachineProtoUtil.PROPERTY_LOCKS);
+        if (StringUtils.isNotBlank(locks)) {
+            vmInfo.setLocks(locks);
+        }
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }
 
