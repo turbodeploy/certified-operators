@@ -95,7 +95,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class TopologyConverterToMarketTest {
 
-    private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
+    private static final TopologyInfo REALTIME_TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.REALTIME)
             .build();
 
@@ -107,7 +107,7 @@ public class TopologyConverterToMarketTest {
     private static final long PROVIDER_ID = 1;
     private static final double DELTA = 0.001d;
 
-    private double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
+    private static final double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
 
     private CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
@@ -118,9 +118,7 @@ public class TopologyConverterToMarketTest {
             new HashMap<>(), new HashMap<>(), new HashMap<>()));
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
-    SettingPolicyServiceBlockingStub settingsPolicyService;
-    ConsistentScalingHelperFactory consistentScalingHelperFactory =
-        new ConsistentScalingHelperFactory(settingsPolicyService);
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory;
     private SettingPolicyServiceMole settingPolicyServiceMole = spy(new SettingPolicyServiceMole());
 
     /**
@@ -152,7 +150,8 @@ public class TopologyConverterToMarketTest {
                         .build();
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         grpcTestServer.start();
-        settingsPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        SettingPolicyServiceBlockingStub settingsPolicyService =
+                SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         consistentScalingHelperFactory = new ConsistentScalingHelperFactory(settingsPolicyService);
     }
 

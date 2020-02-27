@@ -83,6 +83,11 @@ public class LocalCostPricingResolverTest {
 
     private final TopologyEntityInfoExtractor topologyEntityInfoExtractor = mock(TopologyEntityInfoExtractor.class);
 
+    @BeforeClass
+    public static void initIdentityGenerator() {
+        IdentityGenerator.initPrefix(0);
+    }
+
     /**
      * Set up identity generator.
      */
@@ -199,7 +204,8 @@ public class LocalCostPricingResolverTest {
      * @param businessAccountOid The business account oid.
      * @param priceTableKeyOid The price table key oid.
      */
-    public void populatePriceTableKeybyBusinessAccountOidMap(Long businessAccountOid, Long priceTableKeyOid) {
+    private void populatePriceTableKeybyBusinessAccountOidMap(Long businessAccountOid,
+            Long priceTableKeyOid) {
         priceTableKeyOidByBusinessAccountOid.put(businessAccountOid, priceTableKeyOid);
     }
 
@@ -209,7 +215,7 @@ public class LocalCostPricingResolverTest {
      * @param priceTableKeyOid The price table key oid.
      * @param priceTable The price table.
      */
-    public void populatePriceTableByPriceTableKeyOid(Long priceTableKeyOid, PriceTable priceTable) {
+    private void populatePriceTableByPriceTableKeyOid(Long priceTableKeyOid, PriceTable priceTable) {
         priceTableKeyOidByPriceTable.put(priceTableKeyOid, priceTable);
     }
 
@@ -220,8 +226,7 @@ public class LocalCostPricingResolverTest {
      *
      * @return The discount.
      */
-    public Discount createDiscountByAccount(Long baOid) {
-        Discount discount = Discount.newBuilder().setAssociatedAccountId(baOid).build();
-        return discount;
+    private static Discount createDiscountByAccount(Long baOid) {
+        return Discount.newBuilder().setAssociatedAccountId(baOid).build();
     }
 }

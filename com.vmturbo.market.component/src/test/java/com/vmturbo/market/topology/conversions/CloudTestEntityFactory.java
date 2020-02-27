@@ -30,8 +30,6 @@ class CloudTestEntityFactory {
     static final String TIER_NAME = "compute_optimized_medium";
     static final String REGION_NAME = "antarctica";
     static final String REGION_NAME_2 = "oceania";
-    static final String TIER_NAME_2 = "compute_optimized_large";
-
 
     static TopologyEntityDTO mockRegion(long oid, String name) {
         return TopologyEntityDTO.newBuilder()

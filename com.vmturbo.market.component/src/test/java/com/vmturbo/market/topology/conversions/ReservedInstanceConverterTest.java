@@ -28,14 +28,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.vmturbo.commons.analysis.NumericIDAllocator;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -48,6 +47,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
@@ -257,7 +257,7 @@ public class ReservedInstanceConverterTest {
     }
 
     /**
-     * Test that single scope CBTPs have the business account id set in the cost tuple.
+     * Test that single scope CBTPs have the business account id set in the cost DTO.
      */
     @Test
     public void testNonSharedAccountScopesSetInCbtpCostDto() {
@@ -267,8 +267,7 @@ public class ReservedInstanceConverterTest {
                 traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
         final CbtpCostDTO cbtpCostDTO = costDTO.getCbtpResourceBundle();
         Assert.assertEquals(1, cbtpCostDTO.getCostTupleListList().size());
-        final CostTuple costTuple = cbtpCostDTO.getCostTupleListList().iterator().next();
-        Assert.assertEquals(businessAccountOid, costTuple.getBusinessAccountId());
+        Assert.assertEquals(businessAccountOid, cbtpCostDTO.getScopeId());
     }
 
     /**

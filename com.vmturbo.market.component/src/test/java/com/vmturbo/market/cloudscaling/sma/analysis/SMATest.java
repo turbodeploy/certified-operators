@@ -3,8 +3,6 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -17,23 +15,18 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.jsonprocessing.JsonToSMAInputTranslator;
 
-//import org.apache.commons.lang3.tuple.Pair;
-
 /**
  * This is to test many toy scenarios and making sure we are getting expected outputs.
  */
 public class SMATest {
-    private static String dirPath = "src/test/resources/cloudvmscaling/";
-
-
-    private static final Logger logger = LogManager.getLogger();
+    private static final String dirPath = "src/test/resources/cloudvmscaling/";
 
     /**
      *  run sma for a single scenario.
      *
      * @param filename the json file with the info of vms, ris and templates.
      */
-    public void testExactResult(String filename) {
+    private void testExactResult(String filename) {
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
         Pair<SMAInput, SMAOutput> inputOutputPair = jsonToSMAInputTranslator.parseInputWithExpectedOutput(dirPath + filename);
         int index = 0;
@@ -50,7 +43,7 @@ public class SMATest {
      * @param filename the json file with the input
      * @param count expected output.
      */
-    public void testSMACount(String filename, int count) {
+    private void testSMACount(String filename, int count) {
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
         SMAInput smaInput = jsonToSMAInputTranslator.parseInput(dirPath + filename);
         for (SMAInputContext inputContext : smaInput.getContexts()) {
@@ -189,7 +182,7 @@ public class SMATest {
      * @param matches2 second list
      * @return true if the lists are same.
      */
-    public boolean compareSMAMatches(List<SMAMatch> matches1, List<SMAMatch> matches2) {
+    private boolean compareSMAMatches(List<SMAMatch> matches1, List<SMAMatch> matches2) {
         if (matches1.size() != matches2.size()) {
             return false;
         }
@@ -205,7 +198,7 @@ public class SMATest {
                     break;
                 }
             }
-            if (found == false) {
+            if (!found) {
                 return false;
             }
         }

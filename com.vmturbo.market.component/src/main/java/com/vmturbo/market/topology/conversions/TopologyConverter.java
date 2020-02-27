@@ -40,6 +40,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -298,8 +299,8 @@ public class TopologyConverter {
     private float liveMarketMoveCostFactor = MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR;
 
     // Add a cost of moving from source to destination.
-    public static final float PLAN_MOVE_COST_FACTOR = 0.0f;
-    public static final float CLOUD_QUOTE_FACTOR = 1;
+    private static final float PLAN_MOVE_COST_FACTOR = 0.0f;
+    private static final float CLOUD_QUOTE_FACTOR = 1;
 
     private final CommodityConverter commodityConverter;
 
@@ -1967,15 +1968,24 @@ public class TopologyConverter {
         // We create default balance account
         final double defaultBudgetValue = 100000000d;
         final float spent = 0f;
-        final Optional<AccountPricingData<TopologyEntityDTO>> accountPricingData =
-                cloudTc.getAccountPricingIdFromBusinessAccount(businessAccount.getOid());
         // Set the account pricing data oid on the balance account. If it is not found,
         // have the VM shop for its own business account id.
-        final long priceId = accountPricingData.map(AccountPricingData::getAccountPricingDataOid)
-                .orElse(businessAccount.getOid());
-        return BalanceAccountDTO.newBuilder().setBudget(defaultBudgetValue).setSpent(spent)
-                .setPriceId(priceId)
-                .setId(businessAccount.getOid()).build();
+        final Optional<Long> priceId = cloudTc
+                .getAccountPricingIdFromBusinessAccount(businessAccount.getOid())
+                .map(AccountPricingData::getAccountPricingDataOid);
+        final BalanceAccountDTO.Builder balanceAccount = BalanceAccountDTO.newBuilder()
+                .setBudget(defaultBudgetValue)
+                .setSpent(spent)
+                .setPriceId(priceId.orElse(businessAccount.getOid()))
+                .setId(businessAccount.getOid());
+        // Set Billing Family ID if present
+        if (cloudTopology != null) { // can be null in unit tests
+            cloudTopology.getBillingFamilyForEntity(businessAccount.getOid())
+                    .map(GroupAndMembers::group)
+                    .map(Grouping::getId)
+                    .ifPresent(balanceAccount::setParentId);
+        }
+        return balanceAccount.build();
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {

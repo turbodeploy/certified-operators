@@ -129,7 +129,7 @@ public class TopologyEntitiesHandlerTest {
 
     private static final float desiredUtilizationRange = 0.1f;
 
-    private static String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
+    private static final String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
                     "protobuf/messages/simple-cloudTopology.json";
     private static final Gson GSON = new Gson();
 

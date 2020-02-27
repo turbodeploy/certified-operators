@@ -11,17 +11,17 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;

@@ -5,11 +5,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -25,8 +25,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.StorageType;
 
 public class TopologyConversionUtils {
-    public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
-    public static final float MAX_DESIRED_UTILIZATION_VALUE = 1.0f;
+    private static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
+    private static final float MAX_DESIRED_UTILIZATION_VALUE = 1.0f;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -79,7 +79,7 @@ public class TopologyConversionUtils {
      * @param topologyDTO the entity to examine
      * @return whether the entity is a guaranteed buyer
      */
-    static boolean isGuaranteedBuyer(TopologyDTO.TopologyEntityDTO topologyDTO,
+    private static boolean isGuaranteedBuyer(TopologyDTO.TopologyEntityDTO topologyDTO,
                     @Nonnull Map<Long, TopologyEntityDTO> topology) {
         int entityType = topologyDTO.getEntityType();
         return (entityType == EntityType.VIRTUAL_DATACENTER_VALUE)

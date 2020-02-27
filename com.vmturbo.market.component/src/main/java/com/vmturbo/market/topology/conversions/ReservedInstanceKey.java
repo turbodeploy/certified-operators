@@ -123,9 +123,15 @@ public class ReservedInstanceKey {
         }
     }
 
+    @Override
+    public String toString() {
+        return "ReservedInstanceKey{" + "tenancy=" + tenancy + ", os=" + os + ", regionId=" +
+                regionId + ", zoneId=" + zoneId + ", family='" + family + '\'' + ", riBoughtId=" +
+                riBoughtId + ", instanceSizeFlexible=" + instanceSizeFlexible +
+                ", accountScopeId=" + accountScopeId + ", shared=" + shared + '}';
+    }
+
     boolean isInstanceSizeFlexible() {
         return instanceSizeFlexible;
     }
 }
-
-
