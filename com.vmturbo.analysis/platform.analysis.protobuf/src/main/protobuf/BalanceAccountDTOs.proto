@@ -11,4 +11,6 @@ message BalanceAccountDTO {
     optional int64 id = 3;
     // id of the price offering associated with this account
     optional int64 priceId = 4 [default = 0];
+    // ID of trader's parent account (e.g. billing family)
+    optional int64 parentId = 5;
 }

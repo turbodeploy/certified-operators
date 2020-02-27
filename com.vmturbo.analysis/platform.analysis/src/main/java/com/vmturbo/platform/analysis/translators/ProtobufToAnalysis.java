@@ -37,6 +37,7 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -555,22 +556,28 @@ public final class ProtobufToAnalysis {
      * @param input the TraderTO holding the settings
      * @param destination the TraderSettings to be created based on source
      */
-    public static void populateCloudSpent(@NonNull Topology topology,
-                                          @Nonnull TraderTO input,
-                                          @NonNull TraderSettings destination) {
-        @NonNull TraderSettingsTO source = input.getSettings();
+    private static void populateCloudSpent(@Nonnull Topology topology,
+                                           @Nonnull TraderTO input,
+                                           @Nonnull TraderSettings destination) {
+        final TraderSettingsTO source = input.getSettings();
+        final EconomyDTOs.Context sourceContext = source.getCurrentContext();
+        final BalanceAccountDTO balanceAccountDTO = sourceContext.getBalanceAccount();
         BalanceAccount balanceAccount = topology.getEconomy().getBalanceAccountMap()
-                        .get(source.getCurrentContext().getBalanceAccount().getId());
+                        .get(balanceAccountDTO.getId());
         if (balanceAccount == null) {
-            balanceAccount = new BalanceAccount(source.getCurrentContext().getBalanceAccount().getSpent(),
-                                                source.getCurrentContext().getBalanceAccount().getBudget(),
-                                                source.getCurrentContext().getBalanceAccount().getId(),
-                    source.getCurrentContext().getBalanceAccount().getPriceId());
+            final Long parentId = balanceAccountDTO.hasParentId()
+                    ? balanceAccountDTO.getParentId()
+                    : null;
+            balanceAccount = new BalanceAccount(
+                    balanceAccountDTO.getSpent(),
+                    balanceAccountDTO.getBudget(),
+                    balanceAccountDTO.getId(),
+                    balanceAccountDTO.getPriceId(),
+                    parentId);
             topology.getEconomy().getBalanceAccountMap().put(balanceAccount.getId(),
                                                              balanceAccount);
         }
         // In the case where a region id is not present we want to set it to -1
-        final EconomyDTOs.Context sourceContext = source.getCurrentContext();
         final long regionId = sourceContext.hasRegionId() ? sourceContext.getRegionId() : -1L;
         final Context context = new Context(regionId, sourceContext.getZoneId(), balanceAccount,
                 sourceContext.getFamilyBasedCoverageList());

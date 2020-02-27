@@ -1,23 +1,29 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -36,6 +42,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
@@ -474,11 +481,11 @@ public class CostFunctionFactory {
                                                               CostTable costTable,
                                                               final int licenseBaseType) {
         long groupFactor = buyer.getGroupFactor();
-        final com.vmturbo.platform.analysis.economy.Context buyerContext = buyer.getBuyer()
-                .getSettings().getContext();
+        final Context buyerContext = buyer.getBuyer().getSettings().getContext();
         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
         final int licenseTypeKey = buyer.getBasket().get(licenseCommBoughtIndex).getType();
-        final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, costTable, licenseTypeKey);
+        final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, cbtpResourceBundle,
+                costTable, licenseTypeKey);
         if (costTuple == null) {
             if (logger.isTraceEnabled() || seller.isDebugEnabled()
                     || buyer.getBuyer().isDebugEnabled()) {
@@ -616,27 +623,46 @@ public class CostFunctionFactory {
     }
 
     /**
-     * Retrieves a CostTuple from the provided CostTable using priceId, region/zone and license
-     * commodity index from the buyerContext.
+     * Retrieves a CostTuple from the provided CostTable using cbtpScopeIds, region/zone and
+     * license commodity index from the buyerContext.
      *
      * @param buyerContext for which the CostTuple is being retrieved.
+     * @param cbtpCostDTO CBTP cost DTO.
      * @param costTable from which the CostTuple is being retrieved.
-     * @return costTuple from the CostTable.
+     * @return costTuple from the CostTable or {@code null} if not found.
      */
     @Nullable
     private static CostTuple retrieveCbtpCostTuple(
-            com.vmturbo.platform.analysis.economy.Context buyerContext, CostTable costTable, final int licenseTypeKey) {
-        final BalanceAccount balanceAccount = buyerContext.getBalanceAccount();
-        // costTable will be indexed using price id, if the CBTP is scoped to all accounts under a
-        // billing family. Otherwise the costTable will be indexed using the account id.
-        final long priceId = costTable.hasAccountId(balanceAccount.getPriceId()) ?
-                balanceAccount.getPriceId() : balanceAccount.getId();
+            final @Nullable Context buyerContext,
+            final @Nonnull CbtpCostDTO cbtpCostDTO,
+            final @Nonnull CostTable costTable,
+            final int licenseTypeKey) {
+        if (buyerContext == null) {
+            return null;
+        }
 
-        // costTable will be indexed using zone id, if the CBTP is scoped to a zone. Otherwise
-        // the costTable will be indexed using the region id.
-        return Optional.ofNullable(costTable.getTuple(
-                buyerContext.getRegionId(), priceId, licenseTypeKey))
-                .orElse(costTable.getTuple(buyerContext.getZoneId(), priceId, licenseTypeKey));
+        final BalanceAccount balanceAccount = buyerContext.getBalanceAccount();
+        final long regionId = buyerContext.getRegionId();
+        final long zoneId = buyerContext.getZoneId();
+
+        // Match CbtpCostDTO based on billing family ID (if present) or business account ID
+        final Long cbtpScopeId = cbtpCostDTO.getScopeId();
+        if (cbtpScopeId.equals(balanceAccount.getParentId())
+                || cbtpScopeId.equals(balanceAccount.getId())) {
+            // costTable will be indexed using zone id, if the CBTP is scoped to a zone.
+            // Otherwise the costTable will be indexed using the region id.
+            // We use businessAccountId = 0 as this field is not set for CBTP cost tuples.
+            CostTuple costTuple = costTable.getTuple(regionId, 0, licenseTypeKey);
+            if (costTuple != null) {
+                return costTuple;
+            }
+            costTuple = costTable.getTuple(zoneId, 0, licenseTypeKey);
+            if (costTuple != null) {
+                return costTuple;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -850,11 +876,11 @@ public class CostFunctionFactory {
                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
                         double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
                         double singleVmTemplateCost = currentTemplateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
-                        final com.vmturbo.platform.analysis.economy.Context buyerContext
-                            = buyer.getBuyer().getSettings().getContext();
+                        final Context buyerContext = buyer.getBuyer().getSettings().getContext();
                         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
                         final int licenseTypeKey = buyer.getBasket().get(licenseCommBoughtIndex).getType();
-                        final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext, costTable, licenseTypeKey);
+                        final CostTuple costTuple = retrieveCbtpCostTuple(buyerContext,
+                                cbtpResourceBundle, costTable, licenseTypeKey);
                         double couponsCovered = buyer.getTotalAllocatedCoupons(economy, matchingTP);
                         if (couponCommSoldByTp.getCapacity() != 0) {
                             double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
