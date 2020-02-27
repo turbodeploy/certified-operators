@@ -44,8 +44,8 @@ public class QuoteSummerTest {
 
     @Before
     public void setUp() {
-        Basket basketSold = new Basket(new CommoditySpecification(0, 1000));
-        Basket basketBought = new Basket(IntStream.range(0, 10)
+        final Basket basketSold = new Basket(new CommoditySpecification(0, 1000));
+        final Basket basketBought = new Basket(IntStream.range(0, 10)
             .mapToObj(CommoditySpecification::new).toArray(CommoditySpecification[]::new));
 
         economy = new Economy();
@@ -96,13 +96,12 @@ public class QuoteSummerTest {
         QuoteMinimizer minimizer = new QuoteMinimizer(economy, sl, qc, 0);
 
         // Test for provider 1 which has canSimulate true
-        final long clique_ = 5;
-        QuoteSummer quoteSummer1 = new QuoteSummer(economy, clique_, qc);
+        QuoteSummer quoteSummer1 = new QuoteSummer(economy, 5, qc);
         quoteSummer1.simulate(minimizer, entry, provider1);
         assertEquals(1, quoteSummer1.getSimulatedActions().size());
 
         // Test for provider 2 which has canSimulate false
-        QuoteSummer quoteSummer2 = new QuoteSummer(economy, clique_, qc);
+        QuoteSummer quoteSummer2 = new QuoteSummer(economy, 5, qc);
         quoteSummer2.simulate(minimizer, entry, provider2);
         assertEquals(0, quoteSummer2.getSimulatedActions().size());
     }
