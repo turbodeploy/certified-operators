@@ -755,7 +755,9 @@ public enum EntitySettingSpecs {
     AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Response Time (auto scaled range)",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.BUSINESS_APPLICATION),
+            EnumSet.of(EntityType.BUSINESS_APPLICATION, EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE,
+                    EntityType.DATABASE_SERVER),
             new BooleanSettingDataType(true),
             true),
 
@@ -793,6 +795,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.VIRTUAL_APPLICATION, EntityType.BUSINESS_APPLICATION,
+                    EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE,
                     EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.APPLICATION_COMPONENT),
             new BooleanSettingDataType(true),
             true),
