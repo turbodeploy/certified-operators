@@ -192,6 +192,8 @@ public class ConsulService {
 
         /**
          * Get the ID of this particular instance.
+         * The ID is a health-check-specific identifier to uniquely identify this instance.
+         * See: {@link ConsulHealthcheckRegistration}
          *
          * @return The instance ID.
          */

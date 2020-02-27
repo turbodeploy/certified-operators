@@ -1,5 +1,7 @@
 package com.vmturbo.components.common;
 
+import java.time.Clock;
+
 import javax.annotation.PostConstruct;
 
 import com.ecwid.consul.v1.ConsulClient;
@@ -73,7 +75,8 @@ public class ConsulRegistrationConfig {
         final ConsulClient consulClient = new ConsulClient(rawClient);
         return new ConsulHealthcheckRegistration(consulClient, enableConsulRegistration,
             componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs,
-            ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace));
+            ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
+            Clock.systemUTC());
     }
 
     /**
