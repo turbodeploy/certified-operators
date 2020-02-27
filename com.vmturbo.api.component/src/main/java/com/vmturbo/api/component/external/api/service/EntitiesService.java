@@ -73,6 +73,7 @@ import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -752,7 +753,9 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException {
+    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid)
+            throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
+            ConversionException, InterruptedException {
         if (!uuidMapper.fromUuid(uuid).isEntity()) {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));
@@ -767,7 +770,9 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException {
+    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag)
+            throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
+            ConversionException, InterruptedException {
         if (!uuidMapper.fromUuid(uuid).isEntity()) {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));

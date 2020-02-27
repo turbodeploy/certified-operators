@@ -135,7 +135,7 @@ public class PaginatedStatsExecutorTest {
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy, costServiceMole);
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         final StatsHistoryServiceBlockingStub statsHistoryServiceSpy =
                 StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final CostServiceBlockingStub costServiceRpcSpy = CostServiceGrpc.newBlockingStub(testServer.getChannel());

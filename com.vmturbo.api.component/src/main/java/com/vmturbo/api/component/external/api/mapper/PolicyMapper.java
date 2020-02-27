@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -19,6 +21,7 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -60,9 +63,11 @@ public class PolicyMapper {
      * @param groupsByID a map from group oid to the group with that oid.
      *     May only contain only the relevant groups.
      * @return The converted policy
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     public PolicyApiDTO policyToApiDto(final PolicyDTO.Policy policyProto,
-                                       final Map<Long, Grouping> groupsByID) {
+            final Map<Long, Grouping> groupsByID) throws ConversionException, InterruptedException {
         final PolicyApiDTO policyApiDTO = new PolicyApiDTO();
 
         final PolicyInfo policyInfo = policyProto.getPolicyInfo();
@@ -155,9 +160,14 @@ public class PolicyMapper {
                 if (mergeType != null) {
                     policyApiDTO.setMergeType(mergeType);
                 }
-                policyApiDTO.setMergeGroups(merge.getMergeGroupIdsList().stream()
-                        .map(groupId -> getPolicyGroupApiDTO(groupId, policyInfo.getName(), groupsByID))
-                        .collect(Collectors.toList()));
+                final List<BaseApiDTO> policyGroups =
+                        new ArrayList<>(merge.getMergeGroupIdsCount());
+                for (Long groupId: merge.getMergeGroupIdsList()) {
+                    final GroupApiDTO group =
+                            getPolicyGroupApiDTO(groupId, policyInfo.getName(), groupsByID);
+                    policyGroups.add(group);
+                }
+                policyApiDTO.setMergeGroups(policyGroups);
                 break;
             case MUST_RUN_TOGETHER:
                 final PolicyDTO.PolicyInfo.MustRunTogetherPolicy mustRunTogether = policyInfo.getMustRunTogether();
@@ -188,9 +198,12 @@ public class PolicyMapper {
      * @param policyName name of the policy
      * @param groupsByID map of groups by id
      * @return {@link GroupApiDTO}
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     private GroupApiDTO getPolicyGroupApiDTO(long groupId, @Nonnull String policyName,
-            @Nonnull final Map<Long, Grouping> groupsByID) {
+            @Nonnull final Map<Long, Grouping> groupsByID)
+            throws ConversionException, InterruptedException {
         final GroupApiDTO groupApiDTO;
         final Grouping group = groupsByID.get(groupId);
         if (group != null) {

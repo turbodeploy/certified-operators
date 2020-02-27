@@ -252,7 +252,7 @@ message GroupFilter {
     optional common_dto.GroupDTO.GroupType group_type = 2;
 
     // Defines relationship between entity and group.
-    required EntityToGroupType entityToGroupType = 3 [default = MEMBER_OF];
+    optional EntityToGroupType entityToGroupType = 3 [default = MEMBER_OF];
 
     // Used in GroupFilter for searching entities depending on their relationship to the group.
     enum EntityToGroupType {

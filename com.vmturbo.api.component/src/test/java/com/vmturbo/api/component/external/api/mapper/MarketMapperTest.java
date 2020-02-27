@@ -67,7 +67,7 @@ public class MarketMapperTest {
     private MarketMapper marketMapper;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         marketMapper = new MarketMapper(scenarioMapper);
 
         // Since we use the same base scenario for all tests, configure
@@ -83,7 +83,7 @@ public class MarketMapperTest {
     }
 
     @Test
-    public void testDtoFromPlanInstanceInProgress() {
+    public void testDtoFromPlanInstanceInProgress() throws Exception {
         MarketApiDTO inProgressDto = marketMapper.dtoFromPlanInstance(IN_PROGRESS_INSTANCE);
         Assert.assertEquals(true, inProgressDto.getSaved());
         Assert.assertEquals(DateTimeUtil.toString(START_TIME), inProgressDto.getRunDate());
@@ -97,7 +97,7 @@ public class MarketMapperTest {
     }
 
     @Test
-    public void testDtoFromPlanInstanceSucceeded() {
+    public void testDtoFromPlanInstanceSucceeded() throws Exception {
         MarketApiDTO succeededDto = marketMapper.dtoFromPlanInstance(SUCCEEDED_INSTANCE);
         Assert.assertEquals("Market", succeededDto.getClassName());
         Assert.assertEquals(true, succeededDto.getSaved());
@@ -111,7 +111,7 @@ public class MarketMapperTest {
     }
 
     @Test
-    public void testDtoFromPlanInstanceFailed() {
+    public void testDtoFromPlanInstanceFailed() throws Exception {
         MarketApiDTO failedDto = marketMapper.dtoFromPlanInstance(FAILED_INSTANCE);
         Assert.assertEquals(true, failedDto.getSaved());
         Assert.assertEquals(DateTimeUtil.toString(START_TIME), failedDto.getRunDate());
@@ -125,9 +125,11 @@ public class MarketMapperTest {
 
     /**
      * Tests displayName mapped from {@link PlanInstance} name.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testDtoFromPlanInstanceGetsNameFromPlanInstance() {
+    public void testDtoFromPlanInstanceGetsNameFromPlanInstance() throws Exception {
         //GIVEN
         String planName = "planName";
         PlanInstance planInstance = SUCCEEDED_INSTANCE.toBuilder().setName(planName).build();
@@ -140,7 +142,7 @@ public class MarketMapperTest {
     }
 
     @Test
-    public void testNotificationFromPlanInstanceInProgress() {
+    public void testNotificationFromPlanInstanceInProgress() throws Exception {
         MarketNotification inProgress = MarketMapper.notificationFromPlanInstance(IN_PROGRESS_INSTANCE);
         Assert.assertEquals(Long.toString(PLAN_ID), inProgress.getMarketId());
         Assert.assertTrue(inProgress.hasStatusProgressNotification());
@@ -148,7 +150,7 @@ public class MarketMapperTest {
     }
 
     @Test
-    public void testNotificationFromPlanInstanceSucceeded() {
+    public void testNotificationFromPlanInstanceSucceeded() throws Exception {
         MarketNotification success = MarketMapper.notificationFromPlanInstance(SUCCEEDED_INSTANCE);
         Assert.assertEquals(Long.toString(PLAN_ID), success.getMarketId());
         Assert.assertTrue(success.hasStatusNotification());
@@ -156,7 +158,7 @@ public class MarketMapperTest {
     }
 
     @Test
-    public void testNotificationFromPlanInstanceFailed() {
+    public void testNotificationFromPlanInstanceFailed() throws Exception {
         MarketNotification failure = MarketMapper.notificationFromPlanInstance(FAILED_INSTANCE);
         Assert.assertEquals(Long.toString(PLAN_ID), failure.getMarketId());
         Assert.assertTrue(failure.hasStatusNotification());

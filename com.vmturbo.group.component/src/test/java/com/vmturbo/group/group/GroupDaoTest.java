@@ -797,6 +797,27 @@ public class GroupDaoTest {
         Assert.assertTrue(groupStore.getOwnersOfGroups(Collections.singletonList(OID3), null).isEmpty());
     }
 
+    /**
+     * Method tests functionality of existing groups retrieval. It is expected that IDs are
+     * returned only for groups already added to the group store.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testGetExistingGroups() throws Exception {
+        Assert.assertEquals(Collections.emptySet(),
+                groupStore.getExistingGroupIds(Arrays.asList(OID1, OID2, OID3)));
+        final Origin origin = createUserOrigin();
+        final Set<MemberType> expectedMemberTypes =
+                Collections.singleton(MemberType.newBuilder().setEntity(1).build());
+        groupStore.createGroup(OID1, origin, createGroupDefinition(), expectedMemberTypes, true);
+        Assert.assertEquals(Collections.singleton(OID1),
+                groupStore.getExistingGroupIds(Arrays.asList(OID1, OID2)));
+        groupStore.createGroup(OID2, origin, createGroupDefinition(), expectedMemberTypes, true);
+        Assert.assertEquals(Collections.singleton(OID2),
+                groupStore.getExistingGroupIds(Arrays.asList(OID2, OID3)));
+    }
+
     @Nonnull
     private Set<Long> getEntityMembers(@Nonnull GroupDefinition groupDefinition) {
         return groupDefinition.getStaticGroupMembers()

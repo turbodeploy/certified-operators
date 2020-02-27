@@ -12,14 +12,14 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -73,7 +73,7 @@ public class ActionSearchUtilTest {
             ImmutableSet.of(BUSINESS_ACCOUNT_ID_1, BUSINESS_ACCOUNT_ID_2);
 
     @Before
-    public void setup() throws InterruptedException, ExecutionException, UnsupportedActionException {
+    public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         actionOrchestratorRpc = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
@@ -96,7 +96,7 @@ public class ActionSearchUtilTest {
     }
 
     @Test
-    public void testGetActionsByEntity() {
+    public void testGetActionsByEntity() throws Exception {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
@@ -121,7 +121,7 @@ public class ActionSearchUtilTest {
     }
 
     @Test
-    public void testGetActionsByEntityGroup() {
+    public void testGetActionsByEntityGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BILLING_FAMILY_ID);
         when(groupExpander.expandOids(Collections.singleton(BILLING_FAMILY_ID)))
@@ -146,7 +146,7 @@ public class ActionSearchUtilTest {
     }
 
     @Test
-    public void testGetActionsByEntityEmptyGroup() {
+    public void testGetActionsByEntityEmptyGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(RESOURCE_GROUP_ID);
         when(groupExpander.expandOids(Collections.singleton(RESOURCE_GROUP_ID)))
@@ -190,7 +190,7 @@ public class ActionSearchUtilTest {
     }
 
     @Test
-    public void testGetActionsByEntityWithRelatedEntity() throws OperationFailedException {
+    public void testGetActionsByEntityWithRelatedEntity() throws Exception {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);

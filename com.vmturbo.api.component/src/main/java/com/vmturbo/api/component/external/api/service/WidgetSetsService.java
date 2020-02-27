@@ -7,16 +7,17 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.external.api.mapper.WidgetsetMapper;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IWidgetSetsService;
@@ -52,7 +53,7 @@ public class WidgetSetsService implements IWidgetSetsService {
     @Override
     public List<WidgetsetApiDTO> getWidgetsetList(
             @Nullable Set<String> categories,
-            @Nullable String scopeType) {
+            @Nullable String scopeType) throws ConversionException, InterruptedException {
         final GetWidgetsetListRequest.Builder widgetsetListRequest = GetWidgetsetListRequest
                 .newBuilder();
         if (categories != null && categories.size() > 0) {
@@ -62,9 +63,11 @@ public class WidgetSetsService implements IWidgetSetsService {
             widgetsetListRequest.setScopeType(scopeType);
         }
         final List<WidgetsetApiDTO> answer = Lists.newLinkedList();
-        widgetsetsService.getWidgetsetList(widgetsetListRequest.build())
-                .forEachRemaining(widgetsetRecord ->
-                        answer.add(widgetsetMapper.toUiWidgetset(widgetsetRecord)));
+        final Iterator<Widgetset> widdetSetIterator =
+        widgetsetsService.getWidgetsetList(widgetsetListRequest.build());
+        while (widdetSetIterator.hasNext()) {
+            answer.add(widgetsetMapper.toUiWidgetset(widdetSetIterator.next()));
+        }
         return answer;
     }
 
@@ -87,22 +90,18 @@ public class WidgetSetsService implements IWidgetSetsService {
     }
 
     @Override
-    public WidgetsetApiDTO createWidgetset(@Nonnull WidgetsetApiDTO input) {
+    public WidgetsetApiDTO createWidgetset(@Nonnull WidgetsetApiDTO input)
+            throws ConversionException, InterruptedException {
         Widgets.WidgetsetInfo widgetsetInfo = widgetsetMapper.fromUiWidgetsetApiDTO(input);
-        try {
-            Widgets.Widgetset result = widgetsetsService.createWidgetset(CreateWidgetsetRequest.newBuilder()
-                    .setWidgetsetInfo(widgetsetInfo)
-                    .build());
-            return widgetsetMapper.toUiWidgetset(result);
-        } catch(Exception e) {
-            logger.error("create widget exception ", e);
-            throw e;
-        }
+        final Widgets.Widgetset result = widgetsetsService.createWidgetset(
+                CreateWidgetsetRequest.newBuilder().setWidgetsetInfo(widgetsetInfo).build());
+        return widgetsetMapper.toUiWidgetset(result);
     }
 
     @Override
-    public WidgetsetApiDTO updateWidgetset(String uuid, WidgetsetApiDTO input) throws
-            UnknownObjectException, OperationFailedException {
+    public WidgetsetApiDTO updateWidgetset(String uuid, WidgetsetApiDTO input)
+            throws UnknownObjectException, OperationFailedException, ConversionException,
+            InterruptedException {
         Widgets.Widgetset updatedWidgetset = widgetsetMapper.fromUiWidgetset(input);
         try {
             Widgets.Widgetset result = widgetsetsService.updateWidgetset(UpdateWidgetsetRequest.newBuilder()

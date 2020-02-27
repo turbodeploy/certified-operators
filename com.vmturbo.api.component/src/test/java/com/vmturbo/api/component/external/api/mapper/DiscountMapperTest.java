@@ -131,9 +131,11 @@ public class DiscountMapperTest {
 
     /**
      * Test straightforward discount to {@link BusinessUnitApiDTO} conversion.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToBusinessUnitApiDTO() {
+    public void testToBusinessUnitApiDTO() throws Exception {
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
         associatedEntity.setDiscoveredBy(new TargetApiDTO());
         associatedEntity.getDiscoveredBy().setType(AWS);

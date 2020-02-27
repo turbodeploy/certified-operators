@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
-import java.time.Clock;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -34,8 +33,10 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
@@ -72,6 +73,7 @@ import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
@@ -231,10 +233,22 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public EntitySeverityServiceStub entitySeverityServiceStub() {
+        return EntitySeverityServiceGrpc.newStub(aoClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
+     * Repository API bean.
+     *
+     * @return repository API bean
+     */
+    @Bean
     public RepositoryApi repositoryApi() {
         return new RepositoryApi(severityPopulator(),
             repositoryRpcService(),
+            repositoryAsyncService(),
             searchServiceBlockingStub(),
+            searchServiceStub(),
             serviceEntityMapper(),
             businessAccountMapper(),
             realtimeTopologyContextId);
@@ -243,6 +257,16 @@ public class CommunicationConfig {
     @Bean
     public RepositoryServiceBlockingStub repositoryRpcService() {
         return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Repository service asynchronous stub.
+     *
+     * @return Repository service asynchronous stub
+     */
+    @Bean
+    public RepositoryServiceStub repositoryAsyncService() {
+        return RepositoryServiceGrpc.newStub(repositoryClientConfig.repositoryChannel());
     }
 
     @Bean
@@ -336,6 +360,17 @@ public class CommunicationConfig {
                 .withInterceptors(jwtClientInterceptor());
     }
 
+    /**
+     * Search service asynchronous stub.
+     *
+     * @return search service asynchronous stub
+     */
+    @Bean
+    public SearchServiceGrpc.SearchServiceStub searchServiceStub() {
+        return SearchServiceGrpc.newStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
+    }
+
     @Bean
     public SupplyChainServiceBlockingStub supplyChainRpcService() {
         return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
@@ -399,6 +434,16 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public CostServiceStub costServiceStub() {
+        return CostServiceGrpc.newStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Reserved instance utilization coverage blocking stub.
+     *
+     * @return reserved instance utilization coverage blocking stub
+     */
+    @Bean
     public ReservedInstanceUtilizationCoverageServiceBlockingStub
             reservedInstanceUtilizationCoverageServiceBlockingStub() {
         return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(
@@ -447,7 +492,7 @@ public class CommunicationConfig {
 
     @Bean
     public SeverityPopulator severityPopulator() {
-        return new SeverityPopulator(entitySeverityService());
+        return new SeverityPopulator(entitySeverityServiceStub());
     }
 
     /**

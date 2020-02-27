@@ -50,6 +50,17 @@ public interface IGroupStore {
     Collection<Grouping> getGroupsById(@Nonnull Collection<Long> groupId);
 
     /**
+     * Method returns Ids for the groups from {@code groupId} collection filtering only
+     * existing groups. This method should be used as a very lightweight way to check whether
+     * group exists in the DAO.
+     *
+     * @param groupIds group IDs to check for existence
+     * @return a subset of {@code groupIds} where every Id exists in the DAO.
+     */
+    @Nonnull
+    Set<Long> getExistingGroupIds(@Nonnull Collection<Long> groupIds);
+
+    /**
      * Updates group using new definition.
      *
      * @param groupId group id to update

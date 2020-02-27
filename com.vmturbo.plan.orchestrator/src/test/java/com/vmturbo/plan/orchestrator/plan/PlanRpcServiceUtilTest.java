@@ -14,7 +14,6 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -127,10 +126,11 @@ public class PlanRpcServiceUtilTest {
      */
     @Test
     public void testCreateBuyRIRequestForScopeWithGroups() {
-        GetMembersResponse.Builder memberResponseBuilder = GetMembersResponse.newBuilder();
+        final GetMembersResponse.Builder memberResponseBuilder =
+                GetMembersResponse.newBuilder().setGroupId(GROUP_ID);
         PartialEntityBatch.Builder partialEntityBuilder = PartialEntityBatch.newBuilder();
         for (Long oid : REGION_OIDS) {
-            memberResponseBuilder.setMembers(Members.newBuilder().addIds(oid));
+            memberResponseBuilder.addMemberId(oid);
             partialEntityBuilder.addEntities(PartialEntity.newBuilder()
                             .setMinimal(MinimalEntity.newBuilder()
                                             .setOid(oid)
@@ -139,12 +139,12 @@ public class PlanRpcServiceUtilTest {
         }
         final GetMembersResponse membersResponse = memberResponseBuilder.build();
         Mockito.when(testGroupRpcService.getMembers(GetMembersRequest.newBuilder()
-                        .setId(GROUP_ID)
+                        .addId(GROUP_ID)
                         .setExpandNestedGroups(true)
-                        .build())).thenReturn(membersResponse);
+                        .build())).thenReturn(Collections.singletonList(membersResponse));
         final RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest
                         .newBuilder()
-                        .addAllEntityOids(membersResponse.getMembers().getIdsList())
+                        .addAllEntityOids(membersResponse.getMemberIdList())
                         .setReturnType(PartialEntity.Type.MINIMAL)
                         .build();
         Mockito.when(testRepositoryRpcService.retrieveTopologyEntities(getEntitiesrequest))

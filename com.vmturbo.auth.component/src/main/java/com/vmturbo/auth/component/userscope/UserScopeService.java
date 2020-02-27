@@ -295,13 +295,14 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             } else {
                 // this is a group, for example: host cluster. try to get its members
                 GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                        .setId(scopeOid)
+                        .addId(scopeOid)
                         .setEnforceUserScope(false) // disable this for the purposes of calculating scope
                         .setExpandNestedGroups(true)
                         .setExpectPresent(false)
                         .build();
-                GetMembersResponse groupMembersResponse = groupServiceStub.getMembers(getGroupMembersReq);
-                List<Long> members = groupMembersResponse.getMembers().getIdsList();
+                final GetMembersResponse groupMembersResponse =
+                        groupServiceStub.getMembers(getGroupMembersReq).next();
+                final List<Long> members = groupMembersResponse.getMemberIdList();
                 logger.debug("Adding {} members from group {} to user scope", members.size(), scopeOid);
                 scopeGroupEntityOids.addAll(members);
             }

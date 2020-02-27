@@ -23,7 +23,6 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -215,11 +214,10 @@ public class GroupScopeResolverTest {
                 .build();
     }
 
-    private final static GetMembersResponse getGetMembersResponse(int index) {
+    private final static GetMembersResponse getGetMembersResponse(long groupId, int index) {
         return GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder()
-                        .addIds(memberId[index])
-                        .build())
+                .setGroupId(groupId)
+                .addMemberId(memberId[index])
                 .build();
     }
 
@@ -598,23 +596,21 @@ public class GroupScopeResolverTest {
         @Override
         public void getMembers(final GetMembersRequest request, final StreamObserver<GetMembersResponse> responseObserver) {
             // return empty group for groupId[2]
-            if (request.getId() == groupId[2]) {
-                responseObserver.onNext(GetMembersResponse.newBuilder()
-                    .setMembers(Members.newBuilder()
-                        .build())
-                    .build());
-                responseObserver.onCompleted();
-                return;
+            if (request.getIdList().contains(groupId[2])) {
+                responseObserver.onNext(
+                        GetMembersResponse.newBuilder().setGroupId(groupId[2]).build());
             }
 
             // figure out which response to use based on which groupId is in the request
             int index = 0;
             // if the request is for the second group, alternate the membership with each
             // call.  This is how we emulate changing group membership.
-            if (request.getId() == (groupId[1])) {
+            if (request.getIdList().contains(groupId[1])) {
                 index = indexForChangingGroupMembership++ % 2;
+                responseObserver.onNext(getGetMembersResponse(groupId[1], index));
+            } else {
+                responseObserver.onNext(getGetMembersResponse(groupId[0], index));
             }
-            responseObserver.onNext(getGetMembersResponse(index));
             responseObserver.onCompleted();
         }
     }

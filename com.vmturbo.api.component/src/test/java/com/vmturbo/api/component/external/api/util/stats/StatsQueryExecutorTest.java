@@ -71,7 +71,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsEmptyScope() throws OperationFailedException {
+    public void testGetStatsEmptyScope() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
@@ -83,7 +83,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsRequestAll() throws OperationFailedException {
+    public void testGetStatsRequestAll() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         final String scopeDisplayName = "Market";
@@ -116,7 +116,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsRequestMergeQueryStats() throws OperationFailedException {
+    public void testGetStatsRequestMergeQueryStats() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
@@ -151,7 +151,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsRunSubqueries() throws OperationFailedException {
+    public void testGetStatsRunSubqueries() throws Exception {
         final StatApiInputDTO fooInput = statInput("foo");
         final StatApiInputDTO barInput = statInput("bar");
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
@@ -198,7 +198,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsSubqueryForLeftoverStats() throws OperationFailedException {
+    public void testGetStatsSubqueryForLeftoverStats() throws Exception {
         final StatApiInputDTO fooInput = statInput("foo");
         final StatApiInputDTO barInput = statInput("bar");
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
@@ -244,7 +244,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsRequestSameStatNameDifferentRelatedEntity() throws OperationFailedException {
+    public void testGetStatsRequestSameStatNameDifferentRelatedEntity() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
@@ -275,7 +275,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testGetStatsRequestSameStatNameDifferentKey() throws OperationFailedException {
+    public void testGetStatsRequestSameStatNameDifferentKey() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
@@ -306,7 +306,7 @@ public class StatsQueryExecutorTest {
     }
 
     @Test
-    public void testCoolingPowerStatsRequestAll() throws OperationFailedException {
+    public void testCoolingPowerStatsRequestAll() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
@@ -362,10 +362,10 @@ public class StatsQueryExecutorTest {
     /**
      * Test that the {@link StatsQueryExecutor} supports sub-queries returning stats with no epoch.
      *
-     * @throws OperationFailedException when the getAggregateStats operation fails
+     * @throws Exception when the getAggregateStats operation fails
      */
     @Test
-    public void testGetStatsWithNoEpoch() throws OperationFailedException {
+    public void testGetStatsWithNoEpoch() throws Exception {
         // ARRANGE
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));

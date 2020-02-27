@@ -47,6 +47,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -290,7 +291,7 @@ public class SupplyChainFetcherFactory {
                         groupExpander,
                         enforceUserScope,
                         repositoryApi).fetch();
-            } catch (InterruptedException|ExecutionException|TimeoutException e) {
+            } catch (InterruptedException | ExecutionException | TimeoutException | ConversionException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
             }
@@ -407,7 +408,7 @@ public class SupplyChainFetcherFactory {
                     groupExpander, entityAspectMapper, enforceUserScope, costServiceBlockingStub)
                     .fetch();
                 return dto;
-            } catch (ExecutionException | TimeoutException e) {
+            } catch (ExecutionException | TimeoutException | ConversionException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
             }
@@ -654,9 +655,11 @@ public class SupplyChainFetcherFactory {
             this.repositoryApi = repositoryApi;
         }
 
-        public abstract T processSupplyChain(final List<SupplyChainNode> supplyChainNodes);
+        public abstract T processSupplyChain(List<SupplyChainNode> supplyChainNodes)
+                throws InterruptedException, ConversionException;
 
-        public final T fetch() throws InterruptedException, ExecutionException, TimeoutException {
+        public final T fetch() throws InterruptedException, ExecutionException, TimeoutException,
+                ConversionException {
             return processSupplyChain(fetchSupplyChainNodes());
         }
 
@@ -1086,9 +1089,14 @@ public class SupplyChainFetcherFactory {
          * Use the option 'includeHealthSummary' during the result processing
          * to determine what sort of results to return - health information (from the
          * {@link EntitySeverityServiceGrpc}) vs. the individual ServiceEntities.
+         *
+         * @throws InterruptedException if thread has been interrupted
+         * @throws ConversionException if errors faced during converting data to API DTOs
          */
         @Override
-        public SupplychainApiDTO processSupplyChain(@Nonnull final List<SupplyChainNode> supplyChainNodes) {
+        public SupplychainApiDTO processSupplyChain(
+                @Nonnull final List<SupplyChainNode> supplyChainNodes)
+                throws InterruptedException, ConversionException {
             final SupplychainApiDTO resultApiDTO = new SupplychainApiDTO();
             resultApiDTO.setSeMap(new HashMap<>());
 
@@ -1172,22 +1180,24 @@ public class SupplyChainFetcherFactory {
                 boolean groupEnabled = true;
                 // Note: This is a performance optimization to enable processing of TopologyEntityDTO lists-
                 // by doing this, cluster network requests can be batched
-                Map<String, Map<String, Map<AspectName, EntityAspect>>> entityTypeToGroupAspectToUuidMap =
-                    entityTypeToTeList.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey,
-                            d -> entityAspectMapper.getExpandedAspectsByGroupUsingMappers(d.getValue(),
-                                entityTypeToGroupEnabledToMappers.get(d.getKey()).get(groupEnabled)
-                            )));
+                final Map<String, Map<String, Map<AspectName, EntityAspect>>> entityTypeToGroupAspectToUuidMap = new HashMap<>();
+                for (Entry<String, List<TopologyEntityDTO>> entry : entityTypeToTeList.entrySet()) {
+                    entityTypeToGroupAspectToUuidMap.put(entry.getKey(),
+                            entityAspectMapper.getExpandedAspectsByGroupUsingMappers(
+                                    entry.getValue(),
+                                    entityTypeToGroupEnabledToMappers.get(entry.getKey())
+                                            .get(groupEnabled)));
+                }
 
-                entityTypeToGroupEnabledToMappers.entrySet().stream()
-                    .filter(entityTypeToGroupEnabledToMappersEntry -> !entityTypeToGroupEnabledToMappersEntry.getValue().isEmpty())
-                    .forEach(entityTypeToGroupEnabledToMappersEntry -> {
+                for (Entry<String, Map<Boolean, List<IAspectMapper>>> entityTypeToGroupEnabledToMappersEntry : entityTypeToGroupEnabledToMappers
+                        .entrySet()) {
+                    if (!entityTypeToGroupEnabledToMappersEntry.getValue().isEmpty()) {
                         String entityType = entityTypeToGroupEnabledToMappersEntry.getKey();
                         Map<String, Map<AspectName, EntityAspect>> groupAspectToUuidMap = entityTypeToGroupAspectToUuidMap.get(entityType);
                         List<IAspectMapper> groupDisabledMappers = entityTypeToGroupEnabledToMappersEntry.getValue().get(!groupEnabled);
                         Map<Long, Map<AspectName, EntityAspect>> entityAspectMapRemaining = CollectionUtils.isEmpty(groupDisabledMappers)
                             ? Maps.newHashMap()
-                            : entityAspectMapper.getAspectSubsetByEntitiesUsingMappers(
+                            : entityAspectMapper.getAspectsByEntities(
                                 entityTypeToTeList.get(entityType), groupDisabledMappers);
                         // Combine grouped and ungrouped aspect calculations
                         List<ServiceEntityApiDTO> entityTypeSes = entityTypeToSeList.get(entityType);
@@ -1212,7 +1222,8 @@ public class SupplyChainFetcherFactory {
                                 se.setAspectsByName(aspects);
                             });
                         }
-                    });
+                    }
+                }
             }
             return resultApiDTO;
         }

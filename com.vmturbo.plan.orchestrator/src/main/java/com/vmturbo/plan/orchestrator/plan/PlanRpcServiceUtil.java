@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,6 +15,7 @@ import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -114,14 +116,20 @@ public class PlanRpcServiceUtil {
         }
         // Resolve the groups
         if (groupIdsToResolve.size() > 0) {
-            final GetMembersRequest.Builder membersRequest = GetMembersRequest.newBuilder()
-                            .setExpandNestedGroups(true);
-            groupIdsToResolve.forEach(id -> membersRequest.setId(id));
-            final GroupDTO.GetMembersResponse response = groupServiceClient
-                            .getMembers(membersRequest.build());
-            if (response.hasMembers()) {
+            final GetMembersRequest membersRequest = GetMembersRequest.newBuilder()
+                    .setExpandNestedGroups(true)
+                    .addAllId(groupIdsToResolve)
+                    .build();
+
+            final Iterator<GetMembersResponse> response =
+                    groupServiceClient.getMembers(membersRequest);
+            final Set<Long> members = new HashSet<>();
+            while (response.hasNext()) {
+                members.addAll(response.next().getMemberIdList());
+            }
+            if (!members.isEmpty()) {
                 final RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
-                                .addAllEntityOids(response.getMembers().getIdsList())
+                                .addAllEntityOids(members)
                                 .setReturnType(PartialEntity.Type.MINIMAL)
                                 .build();
                 RepositoryDTOUtil

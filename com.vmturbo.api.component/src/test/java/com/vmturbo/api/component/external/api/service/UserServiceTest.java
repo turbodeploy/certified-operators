@@ -206,7 +206,7 @@ public class UserServiceTest {
      * @throws Exception if something wrongs.
      */
     @Test(expected = SecurityException.class)
-    public void testGetActiveDirectoriesWithoutLogon() {
+    public void testGetActiveDirectoriesWithoutLogon() throws Exception {
         logout();
         usersService.getActiveDirectories();
     }

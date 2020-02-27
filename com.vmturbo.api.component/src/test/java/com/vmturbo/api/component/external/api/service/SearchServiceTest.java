@@ -36,8 +36,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,7 +47,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -93,8 +90,6 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.exceptions.InvalidOperationException;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -112,12 +107,12 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
@@ -125,6 +120,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -209,11 +205,9 @@ public class SearchServiceTest {
     private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
-    private ExecutorService threadPool;
 
     @Before
     public void setUp() throws Exception {
-        threadPool = Executors.newCachedThreadPool();
         final long realTimeContextId = 777777;
         final SearchServiceBlockingStub searchGrpcStub =
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -223,8 +217,8 @@ public class SearchServiceTest {
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final CostServiceBlockingStub costServiceBlockingStub =
-                CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final CostServiceStub costServiceStub =
+                CostServiceGrpc.newStub(grpcServer.getChannel());
         final SearchFilterResolver
                 searchFilterResolver = Mockito.mock(SearchFilterResolver.class);
         Mockito.when(searchFilterResolver.resolveExternalFilters(Mockito.any()))
@@ -232,8 +226,8 @@ public class SearchServiceTest {
         when(userSessionContext.isUserScoped()).thenReturn(false);
         groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                businessAccountRetriever, costServiceBlockingStub, realTimeContextId, targetCache,
-                cloudTypeMapper, threadPool);
+                businessAccountRetriever, costServiceStub, realTimeContextId, targetCache,
+                cloudTypeMapper);
 
         searchService = spy(new SearchService(
                 repositoryApi,
@@ -256,14 +250,6 @@ public class SearchServiceTest {
                 entityFilterMapper,
                 entityAspectMapper,
                 searchFilterResolver));
-    }
-
-    /**
-     * Cleans up resources after the test.
-     */
-    @After
-    public void shutdown() {
-        threadPool.shutdownNow();
     }
 
     /**
@@ -1287,10 +1273,10 @@ public class SearchServiceTest {
     /**
      * Expected pagination response X-Total-Record-Count list size returned from getCandidateEntitiesForSearch().
      *
-     * @throws OperationFailedException If any part of the operation failed.
+     * @throws Exception If any part of the operation failed.
      */
     @Test
-    public void testGetServiceEntityPaginatedWithSeverity() throws InvalidOperationException {
+    public void testGetServiceEntityPaginatedWithSeverity() throws Exception {
         //GIVEN
         Set<Long> uuids = ImmutableSet.of(ENTITY_ID_1, ENTITY_ID_2, ENTITY_ID_3, ENTITY_ID_4);
         doReturn(uuids).when(searchService).getCandidateEntitiesForSearch(any(), any(), any(), any());

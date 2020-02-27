@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
@@ -62,7 +61,6 @@ import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -100,7 +98,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
@@ -202,7 +199,7 @@ public class ActionSpecMapperTest {
     private final Set<Long> buyRiOids = ImmutableSet.of(999L);
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
                 RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final List<PolicyResponse> policyResponses = ImmutableList.of(
@@ -1095,9 +1092,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testPlacementPolicyMove()
-                    throws UnsupportedActionException, UnknownObjectException, ExecutionException,
-                    InterruptedException {
+    public void testPlacementPolicyMove() throws Exception {
         final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
                         .setTarget(ApiUtilsTest.createActionEntity(1))
                         .addChanges(ChangeProvider.newBuilder()
@@ -1134,9 +1129,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testPlacementPolicyCompoundMove()
-        throws UnsupportedActionException, UnknownObjectException, ExecutionException,
-        InterruptedException {
+    public void testPlacementPolicyCompoundMove() throws Exception {
         ActionEntity vm = ApiUtilsTest.createActionEntity(1, EntityType.VIRTUAL_MACHINE_VALUE);
         final ActionInfo compoundMoveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
             .setTarget(vm)
@@ -1228,8 +1221,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapReadyRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
-                                                             UnsupportedActionException, ExecutionException {
+    public void testMapReadyRecommendModeExecutable() throws Exception {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
                 .setActionState(ActionDTO.ActionState.READY)
@@ -1241,8 +1233,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapReadyRecommendModeNotExecutable() throws InterruptedException, UnknownObjectException,
-                                                                UnsupportedActionException, ExecutionException {
+    public void testMapReadyRecommendModeNotExecutable() throws Exception {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.RECOMMEND)
@@ -1254,8 +1245,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapReadyNotRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
-                                                                UnsupportedActionException, ExecutionException {
+    public void testMapReadyNotRecommendModeExecutable() throws Exception {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
                 .setActionState(ActionDTO.ActionState.READY)
@@ -1267,8 +1257,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapReadyNotRecommendModeNotExecutable() throws InterruptedException, UnknownObjectException,
-                                                                   UnsupportedActionException, ExecutionException {
+    public void testMapReadyNotRecommendModeNotExecutable() throws Exception {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
@@ -1280,8 +1269,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapNotReadyRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
-        UnsupportedActionException, ExecutionException {
+    public void testMapNotReadyRecommendModeExecutable() throws Exception {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
                 .setActionState(ActionDTO.ActionState.QUEUED)
             .setActionMode(ActionMode.RECOMMEND)

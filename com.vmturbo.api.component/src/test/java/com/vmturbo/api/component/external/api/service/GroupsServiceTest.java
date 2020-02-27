@@ -18,8 +18,10 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -79,7 +81,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
@@ -99,7 +100,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -219,6 +219,7 @@ public class GroupsServiceTest {
         GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy);
 
     private static final long CONTEXT_ID = 7777777;
+    private Map<Long, GroupApiDTO> mappedGroups;
 
     @Before
     public void init() throws Exception {
@@ -271,6 +272,17 @@ public class GroupsServiceTest {
         clusterFilterApiDTO.setFilterType(CLUSTER_FILTER_TYPE);
         clusterFilterApiDTO.setExpVal(CLUSTER_TEST_PATTERN);
         clusterFilterApiDTO.setExpType(EQ_MATCH_TYPE);
+        mappedGroups = new HashMap<>();
+        Mockito.when(groupMapper.toGroupApiDto(Mockito.any(), Mockito.anyBoolean(), Mockito.any(),
+                Mockito.any())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final List<GroupAndMembers> groups = (List<GroupAndMembers>)invocation.getArguments()[0];
+            return groups.stream()
+                    .map(GroupAndMembers::group)
+                    .map(Grouping::getId)
+                    .map(mappedGroups::get)
+                    .collect(Collectors.toList());
+        });
     }
 
     /**
@@ -359,11 +371,10 @@ public class GroupsServiceTest {
             .members(Collections.singleton(1L))
             .entities(Collections.singleton(1L))
             .build();
-        when(groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers),
-                true)).thenReturn(Collections.singletonList(apiGroup));
+        Mockito.when(groupMapper.groupsToGroupApiDto(Collections.singletonList(xlGroup), true))
+                .thenReturn(Collections.singletonMap(1L, apiGroup));
 
-        when(groupExpander.getGroupWithMembers("1"))
-            .thenReturn(Optional.of(groupAndMembers));
+        Mockito.when(groupExpander.getGroup("1")).thenReturn(Optional.of(xlGroup));
 
         final GroupApiDTO retGroup = groupsService.getGroupByUuid("1", false);
         assertEquals(apiGroup.getDisplayName(), retGroup.getDisplayName());
@@ -397,8 +408,8 @@ public class GroupsServiceTest {
         GroupAndMembers clusterAndMembers = groupAndMembers(1L, GroupType.COMPUTE_HOST_CLUSTER, Collections.singleton(7L));
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Collections.singletonList(clusterAndMembers));
-        when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers),
-                true)).thenReturn(Collections.singletonList(clusterApiDto));
+        when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers), true, null,
+                null)).thenReturn(Collections.singletonList(clusterApiDto));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
@@ -435,7 +446,7 @@ public class GroupsServiceTest {
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Collections.singletonList(clusterAndMembers));
         when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers),
-                true)).thenReturn(Collections.singletonList(clusterApiDto));
+                true, null, null)).thenReturn(Collections.singletonList(clusterApiDto));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.STORAGE_CLUSTER),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
             .setGroupType(GroupType.STORAGE_CLUSTER)
@@ -488,7 +499,7 @@ public class GroupsServiceTest {
 
     @Test(expected = UnknownObjectException.class)
     public void testGroupAndClusterNotFound() throws Exception {
-        when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.empty());
+        when(groupExpander.getGroup("1")).thenReturn(Optional.empty());
         groupsService.getGroupByUuid("1", false);
     }
 
@@ -498,12 +509,12 @@ public class GroupsServiceTest {
         final long member1Id = 7;
         final long member2Id = 8;
 
-        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
-            .setId(1L)
-            .build()))
-            .thenReturn(GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(Arrays.asList(member1Id, member2Id)))
-                .build());
+        Mockito.when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder().addId(1L).build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(1L)
+                        .addMemberId(member1Id)
+                        .addMemberId(member2Id)
+                        .build()));
 
         final ServiceEntityApiDTO member1Dto = new ServiceEntityApiDTO();
         member1Dto.setUuid(Long.toString(member1Id));
@@ -546,12 +557,13 @@ public class GroupsServiceTest {
         final long groupId = 1L;
         final Set<Long> membersSet = Sets.newHashSet(member1Id, member2Id);
 
-        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
-                .setId(1L)
-                .build()))
-                .thenReturn(GetMembersResponse.newBuilder()
-                        .setMembers(Members.newBuilder().addAllIds(Arrays.asList(member1Id, member2Id)))
-                        .build());
+        when(groupServiceSpy.getMembers(
+                GetMembersRequest.newBuilder().addId(1L).build())).thenReturn(
+                Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(1L)
+                        .addMemberId(member1Id)
+                        .addMemberId(member2Id)
+                        .build()));
 
         final BusinessUnitApiDTO member1Dto = new BusinessUnitApiDTO();
         member1Dto.setUuid(Long.toString(member1Id));
@@ -604,11 +616,11 @@ public class GroupsServiceTest {
     public void testGetGroupMembersByUuidNoMembers() throws Exception {
         // Arrange
         when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
-                .setId(1L)
+                .addId(1L)
                 .build()))
             // No members in group.
-            .thenReturn(GetMembersResponse.newBuilder()
-                .build());
+            .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder().setGroupId(1L)
+                .build()));
 
         when(groupExpander.getGroupWithMembers("1"))
             .thenReturn(Optional.of(groupAndMembers(1L, GroupType.REGULAR, Collections.emptySet())));
@@ -637,12 +649,12 @@ public class GroupsServiceTest {
         // this is too many, and cannot fit in a page size of 20
         final Set<Long> membersSet = LongStream.range(0, 78).boxed().collect(Collectors.toSet());
 
-        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
-            .setId(groupId)
-            .build()))
-            .thenReturn(GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(membersSet))
-                .build());
+        Mockito.when(groupServiceSpy.getMembers(
+                GetMembersRequest.newBuilder().addId(groupId).build())).thenReturn(
+                Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(groupId)
+                        .addAllMemberId(membersSet)
+                        .build()));
 
         final GroupDefinition groupDefinition =
             GroupDefinition.newBuilder().setType(GroupType.REGULAR).build();
@@ -751,11 +763,10 @@ public class GroupsServiceTest {
     /**
      * Test deleting a group.
      *
-     * @throws UnknownObjectException in case the group does not exist
-     * @throws OperationFailedException in case an error occurred while editing the group
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testEditGroup() throws UnknownObjectException, OperationFailedException {
+    public void testEditGroup() throws Exception {
         final GroupApiDTO groupApiDTO = new GroupApiDTO();
         final GroupDefinition groupDefinition = GroupDefinition.getDefaultInstance();
         final Grouping group = Grouping.newBuilder().setId(1).build();
@@ -782,11 +793,10 @@ public class GroupsServiceTest {
     /**
      * Test editing a group with invalid UUID.
      *
-     * @throws UnknownObjectException in case the group does not exist
-     * @throws OperationFailedException in case an error occurred while editing the group
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testEditGroupInvalidUuid() throws UnknownObjectException, OperationFailedException {
+    public void testEditGroupInvalidUuid() throws Exception {
         final GroupApiDTO groupApiDTO = new GroupApiDTO();
         when(groupMapper.toGroupDefinition(eq(groupApiDTO))).thenReturn(GroupDefinition.getDefaultInstance());
 
@@ -799,7 +809,7 @@ public class GroupsServiceTest {
     }
 
     @Test
-    public void testGetComputerCluster() throws UnknownObjectException, OperationFailedException {
+    public void testGetComputerCluster() throws Exception {
         // Arrange
         final String name = "name";
 
@@ -823,8 +833,7 @@ public class GroupsServiceTest {
             .entities(Collections.emptyList())
             .build();
 
-        Mockito.when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers), true))
-                .thenReturn(Collections.singletonList(groupApiDtoMock));
+        mappedGroups.put(2L, groupApiDtoMock);
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER).build());
@@ -961,7 +970,7 @@ public class GroupsServiceTest {
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
         when(groupMapper.toGroupApiDto(Collections.singletonList(childRgGroupAndMembers),
-                true)).thenReturn(Collections.singletonList(groupApiDtoMock));
+                true, null, null)).thenReturn(Collections.singletonList(groupApiDtoMock));
 
         //Act
         final List<GroupApiDTO> groupApiDTOs =
@@ -1042,7 +1051,7 @@ public class GroupsServiceTest {
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
         when(groupMapper.toGroupApiDto(Collections.singletonList(rgGroupAndMembers),
-                true)).thenReturn(Collections.singletonList(groupApiDtoMock));
+                true, null, null)).thenReturn(Collections.singletonList(groupApiDtoMock));
 
         //Act
         final List<GroupApiDTO> groupApiDTOs =
@@ -1203,8 +1212,8 @@ public class GroupsServiceTest {
                 .entities(Collections.emptyList())
                 .build();
         when(groupExpander.getMembersForGroup(group2)).thenReturn(groupAndMembers2);
-        when(groupMapper.toGroupApiDto(Arrays.asList(groupAndMembers1, groupAndMembers2),
-                true)).thenReturn(Arrays.asList(groupApiDto1, groupApiDto2));
+        mappedGroups.put(1L, groupApiDto1);
+        mappedGroups.put(2L, groupApiDto2);
         when(groupServiceSpy.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
                 .addEntityId(111L)
                 .addGroupType(GroupType.REGULAR)
@@ -1259,10 +1268,10 @@ public class GroupsServiceTest {
     /**
      * Test get Resource groups when scope is group of accounts. Get groups owned by Account.
      *
-     * @throws OperationFailedException if cannot convert the requested filter criteria.
+     * @throws Exception if cannot convert the requested filter criteria.
      */
     @Test
-    public void testGetGroupByTypeScopeIsGroupOfAccounts() throws OperationFailedException {
+    public void testGetGroupByTypeScopeIsGroupOfAccounts() throws Exception {
         final Long groupOfAccountsId = 111L;
         final Long rgId = 112L;
         final Long accountId1 = 1L;
@@ -1310,8 +1319,7 @@ public class GroupsServiceTest {
         groupApiDTO.setClassName(StringConstants.RESOURCE_GROUP);
         groupApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
         groupApiDTO.setParentUuid(String.valueOf(accountId1));
-        when(groupMapper.toGroupApiDto(Collections.singletonList(rgGroupAndMembers),
-                true)).thenReturn(Collections.singletonList(groupApiDTO));
+        mappedGroups.put(rgId, groupApiDTO);
         when(groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
                 .build())).thenReturn(Collections.singletonList(rgGroupAndMembers));
@@ -1482,14 +1490,9 @@ public class GroupsServiceTest {
         GroupApiDTO groupApiDTO3 = new GroupApiDTO();
         groupApiDTO3.setUuid(String.valueOf(clusterOfVMs.getId()));
 
-        when(groupMapper.toGroupApiDto(Collections.singletonList(group1), true)).thenReturn(
-                Collections.singletonList(groupApiDTO1));
-        when(groupMapper.toGroupApiDto(Collections.singletonList(group2), true)).thenReturn(
-                Collections.singletonList(groupApiDTO2));
-        when(groupMapper.toGroupApiDto(Collections.singletonList(group3), true)).thenReturn(
-                Collections.singletonList(groupApiDTO3));
-        when(groupMapper.toGroupApiDto(Arrays.asList(group1, group2, group3), true)).thenReturn(
-                Arrays.asList(groupApiDTO1, groupApiDTO2, groupApiDTO3));
+        mappedGroups.put(11L, groupApiDTO1);
+        mappedGroups.put(12L, groupApiDTO2);
+        mappedGroups.put(13L, groupApiDTO3);
 
         // search for group of clusters
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(

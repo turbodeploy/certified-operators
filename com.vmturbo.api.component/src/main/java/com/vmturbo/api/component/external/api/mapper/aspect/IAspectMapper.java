@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
@@ -20,9 +21,12 @@ public interface IAspectMapper {
      *
      * @param entity the {@link TopologyEntityDTO} to get aspect for
      * @return the entity aspect for the given entity, or null if no aspect for this entity
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nullable
-    EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity);
+    EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity)
+            throws InterruptedException, ConversionException;
 
     /**
      * Map a single {@link ApiPartialEntity} into one entity aspect object.
@@ -39,8 +43,11 @@ public interface IAspectMapper {
      *
      * @param entities list of entities to get aspect for, which are members of a group
      * @return the entity aspect for given list of entities
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
-    default EntityAspect mapEntitiesToAspect(@Nonnull final List<TopologyEntityDTO> entities) {
+    default EntityAspect mapEntitiesToAspect(@Nonnull final List<TopologyEntityDTO> entities)
+            throws InterruptedException, ConversionException {
         return null;
     }
 

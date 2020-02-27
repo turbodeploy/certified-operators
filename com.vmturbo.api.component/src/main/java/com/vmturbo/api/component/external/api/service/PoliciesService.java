@@ -13,6 +13,7 @@ import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -48,7 +49,8 @@ public class PoliciesService implements IPoliciesService {
     }
 
     @Override
-    public PolicyApiDTO getPolicyByUuid(String uuid) throws UnknownObjectException {
+    public PolicyApiDTO getPolicyByUuid(String uuid)
+            throws UnknownObjectException, ConversionException, InterruptedException {
         try {
             final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
                     .setPolicyId(Long.valueOf(uuid))
@@ -72,8 +74,11 @@ public class PoliciesService implements IPoliciesService {
      *
      * @param policy a server representation of a policy.
      * @return the UI representation of the policy.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
-    public PolicyApiDTO toPolicyApiDTO(PolicyDTO.Policy policy) {
+    public PolicyApiDTO toPolicyApiDTO(PolicyDTO.Policy policy)
+            throws ConversionException, InterruptedException {
         final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
         final Map<Long, Grouping> involvedGroups = new HashMap<>(groupingIDS.size());
         if (!groupingIDS.isEmpty()) {

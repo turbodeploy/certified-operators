@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -64,6 +63,7 @@ import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
@@ -75,7 +75,6 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -534,9 +533,11 @@ public class MarketsServiceTest {
 
         // Mock expected members response
         GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .setGroupId(1L)
+                .addAllMemberId(expandedUids)
                 .build();
-        doReturn(membersResponse).when(groupBackend).getMembers(any());
+        Mockito.when(groupBackend.getMembers(Mockito.any()))
+                .thenReturn(Collections.singletonList(membersResponse));
 
         // Mock call to stats service which is called from MarketService
         final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
@@ -599,9 +600,11 @@ public class MarketsServiceTest {
 
         // Mock expected members response
         GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .setGroupId(1L)
+                .addAllMemberId(expandedUids)
                 .build();
-        doReturn(membersResponse).when(groupBackend).getMembers(any());
+        Mockito.when(groupBackend.getMembers(Mockito.any()))
+                .thenReturn(Collections.singletonList(membersResponse));
 
         ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, uuidMapper);
 
@@ -621,9 +624,11 @@ public class MarketsServiceTest {
     /**
      * Test for {@link MarketsService#addPolicy(String, PolicyApiInputDTO)}.
      * When merge policy required hidden group.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testAddMergePolicyWhenNeedCreateHiddenGroup() {
+    public void testAddMergePolicyWhenNeedCreateHiddenGroup() throws Exception {
         testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
             final CreateGroupRequest createGroupRequest = CreateGroupRequest.newBuilder()
                     .setGroupDefinition(groupDefinition)
@@ -651,9 +656,11 @@ public class MarketsServiceTest {
     /**
      * Test for {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)}.
      * When merge policy required hidden group.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testEditMergePolicyWhenNeedUpdateHiddenGroup() {
+    public void testEditMergePolicyWhenNeedUpdateHiddenGroup() throws Exception {
         testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
             doReturn(PolicyResponse.newBuilder()
                 .setPolicy(Policy.newBuilder()
@@ -681,10 +688,10 @@ public class MarketsServiceTest {
         });
     }
 
-    private void testMergePolicyRequiredHiddenGroupAddOrEdit(
-            final BiConsumer<PolicyApiInputDTO, GroupDefinition.Builder> addOrEdit) {
-        Stream.of(MergePolicyType.DesktopPool, MergePolicyType.DataCenter)
-                .forEach(mergePolicyType -> {
+    private void testMergePolicyRequiredHiddenGroupAddOrEdit(final EditOrCreateOperation addOrEdit)
+            throws ConversionException, InterruptedException {
+        for (MergePolicyType mergePolicyType : Arrays.asList(MergePolicyType.DesktopPool,
+                MergePolicyType.DataCenter)) {
                     final PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
                     policyApiInputDTO.setType(PolicyType.MERGE);
                     policyApiInputDTO.setMergeType(mergePolicyType);
@@ -717,12 +724,12 @@ public class MarketsServiceTest {
                                             .setType(MemberType.newBuilder()
                                                     .setEntity(entityType.getNumber()))
                                             .addAllMembers(MERGE_GROUP_IDS)));
-                    addOrEdit.accept(policyApiInputDTO, groupDefinition);
+                    addOrEdit.createOrEdit(policyApiInputDTO, groupDefinition);
                     // Assert
                     Assert.assertEquals(1, policyApiInputDTO.getMergeUuids().size());
                     Assert.assertEquals(String.valueOf(MERGE_GROUP_ID),
                             policyApiInputDTO.getMergeUuids().iterator().next());
-                });
+                }
     }
 
     /**
@@ -801,5 +808,15 @@ public class MarketsServiceTest {
 
         //WHEN
         marketsService.renameMarket(planUuid, "");
+    }
+
+
+    /**
+     * Function to trigger creation or update of a policy.
+     */
+    @FunctionalInterface
+    private interface EditOrCreateOperation {
+        void createOrEdit(PolicyApiInputDTO policy, GroupDefinition.Builder groupBuilder)
+                throws ConversionException, InterruptedException;
     }
 }

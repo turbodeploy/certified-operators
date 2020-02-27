@@ -14,17 +14,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -108,10 +108,8 @@ public class GroupResolver {
                     GroupDTO.GetMembersResponse response = groupServiceClient
                                     .getMembers(GroupDTO.GetMembersRequest.newBuilder()
                                             .setExpandNestedGroups(true)
-                                            .setId(group.getId()).build());
-                    if (response.hasMembers()) {
-                        result = response.getMembers().getIdsList().stream().collect(Collectors.toSet());
-                    }
+                                            .addId(group.getId()).build()).next();
+                    result = response.getMemberIdList().stream().collect(Collectors.toSet());
                 } else {
                     result = GroupProtoUtil.getAllStaticMembers(group.getDefinition());
                 }
@@ -130,10 +128,8 @@ public class GroupResolver {
                 GroupDTO.GetMembersResponse response = groupServiceClient
                         .getMembers(GroupDTO.GetMembersRequest.newBuilder()
                                 .setExpandNestedGroups(true)
-                                .setId(group.getId()).build());
-                if (response.hasMembers()) {
-                    result = response.getMembers().getIdsList().stream().collect(Collectors.toSet());
-                }
+                                .addId(group.getId()).build()).next();
+                result = response.getMemberIdList().stream().collect(Collectors.toSet());
                 break;
             default:
                 logger.error("Unsupported or unset group member selection criteria for `{}`", group);

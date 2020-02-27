@@ -23,12 +23,12 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -389,10 +389,13 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test mapVirtualVolume for multiple volume with same storage tier.
-     * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the information.
+     * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the
+     * information.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapCloudVolumes() {
+    public void testMapCloudVolumes() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -457,9 +460,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test mapOnVolume for Cloud Volume.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeCloud() {
+    public void testMapVolumeCloud() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -520,9 +525,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test Azure Volume Mapping.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeAzure() {
+    public void testMapVolumeAzure() throws Exception {
         storageTierSEApiDTO.setUuid(azureStorageTierId.toString());
         storageTierSEApiDTO.setDisplayName(azureStorageTierName);
 
@@ -585,9 +592,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * test MapOnVolume method for on-perm volume.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeOnPerm() {
+    public void testMapVolumeOnPerm() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -699,7 +708,7 @@ public class VirtualVolumeAspectMapperTest {
     }
 
     @Test
-    public void testMapStorageTiers() {
+    public void testMapStorageTiers() throws Exception {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 
@@ -820,7 +829,7 @@ public class VirtualVolumeAspectMapperTest {
      * HistoryRpcService, then numDaysUnattached and lastAttachedVm are not populated.
      */
     @Test
-    public void testUnattachedVolumeInvalidSnapshotTime() {
+    public void testUnattachedVolumeInvalidSnapshotTime() throws Exception {
         // given
         final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
         when(statsHistoryServiceMole.getMostRecentStat(any()))
@@ -846,9 +855,11 @@ public class VirtualVolumeAspectMapperTest {
      * valid conditions:
      * 1. HistoryRpcService response contains the epoch and snapshot time values.
      * 2. The snapshot time returned by historyRpcService is a date in the past (< current time).
+     *
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testUnattachedVolumePropertiesValidData() {
+    public void testUnattachedVolumePropertiesValidData() throws Exception {
         // given
         final String lastAttachedVmName = "vm-11111";
         final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
@@ -873,9 +884,11 @@ public class VirtualVolumeAspectMapperTest {
     /**
      * Test that if the HistoryRpcService response is empty, then the numDaysUnattached and
      * lastAttachedVm fields are not set.
+     *
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testUnattachedVolumeNoHistory() {
+    public void testUnattachedVolumeNoHistory() throws Exception {
         // given
         final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
         when(statsHistoryServiceMole.getMostRecentStat(any()))
@@ -897,9 +910,11 @@ public class VirtualVolumeAspectMapperTest {
     /**
      * Test that if the HistoryRpcService response contains the Month StatHistoricalEpoch, then the
      * numDaysUnattached has a '+' suffix.
+     *
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testUnattachedVolumeHistoryMonthEpoch() {
+    public void testUnattachedVolumeHistoryMonthEpoch() throws Exception {
         // given
         final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
         when(statsHistoryServiceMole.getMostRecentStat(any()))
@@ -920,9 +935,11 @@ public class VirtualVolumeAspectMapperTest {
     /**
      * Test that if the HistoryRpcService response does not have contain entity display name, then
      * lastAttachedVm is not set.
+     *
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testUnattachedVolumeInfoNoVmInfo() {
+    public void testUnattachedVolumeInfoNoVmInfo() throws Exception {
         // given
         final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
         when(statsHistoryServiceMole.getMostRecentStat(any()))
@@ -942,9 +959,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test that the attachment history is not retrieved for bulk calls to mapEntitiesToAspect.
+     *
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testUnattachedVolumeHistoryRpcSkippedForBulk() {
+    public void testUnattachedVolumeHistoryRpcSkippedForBulk() throws Exception {
         // given
         final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
         when(statsHistoryServiceMole.getMostRecentStat(any()))
@@ -995,7 +1014,7 @@ public class VirtualVolumeAspectMapperTest {
                 .build();
     }
 
-    private void stubRepositoryApi() {
+    private void stubRepositoryApi() throws Exception {
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.getFullEntities()).thenReturn(Stream.of()).thenReturn(Stream.of());
         when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
@@ -1006,7 +1025,7 @@ public class VirtualVolumeAspectMapperTest {
     }
 
     @Test
-    public void testMapStorage() {
+    public void testMapStorage() throws Exception {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 

@@ -66,6 +66,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -266,10 +267,13 @@ public class MarketsService implements IMarketsService {
      *
      * @param scopeUuids this argument is currently ignored.
      * @return list of all markets
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
     @Nonnull
-    public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids) {
+    public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
+            throws ConversionException, InterruptedException {
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
                 planRpcService.getAllPlans(GetPlansOptions.getDefaultInstance());
@@ -567,10 +571,15 @@ public class MarketsService implements IMarketsService {
                                 .setIncludeHidden(true))
                         .build()).forEachRemaining(group -> groupings.put(group.getId(), group));
             }
-            return policyRespList.stream()
-                    .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .map(resp -> policyMapper.policyToApiDto(resp.getPolicy(), groupings))
-                    .collect(Collectors.toList());
+            final List<PolicyApiDTO> result = new ArrayList<>();
+            for (PolicyResponse response: policyRespList) {
+                if (response.hasPolicy()) {
+                    final PolicyApiDTO policy =
+                            policyMapper.policyToApiDto(response.getPolicy(), groupings);
+                    result.add(policy);
+                }
+            }
+            return result;
         } catch (RuntimeException e) {
             logger.error("Problem getting policies", e);
             throw e;
@@ -584,7 +593,7 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public ResponseEntity<PolicyApiDTO> addPolicy(final String uuid,
-            PolicyApiInputDTO policyApiInputDTO) throws UnknownObjectException {
+            PolicyApiInputDTO policyApiInputDTO) throws UnknownObjectException, ConversionException, InterruptedException {
         try {
             if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policyApiInputDTO)) {
                 // Create a hidden group to support the merge policy for entities that are not groups.
@@ -948,16 +957,21 @@ public class MarketsService implements IMarketsService {
             boolean enforceUserScope = !apiId.isPlan();
 
             final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(Long.parseLong(groupUuid))
+                    .addId(Long.parseLong(groupUuid))
                     .setEnforceUserScope(enforceUserScope)
                     .setExpectPresent(false)
                     .build();
 
-            final GetMembersResponse groupMembersResp =
+            final Iterator<GetMembersResponse> groupMembersResp =
                     groupRpcService.getMembers(getGroupMembersReq);
-            List<String> membersUuids = groupMembersResp.getMembers().getIdsList().stream()
+        final List<String> membersUuids;
+        if (groupMembersResp.hasNext()) {
+            membersUuids = groupMembersResp.next().getMemberIdList().stream()
                     .map(id -> Long.toString(id))
                     .collect(Collectors.toList());
+        } else {
+            membersUuids = Collections.emptyList();
+        }
         // If an input scope was also specified, use the intersection.
         if (!CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
             membersUuids.retainAll(statScopesApiInputDTO.getScopes());

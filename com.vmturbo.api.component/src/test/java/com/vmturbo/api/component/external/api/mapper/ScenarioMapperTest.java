@@ -21,7 +21,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -147,7 +146,7 @@ public class ScenarioMapperTest {
     private UuidMapper uuidMapper;
 
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
@@ -508,9 +507,11 @@ public class ScenarioMapperTest {
 
     /**
      * Tests converting of scenario with desired state setting to ScenarioApiDto.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testSettingOverrideToApiDto() {
+    public void testSettingOverrideToApiDto() throws Exception {
         final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
 
         final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
@@ -797,7 +798,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApiAdditionChange() {
+    public void testToApiAdditionChange() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .addChangeApplicationDays(3)
@@ -822,9 +823,11 @@ public class ScenarioMapperTest {
     /**
      * Test toApiChanges by passing changes with cpu utilization as setting overrides that need to
      * be converted into a general maxUtilizationSetting.
+     *
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testToApiChangesConversion() {
+    public void testToApiChangesConversion() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
             .setSettingOverride(SettingOverride.newBuilder()
                 .setSetting(Setting.newBuilder()
@@ -841,9 +844,11 @@ public class ScenarioMapperTest {
     /**
      * Convert {@link TopologyAddition} to {@link AddObjectApiDTO}.
      * Null targetEntityType should not throw error
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToApiAdditionChangeWithNullTargetEntityType() {
+    public void testToApiAdditionChangeWithNullTargetEntityType() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
                 .setTopologyAddition(TopologyAddition.newBuilder()
                         .addChangeApplicationDays(3)
@@ -865,7 +870,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApiRemovalChange() {
+    public void testToApiRemovalChange() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
                 .setTopologyRemoval(TopologyRemoval.newBuilder()
                         .setChangeApplicationDay(3)
@@ -886,9 +891,11 @@ public class ScenarioMapperTest {
     /**
      * Convert {@link TopologyRemoval} to {@link RemoveObjectApiDTO}.
      * Null targetEntityType should not throw error
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToApiRemovalChangeWithNullTargetEntityType() {
+    public void testToApiRemovalChangeWithNullTargetEntityType() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
                 .setTopologyRemoval(TopologyRemoval.newBuilder()
                         .setChangeApplicationDay(3)
@@ -906,7 +913,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApBaselineDateChange() {
+    public void testToApBaselineDateChange() throws Exception {
         long currTimeinMillis = System.currentTimeMillis();
         String expectedDateTime = DateTimeUtil.toString(System.currentTimeMillis());
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
@@ -921,7 +928,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApiReplaceChange() {
+    public void testToApiReplaceChange() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
             .setTopologyReplace(TopologyReplace.newBuilder()
                 .setChangeApplicationDay(3)
@@ -944,9 +951,11 @@ public class ScenarioMapperTest {
     /**
      * Convert {@link TopologyReplace} to {@link ReplaceObjectApiDTO}.
      * Null targetEntityType should not throw error
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToApiReplaceChangeWithNullTargetEntityType() {
+    public void testToApiReplaceChangeWithNullTargetEntityType() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
                 .setTopologyReplace(TopologyReplace.newBuilder()
                         .setChangeApplicationDay(3)
@@ -966,7 +975,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApiEntityType() {
+    public void testToApiEntityType() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .setAdditionCount(1)
@@ -990,7 +999,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApiAdditionWithTemplate() {
+    public void testToApiAdditionWithTemplate() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .setAdditionCount(10)
@@ -1014,7 +1023,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testToApiEntityTypeUnknown() {
+    public void testToApiEntityTypeUnknown() throws Exception {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
                 .setTopologyAddition(TopologyAddition.newBuilder()
                         .setAdditionCount(1)
@@ -1046,9 +1055,11 @@ public class ScenarioMapperTest {
 
     /**
      * Tests converting of empty scenario to scenarioApiDto.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToScenarioApiDtoEmptyScenario() {
+    public void testToScenarioApiDtoEmptyScenario() throws Exception {
         final Scenario scenario = buildScenario(ScenarioChange.newBuilder().build());
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         Assert.assertTrue(scenarioApiDTO.getConfigChanges().getAutomationSettingList().isEmpty());
@@ -1058,11 +1069,11 @@ public class ScenarioMapperTest {
      * Tests converting of ScenarioApiDto to ScenarioInfo when Ignore Constraint setting is provided
      * by scenarioApiDto
      *
-     * @throws OperationFailedException UuidMapper throws, one of the underlying operations
+     * @throws Exception UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
     @Test
-    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() throws OperationFailedException {
+    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() throws Exception {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         List<RemoveConstraintApiDTO> removeConstraints = ImmutableList.of(
@@ -1120,7 +1131,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testMappingContextGroup() {
+    public void testMappingContextGroup() throws Exception {
         final long groupId = 10L;
         final Grouping group = Grouping.newBuilder()
                 .setId(groupId)

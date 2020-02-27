@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.policy;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.neverDiscoveredTopologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -18,7 +19,6 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -98,11 +98,13 @@ public class ReservationPolicyFactoryTest {
                 .setConstraintId(123L)
                 .setType(ReservationConstraintInfo.Type.CLUSTER)
                 .build();
-        final GetMembersRequest request = GetMembersRequest.newBuilder().setId(123L).build();
+        final GetMembersRequest request = GetMembersRequest.newBuilder().addId(123L).build();
         final GetMembersResponse response = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(Lists.newArrayList(1L, 3L)))
+                .setGroupId(123L)
+                .addAllMemberId(Lists.newArrayList(1L, 3L))
                 .build();
-        Mockito.when(groupServiceMole.getMembers(request)).thenReturn(response);
+        Mockito.when(groupServiceMole.getMembers(request))
+                .thenReturn(Collections.singletonList(response));
         final PlacementPolicy placementPolicy =
                 reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,
                         Lists.newArrayList(clusterConstraint), Sets.newHashSet(5L));

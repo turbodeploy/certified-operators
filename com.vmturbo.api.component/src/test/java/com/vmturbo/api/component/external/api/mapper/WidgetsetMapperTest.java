@@ -102,7 +102,7 @@ public class WidgetsetMapperTest {
     }
 
     @Test
-    public void testRoundTrip() {
+    public void testRoundTrip() throws Exception {
         // Arrange
         WidgetsetApiDTO widgetsetApiDTO = getBaseWidgetsetApiDTO();
         widgetsetApiDTO.setClassName("CLASSNAME");
@@ -119,7 +119,7 @@ public class WidgetsetMapperTest {
     }
 
     @Test
-    public void testGroupPostProcessing() {
+    public void testGroupPostProcessing() throws Exception {
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
         groupScope.setClassName(StringConstants.GROUP);
@@ -158,9 +158,11 @@ public class WidgetsetMapperTest {
 
     /**
      * Test that multiple groups get fetched properly in a single call.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMultiGroupPostProcessing() {
+    public void testMultiGroupPostProcessing() throws Exception {
         // Arrange
         final BaseApiDTO groupScope1 = new BaseApiDTO();
         groupScope1.setUuid("7");
@@ -210,7 +212,7 @@ public class WidgetsetMapperTest {
     }
 
     @Test
-    public void testGroupPostProcessingException() {
+    public void testGroupPostProcessingException() throws Exception {
         // Arrange
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
@@ -232,7 +234,7 @@ public class WidgetsetMapperTest {
     }
 
     @Test
-    public void testClusterPostProcessing() {
+    public void testClusterPostProcessing() throws Exception {
         // Arrange
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
@@ -265,7 +267,7 @@ public class WidgetsetMapperTest {
     }
 
     @Test
-    public void testStorageClusterPostProcessing() {
+    public void testStorageClusterPostProcessing() throws Exception {
         // Arrange
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
@@ -299,9 +301,11 @@ public class WidgetsetMapperTest {
 
     /**
      * Test the case that widgetsets contains both group-scoped widget and entity-scoped widget.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testEntityAndGroupPostProcessing() {
+    public void testEntityAndGroupPostProcessing() throws Exception {
         // group scope
         final GroupApiDTO groupScope = new GroupApiDTO();
         groupScope.setUuid("7");

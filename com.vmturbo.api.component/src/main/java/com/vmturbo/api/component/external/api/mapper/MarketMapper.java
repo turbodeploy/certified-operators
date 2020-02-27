@@ -18,6 +18,7 @@ import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
@@ -39,7 +40,8 @@ public class MarketMapper {
     }
 
     @Nonnull
-    public MarketApiDTO dtoFromPlanInstance(@Nonnull final PlanInstance instance) {
+    public MarketApiDTO dtoFromPlanInstance(@Nonnull final PlanInstance instance)
+            throws ConversionException, InterruptedException {
         final MarketApiDTO retDto = new MarketApiDTO();
         retDto.setClassName(MARKET);
         retDto.setUuid(Long.toString(instance.getPlanId()));

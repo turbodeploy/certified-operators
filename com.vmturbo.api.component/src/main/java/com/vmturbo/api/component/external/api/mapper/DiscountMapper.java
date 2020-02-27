@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +30,7 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
@@ -87,9 +89,12 @@ public class DiscountMapper {
      *
      * @param discount         discount from Cost component
      * @return BusinessUnitApiDTO
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
-    public BusinessUnitApiDTO toBusinessUnitApiDTO(@Nonnull Discount discount) {
+    public BusinessUnitApiDTO toBusinessUnitApiDTO(@Nonnull Discount discount)
+            throws ConversionException, InterruptedException {
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setUuid(String.valueOf(discount.getAssociatedAccountId()));
         businessUnitApiDTO.setDisplayName(discount.getDiscountInfo().getDisplayName());
@@ -163,14 +168,19 @@ public class DiscountMapper {
      *
      * @param discounts        discounts from Cost component
      * @return list for business units with discount type
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
-    public List<BusinessUnitApiDTO> toDiscountBusinessUnitApiDTO(@Nonnull final Iterator<Discount> discounts) {
+    public List<BusinessUnitApiDTO> toDiscountBusinessUnitApiDTO(
+            @Nonnull final Iterator<Discount> discounts)
+            throws InterruptedException, ConversionException {
         Objects.requireNonNull(discounts);
-        final Iterable<Discount> iterable = () -> discounts;
-        return StreamSupport.stream(iterable.spliterator(), false)
-                .map(this::toBusinessUnitApiDTO)
-                .collect(Collectors.toList());
+        final List<BusinessUnitApiDTO> result = new ArrayList<>();
+        while (discounts.hasNext()) {
+            result.add(toBusinessUnitApiDTO(discounts.next()));
+        }
+        return result;
     }
 
     /**
@@ -179,8 +189,14 @@ public class DiscountMapper {
      * 1. Use repository to resolve topology entity by account id
      * 2. retrieve origin from topology entity
      * 3. Use target service to retrieve TargetApiDTO by origin id
+     *
+     * @param associatedAccountId account to get target type for
+     * @return return target information
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
-    private Optional<TargetApiDTO> getTargetType(final long associatedAccountId) {
+    private Optional<TargetApiDTO> getTargetType(final long associatedAccountId)
+            throws ConversionException, InterruptedException {
         return repositoryApi.entityRequest(associatedAccountId).getSE()
             .flatMap(entity -> Optional.ofNullable(entity.getDiscoveredBy()));
     }

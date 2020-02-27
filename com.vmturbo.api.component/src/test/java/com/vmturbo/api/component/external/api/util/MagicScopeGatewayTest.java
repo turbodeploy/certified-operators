@@ -58,7 +58,7 @@ public class MagicScopeGatewayTest {
 
     }
 
-    private void setupMapperAndBackend(long oid) throws OperationFailedException {
+    private void setupMapperAndBackend(long oid) throws Exception {
         GroupDefinition groupDefinition  = GroupDefinition
                         .newBuilder()
                         .setDisplayName(Long.toString(oid))

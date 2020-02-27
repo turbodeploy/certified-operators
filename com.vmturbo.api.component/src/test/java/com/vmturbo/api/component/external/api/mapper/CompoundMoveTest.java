@@ -215,13 +215,10 @@ public class CompoundMoveTest {
     /**
      * Test a compound move with one provider being changed.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testSimpleAction()
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
+    public void testSimpleAction() throws Exception {
         ActionDTO.Action moveStorage = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -236,13 +233,10 @@ public class CompoundMoveTest {
      * Test a simple move with one provider being changed. This change is for a particular
      * resource of the target.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testSimpleActionWithResource()
-            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-            InterruptedException {
+    public void testSimpleActionWithResource() throws Exception {
         ActionDTO.Action moveVolume = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -255,13 +249,10 @@ public class CompoundMoveTest {
      * Test a compound move with two providers being changed, first
      * is Storage, second is PM.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testCompoundAction1()
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
+    public void testCompoundAction1() throws Exception {
         ActionDTO.Action moveBoth1 = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -274,13 +265,10 @@ public class CompoundMoveTest {
      * Test a compound move with two providers being changed, first
      * is PM, second is Storage.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testCompoundAction2()
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
+    public void testCompoundAction2() throws Exception {
         ActionDTO.Action moveBoth2 = makeAction(TARGET_ENTITY_ID, VM,
             PM1_ID, PM, PM2_ID, PM, ST1_ID, ST, ST2_ID, ST); // different order
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), REAL_TIME_TOPOLOGY_CONTEXT_ID);

@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.ManagedChannel;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -73,9 +75,12 @@ public class RepositoryApiTest {
     @Before
     public void setup() {
         this.businessAccountMapper = Mockito.mock(BusinessAccountMapper.class);
+        final ManagedChannel grpcChannel = grpcTestServer.getChannel();
         repositoryApi = new RepositoryApi(severityPopulator,
-            RepositoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-            SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcChannel),
+            RepositoryServiceGrpc.newStub(grpcChannel),
+            SearchServiceGrpc.newBlockingStub(grpcChannel),
+            SearchServiceGrpc.newStub(grpcChannel),
             serviceEntityMapper,
             businessAccountMapper,
             realtimeContextId);
@@ -261,7 +266,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testGetSE() {
+    public void testGetSE() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -288,7 +293,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testGetSEUseAspectMapper() {
+    public void testGetSEUseAspectMapper() throws Exception {
         EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
 
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
@@ -320,7 +325,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testGetUseContext() {
+    public void testGetUseContext() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -348,7 +353,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testMultiGetMinimalEntity() {
+    public void testMultiGetMinimalEntity() throws Exception {
         MinimalEntity ret = minimal(7L);
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
@@ -472,7 +477,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testMultiGetSEList() {
+    public void testMultiGetSEList() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -500,7 +505,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testMultiGetSEMap() {
+    public void testMultiGetSEMap() throws Exception {
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -525,11 +530,11 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.API));
 
         verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
-        verify(severityPopulator).populate(realtimeContextId, ImmutableMap.of(7L, se));
+        verify(severityPopulator).populate(realtimeContextId, Collections.singleton(se));
     }
 
     @Test
-    public void testMultiGetSEUseAspectMapper() {
+    public void testMultiGetSEUseAspectMapper() throws Exception {
         EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
 
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
@@ -653,7 +658,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testSearchSEList() {
+    public void testSearchSEList() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -679,7 +684,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testSearchSEUseAspectMapper() {
+    public void testSearchSEUseAspectMapper() throws Exception {
         EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
@@ -702,7 +707,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testSearchSEMap() {
+    public void testSearchSEMap() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -725,6 +730,6 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.API));
 
         verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
-        verify(severityPopulator).populate(realtimeContextId, ImmutableMap.of(7L, se));
+        verify(severityPopulator).populate(realtimeContextId, Collections.singleton(se));
     }
 }

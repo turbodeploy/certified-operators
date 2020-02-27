@@ -18,13 +18,13 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Optional;
 
+import com.google.common.collect.Lists;
+
 import io.grpc.Status;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -295,10 +295,10 @@ public class UuidMapperTest {
 
     /**
      * Test that cloud tempgroups are accepted as cloud, group, and cloud-group ApiIds.
-     * @throws OperationFailedException never.
+     * @throws Exception never.
      */
     @Test
-    public void testIsCloudGroup() throws OperationFailedException {
+    public void testIsCloudGroup() throws Exception {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
             ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
@@ -338,10 +338,10 @@ public class UuidMapperTest {
 
     /**
      * Test that cloud entities and temp-groups are accepted as cloud ApiIds, and that others aren't.
-     * @throws OperationFailedException never
+     * @throws Exception never
      */
     @Test
-    public void testIsCloud() throws OperationFailedException {
+    public void testIsCloud() throws Exception {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
             ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());

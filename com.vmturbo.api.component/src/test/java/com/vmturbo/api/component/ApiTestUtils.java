@@ -11,11 +11,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import io.grpc.stub.StreamObserver;
+
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -27,6 +32,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.Sup
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -47,7 +53,8 @@ public class ApiTestUtils {
     }
 
     @Nonnull
-    public static RepositoryApi.SingleEntityRequest mockSingleEntityEmptyRequest() {
+    public static RepositoryApi.SingleEntityRequest mockSingleEntityEmptyRequest() throws
+            ConversionException, InterruptedException {
         SingleEntityRequest req = mockSingleEntityRequest();
         when(req.getFullEntity()).thenReturn(Optional.empty());
         when(req.getEntity()).thenReturn(Optional.empty());
@@ -78,7 +85,9 @@ public class ApiTestUtils {
     }
 
     @Nonnull
-    public static RepositoryApi.SingleEntityRequest mockSingleEntityRequest(@Nonnull final ServiceEntityApiDTO entity) {
+    public static RepositoryApi.SingleEntityRequest mockSingleEntityRequest(
+            @Nonnull final ServiceEntityApiDTO entity)
+            throws ConversionException, InterruptedException {
         SingleEntityRequest req = mockSingleEntityRequest();
         when(req.getSE()).thenReturn(Optional.of(entity));
         return req;
@@ -103,7 +112,8 @@ public class ApiTestUtils {
     }
 
     @Nonnull
-    public static RepositoryApi.MultiEntityRequest mockMultiEntityReqEmpty() {
+    public static RepositoryApi.MultiEntityRequest mockMultiEntityReqEmpty()
+            throws ConversionException, InterruptedException {
         MultiEntityRequest req = mockMultiEntityRequest();
         when(req.getFullEntities()).then(invocation -> Stream.empty());
         when(req.getSEList()).thenReturn(Collections.emptyList());
@@ -125,6 +135,16 @@ public class ApiTestUtils {
     public static RepositoryApi.MultiEntityRequest mockMultiMinEntityReq(List<MinimalEntity> entities) {
         MultiEntityRequest req = mockMultiEntityRequest();
         when(req.getMinimalEntities()).then(invocation -> entities.stream());
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final StreamObserver<MinimalEntity> observer =
+                    (StreamObserver<MinimalEntity>)invocation.getArguments()[0];
+            for (MinimalEntity entity : entities) {
+                observer.onNext(entity);
+            }
+            observer.onCompleted();
+            return null;
+        }).when(req).getMinimalEntities(Mockito.any());
         return req;
     }
 
@@ -143,7 +163,8 @@ public class ApiTestUtils {
     }
 
     @Nonnull
-    public static RepositoryApi.MultiEntityRequest mockMultiSEReq(List<ServiceEntityApiDTO> entities) {
+    public static RepositoryApi.MultiEntityRequest mockMultiSEReq(
+            List<ServiceEntityApiDTO> entities) throws ConversionException, InterruptedException {
         MultiEntityRequest req = mockMultiEntityRequest();
         when(req.getSEMap()).then(invocation -> entities.stream()
             .collect(Collectors.toMap(e -> Long.parseLong(e.getUuid()), Function.identity())));
@@ -192,6 +213,8 @@ public class ApiTestUtils {
         when(req.getMinimalEntities()).then(invocation -> Stream.empty());
         when(req.getFullEntities()).then(invocation -> Stream.empty());
         when(req.getOids()).thenReturn(Collections.emptySet());
+        when(req.getOidsFuture()).thenReturn(
+                CompletableFuture.completedFuture(Collections.emptySet()));
         when(req.count()).thenReturn(0L);
         return req;
     }
@@ -207,12 +230,15 @@ public class ApiTestUtils {
     public static RepositoryApi.SearchRequest mockSearchIdReq(Set<Long> oids) {
         SearchRequest req = mockSearchReq();
         when(req.getOids()).thenReturn(oids);
+        Mockito.when(req.getOidsFuture()).thenReturn(CompletableFuture.completedFuture(oids));
+        Mockito.when(req.count()).thenReturn((long)oids.size());
         return req;
     }
 
 
     @Nonnull
-    public static RepositoryApi.SearchRequest mockSearchSEReq(List<ServiceEntityApiDTO> entities) {
+    public static RepositoryApi.SearchRequest mockSearchSEReq(List<ServiceEntityApiDTO> entities)
+            throws ConversionException, InterruptedException {
         SearchRequest req = mockSearchReq();
         when(req.getSEList()).thenReturn(entities);
         when(req.getSEMap()).thenReturn(entities.stream()

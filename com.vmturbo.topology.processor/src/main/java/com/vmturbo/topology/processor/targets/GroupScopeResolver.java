@@ -171,16 +171,17 @@ public class GroupScopeResolver {
             String groupId = accountVal.getStringValue();
             logger.debug("Getting OIDs for group scope with group ID: {}", groupId);
             GetMembersResponse membersResponse = groupService.getMembers(GetMembersRequest.newBuilder()
-                .setId(Long.parseLong(groupId))
+                .addId(Long.parseLong(groupId))
                 .setExpectPresent(true)
-                .build());
-            if (!membersResponse.hasMembers() || membersResponse.getMembers().getIdsCount() == 0) {
+                .build())
+                    .next();
+            if (membersResponse.getMemberIdCount() == 0) {
                 logger.warn("Group {} has no members.  "
                     + "No property values will be returned for group scope.", groupId);
                 return Collections.emptySet();
             }
             logger.debug("Group {} has members {} in group scope processing.",
-                groupId, membersResponse.getMembers());
+                groupId, membersResponse.getMemberIdList());
             // need to check if entityType of group is same as entityType of accountDef
             GetGroupResponse groupResponse =
                 groupService.getGroup(
@@ -189,14 +190,14 @@ public class GroupScopeResolver {
                             UIEntityType.fromType(customAcctDef
                                 .getGroupScope().getEntityType().getNumber()))) {
                 logger.error("Group {} contains the wrong entity type for group scope.  "
-                        + "Expected type {}, but got type {}",
+                        + "Expected type {}, but got type {}", groupId,
                     customAcctDef.getGroupScope().getEntityType(),
                     GroupProtoUtil.getEntityTypes(groupResponse.getGroup()).stream()
                         .map(UIEntityType::apiStr).collect(Collectors.joining(",")));
                 return Collections.emptySet();
             }
             logger.trace("Group type matches group scope type.");
-            return Sets.newHashSet(membersResponse.getMembers().getIdsList());
+            return Sets.newHashSet(membersResponse.getMemberIdList());
         } else if (customAcctDef.hasEntityScope() && probeType != null) {
             final String entityProperty = accountVal.getStringValue();
             logger.debug("Getting entity scope OID for property value {}", entityProperty);

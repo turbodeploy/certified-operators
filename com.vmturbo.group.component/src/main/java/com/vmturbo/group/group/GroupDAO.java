@@ -36,6 +36,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
@@ -671,19 +672,6 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Set<Long> mergeMembers(@Nonnull GroupMembersPlain existing, @Nonnull GroupMembersPlain additional) {
-        existing.getEntityFilters().addAll(additional.getEntityFilters());
-        existing.getEntityIds().addAll(additional.getEntityIds());
-        final Set<Long> newGroups = new HashSet<>();
-        for (Long groupId: additional.getGroupIds()) {
-            if (existing.getGroupIds().add(groupId)) {
-                newGroups.add(groupId);
-            }
-        }
-        return newGroups;
-    }
-
-    @Nonnull
     @Override
     public GroupMembersPlain getMembers(@Nonnull Collection<Long> groupId,
             boolean expandNestedGroups) throws StoreOperationException {
@@ -692,7 +680,7 @@ public class GroupDAO implements IGroupStore {
             Set<Long> newGroups = members.getGroupIds();
             while (!newGroups.isEmpty()) {
                 final GroupMembersPlain subMembers = getDirectMembers(newGroups);
-                newGroups = mergeMembers(members, subMembers);
+                newGroups = members.mergeMembers(subMembers);
             }
         }
         return members.unmodifiable();
@@ -975,6 +963,17 @@ public class GroupDAO implements IGroupStore {
             initialSet.retainAll(anotherSet);
         }
         return Collections.unmodifiableSet(initialSet);
+    }
+
+    @Nonnull
+    @Override
+    public Set<Long> getExistingGroupIds(@Nonnull Collection<Long> groupIds) {
+        final List<Long> records = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .where(GROUPING.ID.in(groupIds))
+                .fetch()
+                .map(Record1::value1);
+        return ImmutableSet.copyOf(records);
     }
 
     /**

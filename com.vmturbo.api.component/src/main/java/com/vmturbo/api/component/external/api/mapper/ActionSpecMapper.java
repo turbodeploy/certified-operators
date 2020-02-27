@@ -72,6 +72,7 @@ import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
@@ -237,12 +238,15 @@ public class ActionSpecMapper {
      * @return A collection of {@link ActionApiDTO}s in the same order as the incoming actionSpecs.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec}
      * is not supported.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws ExecutionException on error mapping action spec
      */
     @Nonnull
     public List<ActionApiDTO> mapActionSpecsToActionApiDTOs(
-            @Nonnull final Collection<ActionSpec> actionSpecs,
-            final long topologyContextId)
-            throws UnsupportedActionException, ExecutionException, InterruptedException {
+            @Nonnull final Collection<ActionSpec> actionSpecs, final long topologyContextId)
+            throws UnsupportedActionException, ExecutionException, InterruptedException,
+            ConversionException {
         return mapActionSpecsToActionApiDTOs(actionSpecs, topologyContextId, ActionDetailLevel.STANDARD);
     }
 
@@ -269,7 +273,8 @@ public class ActionSpecMapper {
             @Nonnull final Collection<ActionSpec> actionSpecs,
             final long topologyContextId,
             @Nullable final ActionDetailLevel detailLevel)
-            throws UnsupportedActionException, ExecutionException, InterruptedException {
+            throws UnsupportedActionException, ExecutionException, InterruptedException,
+            ConversionException {
         if (actionSpecs.isEmpty()) {
             return Collections.emptyList();
         }
@@ -317,12 +322,14 @@ public class ActionSpecMapper {
      * the repository.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec} is not
      * supported.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
     public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
                                                     final long topologyContextId)
             throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-            InterruptedException {
+            InterruptedException, ConversionException {
         return mapActionSpecToActionApiDTO(actionSpec, topologyContextId, ActionDetailLevel.STANDARD);
     }
 
@@ -352,7 +359,7 @@ public class ActionSpecMapper {
                                                     final long topologyContextId,
                                                     @Nullable final ActionDetailLevel detailLevel)
             throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-            InterruptedException {
+            InterruptedException, ConversionException {
         final ActionSpecMappingContext context =
                 actionSpecMappingContextFactory.createActionSpecMappingContext(
                         Lists.newArrayList(actionSpec.getRecommendation()), topologyContextId);

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -31,6 +32,7 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -42,7 +44,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -60,6 +61,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -169,13 +171,13 @@ public class ActionSpecMappingContextFactory {
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
      * @return ActionSpecMappingContext
-     * @throws UnsupportedActionException
-     * @throws ExecutionException
-     * @throws InterruptedException
+     * @throws ExecutionException on failure getting policies
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     public ActionSpecMappingContext createActionSpecMappingContext(@Nonnull List<Action> actions,
-                                                                   long topologyContextId)
-                throws UnsupportedActionException, ExecutionException, InterruptedException {
+            long topologyContextId)
+            throws ExecutionException, InterruptedException, ConversionException {
 
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
         final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
@@ -247,15 +249,15 @@ public class ActionSpecMappingContextFactory {
             .map(ApiPartialEntity::getOid)
             .collect(Collectors.toSet());
 
-        repositoryApi.entitiesRequest(cloudVmIds)
-            .getFullEntities()
-            .forEach(cloudVmFullEntity -> {
-                final EntityAspect vmAspect =
-                        entityAspectMapper.getAspectByEntity(cloudVmFullEntity,
+        final Iterator<TopologyEntityDTO> iterator =
+                repositoryApi.entitiesRequest(cloudVmIds).getFullEntities().iterator();
+        while (iterator.hasNext()) {
+            final TopologyEntityDTO cloudVmFullEntity = iterator.next();
+            final EntityAspect vmAspect =
+                    entityAspectMapper.getAspectByEntity(cloudVmFullEntity,
                             AspectName.VIRTUAL_MACHINE);
-                vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
-            });
-
+            vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
+        }
         return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
                 volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, datacenterById,
             serviceEntityMapper, true);
@@ -411,9 +413,14 @@ public class ActionSpecMappingContextFactory {
     /**
      * Fetch the volume aspects needed for given actions, and make sure the stats have both
      * beforePlan and afterPlan StorageAmount.
+     *
+     * @param actions  actions to analyze
+     * @param topologyContextId topology context id
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private Map<Long, List<VirtualDiskApiDTO>> fetchVolumeAspects(@Nonnull List<Action> actions,
-                                                                  long topologyContextId) {
+            long topologyContextId) throws InterruptedException, ConversionException {
         Set<Long> involvedVmIds = getVMIdsToFetchVolumeAspects(actions);
         Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByVM = volumeAspectMapper.mapVirtualMachines(
             involvedVmIds, topologyContextId);

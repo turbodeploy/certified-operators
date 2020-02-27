@@ -313,7 +313,7 @@ message GetGroupsRequest {
 
 message GetMembersRequest {
     // The group ID to get members for.
-    optional int64 id = 1;
+    repeated int64 id = 1;
 
     // If true, return an error if the ID does not refer to a group.
     // If false, the ID may or may not refer to a group.
@@ -335,11 +335,8 @@ message GetMembersRequest {
 }
 
 message GetMembersResponse {
-    optional Members members = 1;
-
-    message Members {
-        repeated int64 ids = 1;
-    }
+    required int64 group_id = 1;
+    repeated int64 member_id = 2;
 }
 
 // Information about the target. If the message for a target is not present, this means that
@@ -479,7 +476,7 @@ service GroupService {
     rpc DeleteGroup (GroupID) returns (DeleteGroupResponse);
 
     // Get the members of a group
-    rpc GetMembers (GetMembersRequest) returns (GetMembersResponse);
+    rpc GetMembers (GetMembersRequest) returns (stream GetMembersResponse);
 
     // Get the group the entity belongs to.
     rpc GetGroupsForEntities (GetGroupsForEntitiesRequest) returns (GetGroupsForEntitiesResponse);

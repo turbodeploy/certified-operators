@@ -5,6 +5,8 @@ import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,11 +19,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -33,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -40,8 +42,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.communication.FutureObserver;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMap;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -52,17 +55,22 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -154,7 +162,7 @@ public class GroupMapper {
 
     private final BusinessAccountRetriever businessAccountRetriever;
 
-    private final CostServiceBlockingStub costServiceBlockingStub;
+    private final CostServiceStub costServiceStub;
 
     private final long realtimeTopologyContextId;
 
@@ -162,7 +170,8 @@ public class GroupMapper {
 
     private final CloudTypeMapper cloudTypeMapper;
 
-    private final ExecutorService threadPool;
+    private final Map<SearchOrderBy, PaginatorSupplier> paginators;
+    private final PaginatorSupplier defaultPaginator;
 
     /**
      * Creates an instance of GroupMapper using all the provided dependencies.
@@ -173,11 +182,10 @@ public class GroupMapper {
      * @param groupFilterMapper for converting between internal and api filter representation.
      * @param severityPopulator for get severity information.
      * @param businessAccountRetriever for getting business account information for billing families.
-     * @param costServiceBlockingStub for getting information about costs.
+     * @param costServiceStub for getting information about costs.
      * @param realtimeTopologyContextId the topology context id, used for getting severity.
      * @param thinTargetCache for retrieving targets without making a gRPC call.
      * @param cloudTypeMapper for getting information about cloud mappers.
-     * @param threadPool thread pool to use for parallel requests
      */
     public GroupMapper(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final GroupExpander groupExpander,
@@ -186,9 +194,8 @@ public class GroupMapper {
                        @Nonnull final GroupFilterMapper groupFilterMapper,
                        @Nonnull final SeverityPopulator severityPopulator,
                        @Nonnull final BusinessAccountRetriever businessAccountRetriever,
-                       @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
-                       long realtimeTopologyContextId, ThinTargetCache thinTargetCache, CloudTypeMapper cloudTypeMapper,
-                       @Nonnull final ExecutorService threadPool) {
+                       @Nonnull final CostServiceStub costServiceStub,
+                       long realtimeTopologyContextId, ThinTargetCache thinTargetCache, CloudTypeMapper cloudTypeMapper) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -196,11 +203,15 @@ public class GroupMapper {
         this.groupFilterMapper = groupFilterMapper;
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
-        this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
+        this.costServiceStub = Objects.requireNonNull(costServiceStub);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.thinTargetCache = thinTargetCache;
         this.cloudTypeMapper = cloudTypeMapper;
-        this.threadPool = Objects.requireNonNull(threadPool);
+        final Map<SearchOrderBy, PaginatorSupplier> paginators = new EnumMap<>(SearchOrderBy.class);
+        paginators.put(SearchOrderBy.COST, PaginatorCost::new);
+        paginators.put(SearchOrderBy.SEVERITY, PaginatorSeverity::new);
+        this.paginators = Collections.unmodifiableMap(paginators);
+        this.defaultPaginator = PaginatorName::new;
     }
 
     /**
@@ -209,9 +220,9 @@ public class GroupMapper {
      *
      * @param groupDto input API representation of a group object.
      * @return input object converted to a {@link GroupDefinition} object.
-     * @throws OperationFailedException if the conversion fails.
+     * @throws ConversionException if the conversion fails.
      */
-    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws OperationFailedException {
+    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws ConversionException {
         GroupDefinition.Builder groupBuilder = GroupDefinition.newBuilder()
                         .setDisplayName(groupDto.getDisplayName())
                         .setType(GroupType.REGULAR)
@@ -258,8 +269,14 @@ public class GroupMapper {
             );
         } else {
             // this means this a dynamic group of groups
-            GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(nestedMemberGroupType,
-                            groupDto.getCriteriaList());
+            final GroupFilter groupFilter;
+            try {
+                groupFilter = groupFilterMapper.apiFilterToGroupFilter(nestedMemberGroupType,
+                        groupDto.getCriteriaList());
+            } catch (OperationFailedException e) {
+                throw new ConversionException(
+                        "Failed to apply filter criteria list for group " + groupDto.getUuid(), e);
+            }
             groupBuilder.setGroupFilters(GroupFilters.newBuilder().addGroupFilter(groupFilter));
         }
 
@@ -377,13 +394,22 @@ public class GroupMapper {
      * @param groups The internal representation of the object.
      * @param populateSeverity whether or not to populate severity of the group
      * @return the converted object.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     public Map<Long, GroupApiDTO> groupsToGroupApiDto(@Nonnull final List<Grouping> groups,
-            boolean populateSeverity) {
+            boolean populateSeverity) throws ConversionException, InterruptedException {
         final List<GroupAndMembers> groupsAndMembers =
                 groups.stream().map(groupExpander::getMembersForGroup).collect(Collectors.toList());
-        final List<GroupApiDTO> apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity);
+        final List<GroupApiDTO> apiGroups;
+        try {
+            apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity, null, null);
+        } catch (InvalidOperationException e) {
+            throw new ConversionException("Failed to convert groups " +
+                    groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": " +
+                    e.getLocalizedMessage(), e);
+        }
         final Map<Long, GroupApiDTO> result = new LinkedHashMap<>(groups.size());
         final Iterator<Grouping> iterator = groups.iterator();
         for (GroupApiDTO apiGroup : apiGroups) {
@@ -392,55 +418,63 @@ public class GroupMapper {
         return result;
     }
 
+    @Nonnull
+    private PaginatorSupplier getPaginator(@Nullable SearchPaginationRequest paginationRequest) {
+        if (paginationRequest != null) {
+            final PaginatorSupplier paginator = paginators.get(paginationRequest.getOrderBy());
+            if (paginator != null) {
+                return paginator;
+            }
+        }
+        return defaultPaginator;
+    }
+
     /**
      * Converts groups and members to API objects.
      *
      * @param groupsAndMembers source groups to convert
      * @param populateSeverity whether to calculate and set severity values.
+     * @param paginationRequest pagination request, if any
+     * @param requestedEnvironment requested environment type, if any
      * @return resulting groups. Positions in the resulting list are guaranteed to match positions
      *         in the source list
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if pagination request is invalid
      */
     @Nonnull
     public List<GroupApiDTO> toGroupApiDto(@Nonnull List<GroupAndMembers> groupsAndMembers,
-            boolean populateSeverity) {
-        final Set<Long> members = groupsAndMembers.stream()
-                .map(GroupAndMembers::entities)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toSet());
-        final EntityEnvironment entityEnvironment = getApplianceEnvironment();
-        final Future<Set<Long>> activeEntities = threadPool.submit(() -> getActiveMembers(members));
-        final Future<Map<Long, String>> ownerDisplayNames =
-                threadPool.submit(() -> getOwnerNames(groupsAndMembers));
-        final Future<SeverityMap> severityMap = threadPool.submit(
-                () -> severityPopulator.getSeverityMap(realtimeTopologyContextId, members));
-        final Future<Map<Long, MinimalEntity>> entities;
-        if (entityEnvironment == null) {
-            entities = threadPool.submit(() -> getEntities(members));
-        } else {
-            entities = CompletableFuture.completedFuture(null);
-        }
+            boolean populateSeverity, @Nullable SearchPaginationRequest paginationRequest,
+            @Nullable EnvironmentType requestedEnvironment)
+            throws ConversionException, InterruptedException, InvalidOperationException {
+        final PaginatorSupplier paginatorSupplier = getPaginator(paginationRequest);
+        final List<GroupAndMembers> groupsPage;
         final GroupConversionContext context;
         try {
-
-            context = new GroupConversionContext(
-                    activeEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
-                    ownerDisplayNames.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
-                    entities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS), entityEnvironment,
-                    severityMap.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException("Failed to convert groups " +
+            final AbstractPaginator paginator =
+                    paginatorSupplier.createPaginator(groupsAndMembers, paginationRequest,
+                            requestedEnvironment);
+            if (paginator.isEmptyResult()) {
+                return Collections.emptyList();
+            }
+            groupsPage = paginator.getGroupsPage();
+            context = paginator.createContext();
+        } catch (ExecutionException | TimeoutException e) {
+            throw new ConversionException("Failed to convert groups " +
                     groupsAndMembers.stream().map(GroupAndMembers::group).map(Grouping::getId), e);
         }
-        return groupsAndMembers.stream()
-                .map(group -> toGroupApiDto(group, context, populateSeverity))
-                .collect(Collectors.toList());
+        final List<GroupApiDTO> result = new ArrayList<>(groupsAndMembers.size());
+        for (GroupAndMembers group : groupsPage) {
+            result.add(toGroupApiDto(group, context, populateSeverity));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     @Nonnull
-    private Map<Long, MinimalEntity> getEntities(@Nonnull Set<Long> members) {
-        return repositoryApi.entitiesRequest(members)
-                .getMinimalEntities()
-                .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+    private Future<Map<Long, MinimalEntity>> getEntities(@Nonnull Set<Long> members) {
+        final MembersMapObserver observer = new MembersMapObserver();
+        repositoryApi.entitiesRequest(members).getMinimalEntities(observer);
+        return observer.getFuture();
     }
 
     /**
@@ -451,10 +485,13 @@ public class GroupMapper {
      * @param conversionContext group conversion context
      * @param populateSeverity whether or not to populate severity of the group
      * @return The {@link GroupApiDTO} object.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     private GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
-            @Nonnull GroupConversionContext conversionContext, boolean populateSeverity) {
+            @Nonnull GroupConversionContext conversionContext, boolean populateSeverity)
+            throws ConversionException, InterruptedException {
 
         final EntityEnvironment envCloudType = conversionContext.getEntityEnvironment()
                 .orElseGet(() -> getEnvironmentAndCloudTypeForGroup(groupAndMembers,
@@ -471,9 +508,10 @@ public class GroupMapper {
         outputDTO.setActiveEntitiesCount(
                 getActiveEntitiesCount(groupAndMembers, conversionContext.getActiveEntities()));
 
-        calculateEstimatedCostForCloudEnv(groupAndMembers, envCloudType.getEnvironmentType()).ifPresent(
-                outputDTO::setCostPrice);
-
+        final Float cost = conversionContext.getGroupCosts().get(groupAndMembers.group().getId());
+        if (cost != null) {
+            outputDTO.setCostPrice(cost);
+        }
         // only populate severity if required and if the group is not empty, since it's expensive
         if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
             outputDTO.setSeverity(conversionContext.getSeverityMap()
@@ -482,50 +520,6 @@ public class GroupMapper {
         }
         outputDTO.setCloudType(envCloudType.getCloudType());
         return outputDTO;
-    }
-
-    private Optional<Float> calculateEstimatedCostForCloudEnv(
-            @Nonnull GroupAndMembers groupAndMembers, @Nonnull EnvironmentType environmentType) {
-        if (environmentType == EnvironmentType.CLOUD && !groupAndMembers.members().isEmpty()) {
-            final GetCloudCostStatsResponse cloudCostStatsResponse;
-            try {
-                cloudCostStatsResponse = costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
-                    .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                        .setEntityFilter(Cost.EntityFilter.newBuilder()
-                            .addAllEntityId(groupAndMembers.members())
-                            .build())
-                        .build()).build());
-            } catch (StatusRuntimeException e) {
-                if (Code.UNAVAILABLE == e.getStatus().getCode()) {
-                    // Any component may be down at any time. APIs like search should not fail
-                    // when the cost component is down. We must log a warning when this happens,
-                    // or else it will be difficult for someone to explain why search does not
-                    // have cost data.
-                    logger.warn("The cost component is not available. As a result, we will not fill in the response with cost details for groupAndMembers={} and environmentType={}",
-                        () -> groupAndMembers,
-                        () -> environmentType);
-                    return Optional.empty();
-                } else {
-                    // Cost component responded, so it's up an running. We need to make this
-                    // exception visible because there might be a bug in the cost component.
-                    throw e;
-                }
-            }
-            final List<CloudCostStatRecord> costStatRecordList =
-                    cloudCostStatsResponse.getCloudStatRecordList();
-            if (!costStatRecordList.isEmpty()) {
-                // exclude cost with category STORAGE for VMs, because this cost is duplicate STORAGE cost for volumes
-                final double estimatedCost = costStatRecordList.get(0)
-                        .getStatRecordsList()
-                        .stream()
-                        .filter(el -> !(el.getCategory() == CostCategory.STORAGE &&
-                                el.getAssociatedEntityType() == EntityType.VIRTUAL_MACHINE_VALUE))
-                        .mapToDouble(entityCostStat -> entityCostStat.getValues().getTotal())
-                        .sum();
-                return Optional.of((float)estimatedCost);
-            }
-        }
-        return Optional.empty();
     }
 
     private int getMembersCount(GroupAndMembers groupAndMembers) {
@@ -551,10 +545,11 @@ public class GroupMapper {
      * Returns a map from BusinessAccount OID -> BusinessAccount name.
      *
      * @param groupsAndMembers groups to query onwers for
-     * @return map
+     * @return map future
      */
     @Nonnull
-    private Map<Long, String> getOwnerNames(@Nonnull Collection<GroupAndMembers> groupsAndMembers) {
+    private Future<Map<Long, MinimalEntity>> getOwners(
+            @Nonnull Collection<GroupAndMembers> groupsAndMembers) {
         final Set<Long> ownerIds = groupsAndMembers.stream()
                 .map(GroupAndMembers::group)
                 .map(Grouping::getDefinition)
@@ -563,12 +558,11 @@ public class GroupMapper {
                 .map(GroupDefinition::getOwner)
                 .collect(Collectors.toSet());
         if (ownerIds.isEmpty()) {
-            return Collections.emptyMap();
+            return CompletableFuture.completedFuture(Collections.emptyMap());
         }
-        final Map<Long, String> result = repositoryApi.entitiesRequest(ownerIds)
-                .getMinimalEntities()
-                .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
-        return Collections.unmodifiableMap(result);
+        final MembersMapObserver observer = new MembersMapObserver();
+        repositoryApi.entitiesRequest(ownerIds).getMinimalEntities(observer);
+        return observer.getFuture();
     }
 
     /**
@@ -578,9 +572,12 @@ public class GroupMapper {
      * @param groupAndMembers The internal representation of the object.
      * @param conversionContext group conversion context
      * @return the converted object with some of the details filled in.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
-            @Nonnull GroupConversionContext conversionContext) {
+            @Nonnull GroupConversionContext conversionContext)
+            throws ConversionException, InterruptedException {
          final Grouping group = groupAndMembers.group();
          final GroupDefinition groupDefinition = group.getDefinition();
          final GroupApiDTO outputDTO;
@@ -693,7 +690,8 @@ public class GroupMapper {
          return outputDTO;
     }
 
-    private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers) {
+    private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers)
+            throws ConversionException, InterruptedException {
         BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
         Set<Long> oidsToQuery = new HashSet<>(groupAndMembers.members());
         List<BusinessUnitApiDTO> businessUnitApiDTOList = new ArrayList<>();
@@ -740,7 +738,7 @@ public class GroupMapper {
     }
 
     @Nonnull
-    private Set<Long> getGroupMembersAsLong(GroupApiDTO groupDto) throws OperationFailedException {
+    private Set<Long> getGroupMembersAsLong(GroupApiDTO groupDto) {
             if (groupDto.getMemberUuidList() == null) {
                 return Collections.emptySet();
             } else {
@@ -760,7 +758,8 @@ public class GroupMapper {
 
     @Nonnull
     private StaticMembers getStaticGroupMembers(@Nullable final GroupType groupType,
-                    @Nonnull final GroupApiDTO groupDto, @Nonnull Set<Long> memberUuids) throws OperationFailedException {
+            @Nonnull final GroupApiDTO groupDto, @Nonnull Set<Long> memberUuids)
+            throws ConversionException {
         final MemberType memberType;
         if (groupType != null) {
             // if this is group of groups
@@ -776,15 +775,20 @@ public class GroupMapper {
 
         if (!CollectionUtils.isEmpty(groupDto.getScope())) {
             // Derive the members from the scope
-            final Map<String, SupplyChainNode> supplyChainForScope =
-                    supplyChainFetcherFactory.newNodeFetcher()
-                            .addSeedUuids(groupDto.getScope())
-                            .entityTypes(Collections.singletonList(groupDto.getGroupType()))
-                            .apiEnvironmentType(groupDto.getEnvironmentType())
-                            .fetch();
+            final Map<String, SupplyChainNode> supplyChainForScope;
+            try {
+                supplyChainForScope = supplyChainFetcherFactory.newNodeFetcher()
+                        .addSeedUuids(groupDto.getScope())
+                        .entityTypes(Collections.singletonList(groupDto.getGroupType()))
+                        .apiEnvironmentType(groupDto.getEnvironmentType())
+                        .fetch();
+            } catch (OperationFailedException e) {
+                throw new ConversionException(
+                        "Failed to get static members for group " + groupDto.getUuid(), e);
+            }
             final SupplyChainNode node = supplyChainForScope.get(groupDto.getGroupType());
             if (node == null) {
-                throw new OperationFailedException("Group type: " + groupDto.getGroupType() +
+                throw new ConversionException("Group type: " + groupDto.getGroupType() +
                         " not found in supply chain for scopes: " + groupDto.getScope());
             }
             final Set<Long> entitiesInScope = RepositoryDTOUtil.getAllMemberOids(node);
@@ -882,21 +886,17 @@ public class GroupMapper {
      * @return a subset of {@code members} containing only active entities
      */
     @Nonnull
-    private Set<Long> getActiveMembers(@Nonnull Set<Long> members) {
+    private Future<Set<Long>> getActiveMembers(@Nonnull Set<Long> members) {
         if (members.isEmpty()) {
-            return Collections.emptySet();
+            return CompletableFuture.completedFuture(Collections.emptySet());
         }
         final PropertyFilter startingFilter = SearchProtoUtil.idFilter(members);
-        try {
-            return repositoryApi.newSearchRequest(
-                    SearchProtoUtil.makeSearchParameters(startingFilter)
-                            .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                                    SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
-                            .build()).getOids();
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to query repository for active entities " + members, e);
-            return members;
-        }
+        final SearchRequest request = repositoryApi.newSearchRequest(
+                SearchProtoUtil.makeSearchParameters(startingFilter)
+                        .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                                SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
+                        .build());
+        return request.getOidsFuture();
     }
 
     /**
@@ -977,17 +977,20 @@ public class GroupMapper {
         private final Map<Long, MinimalEntity> entities;
         private final EntityEnvironment entityEnvironment;
         private final SeverityMap severityMap;
+        private final Map<Long, Float> groupCosts;
 
         GroupConversionContext(@Nonnull Set<Long> activeEntities,
                 @Nonnull Map<Long, String> ownerDisplayName,
                 @Nullable Map<Long, MinimalEntity> entities,
                 @Nullable EntityEnvironment entityEnvironment,
-                @Nonnull SeverityMap severityMap) {
+                @Nonnull SeverityMap severityMap,
+                @Nonnull Map<Long, Float> groupCosts) {
             this.activeEntities = Objects.requireNonNull(activeEntities);
             this.ownerDisplayName = Objects.requireNonNull(ownerDisplayName);
             this.entities = entities;
             this.entityEnvironment = entityEnvironment;
             this.severityMap = Objects.requireNonNull(severityMap);
+            this.groupCosts = Objects.requireNonNull(groupCosts);
         }
 
         /**
@@ -1041,6 +1044,458 @@ public class GroupMapper {
         public SeverityMap getSeverityMap() {
             return severityMap;
         }
+
+        /**
+         * Returns a map of group costs.
+         *
+         * @return map group OID -> cost (if any)
+         */
+        @Nonnull
+        public Map<Long, Float> getGroupCosts() {
+            return groupCosts;
+        }
+    }
+
+    /**
+     * Observer collecting minimal entities into a map from OID to entity.
+     */
+    private static class MembersMapObserver extends
+            FutureObserver<MinimalEntity, Map<Long, MinimalEntity>> {
+        private final Map<Long, MinimalEntity> result = new HashMap<>();
+
+        @Nonnull
+        @Override
+        protected Map<Long, MinimalEntity> createResult() {
+            return Collections.unmodifiableMap(result);
+        }
+
+        @Override
+        public void onNext(MinimalEntity value) {
+            result.put(value.getOid(), value);
+        }
+    }
+
+    /**
+     * Stream observer to collect groups cost information. It collects cost summarized by groups.
+     */
+    private class GroupsCostObserver extends
+            FutureObserver<GetCloudCostStatsResponse, Map<Long, Float>> {
+        private final Map<Long, Float> vmCosts = new HashMap<>();
+        private final Collection<GroupAndMembers> groupsAndMembers;
+
+        GroupsCostObserver(@Nonnull Collection<GroupAndMembers> groupsAndMembers) {
+            this.groupsAndMembers = Objects.requireNonNull(groupsAndMembers);
+        }
+
+        @Nonnull
+        @Override
+        protected Map<Long, Float> createResult() {
+            final Map<Long, Float> groupsCost = new HashMap<>(groupsAndMembers.size());
+            for (GroupAndMembers groupAndMembers: groupsAndMembers) {
+                final long oid = groupAndMembers.group().getId();
+                boolean hasAnyCost = false;
+                float cost = 0;
+                for (Long member: groupAndMembers.entities()) {
+                    Float nextCost = vmCosts.get(member);
+                    if (nextCost != null) {
+                        cost += nextCost;
+                        hasAnyCost = true;
+                    }
+                }
+                if (hasAnyCost) {
+                    groupsCost.put(oid, cost);
+                }
+            }
+            return Collections.unmodifiableMap(groupsCost);
+        }
+
+        @Override
+        public void onNext(GetCloudCostStatsResponse cloudCostStatsResponse) {
+            for (CloudCostStatRecord record : cloudCostStatsResponse.getCloudStatRecordList()) {
+                for (StatRecord statRecord : record.getStatRecordsList()) {
+                    // exclude cost with category STORAGE for VMs, because this cost is duplicate STORAGE cost for volumes
+                    if (!(statRecord.getCategory() == CostCategory.STORAGE) &&
+                            (statRecord.getAssociatedEntityId() ==
+                                    EntityType.VIRTUAL_MACHINE_VALUE)) {
+                        final long oid = statRecord.getAssociatedEntityId();
+                        final float cost = statRecord.getValues().getTotal();
+                        vmCosts.put(oid, vmCosts.getOrDefault(oid, 0F) + cost);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            if (Optional.of(Code.UNAVAILABLE).equals(getStatus(t).map(Status::getCode))) {
+                // Any component may be down at any time. APIs like search should not fail
+                // when the cost component is down. We must log a warning when this happens,
+                // or else it will be difficult for someone to explain why search does not
+                // have cost data.
+                logger.warn("The cost component is not available. As a result, we will not fill in the response with cost details for groups");
+                super.onCompleted();
+            } else {
+                // Cost component responded, so it's up an running. We need to make this
+                // exception visible because there might be a bug in the cost component.
+                super.onError(t);
+            }
+        }
+    }
+
+    private static int getSkipCount(@Nonnull SearchPaginationRequest paginationRequest)
+            throws InvalidOperationException {
+        final int skipCount;
+        if (paginationRequest.getCursor().isPresent()) {
+            try {
+                skipCount = Integer.parseInt(paginationRequest.getCursor().get());
+                if (skipCount < 0) {
+                    throw new InvalidOperationException(
+                            "Illegal cursor: " + skipCount + ". Must be be a positive integer");
+                }
+            } catch (InvalidOperationException e) {
+                throw new InvalidOperationException("Cursor " + paginationRequest.getCursor() +
+                        " is invalid. Should be a number.");
+            }
+        } else {
+            skipCount = 0;
+        }
+        return skipCount;
+    }
+
+    @Nonnull
+    private List<GroupAndMembers> applyPagination(@Nonnull List<GroupAndMembers> groups,
+            @Nonnull Comparator<GroupAndMembers> comparator,
+            @Nullable SearchPaginationRequest paginationRequest,
+            @Nullable Predicate<GroupAndMembers> groupFilter) throws InvalidOperationException {
+        if (paginationRequest == null && groupFilter == null) {
+            return groups;
+        }
+        final int skipCount = paginationRequest == null ? 0 : getSkipCount(paginationRequest);
+        final int limit = paginationRequest == null ? groups.size() : paginationRequest.getLimit();
+        final List<GroupAndMembers> filteredGroups;
+        if (groupFilter != null) {
+            filteredGroups = groups.stream().filter(groupFilter).collect(Collectors.toList());
+        } else {
+            filteredGroups = groups;
+        }
+        final List<GroupAndMembers> groupsPage;
+        if (paginationRequest != null) {
+            final Comparator<GroupAndMembers> effectiveComparator =
+                    paginationRequest.isAscending() ? comparator : Collections.reverseOrder(comparator);
+            final List<GroupAndMembers> sortedGroups = new ArrayList<>(filteredGroups);
+            sortedGroups.sort(effectiveComparator);
+            groupsPage = sortedGroups.subList(getSkipCount(paginationRequest),
+                    Math.min(limit + skipCount, groups.size()));
+        } else {
+            groupsPage = filteredGroups;
+        }
+        return groupsPage;
+    }
+
+    @Nonnull
+    private Future<SeverityMap> fetchSeverityMap(@Nonnull Set<Long> members) {
+        return severityPopulator.getSeverityMap(realtimeTopologyContextId, members);
+    }
+
+    @Nonnull
+    private Future<Map<Long, Float>> fetchGroupCosts(
+            @Nonnull Collection<GroupAndMembers> groupsAndMembers, @Nonnull Set<Long> members) {
+        if (members.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyMap());
+        }
+        final GroupsCostObserver observer = new GroupsCostObserver(groupsAndMembers);
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(
+                                Cost.EntityFilter.newBuilder().addAllEntityId(members).build())
+                        .build())
+                .build();
+        costServiceStub.getCloudCostStats(request, observer);
+        return observer.getFuture();
+    }
+
+    /**
+     * Abstract paginator holds default behaviour for various paginators.
+     */
+    private abstract class AbstractPaginator {
+
+        private final EntityEnvironment globalEnvironment;
+        private final Future<Map<Long, MinimalEntity>> allEntitiesFuture;
+        private final EnvironmentType requestedEnvironmentType;
+        private final Set<Long> allMembers;
+        private final boolean emptyResult;
+
+        protected AbstractPaginator(@Nonnull List<GroupAndMembers> groups,
+                @Nullable EnvironmentType requestedEnvironmentType) {
+            allMembers = Collections.unmodifiableSet(groups.stream()
+                    .map(GroupAndMembers::entities)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet()));
+            globalEnvironment = getApplianceEnvironment();
+            if ((requestedEnvironmentType == null) ||
+                    (requestedEnvironmentType == EnvironmentType.HYBRID)) {
+                // If no filtering by environment type is selected
+                // of if hybrid environment is selected - we do not apply environment filters
+                this.requestedEnvironmentType = null;
+                this.allEntitiesFuture = null;
+                this.emptyResult = false;
+            } else if (globalEnvironment != null) {
+                // If global environment is homogeneous we either return nothing or do not
+                // apply filters
+                this.emptyResult =
+                        globalEnvironment.getEnvironmentType() != requestedEnvironmentType;
+                this.requestedEnvironmentType = null;
+                this.allEntitiesFuture = null;
+            } else {
+                // We still need to filter by environment type
+                this.emptyResult = false;
+                this.allEntitiesFuture = getEntities(allMembers);
+                this.requestedEnvironmentType = requestedEnvironmentType;
+            }
+        }
+
+        @Nullable
+        protected final Predicate<GroupAndMembers> getFilter()
+                throws ExecutionException, InterruptedException, TimeoutException {
+            if (requestedEnvironmentType == null) {
+                return null;
+            }
+            final Map<Long, MinimalEntity> allEntities =
+                    allEntitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            return group -> groupEnvironmentMatchesRequested(
+                    getEnvironmentAndCloudTypeForGroup(group, allEntities).getEnvironmentType(),
+                    requestedEnvironmentType);
+        }
+
+        private boolean groupEnvironmentMatchesRequested(@Nonnull EnvironmentType groupEnv,
+                @Nullable EnvironmentType requestedEnvironmentType) {
+            return groupEnv == EnvironmentType.HYBRID || groupEnv.equals(requestedEnvironmentType);
+        }
+
+        @Nonnull
+        protected final Future<Map<Long, MinimalEntity>> getEntities(@Nonnull Set<Long> members) {
+            if (allEntitiesFuture != null) {
+                return allEntitiesFuture;
+            } else {
+                return GroupMapper.this.getEntities(members);
+            }
+        }
+
+        public Set<Long> getAllMembers() {
+            return allMembers;
+        }
+
+        @Nonnull
+        public abstract List<GroupAndMembers> getGroupsPage();
+
+        @Nonnull
+        public GroupConversionContext createContext()
+                throws InterruptedException, TimeoutException, ExecutionException {
+            final List<GroupAndMembers> groupsAndMembers = getGroupsPage();
+            final Set<Long> members = groupsAndMembers.stream()
+                    .map(GroupAndMembers::entities)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final EntityEnvironment entityEnvironment = getApplianceEnvironment();
+            final Future<Set<Long>> activeEntities = getActiveMembers(members);
+            final Future<Map<Long, MinimalEntity>> ownerEntities = getOwners(groupsAndMembers);
+            final Future<Map<Long, MinimalEntity>> entities;
+            if (entityEnvironment == null) {
+                entities = getEntities(members);
+            } else {
+                entities = CompletableFuture.completedFuture(null);
+            }
+            final Future<SeverityMap> severityMap = getSeverityMap(members);
+            final Future<Map<Long, Float>> groupCosts = getCosts(groupsAndMembers, members);
+
+            final GroupConversionContext context;
+            context = new GroupConversionContext(
+                    activeEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
+                    ownerEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS)
+                            .entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey,
+                                    entry -> entry.getValue().getDisplayName())),
+                    entities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS), entityEnvironment,
+                    severityMap.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
+                    groupCosts.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+            return context;
+        }
+
+        @Nonnull
+        protected Future<SeverityMap> getSeverityMap(@Nonnull Set<Long> members) {
+            return fetchSeverityMap(members);
+        }
+
+        @Nonnull
+        protected Future<Map<Long, Float>> getCosts(
+                @Nonnull Collection<GroupAndMembers> groupsAndMembers,
+                @Nonnull Set<Long> members) {
+            return fetchGroupCosts(groupsAndMembers, members);
+        }
+
+        /**
+         * Returns whether there will be no results in the groups request based on conflict between
+         * requested parameters and global environment parameters.
+         *
+         * @return whether result is empty
+         */
+        public boolean isEmptyResult() {
+            return emptyResult;
+        }
+    }
+
+    /**
+     * Parinator sorting groups by display name.
+     */
+    private class PaginatorName extends AbstractPaginator {
+        private final List<GroupAndMembers> groupsPage;
+
+        /**
+         * Constructs display name sorting paginator.
+         *
+         * @param groups groups to paginate
+         * @param paginationRequest pagination request. May be empty - it will mean that no
+         *         pagination logic should be applied.
+         * @param requestedEnvironmentType requested environment type
+         * @throws InterruptedException if current thread interrupted during execution
+         * @throws ExecutionException if any of async tasks faled
+         * @throws TimeoutException if any of async tasks timed out
+         * @throws InvalidOperationException if pagination requet is invalid
+         */
+        PaginatorName(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType requestedEnvironmentType)
+                throws InterruptedException, ExecutionException, TimeoutException,
+                InvalidOperationException {
+            super(groups, requestedEnvironmentType);
+            final Comparator<GroupAndMembers> comparator =
+                    Comparator.comparing(group -> group.group().getDefinition().getDisplayName());
+            this.groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+        }
+
+        @Nonnull
+        @Override
+        public List<GroupAndMembers> getGroupsPage() {
+            return groupsPage;
+        }
+    }
+
+    /**
+     * Paginator implementation sorting groups by severity.
+     */
+    private class PaginatorSeverity extends AbstractPaginator {
+        private final List<GroupAndMembers> groupsPage;
+        private final Future<SeverityMap> severityMapFuture;
+
+        /**
+         * Constructs severity sorting paginator.
+         *
+         * @param groups groups to paginate
+         * @param paginationRequest pagination request. May be empty - it will mean that no
+         *         pagination logic should be applied.
+         * @param requestedEnvironmentType requested environment type
+         * @throws InterruptedException if current thread interrupted during execution
+         * @throws ExecutionException if any of async tasks faled
+         * @throws TimeoutException if any of async tasks timed out
+         * @throws InvalidOperationException if pagination requet is invalid
+         */
+        PaginatorSeverity(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType requestedEnvironmentType)
+                throws InterruptedException, ExecutionException, TimeoutException,
+                InvalidOperationException {
+            super(groups, requestedEnvironmentType);
+            this.severityMapFuture = fetchSeverityMap(getAllMembers());
+            final SeverityMap severityMap =
+                    severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            final Map<Long, Integer> groupsSeverities = new HashMap<>(groups.size());
+            for (GroupAndMembers group: groups) {
+                final int severity;
+                if (group.members().isEmpty()) {
+                    severity = -1;
+                } else {
+                    severity = severityMap.calculateSeverity(group.entities()).getNumber();
+                }
+                groupsSeverities.put(group.group().getId(), severity);
+            }
+            final Comparator<GroupAndMembers> comparator =
+                    Comparator.comparing(group -> groupsSeverities.get(group.group().getId()));
+            this.groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+        }
+
+        @Nonnull
+        @Override
+        public List<GroupAndMembers> getGroupsPage() {
+            return groupsPage;
+        }
+
+        @Nonnull
+        @Override
+        protected Future<SeverityMap> getSeverityMap(@Nonnull Set<Long> members) {
+            return severityMapFuture;
+        }
+    }
+
+    /**
+     * Paginator used to sort groups by costs.
+     */
+    private class PaginatorCost extends AbstractPaginator {
+
+        private final List<GroupAndMembers> groupsPage;
+        private final Future<Map<Long, Float>> groupCostsFuture;
+
+        /**
+         * Constructs cost sorting paginator.
+         *
+         * @param groups groups to paginate
+         * @param paginationRequest pagination request. May be empty - it will mean that no
+         *         pagination logic should be applied.
+         * @param requestedEnvironmentType requested environment type
+         * @throws InterruptedException if current thread interrupted during execution
+         * @throws ExecutionException if any of async tasks faled
+         * @throws TimeoutException if any of async tasks timed out
+         * @throws InvalidOperationException if pagination requet is invalid
+         */
+        PaginatorCost(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType requestedEnvironmentType)
+                throws InvalidOperationException, InterruptedException, ExecutionException,
+                TimeoutException {
+            super(groups, requestedEnvironmentType);
+            this.groupCostsFuture = fetchGroupCosts(groups, getAllMembers());
+            final Map<Long, Float> groupCosts =
+                    groupCostsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            final Comparator<GroupAndMembers> comparator = Comparator.comparing(
+                    group -> groupCosts.getOrDefault(group.group().getId(), 0F));
+            groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+        }
+
+        @Nonnull
+        @Override
+        public List<GroupAndMembers> getGroupsPage() {
+            return groupsPage;
+        }
+
+        @Nonnull
+        @Override
+        protected Future<Map<Long, Float>> getCosts(
+                @Nonnull Collection<GroupAndMembers> groupsAndMembers,
+                @Nonnull Set<Long> members) {
+            return groupCostsFuture;
+        }
+    }
+
+    /**
+     * A function to create a paginator.
+     */
+    private interface PaginatorSupplier {
+        @Nonnull
+        AbstractPaginator createPaginator(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType environmentType)
+                throws InvalidOperationException, InterruptedException, ExecutionException,
+                TimeoutException;
     }
 
 }
