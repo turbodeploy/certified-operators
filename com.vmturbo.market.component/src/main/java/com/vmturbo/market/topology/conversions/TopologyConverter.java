@@ -2601,14 +2601,17 @@ public class TopologyConverter {
      * @param scalingGroupUsage pre-calculated scaling group usage, if available.
      * @return a list of a pairs, each pair with the used and peak values.
      */
-    public List<Pair<Float, Float>> getCommBoughtQuantities(
-        final TopologyEntityDTO buyer,
-        CommodityBoughtDTO topologyCommBought, @Nullable final Long providerOid,
-        final Optional<ScalingGroupUsage> scalingGroupUsage) {
+    private List<Pair<Float, Float>> getCommBoughtQuantities(
+            final TopologyEntityDTO buyer,
+            final CommodityBoughtDTO topologyCommBought,
+            @Nullable final Long providerOid,
+            final Optional<ScalingGroupUsage> scalingGroupUsage) {
         if (scalingGroupUsage.isPresent()) {
-            Optional<Double> cachedUsage = scalingGroupUsage.get().getUsageForCommodity(topologyCommBought);
+            Optional<Double> cachedUsage = scalingGroupUsage.get()
+                    .getUsageForCommodity(topologyCommBought);
             if (cachedUsage.isPresent()) {
-                return ImmutableList.of(new Pair(cachedUsage.get(), cachedUsage.get()));
+                final Float usage = cachedUsage.get().floatValue();
+                return ImmutableList.of(new Pair<>(usage, usage));
             }
         }
         return getCommBoughtQuantities(buyer, topologyCommBought, providerOid);
