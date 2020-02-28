@@ -59,7 +59,7 @@ public class CloudDiscoveryConverterTest {
         final CloudDiscoveryConverter converter = new CloudDiscoveryConverter(
             DiscoveryResponse.getDefaultInstance(), mockContext);
 
-        final int vmProfileSize = 12345;
+        final int vmProfileSizeInGB = 1900;
         final String vmProfileId = "vmProfileId";
         final EntityDTO vm = EntityBuilders.virtualMachine("vmId")
             .profileId(vmProfileId)
@@ -69,7 +69,7 @@ public class CloudDiscoveryConverterTest {
         final EntityProfileDTO vmProfile = EntityProfileDTO.newBuilder()
             .setId(vmProfileId)
             .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setVmProfileDTO(VMProfileDTO.newBuilder().setInstanceDiskSize(vmProfileSize))
+            .setVmProfileDTO(VMProfileDTO.newBuilder().setInstanceDiskSize(vmProfileSizeInGB))
             .build();
         final EntityProperty localName = EntityProperty.newBuilder()
                 .setNamespace(SupplyChainConstants.NAMESPACE)
@@ -89,7 +89,7 @@ public class CloudDiscoveryConverterTest {
         final EntityDTO.Builder volume = result.get(0);
         final VirtualVolumeData resultData = volume.getVirtualVolumeData();
         assertTrue(resultData.getIsEphemeral());
-        assertEquals(vmProfileSize, resultData.getStorageAmountCapacity(), DELTA);
+        assertEquals(vmProfileSizeInGB * (1000f * 1000f * 1000f) / 1024.0 / 1024.0, resultData.getStorageAmountCapacity(), DELTA);
         assertEquals(AttachmentState.ATTACHED, resultData.getAttachmentState());
         final List<EntityProperty> volumeEntityProperties = volume.getEntityPropertiesList();
         assertFalse(volumeEntityProperties.isEmpty());

@@ -31,6 +31,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Att
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.platform.sdk.common.util.Units;
 
 /**
  * Convert cloud discovery response (entities, profiles...) to new cloud model for use by XL.
@@ -217,7 +218,7 @@ public class CloudDiscoveryConverter {
                     return;
                 }
                 final String diskType = profileDTO.getVmProfileDTO().getInstanceDiskType().toString();
-                final int diskSize = profileDTO.getVmProfileDTO().getInstanceDiskSize();
+                final int diskSizeInGB = profileDTO.getVmProfileDTO().getInstanceDiskSize();
                 final String entityId = entityDTO.getId();
                 for (int index = 0; index < numInstanceStores; index++) {
                     final String id = createEphemeralVolumeId(entityId, index, zoneId, diskType);
@@ -228,7 +229,7 @@ public class CloudDiscoveryConverter {
                             .setMonitored(false)
                             .setVirtualVolumeData(VirtualVolumeData.newBuilder()
                                     .setIsEphemeral(true)
-                                    .setStorageAmountCapacity(diskSize)
+                                    .setStorageAmountCapacity((float) (diskSizeInGB * (Units.GIGA / Units.MBYTE)))
                                     .setAttachmentState(AttachmentState.ATTACHED)));
 
                     // Create Storage Tier if it doesn't exist
