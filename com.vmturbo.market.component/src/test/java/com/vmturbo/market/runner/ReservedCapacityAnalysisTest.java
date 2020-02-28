@@ -501,4 +501,30 @@ public class ReservedCapacityAnalysisTest {
         rca.execute(null);
         assertEquals(1, rca.getActions().size());
     }
+
+    @Test
+    public void testReservationNonResizableContainer() {
+        VMemSold.setIsResizeable(false);
+        CONTAINER.addCommoditySoldList(VMemSold)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(VM_OID)
+                .addCommodityBought(MemBought));
+        ReservedCapacityAnalysis rca = makeRCA(CONTAINER, VM);
+        rca.execute(null);
+
+        assertEquals(1, rca.getActions().size());
+    }
+
+    @Test
+    public void testReservationNonResizableVM() {
+        VMemSold.setIsResizeable(false);
+        VM.addCommoditySoldList(VMemSold)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PM_OID)
+                .addCommodityBought(MemBought));
+        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
+        rca.execute(null);
+
+        assertEquals(0, rca.getActions().size());
+    }
 }
