@@ -23,10 +23,10 @@ import org.junit.Test;
 
 import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
@@ -107,14 +107,14 @@ public class LiveTopologyStoreMeasurementIT {
 
         stopwatch.reset();
         stopwatch.start();
-        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.CLOUD,
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, EnvironmentType.CLOUD,
                 GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
         stopwatch.stop();
         logger.info("Cloud GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
         stopwatch.reset();
         stopwatch.start();
-        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.ON_PREM,
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, EnvironmentType.ON_PREM,
                 GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
         stopwatch.stop();
         logger.info("On-prem GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));

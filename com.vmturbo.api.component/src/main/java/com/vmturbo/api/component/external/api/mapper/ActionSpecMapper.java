@@ -123,7 +123,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -1519,8 +1518,8 @@ public class ActionSpecMapper {
             }
 
             if (inputDto.getEnvironmentType() != null) {
-                UIEnvironmentType.fromString(inputDto.getEnvironmentType().name()).toEnvType()
-                    .ifPresent(queryBuilder::setEnvironmentType);
+                queryBuilder.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(
+                                                    inputDto.getEnvironmentType()));
             }
 
             if (CollectionUtils.isNotEmpty(inputDto.getRelatedEntityTypes())) {

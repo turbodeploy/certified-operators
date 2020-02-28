@@ -6,15 +6,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import io.grpc.stub.StreamObserver;
 
@@ -37,6 +34,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -473,7 +471,8 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             Predicate<RepoGraphEntity> predicateBuilder = e -> true;
             if (targetEnvType.isPresent()) {
                 final EnvironmentType environmentType = targetEnvType.get();
-                predicateBuilder = predicateBuilder.and(e -> e.getEnvironmentType() == environmentType);
+                predicateBuilder = predicateBuilder.and(e ->
+                                        EnvironmentTypeUtil.match(environmentType, e.getEnvironmentType()));
             }
             if (!exclusionEntityTypes.isEmpty()) {
                 predicateBuilder = predicateBuilder.and(

@@ -268,8 +268,8 @@ public class WidgetsetMapper {
                             ServiceEntityApiDTO entityApiDTO = ServiceEntityMapper.toBasicEntity(entity);
                             // also set environment type since it's needed by UI
                             if (entity.hasEnvironmentType()) {
-                                EnvironmentTypeMapper.fromXLToApi(entity.getEnvironmentType())
-                                        .ifPresent(entityApiDTO::setEnvironmentType);
+                                entityApiDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
+                                                                    entity.getEnvironmentType()));
                             } else {
                                 logger.warn("No environment type defined for entity {}.", entity);
                             }

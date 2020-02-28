@@ -46,7 +46,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.topology.graph.TestGraphEntity;
@@ -390,72 +389,26 @@ public class TopologyFilterFactoryTest {
         assertFalse(propertyFilter.test(entity2));
     }
 
+    /**
+     * Test environment type matching.
+     */
     @Test
     public void testSearchFilterForEnvironmentTypeMatch() {
-        final SearchFilter searchCriteria = SearchFilter.newBuilder()
-            .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                .setPropertyName("environmentType")
-                .setStringFilter(StringFilter.newBuilder()
-                    .setPositiveMatch(true)
-                    .setStringPropertyRegex("CLOUD")))
-            .build();
-
-        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
-        assertTrue(filter instanceof PropertyFilter);
-        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
-
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .build();
-
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        testSearchFilterForEnvironmentTypeMatch("CLOUD", true, true, false, false);
+        testSearchFilterForEnvironmentTypeMatch("ONPREM", true, false, true, false);
+        testSearchFilterForEnvironmentTypeMatch("HYBRID", true, true, true, true);
+        testSearchFilterForEnvironmentTypeMatch("UNKNOWN", false, false, false, true);
     }
 
-    @Test
-    public void testSearchFilterForEnvironmentTypeNoMatch() {
-        final SearchFilter searchCriteria = SearchFilter.newBuilder()
-                .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                        .setPropertyName("environmentType")
-                        .setStringFilter(StringFilter.newBuilder()
-                                // Match set to false, so "CLOUD" entities shouldn't match.
-                                .setPositiveMatch(false)
-                                .setStringPropertyRegex("CLOUD")))
-                .build();
-
-        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
-        assertTrue(filter instanceof PropertyFilter);
-        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
-
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
-            .build();
-
-
-        assertFalse(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertTrue(propertyFilter.test(entity3));
-    }
-
-    @Test
-    public void testSearchFilterForEnvironmentTypeCaseInsensitive() {
+    private void testSearchFilterForEnvironmentTypeMatch(
+            @Nonnull String envType, boolean hybridShouldMatch, boolean cloudShouldMatch,
+            boolean onpremShouldMatch, boolean unknownShouldMatch) {
         final SearchFilter searchCriteria = SearchFilter.newBuilder()
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("environmentType")
                         .setStringFilter(StringFilter.newBuilder()
                                 .setPositiveMatch(true)
-                                .setStringPropertyRegex("cLoUD")
-                                // Ignore case sensitive flag.
-                                .setCaseSensitive(true)))
+                                .setStringPropertyRegex(envType)))
                 .build();
 
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
@@ -463,9 +416,22 @@ public class TopologyFilterFactoryTest {
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
         final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .build();
-        assertTrue(propertyFilter.test(entity1));
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(3456L, UIEntityType.VIRTUAL_MACHINE)
+                .setEnvironmentType(EnvironmentType.HYBRID)
+                .build();
+        final TestGraphEntity entity4 = TestGraphEntity.newBuilder(4567L, UIEntityType.VIRTUAL_MACHINE)
+                .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
+                .build();
+
+        assertEquals(cloudShouldMatch, propertyFilter.test(entity1));
+        assertEquals(onpremShouldMatch, propertyFilter.test(entity2));
+        assertEquals(hybridShouldMatch, propertyFilter.test(entity3));
+        assertEquals(unknownShouldMatch, propertyFilter.test(entity4));
     }
 
     @Test
@@ -577,35 +543,6 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
             .build();
         final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, UIEntityType.STORAGE)
-            .build();
-
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertFalse(propertyFilter.test(entity3));
-    }
-
-    @Test
-    public void testSearchFilterForEnvironmentTypeOptions() {
-        final SearchFilter searchCriteria = SearchFilter.newBuilder()
-            .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                .setPropertyName(SearchableProperties.ENVIRONMENT_TYPE)
-                .setStringFilter(StringFilter.newBuilder()
-                    .addOptions(UIEnvironmentType.ON_PREM.getApiEnumStringValue())
-                    .addOptions(UIEnvironmentType.CLOUD.getApiEnumStringValue())))
-            .build();
-
-        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
-        assertTrue(filter instanceof PropertyFilter);
-        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
-
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
-            .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
             .build();
 
         assertTrue(propertyFilter.test(entity1));

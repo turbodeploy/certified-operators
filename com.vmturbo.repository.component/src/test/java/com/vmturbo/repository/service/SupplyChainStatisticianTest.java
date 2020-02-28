@@ -172,7 +172,7 @@ public class SupplyChainStatisticianTest {
     private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
 
     /**
-     * Test server to mock out gRPC dependencies.
+     * Test server1 to mock out gRPC dependencies.
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityServiceBackend,

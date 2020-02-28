@@ -14,9 +14,9 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
 public class SearchDTOConverter {
@@ -145,8 +145,7 @@ public class SearchDTOConverter {
             .setDisplayName(serviceEntityRepoDTO.getDisplayName())
             .setEntityType(UIEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber())
             .setOid(Long.parseLong(serviceEntityRepoDTO.getOid()));
-
-        UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType()).toEnvType()
+        EnvironmentTypeUtil.fromApiString(serviceEntityRepoDTO.getEnvironmentType())
             .ifPresent(eBldr::setEnvironmentType);
         return eBldr.build();
     }

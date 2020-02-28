@@ -36,6 +36,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
@@ -46,7 +47,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -148,8 +148,8 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             Optional.of(request.getContextId()) : Optional.empty();
         final SupplyChainScope scope = request.getScope();
 
-        final Optional<UIEnvironmentType> envType = scope.hasEnvironmentType() ?
-                Optional.of(UIEnvironmentType.fromEnvType(scope.getEnvironmentType())) :
+        final Optional<EnvironmentType> envType = scope.hasEnvironmentType() ?
+                Optional.of(scope.getEnvironmentType()) :
                 Optional.empty();
         if (scope.getStartingEntityOidCount() > 0) {
             getMultiSourceSupplyChain(scope.getStartingEntityOidList(),
@@ -224,6 +224,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      *
      * @param entityTypesToIncludeList if given and non-empty, then restrict supply chain nodes
      *                                 returned to the entityTypes listed here
+     * @param environmentType optional environment type filter
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
      * @param filterForDisplay whether or not to filter out non-display nodes (such as business accounts)
@@ -231,7 +232,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
-                                                        @Nonnull final Optional<UIEnvironmentType> environmentType,
+                                                        @Nonnull final Optional<EnvironmentType> environmentType,
                                                         @Nonnull final Optional<Long> contextId,
                                                         final boolean filterForDisplay,
                                                         @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
@@ -272,7 +273,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      *                                 to be returned to entityTypes in this list
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
-     * @param envType
+     * @param envType optional environment type filter
      * @param filterForDisplay if true, then entity types not intended for display in the UI supply
      *                         chain will be filtered out.
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
@@ -280,7 +281,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
                                            @Nonnull final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
-                                           @Nonnull final Optional<UIEnvironmentType> envType,
+                                           @Nonnull final Optional<EnvironmentType> envType,
                                            final boolean filterForDisplay,
                                            @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
@@ -325,7 +326,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
         }
     }
 
-    /**
+    /*
      * Handles the special case for cloud if zone is returned in supply chain. In current cloud
      * topology, we can not traverse to region if not starting from zone. So if any zone is in the
      * supply chain, we need to get another supply chain starting from zone and then merge onto
@@ -336,7 +337,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                     @Nonnull SupplyChainMerger supplyChainMerger,
                     @Nonnull UIEntityType startingVertexEntityType,
                     @Nonnull Optional<Long> contextId,
-                    @Nonnull Optional<UIEnvironmentType> envType,
+                    @Nonnull Optional<EnvironmentType> envType,
                     final boolean filterForDisplay,
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainComplete,
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion) {
@@ -400,14 +401,14 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
             : IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
     }
 
-    /**
+    /*
      * Get the supply chain local to a specific starting node by walking the graph topology beginning
      * with the starting node. The search is done within the topology corresponding to the given
      * topology context ID, which might be the Live Topology or a Plan Topology.
      */
     private SingleSourceSupplyChain getSingleSourceSupplyChain(@Nonnull final Long startingVertexOid,
                                                                @Nonnull final Optional<Long> contextId,
-                                                               @Nonnull final Optional<UIEnvironmentType> envType,
+                                                               @Nonnull final Optional<EnvironmentType> envType,
                                                                @Nonnull final Set<Integer> inclusionEntityTypes,
                                                                @Nonnull final Set<Integer> exclusionEntityTypes) {
         logger.debug("Getting a supply chain starting from {} in topology {}",

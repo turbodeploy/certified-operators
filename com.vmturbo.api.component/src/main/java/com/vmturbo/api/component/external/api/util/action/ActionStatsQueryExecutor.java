@@ -25,6 +25,7 @@ import org.immutables.value.Value;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -47,7 +48,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -246,7 +246,7 @@ public class ActionStatsQueryExecutor {
         default Optional<EnvironmentTypeEnum.EnvironmentType> getEnvironmentType() {
             return
                 Optional.ofNullable(actionInput().getEnvironmentType())
-                    .flatMap(envType -> UIEnvironmentType.fromString(envType.name()).toEnvType());
+                    .map(EnvironmentTypeMapper::fromApiToXL);
         }
 
         @Nonnull

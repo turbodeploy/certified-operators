@@ -233,17 +233,6 @@ public class ArangoRepositoryRpcServiceTest {
     }
 
     @Test
-    public void testRetrieveRealTimeTopologyEntities() {
-        when(graphDBService.retrieveRealTimeTopologyEntities(Mockito.anySet()))
-            .thenReturn(Either.right(Collections.emptyList()));
-        repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .addAllEntityOids(Lists.newArrayList(1L))
-                .setTopologyType(RepositoryDTO.TopologyType.SOURCE)
-                .build());
-    }
-
-    @Test
     public void testRetrieveTopologyEntitiesStreaming() {
         // test that a response that should get chunked.
         Collection<TopologyEntityDTO> manyEntities = new ArrayList<>();

@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
@@ -38,14 +39,13 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
@@ -78,7 +78,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
     /**
      * Allowed filters for environment type for global scope.
      */
-    private static final Set<EnvironmentTypeEnum.EnvironmentType> environmentTypeFilterAllowed =
+    private static final Set<EnvironmentTypeEnum.EnvironmentType> ENVIRONMENT_TYPE_FILTER_ALLOWED =
         Sets.newHashSet(EnvironmentType.CLOUD, EnvironmentType.ON_PREM);
 
     private final RepositoryApi repositoryApi;
@@ -191,10 +191,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 final SearchParameters vvInScopeSearchParams = getSearchScopeBuilder(context, requestedStat)
                     .addSearchFilter(SearchFilter.newBuilder()
                         .setPropertyFilter(
-                            SearchProtoUtil.stringPropertyFilterExact(
-                                SearchableProperties.ENVIRONMENT_TYPE,
-                                Collections.singletonList(UIEnvironmentType.CLOUD.name()))
-                        )
+                            SearchProtoUtil.environmentTypeFilter(EnvironmentType.CLOUD))
                         .build())
                     .build();
 
@@ -284,17 +281,13 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 requestStat.getFilters().stream().filter(filter -> filter.getType().equals(StringConstants.ENVIRONMENT_TYPE)).findFirst();
 
             // explicitly add search filter for CLOUD and ONPREM only
-            environmentTypeFilterDto.flatMap(envFilter -> UIEnvironmentType.fromString(envFilter.getValue()).toEnvType())
+            environmentTypeFilterDto.flatMap(envFilter -> EnvironmentTypeUtil.fromApiString(envFilter.getValue()))
                 .ifPresent(targetEnvType -> {
-                    if (environmentTypeFilterAllowed.contains(targetEnvType)) {
+                    if (ENVIRONMENT_TYPE_FILTER_ALLOWED.contains(targetEnvType)) {
                         builder.addSearchFilter(
                             SearchFilter.newBuilder()
-                                .setPropertyFilter(
-                                    SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENVIRONMENT_TYPE,
-                                        Collections.singletonList(environmentTypeFilterDto.get().getValue()))
-                                )
-                                .build()
-                        );
+                                .setPropertyFilter(SearchProtoUtil.environmentTypeFilter(targetEnvType))
+                                .build());
                     }
                 });
 

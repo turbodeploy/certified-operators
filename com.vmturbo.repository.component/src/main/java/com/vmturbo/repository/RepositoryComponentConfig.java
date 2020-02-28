@@ -337,8 +337,7 @@ public class RepositoryComponentConfig {
      */
     @Bean
     public SupplyChainService supplyChainService() {
-        return new SupplyChainService(arangoReactiveDBExecutor(), graphDBService(),
-                graphDefinition(), topologyManager(), globalSupplyChainManager(),
+        return new SupplyChainService(topologyManager(), globalSupplyChainManager(),
                 userSessionConfig.userSessionContext());
     }
 

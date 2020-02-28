@@ -199,9 +199,7 @@ public class ServiceEntityMapper {
                 result.setState(UIEntityState.fromEntityState(apiEntity.getEntityState()).apiStr());
             }
             if (apiEntity.hasEnvironmentType()) {
-                EnvironmentTypeMapper
-                    .fromXLToApi(apiEntity.getEnvironmentType())
-                    .ifPresent(result::setEnvironmentType);
+                result.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(apiEntity.getEnvironmentType()));
             }
 
             setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
@@ -272,9 +270,8 @@ public class ServiceEntityMapper {
             seDTO.setState(UIEntityState.fromEntityState(topologyEntityDTO.getEntityState()).apiStr());
         }
         if (topologyEntityDTO.hasEnvironmentType()) {
-            EnvironmentTypeMapper
-                .fromXLToApi(topologyEntityDTO.getEnvironmentType())
-                .ifPresent(seDTO::setEnvironmentType);
+            seDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
+                                        topologyEntityDTO.getEnvironmentType()));
         }
 
         setDiscoveredBy(() -> topologyEntityDTO.getOrigin().getDiscoveryOrigin()

@@ -11,11 +11,12 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -48,11 +49,13 @@ public class GlobalSupplyChainCalculator {
      */
     @Nonnull
     public <E extends TopologyGraphEntity<E>> Map<UIEntityType, SupplyChainNode> getSupplyChainNodes(
-            @Nonnull TopologyGraph<E> topology, @Nonnull UIEnvironmentType environmentType,
+            @Nonnull TopologyGraph<E> topology, @Nonnull EnvironmentType environmentType,
             @Nonnull Predicate<Integer> entityTypesToSkip) {
+        final Predicate<EnvironmentType> environmentTypePredicate =
+                EnvironmentTypeUtil.matchingPredicate(environmentType);
         return getSupplyChainNodes(topology,
-                                   entity -> environmentType.matchesEnvType(entity.getEnvironmentType()),
-                                    entityTypesToSkip);
+                                   entity -> environmentTypePredicate.test(entity.getEnvironmentType()),
+                                   entityTypesToSkip);
     }
 
     /**

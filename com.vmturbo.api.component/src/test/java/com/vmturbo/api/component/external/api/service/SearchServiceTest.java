@@ -103,6 +103,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -307,6 +308,19 @@ public class SearchServiceTest {
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(null, null);
+
+        final SearchRequest mockSearchRequest = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(mockSearchRequest);
+        when(mockSearchRequest.getSEList()).thenReturn(Collections.emptyList());
+        getSearchResults(searchService, null,
+                         Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()), null, null,
+                         null, EnvironmentType.CLOUD, null, null);
+        verify(repositoryApi).newSearchRequest(
+            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(
+                    Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr())))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                        SearchProtoUtil.environmentTypeFilter(EnvironmentTypeEnum.EnvironmentType.CLOUD)))
+                .build());
 
         when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(

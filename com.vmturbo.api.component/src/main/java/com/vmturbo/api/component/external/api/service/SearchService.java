@@ -75,6 +75,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -90,6 +91,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResp
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
@@ -105,7 +107,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -120,7 +121,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -269,11 +269,11 @@ public class SearchService implements ISearchService {
         }
     }
 
-    private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(@Nullable String nameRegex,
-                                                                   @Nullable List<String> types,
-                                                                   @Nullable String state,
-                                                                   @Nullable EntityDetailType entityDetailType)
-            throws ConversionException, InterruptedException {
+    private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(
+            @Nullable String nameRegex, @Nullable List<String> types,
+            @Nullable String state, @Nullable EnvironmentTypeEnum.EnvironmentType envType,
+            @Nullable EntityDetailType entityDetailType)
+            throws ConversionException, InterruptedException{
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
             IllegalArgumentException e = new IllegalArgumentException("Type must be set for search result.");
@@ -287,6 +287,11 @@ public class SearchService implements ISearchService {
         if (!StringUtils.isEmpty(nameRegex)) {
             searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
                 SearchProtoUtil.nameFilterRegex(nameRegex)));
+        }
+
+        if (envType != null) {
+            searchParamsBuilder.addSearchFilter(
+                SearchProtoUtil.searchFilterProperty(SearchProtoUtil.environmentTypeFilter(envType)));
         }
 
         if (!StringUtils.isEmpty(state)) {
@@ -381,6 +386,9 @@ public class SearchService implements ISearchService {
             }
         }
 
+        final EnvironmentTypeEnum.EnvironmentType environmentTypeXl =
+                EnvironmentTypeMapper.fromApiToXL(environmentType);
+
         // Must be a search for a ServiceEntity
         final Stream<ServiceEntityApiDTO> entitiesResult;
         // Patrick: I am scoping this clause of the request on the results side rather than on the
@@ -393,7 +401,8 @@ public class SearchService implements ISearchService {
         if (scopes == null || scopes.size() <= 0 ||
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
-            entitiesResult = queryByTypeAndStateAndName(query, types, state, entityDetailType)
+            entitiesResult =
+                queryByTypeAndStateAndName(query, types, state, environmentTypeXl, entityDetailType)
                     .filter(scopeFilter);
         } else {
             // expand to include the supplychain for the 'scopes', some of which may be groups or
@@ -415,17 +424,16 @@ public class SearchService implements ISearchService {
 
             // Fetch service entities matching the given specs
             // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
-           entitiesResult = queryByTypeAndStateAndName(query, types, state, entityDetailType)
-                .filter(scopeFilter)
-                .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
+           entitiesResult = queryByTypeAndStateAndName(query, types, state,
+                                                       environmentTypeXl, entityDetailType)
+                                .filter(scopeFilter)
+                                .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
         }
 
         // set discoveredBy, filter by probe types and environment type
         List<BaseApiDTO> result = entitiesResult
                 .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
                         probeTypes.contains(se.getDiscoveredBy().getType()))
-                .filter(entity -> EnvironmentTypeMapper.matches(environmentType,
-                        entity.getEnvironmentType()))
                 .collect(Collectors.toList());
         return paginationRequest.allResultsResponse(result);
     }
@@ -647,14 +655,11 @@ public class SearchService implements ISearchService {
     private List<SearchParameters> addEnvironmentTypeFilter(
             @Nonnull EnvironmentType environmentType,
             @Nonnull List<SearchParameters> searchParameters) {
-        final UIEnvironmentType uiEnvironmentType = UIEnvironmentType.fromString(
-                environmentType.name());
-        if (uiEnvironmentType != UIEnvironmentType.HYBRID) {
-            final SearchFilter envTypeFilter = SearchFilter.newBuilder()
-                    .setPropertyFilter(SearchProtoUtil.stringPropertyFilterExact(
-                            SearchableProperties.ENVIRONMENT_TYPE,
-                            Collections.singletonList(
-                                    uiEnvironmentType.getApiEnumStringValue())))
+        if (environmentType != EnvironmentType.HYBRID) {
+            final SearchFilter envTypeFilter =
+                SearchFilter.newBuilder()
+                    .setPropertyFilter(SearchProtoUtil.environmentTypeFilter(
+                                            EnvironmentTypeMapper.fromApiToXL(environmentType)))
                     .build();
             searchParameters = searchParameters.stream()
                     .map(searchParameter -> searchParameter.toBuilder()

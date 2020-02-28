@@ -14,13 +14,13 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
@@ -49,10 +49,7 @@ public class ServiceEntityRepoDTOConverter {
         topologyEntityBuilder.setDisplayName(serviceEntityRepoDTO.getDisplayName());
         topologyEntityBuilder.setEntityType(UIEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber());
         topologyEntityBuilder.setEnvironmentType(
-            UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType())
-                .toEnvType()
-                // We don't expect to have a HYBRID topology entity, so if we get a hybrid
-                // environment type, assume something's wrong and put it as "UNKNOWN".
+            EnvironmentTypeUtil.fromApiString(serviceEntityRepoDTO.getEnvironmentType())
                 .orElse(EnvironmentType.UNKNOWN_ENV));
         if (serviceEntityRepoDTO.getState() != null) {
             topologyEntityBuilder.setEntityState(

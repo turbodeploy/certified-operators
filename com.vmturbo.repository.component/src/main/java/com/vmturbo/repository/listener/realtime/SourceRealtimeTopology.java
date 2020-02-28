@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -64,7 +63,7 @@ public class SourceRealtimeTopology {
      * the global supply chain (which doesn't happen for most topologies with a 10-min update
      * interval).
      */
-    private final Map<UIEnvironmentType, SetOnce<Map<UIEntityType, SupplyChainNode>>> globalSupplyChain = new HashMap<>();
+    private final Map<EnvironmentType, SetOnce<Map<UIEntityType, SupplyChainNode>>> globalSupplyChain = new HashMap<>();
 
     private SourceRealtimeTopology(@Nonnull final TopologyInfo topologyInfo,
                                    @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
@@ -101,20 +100,16 @@ public class SourceRealtimeTopology {
      * Get the global supply chain. This is lazily cached, so the first call will take longer
      * than the subsequent ones.
      *
-     * @param envType possibly restrict results to a specific environment type
+     * @param optEnvType possibly restrict results to a specific environment type
      * @param entityTypesToSkip a predicate used to determine if an entity type should be skipped
      *                          during traversal or not.
      * @return (entity type) -> ({@link SupplyChainNode} for the entity type)
      */
     @Nonnull
     public synchronized Map<UIEntityType, SupplyChainNode> globalSupplyChainNodes(
-            @Nonnull final Optional<EnvironmentType> envType,
+            @Nonnull final Optional<EnvironmentType> optEnvType,
             @Nonnull final Predicate<Integer> entityTypesToSkip) {
-        final UIEnvironmentType environmentType = envType.map(UIEnvironmentType::fromEnvType)
-                                                         .orElse(UIEnvironmentType.HYBRID);
-        if (environmentType == UIEnvironmentType.UNKNOWN) {
-            return Collections.emptyMap();
-        }
+        final EnvironmentType environmentType = optEnvType.orElse(EnvironmentType.HYBRID);
 
         final SetOnce<Map<UIEntityType, SupplyChainNode>> envTypeNodes =
             globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());

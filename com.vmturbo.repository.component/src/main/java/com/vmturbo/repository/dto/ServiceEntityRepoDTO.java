@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
-
 /**
  * Class containing all the fields that need to be saved to ArangoDB, all the info comes from
  * TopologyEntityDTO.
@@ -23,9 +21,6 @@ public class ServiceEntityRepoDTO {
 
     private String entityType;
 
-    /**
-     * This should be a {@link UIEnvironmentType}.
-     */
     private String environmentType;
 
     private Float priceIndex;
