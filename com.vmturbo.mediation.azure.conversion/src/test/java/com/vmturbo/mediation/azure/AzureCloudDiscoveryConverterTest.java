@@ -23,7 +23,6 @@ import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseTierConverter;
@@ -191,40 +190,6 @@ public class AzureCloudDiscoveryConverterTest {
 
             // check db owned by BusinessAccount
             assertThat(azureConverter.getNewEntityBuilder(businessAccountId).getConsistsOfList(), hasItem(dbId));
-        });
-    }
-
-    @Test
-    public void testComputeTierConverter() {
-        IEntityConverter converter = new ComputeTierConverter(SDKProbeType.AZURE);
-        newEntitiesByType.get(EntityType.COMPUTE_TIER).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);
-
-            // check ct not removed
-            assertTrue(converter.convert(newEntity, azureConverter));
-
-            // connected to storage tier and region
-            Set<EntityType> connectedEntityTypes = newEntity.getLayeredOverList().stream()
-                    .map(id -> azureConverter.getNewEntityBuilder(id).getEntityType())
-                    .collect(Collectors.toSet());
-            assertThat(connectedEntityTypes, containsInAnyOrder(EntityType.REGION, EntityType.STORAGE_TIER));
-
-            // check bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-
-            // check sold commodities
-            assertThat(newEntity.getCommoditiesSoldList().stream()
-                    .map(CommodityDTO::getCommodityType)
-                    .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.CPU,
-                    CommodityType.CPU_PROVISIONED, CommodityType.MEM, CommodityType.MEM_PROVISIONED,
-                    CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT,
-                    CommodityType.NUM_DISK, CommodityType.LICENSE_ACCESS,
-                    CommodityType.NETWORK_INTERFACE_COUNT, CommodityType.TENANCY_ACCESS));
-
-            // check ct owned by CloudService
-            assertThat(azureConverter.getNewEntityBuilder(
-                    CloudService.AZURE_VIRTUAL_MACHINES.getId()).getConsistsOfList(), hasItem(entityId));
         });
     }
 

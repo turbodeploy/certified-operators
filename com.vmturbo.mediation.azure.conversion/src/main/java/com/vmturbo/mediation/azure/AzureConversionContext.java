@@ -17,7 +17,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseTierConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
@@ -36,7 +35,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.AZURE));
-        converters.put(EntityType.COMPUTE_TIER, new AzureComputeTierConverter());
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
@@ -44,7 +42,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
         converters.put(EntityType.APPLICATION, new ApplicationConverter());
         converters.put(EntityType.VIRTUAL_APPLICATION, new VirtualApplicationConverter());
-        converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AZURE_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
 
@@ -58,7 +55,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
 
     private static final Map<EntityType, EntityType> AZURE_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE =
             ImmutableMap.of(
-                    EntityType.VIRTUAL_MACHINE, EntityType.COMPUTE_TIER,
                     EntityType.DATABASE, EntityType.DATABASE_TIER
             );
 
