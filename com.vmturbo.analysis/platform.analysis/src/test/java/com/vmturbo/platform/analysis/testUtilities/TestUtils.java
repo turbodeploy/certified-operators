@@ -3,24 +3,24 @@
  */
 package com.vmturbo.platform.analysis.testUtilities;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.Context;
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -31,10 +31,10 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
@@ -677,9 +677,11 @@ public class TestUtils {
         } else {
             costTuple.setZoneId(locationId);
         }
-        costTuple.setBusinessAccountId(accountScopeId);
         CostDTO costDTOcbtp = CostDTO.newBuilder()
-                .setCbtpResourceBundle(cbtpBundleBuilder.addCostTupleList(costTuple).build()).build();
+                .setCbtpResourceBundle(cbtpBundleBuilder
+                        .addCostTupleList(costTuple)
+                        .setScopeId(accountScopeId))
+                .build();
         CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
         cbtp.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
         return cbtp;
@@ -723,6 +725,7 @@ public class TestUtils {
         }
         cbtpBundleBuilder.addCostTupleList(costTuple);
         cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
+        cbtpBundleBuilder.setScopeId(0);
         return cbtpBundleBuilder;
     }
 }

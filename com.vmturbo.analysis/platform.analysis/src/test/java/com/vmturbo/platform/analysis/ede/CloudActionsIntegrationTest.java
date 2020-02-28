@@ -1,7 +1,23 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
+import static org.junit.Assert.assertEquals;
+
+import java.lang.reflect.Field;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -20,22 +36,6 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 
-import java.lang.reflect.Field;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
-import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
-import static org.junit.Assert.assertEquals;
-
 @RunWith(JUnitParamsRunner.class)
 public class CloudActionsIntegrationTest {
 
@@ -49,7 +49,7 @@ public class CloudActionsIntegrationTest {
     private static final Basket SOLDbyCBTP = new Basket(CPU, COUPON, LICENSE);
     private static final Basket BOUGHTbyVM = new Basket(CPU, COUPON, LICENSE);
     private static final Basket boughtByTemplateExcludedVM = new Basket(CPU, COUPON, LICENSE, TEMPLATE);
-    static final Logger logger = LogManager.getLogger(CloudActionsIntegrationTest.class);
+    private static final Logger logger = LogManager.getLogger(CloudActionsIntegrationTest.class);
 
     private static final long BA = 1, REGION = 2, ZONE = 3;
     private static final double VERY_LOW_PRICE = 2, LOW_PRICE = 5, HIGH_PRICE = 10;
@@ -67,7 +67,8 @@ public class CloudActionsIntegrationTest {
         Trader vm3 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket(), BOUGHTbyVM);
         traders[2] = vm3;
 
-        Context context = new Context(REGION, ZONE, new Context.BalanceAccount(0, 10000, BA, 0));
+        final Context context = new Context(REGION, ZONE, new Context.BalanceAccount(0, 10000, BA,
+                0, BA));
         vm1.setDebugInfoNeverUseInCode("VirtualMachine|1");
         vm2.setDebugInfoNeverUseInCode("VirtualMachine|2");
         vm3.setDebugInfoNeverUseInCode("VirtualMachine|3");
@@ -157,12 +158,11 @@ public class CloudActionsIntegrationTest {
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setDiscountPercentage(0.4)
+                        .setScopeId(BA)
                         .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
-                                .setBusinessAccountId(BA)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
-                                .setPrice(VERY_LOW_PRICE * 0.0001)
-                                .build())
+                                .setPrice(VERY_LOW_PRICE * 0.0001))
                         .build())
                 .build();
 
@@ -170,12 +170,11 @@ public class CloudActionsIntegrationTest {
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setDiscountPercentage(0.4)
+                        .setScopeId(BA)
                         .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
-                                .setBusinessAccountId(BA)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
-                                .setPrice(LOW_PRICE * 0.0001)
-                                .build())
+                                .setPrice(LOW_PRICE * 0.0001))
                         .build())
                 .build();
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDtoCbtp1.getCbtpResourceBundle()));
@@ -238,7 +237,7 @@ public class CloudActionsIntegrationTest {
             shoppingList.setGroupFactor(i == 1 ? numBuyers : 0);
             economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
             trader.getSettings().setContext(new Context(REGION, ZONE,
-                    new Context.BalanceAccount(0, 10000, BA, 0)));
+                    new Context.BalanceAccount(0, 10000, BA, 0, 0L)));
             traders[traderIndex++] = trader;
             traderOids.put(trader, (long)(i + startIndex));
         }
@@ -274,7 +273,7 @@ public class CloudActionsIntegrationTest {
             shoppingList.setGroupFactor(i == 1 ? numBuyers : 0);
             economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
             trader.getSettings().setContext(new Context(REGION, ZONE,
-                    new Context.BalanceAccount(0, 10000, BA, 0)));
+                    new Context.BalanceAccount(0, 10000, BA, 0, 0L)));
             traders[traderIndex++] = trader;
             traderOids.put(trader, (long) (i + startIndex));
         }
@@ -384,11 +383,11 @@ public class CloudActionsIntegrationTest {
         assertEquals(16, slVM1.getQuantity(1), 0);
     }
 
-    private Context makeContext(final long providerId,
+    private static Context makeContext(final long providerId,
                                 final double totalAllocatedCoupons,
                                 final double totalRequestedCoupons) {
         return new Context(providerId, REGION, ZONE,
-            new Context.BalanceAccount(0d, 10000d, BA, 0L),
+            new Context.BalanceAccount(0d, 10000d, BA, 0L, 0L),
             totalAllocatedCoupons, totalRequestedCoupons);
     }
 

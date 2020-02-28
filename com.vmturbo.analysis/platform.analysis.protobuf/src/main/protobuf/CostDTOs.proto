@@ -23,6 +23,10 @@ message CostDTO {
         // License rate
         repeated CostTuple cost_tuple_list = 5;
         optional int32 license_commodity_base_type = 6;
+        // CBTP scope ID:
+        // - for shared RIs - billing family ID
+        // - for single scoped RIs - business account ID.
+        optional int64 scopeId = 7;
     }
 
     // The DTOs used in XL to carry the pricing information and commodity dependency constraint for

@@ -11,13 +11,15 @@ import java.util.List;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -39,15 +41,13 @@ import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 public class CostFunctionTest {
 
     private static final long zoneId = 0L;
     private static final long regionId = 10L;
 
-    static final Logger logger = LogManager.getLogger(CostFunctionTest.class);
+    private static final Logger logger = LogManager.getLogger(CostFunctionTest.class);
+
     /**
      * Case: AWS IO1 storage tier as a seller. Storage amount unit price is 2, IOPS unit price is 10.
      * VM1 asks for 3GB, 90 IOPS, VM2 asks for 5GB, 500IOPS, VM3 asks for 10GB, 200IOPS
@@ -240,7 +240,7 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0, 0L);
         vm.getSettings().setContext(new Context(regionId, zoneId, ba));
 
         // Create CBTPs
@@ -385,7 +385,7 @@ public class CostFunctionTest {
         // Now a test by changing budget on business account and increasing the riDeprecationFactor
         // to 10^-5 from 10^-7
         // Update the budget on balance account
-        BalanceAccount ba2 = new BalanceAccount(0.0, 10000d, 24, 0);
+        BalanceAccount ba2 = new BalanceAccount(0.0, 10000d, 24, 0, 0L);
         cbtp1.getSettings().setContext(new Context(10L, zoneId, ba2));
         cbtp2.getSettings().setContext(new Context(10L, zoneId, ba2));
 
@@ -431,7 +431,7 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0, 0L);
         vm.getSettings().setContext(new Context(10L, zoneId, ba));
 
         // Create a TP for this VM
@@ -596,7 +596,7 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0, 0L);
         vm.getSettings().setContext(new Context(10L, zone13, ba));
 
         // VM with no supplier
@@ -686,7 +686,8 @@ public class CostFunctionTest {
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
-        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, vmBusinessAccountId, priceId);
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, vmBusinessAccountId, priceId,
+                priceId);
         vm.getSettings().setContext(new Context(10L, 0L, ba));
 
         // VM with no supplier
@@ -719,8 +720,8 @@ public class CostFunctionTest {
                 TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
                         .setLicenseCommodityType(-1)
                         .setPrice(m5LargePrice)
-                        .setBusinessAccountId(24)
-                        .build()).build()).build();
+                        .setBusinessAccountId(vmBusinessAccountId)
+                        )).build();
         m5LargeTP.getSettings().setCostFunction(CostFunctionFactory
                 .createCostFunction(m5LargeTP_CostDto));
 

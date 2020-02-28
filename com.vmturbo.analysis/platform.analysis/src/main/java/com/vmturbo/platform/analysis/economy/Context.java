@@ -1,12 +1,14 @@
 package com.vmturbo.platform.analysis.economy;
 
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+
+import javax.annotation.Nullable;
+
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 
 /**
  * A class representing the context which includes the balance account and region.
@@ -181,6 +183,26 @@ public class Context {
          */
         private long priceId_;
 
+        private final Long parentId_;
+
+        /**
+         * Constructor for the Balance Account.
+         *
+         * @param spent the spent
+         * @param budget the budget
+         * @param id the id of the business account
+         * @param priceId the price id associated with the business account
+         * @param parentId trader's parent account ID (e.g. billing family)
+         */
+        public BalanceAccount(double spent, double budget, long id, long priceId,
+                @Nullable Long parentId) {
+            spent_ = spent;
+            budget_ = budget;
+            id_ = id;
+            priceId_ = priceId;
+            parentId_ = parentId;
+        }
+
         /**
          * Constructor for the Balance Account.
          *
@@ -190,10 +212,7 @@ public class Context {
          * @param priceId the price id associated with the business account
          */
         public BalanceAccount(double spent, double budget, long id, long priceId) {
-            spent_ = spent;
-            budget_ = budget;
-            id_ = id;
-            priceId_ = priceId;
+            this(spent, budget, id, priceId, null);
         }
 
         public void setSpent(double spent) {
@@ -218,6 +237,15 @@ public class Context {
 
         public long getPriceId() {
             return priceId_;
+        }
+
+        /**
+         * Get trader's parent account ID (e.g. billing family).
+         *
+         * @return ID of trader's parent account.
+         */
+        public Long getParentId() {
+            return parentId_;
         }
     }
 
