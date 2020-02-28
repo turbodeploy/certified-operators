@@ -221,6 +221,11 @@ public class GroupDAO implements IGroupStore {
                             "Property filter " + propertyFilter.getPropertyName() +
                                     " is not supported");
                 }
+                final Function<PropertyFilter, Optional<Condition>> conditionCreator =
+                    PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
+                // try to apply the filter and check if it can be translated into real
+                // conditions, if not it throws an exception
+                conditionCreator.apply(propertyFilter);
             }
         }
     }
