@@ -3,6 +3,7 @@ package com.vmturbo.api.component.communication;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -29,6 +30,7 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
@@ -306,9 +308,11 @@ public class RepositoryApiTest {
             .addEntities(PartialEntity.newBuilder()
                 .setFullEntity(ret))
             .build())).when(repoBackend).retrieveTopologyEntities(any());
+        when(aspectMapper.getAspectByEntity(any(TopologyEntityDTO.class), any())).thenReturn(null);
         assertThat(repositoryApi.entityRequest(7L)
-            .useAspectMapper(aspectMapper)
+            .useAspectMapper(aspectMapper, Collections.singletonList(AspectName.CLOUD.getApiName()))
             .getSE().get(), is(se));
+        assertThat(se.getAspects().get(AspectName.CLOUD.getApiName()), is(nullValue()));
 
         final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
             ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
@@ -320,7 +324,7 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.FULL));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret);
+        verify(aspectMapper).getAspectByEntity(ret, AspectName.CLOUD);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 

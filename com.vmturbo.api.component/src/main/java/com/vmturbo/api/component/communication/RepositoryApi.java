@@ -365,12 +365,14 @@ public class RepositoryApi {
                 for (String requestedAspect: requestedAspects) {
                     final AspectName aspectName = AspectName.fromString(requestedAspect);
                     final EntityAspect entityAspect = aspectMapper.getAspectByEntity(entity, aspectName);
-                    aspectsByName.put(aspectName, entityAspect);
-
-                    if (entityAspect instanceof CloudAspectApiDTO) {
-                        CloudAspectApiDTO cloudAspect = (CloudAspectApiDTO)entityAspect;
-                        if (cloudTemplate == null) {
-                            cloudTemplate = cloudAspect.getTemplate();
+                    // aspect may be null, for example: cloud aspect for on_prem vm
+                    if (entityAspect != null) {
+                        aspectsByName.put(aspectName, entityAspect);
+                        if (entityAspect instanceof CloudAspectApiDTO) {
+                            CloudAspectApiDTO cloudAspect = (CloudAspectApiDTO)entityAspect;
+                            if (cloudTemplate == null) {
+                                cloudTemplate = cloudAspect.getTemplate();
+                            }
                         }
                     }
                 }
