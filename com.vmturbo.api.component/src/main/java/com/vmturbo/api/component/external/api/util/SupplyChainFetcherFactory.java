@@ -38,6 +38,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
@@ -80,12 +81,12 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -605,11 +606,8 @@ public class SupplyChainFetcherFactory {
          */
         @Nonnull
         public B apiEnvironmentType(@Nullable final com.vmturbo.api.enums.EnvironmentType environmentType) {
-            // If the desired environment type is "HYBRID", we're looking for cloud OR on-prem,
-            // which is the same as looking for all.
             if (environmentType != null) {
-                this.environmentType = UIEnvironmentType.fromString(
-                    environmentType.name()).toEnvType();
+                this.environmentType = Optional.of(EnvironmentTypeMapper.fromApiToXL(environmentType));
             }
             return (B)this;
         }
@@ -968,17 +966,17 @@ public class SupplyChainFetcherFactory {
                 // if global scope group, then check the environment directly,
                 // no need to filter if it matches
                 if (group.getDefinition().getOptimizationMetadata().getIsGlobalScope() &&
-                    UIEnvironmentType.fromEnvType(environmentType.get())
-                        .matchesEnvType(group.getDefinition()
-                            .getOptimizationMetadata().getEnvironmentType())) {
+                    EnvironmentTypeUtil.match(environmentType.get(),
+                                              group.getDefinition().getOptimizationMetadata()
+                                                      .getEnvironmentType())) {
                     filteredMembers = entities;
                 } else {
                     // normal cases, fetch all members and filter by environment type
                     filteredMembers = repositoryApi.entitiesRequest(entities)
                         .getMinimalEntities()
-                        .filter(minimalEntity -> UIEnvironmentType.fromEnvType(
-                            environmentType.get()).matchesEnvType(
-                            minimalEntity.getEnvironmentType()))
+                        .filter(minimalEntity ->
+                            EnvironmentTypeUtil.match(environmentType.get(),
+                                                      minimalEntity.getEnvironmentType()))
                         .map(MinimalEntity::getOid)
                         .collect(Collectors.toSet());
                 }

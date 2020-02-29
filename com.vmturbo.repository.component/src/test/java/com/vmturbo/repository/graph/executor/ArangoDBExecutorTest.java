@@ -48,9 +48,9 @@ import com.google.common.collect.Multimap;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
@@ -253,7 +253,7 @@ public class ArangoDBExecutorTest {
 
     private void givenASupplyChainCmd(final String starting,
                                       final String graphName,
-                                      final Optional<UIEnvironmentType> environmentType,
+                                      final Optional<EnvironmentType> environmentType,
                                       final String vertexColl) {
         graphCmd = new GraphCmd.GetSupplyChain(starting, environmentType,
             graphName, vertexColl, Optional.empty(),

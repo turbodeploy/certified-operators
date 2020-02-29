@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
@@ -68,10 +70,14 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     private static final long VM_ID = 1L;
     private static final long REG_ID = 2L;
     private static final long ACC_ID = 3L;
+    private static final long ONPREM_VM_ID = 4L;
+    private static final long HYBRID_VM_ID = 5L;
     private static final long NON_EXISTENT_ID = 100L;
 
     /**
-     * Set up a topology with a VM, a region, and a business account.
+     * Set up a cloud topology with a VM, a region, and a business account.
+     * Add an on-prem and a hybrid VM that are unrelated to the rest of
+     * the topology.
      */
     @Before
     public void setUp() {
@@ -103,6 +109,18 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                                             .setConnectionType(ConnectionType.OWNS_CONNECTION)
                                             .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                                             .setConnectedEntityId(VM_ID))
+                .build(),
+            TopologyEntityDTO.newBuilder()
+                .setOid(ONPREM_VM_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("onpremvm")
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build(),
+            TopologyEntityDTO.newBuilder()
+                .setOid(HYBRID_VM_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("hybridvm")
+                .setEnvironmentType(EnvironmentType.HYBRID)
                 .build()));
         topologyBuilder.finish();
 
@@ -121,27 +139,45 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
                 new SimpleStreamObserver<>(latch);
         service.getSupplyChain(GetSupplyChainRequest.newBuilder()
-                                    .setContextId(realTimeContextId)
-                                    .build(),
-                               responseObserver);
+                        .setContextId(realTimeContextId)
+                        .build(),
+                responseObserver);
         latch.await();
 
         Assert.assertFalse(responseObserver.isFailure());
         Assert.assertEquals(1, responseObserver.getResults().size());
 
-        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
-        Assert.assertEquals(2, response.getSupplyChain().getSupplyChainNodesCount());
-        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
-                                .map(SupplyChainNode::getEntityType)
-                                .collect(Collectors.toList()),
-                          containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
-                                             UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                    .apiStr()));
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), true, true, false);
     }
 
     /**
-     * Tests that global supply chain request includes all available entity types when "filterForDisplay"
-     * is disabled.
+     * Tests that global supply chain creation works with environment filtering.
+     * Filter for cloud: neither the account nor the on-prem VM shouldn't be pulled in.
+     *
+     * @throws InterruptedException should not happen
+     */
+    @Test
+    public void testGlobalSupplyChainCloudOnly() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                        .setContextId(realTimeContextId)
+                        .setScope(SupplyChainScope.newBuilder()
+                                        .setEnvironmentType(EnvironmentType.CLOUD))
+                        .build(),
+                responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), false, true, false);
+    }
+
+    /**
+     * Tests that global supply chain request includes all available entities
+     * when "filterForDisplay" is disabled.
      *
      * @throws InterruptedException should not happen
      */
@@ -160,15 +196,9 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertFalse(responseObserver.isFailure());
         Assert.assertEquals(1, responseObserver.getResults().size());
 
-        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
-        Assert.assertEquals(3, response.getSupplyChain().getSupplyChainNodesCount());
-        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
-                        .map(SupplyChainNode::getEntityType)
-                        .collect(Collectors.toList()),
-                containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
-                        UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).apiStr(),
-                        UIEntityType.fromType(EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), true, true, true);
     }
+
     /**
      * Tests that scoped supply chain creation works.
      * The account shouldn't be pulled in.
@@ -191,18 +221,11 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertFalse(responseObserver.isFailure());
         Assert.assertEquals(1, responseObserver.getResults().size());
 
-        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
-        Assert.assertEquals(2, response.getSupplyChain().getSupplyChainNodesCount());
-        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
-                                    .map(SupplyChainNode::getEntityType)
-                                    .collect(Collectors.toList()),
-                          containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
-                                             UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                     .apiStr()));
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), false, false, false);
     }
 
     /**
-     * Tests that a scoped supply chain request w/filtering disabled will recieve the BusinessAccount.
+     * Tests that a scoped supply chain request w/filtering disabled will retrieve the BusinessAccount.
      *
      * @throws InterruptedException should not happen
      */
@@ -223,14 +246,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertFalse(responseObserver.isFailure());
         Assert.assertEquals(1, responseObserver.getResults().size());
 
-        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
-        Assert.assertEquals(3, response.getSupplyChain().getSupplyChainNodesCount());
-        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
-                        .map(SupplyChainNode::getEntityType)
-                        .collect(Collectors.toList()),
-                containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
-                        UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).apiStr(),
-                        UIEntityType.fromType(EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), false, false, true);
     }
 
     /**
@@ -255,14 +271,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertFalse(responseObserver.isFailure());
         Assert.assertEquals(1, responseObserver.getResults().size());
 
-        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
-        Assert.assertEquals(2, response.getSupplyChain().getSupplyChainNodesCount());
-        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
-                                .map(SupplyChainNode::getEntityType)
-                                .collect(Collectors.toList()),
-                          containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
-                                             UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                     .apiStr()));
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), false, false, false);
     }
 
     /**
@@ -290,19 +299,21 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     }
 
     /**
-     * Tests environment filtering.
+     * Tests environment type filtering. Filtering the cloud topology
+     * by on-prem will return nothing.
      *
      * @throws InterruptedException should not happen
      */
     @Test
-    public void testScopedSupplyChainEnvironmentFiltering() throws InterruptedException {
+    public void testScopedSupplyChainEnvironmentFiltering1() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
                 new SimpleStreamObserver<>(latch);
         service.getSupplyChain(GetSupplyChainRequest.newBuilder()
                         .setContextId(realTimeContextId)
                         .setScope(SupplyChainScope.newBuilder()
-                                        .setEnvironmentType(EnvironmentType.ON_PREM))
+                                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                                        .addStartingEntityOid(REG_ID))
                         .build(),
                 responseObserver);
         latch.await();
@@ -310,6 +321,69 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = responseObserver.getResults().get(0);
         Assert.assertFalse(responseObserver.isFailure());
         Assert.assertEquals(0, response.getSupplyChain().getSupplyChainNodesCount());
+    }
+
+    /**
+     * Tests environment type filtering. Filtering the cloud topology
+     * by hybrid will return the whole cloud topology.
+     *
+     * @throws InterruptedException should not happen
+     */
+    @Test
+    public void testScopedSupplyChainEnvironmentFiltering2() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                        .setContextId(realTimeContextId)
+                        .setScope(SupplyChainScope.newBuilder()
+                                    .setEnvironmentType(EnvironmentType.HYBRID)
+                                    .addStartingEntityOid(REG_ID))
+                        .build(),
+                responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), false, false, false);
+    }
+
+    /**
+     * Tests environment type filtering. Filtering the hybrid VM
+     * by on-prem will return the hybrid VM.
+     *
+     * @throws InterruptedException should not happen
+     */
+    @Test
+    public void testScopedSupplyChainEnvironmentFiltering3() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                        .setContextId(realTimeContextId)
+                        .setScope(SupplyChainScope.newBuilder()
+                                .setEnvironmentType(EnvironmentType.ON_PREM)
+                                .addStartingEntityOid(HYBRID_VM_ID))
+                        .build(),
+                responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        final GetSupplyChainResponse response = responseObserver.getResults().get(0);
+        Assert.assertEquals(1, response.getSupplyChain().getSupplyChainNodesCount());
+        Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
+                                .map(SupplyChainNode::getEntityType)
+                                .collect(Collectors.toList()),
+                          containsInAnyOrder(UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                                .apiStr()));
+        Assert.assertEquals(Collections.singletonList(HYBRID_VM_ID),
+                            response.getSupplyChain().getSupplyChainNodes(0)
+                                .getMembersByStateMap().values().stream()
+                                    .flatMap(list -> list.getMemberOidsList().stream())
+                                    .collect(Collectors.toList()));
     }
 
     /**
@@ -402,6 +476,9 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         final SimpleStreamObserver<GetSupplyChainResponse> responseObserver1 =
                 new SimpleStreamObserver<>(latch1);
         service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                                    .setScope(SupplyChainScope.newBuilder()
+                                                .setEnvironmentType(EnvironmentType.CLOUD)
+                                                .addStartingEntityOid(REG_ID))
                                     .setContextId(realTimeContextId)
                                     .setScope(SupplyChainScope.newBuilder())
                                     .build(),
@@ -414,8 +491,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         final SimpleStreamObserver<GetSupplyChainStatsResponse> responseObserver2 =
                 new SimpleStreamObserver<>(latch2);
         service.getSupplyChainStats(GetSupplyChainStatsRequest.newBuilder()
-                                        .setScope(SupplyChainScope.newBuilder()
-                                                        .setEnvironmentType(EnvironmentType.CLOUD))
+                                        .setScope(SupplyChainScope.getDefaultInstance())
                                         .addGroupBy(SupplyChainGroupBy.ENTITY_TYPE)
                                         .build(),
                                     responseObserver2);
@@ -470,5 +546,39 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         public boolean isFailure() {
             return failure;
         }
+    }
+
+    private void assertCorrectnessOfSupplyChainResponse(@Nonnull GetSupplyChainResponse response,
+                                                        boolean onpremVmIncluded, boolean hybridVmIncluded,
+                                                        boolean accountIncluded) {
+        final Map<String, Set<Long>> supplyChainEntityIdsPerEntityType =
+            response.getSupplyChain().getSupplyChainNodesList().stream()
+                .collect(Collectors.toMap(
+                    SupplyChainNode::getEntityType,
+                    supplyChainNode -> supplyChainNode.getMembersByStateMap().values().stream()
+                                            .flatMap(l -> l.getMemberOidsList().stream())
+                                            .collect(Collectors.toSet())));
+        // region is included
+        Assert.assertEquals(
+            Collections.singleton(REG_ID),
+            supplyChainEntityIdsPerEntityType.get(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr()));
+
+        // check account
+        if (accountIncluded) {
+            Assert.assertEquals(
+                Collections.singleton(ACC_ID),
+                supplyChainEntityIdsPerEntityType.get(UIEntityType.fromType(
+                                                        EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+        } else {
+            Assert.assertFalse(supplyChainEntityIdsPerEntityType.containsKey(UIEntityType.fromType(
+                                    EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+        }
+
+        // check VMs
+        final Set<Long> vmIds = supplyChainEntityIdsPerEntityType.get(
+                                    UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).apiStr());
+        Assert.assertTrue(vmIds.contains(VM_ID));
+        Assert.assertEquals(onpremVmIncluded, vmIds.contains(ONPREM_VM_ID));
+        Assert.assertEquals(hybridVmIncluded, vmIds.contains(HYBRID_VM_ID));
     }
 }

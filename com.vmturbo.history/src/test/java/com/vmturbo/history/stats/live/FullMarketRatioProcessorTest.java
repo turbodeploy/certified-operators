@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
@@ -46,7 +46,7 @@ public class FullMarketRatioProcessorTest {
                 .setCommodityName(StringConstants.NUM_VMS)
                 .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                     .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+                    .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name())))
             .build();
 
         final FullMarketRatioProcessor processor = processorFactory.newProcessor(statsFilter);
@@ -64,7 +64,7 @@ public class FullMarketRatioProcessorTest {
                 .setCommodityName(StringConstants.NUM_VMS_PER_HOST)
                 .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                     .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+                    .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name())))
             .build();
 
         final FullMarketRatioProcessor processor = processorFactory.newProcessor(statsFilter);
@@ -79,13 +79,13 @@ public class FullMarketRatioProcessorTest {
                     .setCommodityName(StringConstants.NUM_VMS)
                     .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                         .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                        .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue()))
+                        .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name()))
                     .build(),
                 CommodityRequest.newBuilder()
                     .setCommodityName(StringConstants.NUM_HOSTS)
                     .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                         .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                        .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue()))
+                        .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name()))
                     .build()));
     }
 
@@ -96,7 +96,7 @@ public class FullMarketRatioProcessorTest {
                 .setCommodityName(StringConstants.NUM_VMS_PER_HOST)
                 .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                     .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+                    .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name())))
             .build();
         final FullMarketRatioProcessor processor = processorFactory.newProcessor(statsFilter);
 
@@ -201,13 +201,13 @@ public class FullMarketRatioProcessorTest {
                 .setCommodityName(StringConstants.NUM_VMS_PER_HOST)
                 .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                     .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+                    .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name())))
             // Ask for num vms explicitly.
             .addCommodityRequests(CommodityRequest.newBuilder()
                 .setCommodityName(StringConstants.NUM_VMS)
                 .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                     .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+                    .setValue(com.vmturbo.api.enums.EnvironmentType.ONPREM.name())))
             .build();
         final FullMarketRatioProcessor processor = processorFactory.newProcessor(statsFilter);
 
@@ -241,7 +241,7 @@ public class FullMarketRatioProcessorTest {
                 .setCommodityName(StringConstants.NUM_VMS)
                 .addPropertyValueFilter(PropertyValueFilter.newBuilder()
                     .setProperty(StringConstants.ENVIRONMENT_TYPE)
-                    .setValue(UIEnvironmentType.ON_PREM.getApiEnumStringValue())))
+                    .setValue(EnvironmentTypeUtil.toApiString(EnvironmentType.ON_PREM))))
             .build();
         final FullMarketRatioProcessor processor = processorFactory.newProcessor(statsFilter);
 

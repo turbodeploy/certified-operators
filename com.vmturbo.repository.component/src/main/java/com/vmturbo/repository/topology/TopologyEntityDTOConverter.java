@@ -14,12 +14,12 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
@@ -76,7 +76,7 @@ class TopologyEntityDTOConverter {
         se.setOid(seOid);
         se.setDisplayName(t.getDisplayName());
         se.setEntityType(UIEntityType.fromEntity(t).apiStr());
-        se.setEnvironmentType(UIEnvironmentType.fromEnvType(t.getEnvironmentType()).getApiEnumStringValue());
+        se.setEnvironmentType(EnvironmentTypeUtil.toApiString(t.getEnvironmentType()));
         se.setUuid(String.valueOf(t.getOid()));
         se.setState(UIEntityState.fromEntityState(t.getEntityState()).apiStr());
         se.setTags(new HashMap<>());

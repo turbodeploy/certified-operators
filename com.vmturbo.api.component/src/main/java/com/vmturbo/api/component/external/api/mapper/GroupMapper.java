@@ -384,8 +384,9 @@ public class GroupMapper {
             }
         }
 
-        final EnvironmentType environmentType = EnvironmentTypeMapper.fromXLToApi(envType != null ? envType
-                : EnvironmentTypeEnum.EnvironmentType.ON_PREM ).orElse(EnvironmentType.ONPREM);
+        final EnvironmentType environmentType =
+                EnvironmentTypeMapper.fromXLToApi(
+                    envType != null ? envType : EnvironmentTypeEnum.EnvironmentType.ON_PREM);
 
         final CloudType cloudType;
         if (cloudTypes.size() == 1) {

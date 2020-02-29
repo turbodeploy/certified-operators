@@ -1113,6 +1113,120 @@ public class SupplyChainFetcherFactoryTest {
             .getConnectedProviderTypes().isEmpty());
     }
 
+    /**
+     * Tests supply chain generation for resource groups,
+     * with environment type filtering.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testResourceGroupEnvironmentTypeFiltering() throws Exception {
+        final long hybridId = 1L;
+        final long cloudId = 2L;
+        final long onpremId = 3L;
+
+        final long rgId = 100L;
+        final String rgIdStr = Long.toString(rgId);
+
+        final int vmTypeNumber = UIEntityType.VIRTUAL_MACHINE.typeNumber();
+        final String vmTypeStr = UIEntityType.VIRTUAL_MACHINE.apiStr();
+
+        final TopologyDTO.TopologyEntityDTO hybridEntity =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(hybridId)
+                        .setDisplayName("hybrid")
+                        .setEntityType(vmTypeNumber)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.HYBRID)
+                        .build();
+        final TopologyDTO.TopologyEntityDTO cloudEntity =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(cloudId)
+                        .setDisplayName("cloud")
+                        .setEntityType(vmTypeNumber)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        final TopologyDTO.TopologyEntityDTO onpremEntity =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(onpremId)
+                        .setDisplayName("onprem")
+                        .setEntityType(vmTypeNumber)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                        .build();
+        final MinimalEntity hybridMinimalEntity =
+                MinimalEntity.newBuilder()
+                        .setOid(hybridId)
+                        .setDisplayName("hybrid")
+                        .setEntityType(vmTypeNumber)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.HYBRID)
+                        .build();
+        final MinimalEntity cloudMinimalEntity =
+                MinimalEntity.newBuilder()
+                        .setOid(cloudId)
+                        .setDisplayName("cloud")
+                        .setEntityType(vmTypeNumber)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        final MinimalEntity onpremMinimalEntity =
+                MinimalEntity.newBuilder()
+                        .setOid(onpremId)
+                        .setDisplayName("onprem")
+                        .setEntityType(vmTypeNumber)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                        .build();
+
+        final StaticMembers staticMembers =
+                StaticMembers.newBuilder()
+                         .addMembersByType(StaticMembersByType.newBuilder()
+                                                .setType(MemberType.newBuilder().setEntity(vmTypeNumber))
+                                                .addMembers(hybridId)
+                                                .addMembers(onpremId)
+                                                .addMembers(cloudId))
+                        .build();
+        final Grouping rgGroup =
+            Grouping.newBuilder()
+                .setId(rgId)
+                .addExpectedTypes(MemberType.newBuilder().setEntity(vmTypeNumber))
+                .setDefinition(GroupDefinition.newBuilder()
+                                    .setType(GroupType.RESOURCE)
+                                    .setDisplayName("rg1")
+                                    .setStaticGroupMembers(staticMembers))
+                .build();
+
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(rgGroup);
+        when(groupAndMembers.members()).thenReturn(Arrays.asList(hybridId, onpremId, cloudId));
+        when(groupAndMembers.entities()).thenReturn(Arrays.asList(hybridId, onpremId, cloudId));
+
+        when(groupExpander.getGroupWithMembers(rgIdStr)).thenReturn(Optional.of(groupAndMembers));
+
+        RepositoryApi.MultiEntityRequest multiEntityRequest = mock(RepositoryApi.MultiEntityRequest.class);
+        when(repositoryApiBackend.entitiesRequest(any())).thenReturn(multiEntityRequest);
+        when(multiEntityRequest.getFullEntities())
+                .thenAnswer(i -> Stream.of(hybridEntity, cloudEntity, onpremEntity));
+        when(multiEntityRequest.getMinimalEntities())
+                .thenAnswer(i -> Stream.of(hybridMinimalEntity, cloudMinimalEntity, onpremMinimalEntity));
+
+        final SupplychainApiDTO resultHybrid =
+                supplyChainFetcherFactory.newApiDtoFetcher()
+                        .addSeedUuids(Collections.singleton(rgIdStr))
+                        .environmentType(EnvironmentTypeEnum.EnvironmentType.HYBRID)
+                        .fetch();
+        final SupplychainApiDTO resultCloud =
+                supplyChainFetcherFactory.newApiDtoFetcher()
+                        .addSeedUuids(Collections.singleton(rgIdStr))
+                        .environmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .fetch();
+        final SupplychainApiDTO resultOnprem =
+                supplyChainFetcherFactory.newApiDtoFetcher()
+                        .addSeedUuids(Collections.singleton(rgIdStr))
+                        .environmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                        .fetch();
+
+        assertEquals(3, (long)resultHybrid.getSeMap().get(vmTypeStr).getEntitiesCount());
+        assertEquals(2, (long)resultCloud.getSeMap().get(vmTypeStr).getEntitiesCount());
+        assertEquals(2, (long)resultOnprem.getSeMap().get(vmTypeStr).getEntitiesCount());
+    }
+
     private int getSeveritySize(@Nonnull final SupplychainApiDTO src, @Nonnull String objType,
                                 @Nonnull final Severity severity) {
         final String severityStr = ActionDTOUtil.getSeverityName(severity);

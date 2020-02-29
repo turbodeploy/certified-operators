@@ -25,9 +25,9 @@ import javaslang.control.Try;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -37,7 +37,6 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsConverter;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.topology.ServiceEntityRepoDTOConverter;
-import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -74,13 +73,17 @@ public class GraphDBService {
      *
      * @param contextID The name of the database to create the supply chain from.
      *                   If <code>empty</code>, use the real-time database.
+     * @param envType optional environment type filter
      * @param startId The identifier of the starting service entity.
+     * @param entityAccessScope optional restriction related to user entity access
+     * @param inclusionEntityTypes entity types to be included in the result
+     * @param exclusionEntityTypes entity types to be excluded from the result
      * @return Either a {@link Throwable} describing an error, or a stream of {@link SupplyChainNode}s.
      *         If the start ID is not found, the {@link Throwable} will be a {@link java.util.NoSuchElementException}.
      */
     public Either<Throwable, java.util.stream.Stream<SupplyChainNode>> getSupplyChain(
             final Optional<Long> contextID,
-            final Optional<UIEnvironmentType> envType,
+            final Optional<EnvironmentType> envType,
             final String startId,
             final Optional<EntityAccessScope> entityAccessScope,
             final Set<Integer> inclusionEntityTypes,
@@ -122,55 +125,8 @@ public class GraphDBService {
     }
 
 
-    public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntityByName(final String query) {
-        // The '-' and '+' are two special characters that are not indexed by ArangoDB
-        // They are replaced by ',' so ArangoDB will search the display names that contain
-        // substrings in the query separated by ','.
-        // TODO: The searching service is not fully implemented. This will be done in OM-11450.
-        final String queryString = query.replaceAll("[\\+\\-]", ",");
-        return searchServiceEntity(Optional.empty(), "displayName", queryString, GraphCmd.SearchType.FULLTEXT);
-    }
-
     public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntityById(final String id) {
         return searchServiceEntity(Optional.empty(), "uuid", id, GraphCmd.SearchType.STRING);
-    }
-
-    /**
-     * Fetch service entities from the specified topology.
-     *
-     * @param contextId The ID of topology to fetch service entities from.
-     *                  If <code>empty</code>, use the real-time topology.
-     * @param entitiesToFind The IDs of the service entities we want to fetch.
-     * @return The list of  {@link ServiceEntityApiDTO} or an error message.
-     */
-    @Nonnull
-    public Either<String, Collection<ServiceEntityApiDTO>> findMultipleEntities(
-            @Nonnull final Optional<Long> contextId,
-            @Nonnull final Set<Long> entitiesToFind,
-            @Nonnull final TopologyType targetType) {
-
-        final Optional<TopologyID> targetTopologyId = contextId
-                .map(id -> topologyManager.getTopologyId(id, targetType))
-                .orElse(topologyManager.getRealtimeTopologyId());
-        if (!targetTopologyId.isPresent()) {
-            logger.warn("No topology database available to use. Returning an empty result");
-            return Either.right(Collections.emptyList());
-        }
-        TopologyID topologyID = targetTopologyId.get();
-        final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-            graphDefinition.getSEVertexCollection(topologyID),
-            entitiesToFind);
-        final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
-        logger.debug("Multi-entity search results {}", seResults);
-
-        return Match(seResults).of(
-                Case(Success($()), repoDtos -> timedValue(
-                        () -> Either.right(repoDtos.stream()
-                            .map(ResultsConverter::toServiceEntityApiDTO)
-                            .collect(Collectors.toList())),
-                    SEARCH_CONVERSION_DURATION_SUMMARY)),
-                Case(Failure($()), exc -> Either.left(exc.getMessage()))
-        );
     }
 
     public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntity(
@@ -233,36 +189,6 @@ public class GraphDBService {
                 Case(Failure($()), exc -> Either.left(exc.getMessage()))
         );
     }
-
-    /**
-     * Retrieve TopologyEntityDTO from repository graph. Note that, right now, returned TopologyEntityDTO
-     * only contains partial fields, because {@link ServiceEntityRepoDTO} only keep partial fields,
-     * and TopologyEntityDTO are converted back from stored {@link ServiceEntityRepoDTO}.
-     *
-     * @param entitiesToFind a set of entity ids.
-     * @return Either of String or Collection of {@link TopologyEntityDTO}.
-     */
-    public Either<String, Collection<TopologyEntityDTO>> retrieveRealTimeTopologyEntities(
-            @Nonnull final Set<Long> entitiesToFind) {
-        final Optional<TopologyID> topologyID = topologyManager.getRealtimeTopologyId();
-        if (topologyID.isPresent()) {
-            final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-                graphDefinition.getSEVertexCollection(topologyID.get()),
-                entitiesToFind);
-            final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
-            logger.debug("Multi-entity search results {}", seResults);
-
-            return Match(seResults).of(
-                    Case(Success($()), repoDtos -> timedValue(
-                            () -> Either.right(ServiceEntityRepoDTOConverter
-                                .convertToTopologyEntityDTOs(repoDtos)),
-                            SEARCH_CONVERSION_DURATION_SUMMARY)),
-                    Case(Failure($()), exc -> Either.left(exc.getMessage()))
-            );
-        }
-        return Either.left("Failed to find real time topology Id");
-    }
-
 
     private <T> T timedValue(final Supplier<T> supplier, final DataMetricSummary summary) {
         DataMetricTimer timer = summary.startTimer();

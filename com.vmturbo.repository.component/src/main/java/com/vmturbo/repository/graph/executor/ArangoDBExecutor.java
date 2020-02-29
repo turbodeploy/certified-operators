@@ -36,6 +36,7 @@ import javaslang.control.Try;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.OptScope;
@@ -125,7 +126,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
                 .add("edgeType", direction.getEdgeType())
                 .add("hasEnvType", supplyChainCmd.getEnvironmentType().isPresent());
         supplyChainCmd.getEnvironmentType().ifPresent(envType ->
-                template.add("envType", envType.getApiEnumStringValue()));
+                template.add("envType", EnvironmentTypeUtil.toApiString(envType)));
 
         supplyChainCmd.getEntityAccessScope().ifPresent(entityAccessScope -> {
             // add an accessible oids list if the access scope is restricted

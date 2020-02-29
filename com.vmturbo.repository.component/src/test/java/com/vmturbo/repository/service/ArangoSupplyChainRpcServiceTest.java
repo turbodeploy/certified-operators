@@ -58,7 +58,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -546,7 +545,7 @@ public class ArangoSupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
         doReturn(Either.left(new IllegalStateException("failed")))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(EnvironmentType.CLOUD)),
                 eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
                 eq(Collections.emptySet()),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
@@ -567,7 +566,7 @@ public class ArangoSupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainNotFound() throws Exception {
         doReturn(Either.left(new NoSuchElementException("foo")))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(EnvironmentType.CLOUD)),
             eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
             eq(Collections.emptySet()),
             eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
@@ -617,12 +616,12 @@ public class ArangoSupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(EnvironmentType.CLOUD)),
                 eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
                 eq(Collections.emptySet()),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(EnvironmentType.CLOUD)),
                 eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
                 eq(Collections.emptySet()),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
@@ -676,12 +675,12 @@ public class ArangoSupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(EnvironmentType.CLOUD)),
                 eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
                 eq(Collections.emptySet()),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(EnvironmentType.CLOUD)),
                 eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
                 eq(Collections.emptySet()),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
@@ -706,7 +705,7 @@ public class ArangoSupplyChainRpcServiceTest {
             "PhysicalMachine", pmNode,
             "VirtualMachine", vmNode);
         when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)),
-                eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq(Optional.of(EnvironmentType.CLOUD)),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)))
             .thenReturn(Mono.just(inputNodes));
 
@@ -724,7 +723,7 @@ public class ArangoSupplyChainRpcServiceTest {
     @Test
     public void testGetGlobalSupplyChainFailure() throws Exception {
         when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)),
-                eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq(Optional.of(EnvironmentType.CLOUD)),
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)))
             .thenReturn(Mono.error(new RuntimeException("failed")));
 

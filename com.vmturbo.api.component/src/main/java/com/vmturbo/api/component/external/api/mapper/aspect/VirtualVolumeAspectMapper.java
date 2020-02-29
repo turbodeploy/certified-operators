@@ -681,8 +681,10 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         virtualDiskApiDTO.setUuid(String.valueOf(volumeId));
         virtualDiskApiDTO.setDisplayName(volume.getDisplayName());
-        EnvironmentTypeMapper.fromXLToApi(volume.getEnvironmentType()).ifPresent(
-            environmentType -> virtualDiskApiDTO.setEnvironmentType(environmentType));
+        if (volume.hasEnvironmentType()) {
+            virtualDiskApiDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
+                                                    volume.getEnvironmentType()));
+        }
 
         // find region for the volume and set it in VirtualDiskApiDTO
         final ApiPartialEntity region = regionByVolumeId.get(volume.getOid());

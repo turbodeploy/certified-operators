@@ -180,7 +180,7 @@ public class ServiceEntityMapperTest {
             UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());
         Assert.assertEquals(
             environmentType,
-            EnvironmentTypeMapper.fromApiToXL(serviceEntityApiDTO.getEnvironmentType()).get());
+            EnvironmentTypeMapper.fromApiToXL(serviceEntityApiDTO.getEnvironmentType()));
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().size());
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
@@ -282,7 +282,7 @@ public class ServiceEntityMapperTest {
             UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());
         Assert.assertEquals(
             environmentType,
-            EnvironmentTypeMapper.fromApiToXL(serviceEntityApiDTO.getEnvironmentType()).get());
+            EnvironmentTypeMapper.fromApiToXL(serviceEntityApiDTO.getEnvironmentType()));
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().size());
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));

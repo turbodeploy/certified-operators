@@ -150,8 +150,7 @@ public class SupplyChainServiceTest {
 
         @Bean
         public SupplyChainService supplyChainService() throws IOException {
-            return new SupplyChainService(reactiveExecutor(), graphDbService(),
-                    graphDefinition(),
+            return new SupplyChainService(
                     topologyManager(),
                     globalSupplyChainManager(),
                     userSessionContext());

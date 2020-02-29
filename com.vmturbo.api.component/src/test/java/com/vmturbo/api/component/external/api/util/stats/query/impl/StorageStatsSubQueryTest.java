@@ -48,13 +48,11 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -313,7 +311,7 @@ public class StorageStatsSubQueryTest {
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().hasStringFilter(), is(true));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(SearchableProperties.ENVIRONMENT_TYPE));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsCount(), is(1));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(UIEnvironmentType.CLOUD.getApiEnumStringValue()));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(com.vmturbo.api.enums.EnvironmentType.CLOUD.name()));
 
 
         // second API should get STs from the VV connected to list
@@ -417,7 +415,7 @@ public class StorageStatsSubQueryTest {
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().hasStringFilter(), is(true));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(SearchableProperties.ENVIRONMENT_TYPE));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsCount(), is(1));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(UIEnvironmentType.CLOUD.getApiEnumStringValue()));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(com.vmturbo.api.enums.EnvironmentType.CLOUD.name()));
 
         // second API should get STs from the VV connected to list
         Search.SearchParameters secondParam = searchParameters.get(1);
@@ -556,7 +554,7 @@ public class StorageStatsSubQueryTest {
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().hasStringFilter(), is(true));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(SearchableProperties.ENVIRONMENT_TYPE));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsCount(), is(1));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(UIEnvironmentType.CLOUD.getApiEnumStringValue()));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(com.vmturbo.api.enums.EnvironmentType.CLOUD.name()));
 
         // second API should get STs from the VV connected to list
         Search.SearchParameters secondParam = searchParameters.get(1);

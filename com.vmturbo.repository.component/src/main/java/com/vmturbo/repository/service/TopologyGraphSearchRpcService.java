@@ -27,6 +27,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.components.api.tracing.Tracing;
@@ -271,7 +273,6 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         final TopologyGraph<RepoGraphEntity> graph =
             liveTopologyStore.getSourceTopology().get().entityGraph();
-        Stream<RepoGraphEntity> matchingEntities;
 
         Tracing.log(() -> {
             try {
@@ -282,30 +283,29 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             }
         });
 
+        final Stream<RepoGraphEntity> matchingEntities;
         if (request.getEntitiesCount() > 0) {
             // Look for specific entities.
             matchingEntities = request.getEntitiesList().stream()
                 .map(graph::getEntity)
                 .filter(Optional::isPresent)
-                .map(Optional::get)
-                .filter(entity -> {
-                    if (request.hasEnvironmentType() && request.getEnvironmentType() != entity.getEnvironmentType()) {
-                        return false;
-                    }
-                    if (request.hasEntityType() && request.getEntityType() != entity.getEntityType()) {
-                        return false;
-                    }
-                    return true;
-                });
-        } else if (request.hasEntityType()) {
-            // Look for entities by type
-            // This kind of sucks, but we don't expect this tags query to happen often.
-            matchingEntities = graph.entitiesOfType(request.getEntityType())
-                .filter(entity -> !request.hasEnvironmentType() || request.getEnvironmentType() == entity.getEnvironmentType());
+                .map(Optional::get);
         } else {
-            // This REALLY sucks, but we don't expect this global tags query to happen often.
             matchingEntities = graph.entities();
         }
+
+        // filter entities according to the requested environment type
+        // and entity type
+        final Predicate<EnvironmentType> environmentTypePredicate =
+                request.hasEnvironmentType()
+                        ? EnvironmentTypeUtil.matchingPredicate(request.getEnvironmentType())
+                        : e -> true;
+        final Predicate<RepoGraphEntity> environmentTypeFilter = entity ->
+                environmentTypePredicate.test(entity.getEnvironmentType());
+        final Predicate<RepoGraphEntity> entityTypeFilter =
+                request.hasEntityType()
+                        ? entity -> request.getEntityType() == entity.getEntityType()
+                        : entity -> true;
 
         // if the user is scoped, attach a filter to the matching entities.
         Predicate<RepoGraphEntity> accessFilter = userSessionContext.isUserScoped()
@@ -314,6 +314,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
         matchingEntities
+            .filter(entityTypeFilter)
+            .filter(environmentTypeFilter)
             .filter(accessFilter)
             .map(RepoGraphEntity::getTags)
             .forEach(tagsMap -> tagsMap.forEach((key, tagValues) -> {

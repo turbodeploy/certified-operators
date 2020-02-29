@@ -18,6 +18,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter.ListElementTypeCase;
@@ -29,12 +30,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -248,37 +249,23 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                 }
             }
             case SearchableProperties.ENVIRONMENT_TYPE: {
+                if (!stringCriteria.getPositiveMatch()) {
+                    throw new IllegalArgumentException("Environment type filter with negative match");
+                }
                 final boolean regex = !StringUtils.isEmpty(stringCriteria.getStringPropertyRegex());
                 if (regex || stringCriteria.getOptionsCount() == 1) {
                     final String targetTypeStr = regex ? SearchProtoUtil
                         .stripFullRegex(stringCriteria.getStringPropertyRegex()) :
                         stringCriteria.getOptions(0);
-                    final UIEnvironmentType targetType = UIEnvironmentType.fromString(targetTypeStr);
-
-                    // If the target type resolves to "UNKNOWN" but "UNKNOWN" wasn't what the user
-                    // explicitly wanted, throw an exception to get an early-exit.
-                    if (targetType == UIEnvironmentType.UNKNOWN &&
-                        !StringUtils.equalsIgnoreCase(UIEnvironmentType.UNKNOWN.getApiEnumStringValue(),
-                            SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()))) {
-                        throw new IllegalArgumentException("Desired env type: " +
-                            stringCriteria.getStringPropertyRegex() +
-                            " doesn't match a known/valid env type.");
-                    }
-                    // It's more efficient to compare the numeric value of the enum.
-                    return targetType.toEnvType()
-                        .map(envType -> new PropertyFilter<>(intPredicate(envType.getNumber(),
-                            stringCriteria.getPositiveMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                            entity -> entity.getEnvironmentType().getNumber())))
-                        // If we're not looking for a specific environment type, all entities match.
-                        .orElseGet(() -> new PropertyFilter<E>((entity) -> true));
+                    final EnvironmentType targetType =
+                        EnvironmentTypeUtil.fromApiString(targetTypeStr)
+                            .orElseThrow(() ->
+                                new IllegalArgumentException("Unknown environment type " + targetTypeStr));
+                    final Predicate<EnvironmentType> environmentTypePredicate =
+                            EnvironmentTypeUtil.matchingPredicate(targetType);
+                    return new PropertyFilter<>(e -> environmentTypePredicate.test(e.getEnvironmentType()));
                 } else {
-                    // TODO (roman, May 16 2019): Should be able to convert to numeric.
-                    return new PropertyFilter<>(stringOptionsPredicate(
-                        stringCriteria.getOptionsList(),
-                        entity -> UIEnvironmentType.fromEnvType(entity.getEnvironmentType()).getApiEnumStringValue(),
-                        !stringCriteria.getPositiveMatch(),
-                        stringCriteria.getCaseSensitive()
-                    ));
+                    throw new IllegalArgumentException("Illegal environment type filter");
                 }
             }
             case SearchableProperties.ENTITY_TYPE: {

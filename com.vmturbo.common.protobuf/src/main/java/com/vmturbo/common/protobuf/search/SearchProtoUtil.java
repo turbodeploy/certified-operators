@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
@@ -21,6 +22,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -37,6 +39,25 @@ public class SearchProtoUtil {
                     .filter(e -> !EXCLUDE_FROM_SEARCH_ALL.contains(e))
                     .map(UIEntityType::apiStr)
                     .collect(Collectors.toList());
+
+    /**
+     * Create a filter for environment type.
+     * We are using a string filter against the API string
+     * that represents the environment type.
+     * TODO: environment filters should be made more efficient
+     *
+     * @param environmentType the environment type the filter matches against
+     * @return the environment type filter
+     */
+    @Nonnull
+    public static PropertyFilter environmentTypeFilter(@Nonnull EnvironmentType environmentType) {
+        return PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.ENVIRONMENT_TYPE)
+                    .setStringFilter(stringFilterExact(
+                            Collections.singleton(EnvironmentTypeUtil.toApiString(environmentType)),
+                            true, false))
+                    .build();
+    }
 
     /**
      * Wrap an instance of {@link PropertyFilter} with a {@link SearchFilter}.

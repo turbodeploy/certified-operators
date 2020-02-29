@@ -40,7 +40,7 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
@@ -288,9 +288,9 @@ public interface StatsQueryFactory {
                         case ENVIRONMENT_TYPE:
                             // We only record the environment type in the database for the aggregate
                             // market stats tables.
-                            Optional<Condition> envTypeCond = UIEnvironmentType.fromString(
-                                propertyValueFilter.getValue()).toEnvType()
-                                .flatMap(envType -> environmentTypeCond(envType, table));
+                            Optional<Condition> envTypeCond =
+                                EnvironmentTypeUtil.fromApiString(propertyValueFilter.getValue())
+                                    .flatMap(envType -> environmentTypeCond(envType, table));
                             if (envTypeCond.isPresent()) {
                                 commodityTest = commodityTest.and(envTypeCond.get());
                             } else {

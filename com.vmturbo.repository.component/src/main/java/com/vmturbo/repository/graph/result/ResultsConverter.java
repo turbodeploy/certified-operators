@@ -18,7 +18,6 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
@@ -52,12 +51,9 @@ public class ResultsConverter {
         serviceEntityApiDTO.setState(repoDTO.getState());
         serviceEntityApiDTO.setTags(repoDTO.getTags());
 
-        UIEnvironmentType envType = UIEnvironmentType.fromString(repoDTO.getEnvironmentType());
-        if (envType == UIEnvironmentType.UNKNOWN) {
-            // The UI doesn't have a default state, so we default to ONPREM.
-            serviceEntityApiDTO.setEnvironmentType(EnvironmentType.ONPREM);
-        } else {
-            serviceEntityApiDTO.setEnvironmentType(EnvironmentType.valueOf(envType.getApiEnumStringValue()));
+        // TODO: ServiceEntityDTO should not contain an API DTO
+        if (repoDTO.getEnvironmentType() != null) {
+            serviceEntityApiDTO.setEnvironmentType(EnvironmentType.valueOf(repoDTO.getEnvironmentType()));
         }
 
         // set discoveredBy

@@ -72,30 +72,4 @@ public class GraphDBServiceTest {
 
         assertEquals(node, nodes.get(UIEntityType.VIRTUAL_MACHINE.apiStr()));
     }
-
-    @Test
-    public void testRetrieveRealTimeTopologyEntities() throws Exception {
-        when(graphDefinition.getServiceEntityVertex()).thenReturn("111");
-        final Try<Collection<ServiceEntityRepoDTO>> results =
-                Try.of(() -> Collections.EMPTY_SET);
-        when(graphDBExecutor.executeServiceEntityMultiGetCmd(any(GraphCmd.ServiceEntityMultiGet.class))).thenReturn(
-                results);
-        final Either either =
-                graphDBService.retrieveRealTimeTopologyEntities(Collections.EMPTY_SET);
-        assertTrue(either.isRight());
-    }
-
-
-    @Test
-    public void testRetrieveRealTimeTopologyEntitiesWithoutReadTimeTopologyId() throws Exception {
-        when(result.getRealtimeTopologyId()).thenReturn(Optional.empty());
-        when(graphDefinition.getServiceEntityVertex()).thenReturn("111");
-        final Try<Collection<ServiceEntityRepoDTO>> results =
-                Try.of(() -> Collections.EMPTY_SET);
-        when(graphDBExecutor.executeServiceEntityMultiGetCmd(any(GraphCmd.ServiceEntityMultiGet.class))).thenReturn(
-                results);
-        final Either either =
-                graphDBService.retrieveRealTimeTopologyEntities(Collections.EMPTY_SET);
-        assertTrue(either.isLeft());
-    }
 }
