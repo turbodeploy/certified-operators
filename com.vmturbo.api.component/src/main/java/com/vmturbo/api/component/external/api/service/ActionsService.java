@@ -26,6 +26,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -36,12 +37,13 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
-import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -102,12 +104,14 @@ public class ActionsService implements IActionsService {
     /**
      * Return the Action information given the id for the action.
      *
-     * @param uuid the ID for the Action to be returned
+     * @param uuid          the ID for the Action to be returned
+     * @param detailLevel   the level of Action details to be returned
      * @return the {@link ActionApiDTO} for the requested id
      * @throws Exception
      */
     @Override
-    public ActionApiDTO getActionByUuid(String uuid) throws Exception {
+    public ActionApiDTO getActionByUuid(@NonNull final String uuid, @Nullable final ActionDetailLevel detailLevel)
+            throws Exception {
         log.debug("Fetching actions for: {}", uuid);
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
         if (!action.hasActionSpec()) {
@@ -116,7 +120,7 @@ public class ActionsService implements IActionsService {
 
         log.debug("Mapping actions for: {}", uuid);
         final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, detailLevel);
         log.trace("Result: {}", answer::toString);
         return answer;
     }

@@ -746,9 +746,7 @@ public class HistorydbIO extends BasedbIO {
 
         final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
 
-        final Set<String> entityTypes = getTypesForEntities(requestedIdSet).values()
-                .stream()
-                .collect(Collectors.toSet());
+        final Set<String> entityTypes = new HashSet<>(getTypesForEntities(requestedIdSet).values());
 
         if (entityTypes.isEmpty()) {
             return null;
@@ -1017,6 +1015,7 @@ public class HistorydbIO extends BasedbIO {
      * @return the display name for the Entity, as stored in the "display_name" for the given
      * entity OID; return null if not found.
      */
+    @Nullable
     public String getEntityDisplayNameForId(long entityId) {
 
         try (Connection conn = connection()) {

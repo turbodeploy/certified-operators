@@ -13,7 +13,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,8 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -35,10 +33,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -63,6 +61,7 @@ import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
@@ -72,9 +71,14 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -172,12 +176,19 @@ public class GroupMapperTest {
             .isHidden(false)
             .build();
 
-
     private static final MinimalEntity ENTITY_VM1 =  MinimalEntity.newBuilder()
             .setOid(3L)
             .setDisplayName("foo")
             .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
-            .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
+            .addDiscoveringTargetIds(AWS_TARGET.oid())
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+            .build();
+    private static final MinimalEntity VC_VM =  MinimalEntity.newBuilder()
+            .setOid(4L)
+            .setDisplayName("vm-1")
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .addDiscoveringTargetIds(VC_TARGET.oid())
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
             .build();
 
     /**
@@ -198,7 +209,7 @@ public class GroupMapperTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
-    private CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
+    private CostMoles.CostServiceMole costServiceMole;
     private EntitySeverityServiceMole severityService;
 
     /**
@@ -218,7 +229,6 @@ public class GroupMapperTest {
 
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private GroupMapper groupMapper;
-    private ExecutorService threadPool;
     private static final String AND = "AND";
     private static final String FOO = "foo";
     private static final String VM_TYPE = "VirtualMachine";
@@ -239,25 +249,17 @@ public class GroupMapperTest {
                         .filter(target -> target.oid() == invocation.getArgumentAt(0, Long.class))
                         .findFirst());
         severityService = Mockito.spy(new EntitySeverityServiceMole());
+        costServiceMole = Mockito.spy(new CostServiceMole());
         grpcServer = GrpcTestServer.newServer(costServiceMole, severityService);
         grpcServer.start();
-        threadPool = Executors.newCachedThreadPool();
-        severityPopulator = Mockito.spy(new SeverityPopulator(
-                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel())));
+        severityPopulator = Mockito.spy(
+                new SeverityPopulator(EntitySeverityServiceGrpc.newStub(grpcServer.getChannel())));
         groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                businessAccountRetriever, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                CONTEXT_ID, targetCache, cloudTypeMapper, threadPool);
-        SearchRequest req = ApiTestUtils.mockSearchCountReq(0);
+                businessAccountRetriever, CostServiceGrpc.newStub(grpcServer.getChannel()),
+                CONTEXT_ID, targetCache, cloudTypeMapper);
+        SearchRequest req = ApiTestUtils.mockSearchIdReq(Collections.emptySet());
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
-    }
-
-    /**
-     * Cleans up environment after the tests.
-     */
-    @After
-    public void cleanup() {
-        threadPool.shutdownNow();
     }
 
     /**
@@ -411,9 +413,11 @@ public class GroupMapperTest {
 
     /**
      * Test converting dynamic group info which only has starting filter to groupApiDTO.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToGroupApiDTOOnlyWithStartingFilter() {
+    public void testToGroupApiDTOOnlyWithStartingFilter() throws Exception {
         final String displayName = "group-foo";
         final long oid = 123L;
 
@@ -463,9 +467,11 @@ public class GroupMapperTest {
 
     /**
      *  Test converting dynamic group info which has multiple search parameters to groupApiDTO.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testToGroupApiDTOWithMultipleSearchParameters() {
+    public void testToGroupApiDTOWithMultipleSearchParameters() throws Exception {
         final String displayName = "group-foo";
         final Boolean isStatic = false;
         final long oid = 123L;
@@ -560,10 +566,10 @@ public class GroupMapperTest {
 
     /**
      * Test that the VM group criteria by clusters name is converted to SearchParameters correctly.
-     * @throws OperationFailedException any error happens
+     * @throws Exception any error happens
      */
     @Test
-    public void testVmsByClusterNameToSearchParameters() throws OperationFailedException {
+    public void testVmsByClusterNameToSearchParameters() throws Exception {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByClusterName"));
         List<SearchParameters> parameters =
@@ -678,7 +684,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapComputeCluster() {
+    public void testMapComputeCluster() throws Exception {
 
         final Grouping computeCluster = Grouping.newBuilder().setId(7L)
                         .setDefinition(GroupDefinition.newBuilder()
@@ -722,7 +728,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapComputeVirtualMachineCluster() {
+    public void testMapComputeVirtualMachineCluster() throws Exception {
 
         final Grouping computeVirtualMachineCluster = Grouping.newBuilder().setId(7L)
                         .setDefinition(GroupDefinition.newBuilder()
@@ -769,7 +775,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapStorageCluster() {
+    public void testMapStorageCluster() throws Exception {
 
         final Grouping storageCluster = Grouping.newBuilder().setId(7L)
                         .setDefinition(GroupDefinition.newBuilder()
@@ -813,7 +819,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testToTempGroupProtoGlobalScope() throws OperationFailedException {
+    public void testToTempGroupProtoGlobalScope() throws Exception {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
@@ -842,7 +848,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testToTempGroupProtoNotGlobalScope() throws OperationFailedException {
+    public void testToTempGroupProtoNotGlobalScope() throws Exception {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
@@ -870,7 +876,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testToTempGroupProtoUuidList() throws OperationFailedException {
+    public void testToTempGroupProtoUuidList() throws Exception {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
@@ -889,7 +895,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testToTempGroupProtoUuidListInsideScope() throws OperationFailedException {
+    public void testToTempGroupProtoUuidListInsideScope() throws Exception {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
@@ -919,7 +925,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapTempGroup() {
+    public void testMapTempGroup() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -960,7 +966,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapTempGroupCloud() {
+    public void testMapTempGroupCloud() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -998,9 +1004,11 @@ public class GroupMapperTest {
 
     /**
      * Tests conversion of a Resource Group message.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapResourceGroup() {
+    public void testMapResourceGroup() throws Exception {
         final long parentId = 1L;
         final String parentDisplayName = "Test displayName";
         final Grouping group = Grouping.newBuilder().setId(8L)
@@ -1071,7 +1079,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapGroupActiveEntities() {
+    public void testMapGroupActiveEntities() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1091,8 +1099,7 @@ public class GroupMapperTest {
                         .members(Collections.singleton(1L)).build());
 
         final int count = 1;
-        final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(count);
-        Mockito.when(countReq.getOids()).thenReturn(Collections.singleton(1L));
+        final SearchRequest countReq = ApiTestUtils.mockSearchIdReq(Collections.singleton(1L));
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
         final GroupApiDTO mappedDto =
@@ -1114,7 +1121,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapGroupActiveEntitiesGlobalTempGroup() {
+    public void testMapGroupActiveEntitiesGlobalTempGroup() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1134,8 +1141,7 @@ public class GroupMapperTest {
                         .group(group).entities(Collections.singleton(1L))
                         .members(Collections.singleton(1L)).build());
 
-        final int count = 10;
-        final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(count);
+        final SearchRequest countReq = ApiTestUtils.mockSearchIdReq(Collections.singleton(1L));
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
         final GroupApiDTO mappedDto =
@@ -1144,7 +1150,7 @@ public class GroupMapperTest {
                         .iterator()
                         .next();
         assertThat(mappedDto.getUuid(), is("8"));
-        assertThat(mappedDto.getActiveEntitiesCount(), is(count));
+        Assert.assertEquals(Integer.valueOf(1), mappedDto.getActiveEntitiesCount());
 
         final ArgumentCaptor<SearchParameters> captor =
                         ArgumentCaptor.forClass(SearchParameters.class);
@@ -1157,7 +1163,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapGroupActiveEntitiesException() {
+    public void testMapGroupActiveEntitiesException() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1175,7 +1181,7 @@ public class GroupMapperTest {
                         .group(group).entities(Collections.singleton(1L))
                         .members(Collections.singleton(1L)).build());
 
-        final SearchRequest countReq = ApiTestUtils.mockSearchCountReq(0);
+        final SearchRequest countReq = ApiTestUtils.mockSearchIdReq(Collections.singleton(1L));
         when(countReq.getOids()).thenThrow(Status.INTERNAL.asRuntimeException());
 
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
@@ -1191,7 +1197,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testMapTempGroupONPREM() {
+    public void testMapTempGroupONPREM() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1274,7 +1280,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testStaticGroupMembersCount() {
+    public void testStaticGroupMembersCount() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(7L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1311,7 +1317,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testDynamicGroupMembersCount() {
+    public void testDynamicGroupMembersCount() throws Exception {
         final Grouping group = Grouping.newBuilder().setId(7L)
             .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
             .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1330,9 +1336,6 @@ public class GroupMapperTest {
         final Set<Long> members = ImmutableSet.of(10L, 20L, 30L);
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).members(members).entities(members).build());
-
-        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO dto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1364,7 +1367,7 @@ public class GroupMapperTest {
     }
 
     private void testExactStringMatchingFilter(boolean positiveMatching)
-                    throws OperationFailedException {
+                    throws Exception {
         final String displayName = "group-foo";
         final String groupType = UIEntityType.VIRTUAL_MACHINE.apiStr();
         final Boolean isStatic = false;
@@ -1451,9 +1454,11 @@ public class GroupMapperTest {
 
     /**
      * Test getEnvironmentTypeForGroup returns proper type for a group (ON_PREM, CLOUD, HYBRID).
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testGetEnvironmentTypeForGroup() {
+    public void testGetEnvironmentTypeForGroup() throws Exception {
         final String displayName = "group-foo";
         final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
         final long oid = 123L;
@@ -1504,6 +1509,8 @@ public class GroupMapperTest {
 
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(any())).thenReturn(req1);
+        final SearchRequest searchRequest = ApiTestUtils.mockEmptySearchReq();
+        Mockito.when(repositoryApi.newSearchRequest(Mockito.any())).thenReturn(searchRequest);
 
         final GroupApiDTO groupDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1514,11 +1521,14 @@ public class GroupMapperTest {
     }
 
     /**
-     * Test {@link GroupMapper#toGroupApiDto(List, boolean)}} in case when we
-     * have regular group with empty resource group members.
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean, SearchPaginationRequest, EnvironmentType)}}
+     * in case when we have regular group with empty resource group members.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testGetEnvironmentAndCloudTypeForRegularGroupWithCloudGroupMembers() {
+    public void testGetEnvironmentAndCloudTypeForRegularGroupWithCloudGroupMembers()
+            throws Exception {
         final Grouping rg = Grouping.newBuilder()
                 .setId(1L)
                 .addExpectedTypes(MemberType.newBuilder().setGroup(GroupType.RESOURCE).build())
@@ -1536,18 +1546,20 @@ public class GroupMapperTest {
         targets.add(VC_TARGET);
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
     }
 
     /**
-     * Test {@link GroupMapper#toGroupApiDto(List, boolean)}} in case when we
-     * have empty resource group.
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean, SearchPaginationRequest,
+     * EnvironmentType)}} in case when we have empty resource group.
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testGetEnvironmentAndCloudTypeForCloudResourceGroup() {
+    public void testGetEnvironmentAndCloudTypeForCloudResourceGroup() throws Exception {
         final Grouping rg = Grouping.newBuilder()
                 .setId(1L)
                 .setDefinition(GroupDefinition.newBuilder().setType(GroupType.RESOURCE).build())
@@ -1564,18 +1576,20 @@ public class GroupMapperTest {
         targets.add(VC_TARGET);
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
     }
 
     /**
-     * Test {@link GroupMapper#toGroupApiDto(List, boolean)}} in case when we
-     * have empty billing family.
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean, SearchPaginationRequest,
+     * EnvironmentType)}} in case when we have empty billing family.
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testGetEnvironmentAndCloudTypeForBillingFamily() {
+    public void testGetEnvironmentAndCloudTypeForBillingFamily() throws Exception {
         final Grouping rg = Grouping.newBuilder()
                 .setId(1L)
                 .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BILLING_FAMILY).build())
@@ -1592,7 +1606,7 @@ public class GroupMapperTest {
         targets.add(VC_TARGET);
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1600,9 +1614,11 @@ public class GroupMapperTest {
 
     /**
      * Test getEnvironmentTypeForGroup returns proper type for a group (ON_PREM, CLOUD, HYBRID).
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testGetCloudTypeForGroup() {
+    public void testGetCloudTypeForGroup() throws Exception {
         final String displayName = "group-foo";
         final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
         final long oid = 123L;
@@ -1660,7 +1676,7 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
         // test with only one type, cloudType should be AWS
         final GroupApiDTO groupApiDTO =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAws), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAws), false, null, null)
                         .iterator()
                         .next();
         assertEquals(groupApiDTO.getCloudType(), CloudType.AWS);
@@ -1676,18 +1692,20 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req2);
         // test with both AWS and Azure, cloudType should be Hybrid
         final GroupApiDTO groupApiDTO2 =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupHybrid), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupHybrid), false, null, null)
                         .iterator()
                         .next();
         assertEquals(groupApiDTO2.getCloudType(), CloudType.HYBRID);
     }
 
     /**
-     * Test {@link GroupMapper#getEnvironmentAndCloudTypeForGroup(GroupAndMembers)} when group
-     * has members discovered from different (on-prem and cloud) targets.
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean, SearchPaginationRequest,
+     * EnvironmentType)} when group has members discovered from different (on-prem and cloud) targets.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testGetEnvironmentAndCloudTypeForHybridGroup() {
+    public void testGetEnvironmentAndCloudTypeForHybridGroup() throws Exception {
         final String displayName = "hybrid-group";
         final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
         final long oid = 123L;
@@ -1747,7 +1765,7 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(minEntityReq);
 
         final GroupApiDTO groupApiDTO =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), true)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), true, null, null)
                         .iterator()
                         .next();
         assertEquals(EnvironmentType.HYBRID, groupApiDTO.getEnvironmentType());
@@ -1758,9 +1776,11 @@ public class GroupMapperTest {
      * Test getEnvironmentTypeForGroup returns proper type for a group of resource groups. When
      * all entities from both group have the same {@link EnvironmentType} then group also has that
      * {@link EnvironmentType}.
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testGetEnvironmentTypeForGroupOfResourceGroups() {
+    public void testGetEnvironmentTypeForGroupOfResourceGroups() throws Exception {
         final long rg1Oid = 1L;
         final long rg2Oid = 2L;
         final long groupOid = 3L;
@@ -1806,7 +1826,7 @@ public class GroupMapperTest {
         final MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
         final GroupApiDTO groupDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
         assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1816,9 +1836,11 @@ public class GroupMapperTest {
      * A cloud entity in a group that belongs to a Cloud target and a Non-cloud target should not
      * cause an exception. We should still be able to determine that the AWS entity has cloud type
      * AWS and CLOUD environment type.
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testCloudEntityStitchedByNonCloudTarget() {
+    public void testCloudEntityStitchedByNonCloudTarget() throws Exception {
         final long entityId = 1L;
         final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
                 .group(Grouping.newBuilder().setId(2L).build())
@@ -1844,7 +1866,7 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO convertedDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
         assertEquals(EnvironmentType.CLOUD, convertedDto.getEnvironmentType());
@@ -1854,9 +1876,11 @@ public class GroupMapperTest {
 
     /**
      * Test that the severity field on GroupApiDTO is populated as expected.
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testPopulateSeverityOnGroupApiDTO() {
+    public void testPopulateSeverityOnGroupApiDTO() throws Exception {
         Grouping group = Grouping.newBuilder().setId(8L)
                 .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                 .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
@@ -1916,9 +1940,11 @@ public class GroupMapperTest {
 
     /**
      * GroupApiDto should fill in BillingFamilyApiDTO when BillingFamily request.
+     *
+     * @throws Exception any error happens
      */
     @Test
-    public void testToGroupApiDtoBillingFamily() {
+    public void testToGroupApiDtoBillingFamily() throws Exception {
         BusinessUnitApiDTO masterAccountDevelopment = new BusinessUnitApiDTO();
         masterAccountDevelopment.setMaster(true);
         masterAccountDevelopment.setUuid("2");
@@ -1948,7 +1974,7 @@ public class GroupMapperTest {
             .entities(Collections.emptyList())
             .build();
         GroupApiDTO mappedDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
 
@@ -1977,9 +2003,11 @@ public class GroupMapperTest {
      * BillingAccountRetriever is not guarenteed to return a cost price because cost component
      * might be temporarily unavailable. When that happens, the billing family should also have
      * a null cost price.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testBillingFamilyNoCostPrice() {
+    public void testBillingFamilyNoCostPrice() throws Exception {
         BusinessUnitApiDTO masterAccountDevelopment = new BusinessUnitApiDTO();
         masterAccountDevelopment.setMaster(true);
         masterAccountDevelopment.setUuid("2");
@@ -2008,7 +2036,7 @@ public class GroupMapperTest {
             .entities(Collections.emptyList())
             .build();
         final GroupApiDTO mappedDto =
-                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false)
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
                         .iterator()
                         .next();
 
@@ -2021,9 +2049,11 @@ public class GroupMapperTest {
      * If there are no group members we don't need to get call to cost component, because if
      * entityFilter has empty collection of entities, cost component return cost stats for
      * all existed entities.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testEmptyResourceGroupNoCostComponentInteraction() {
+    public void testEmptyResourceGroupNoCostComponentInteraction() throws Exception {
         Grouping group = Grouping.newBuilder()
                 .setId(8L)
                 .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
@@ -2036,7 +2066,7 @@ public class GroupMapperTest {
                 .members(Collections.emptyList())
                 .entities(Collections.emptyList())
                 .build();
-        groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false);
+        groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null);
         final GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                         .setEntityFilter(Cost.EntityFilter.newBuilder()
@@ -2045,5 +2075,318 @@ public class GroupMapperTest {
                         .build())
                 .build();
         Mockito.verify(costServiceMole, times(0)).getCloudCostStats(cloudCostStatsRequest);
+    }
+
+    /**
+     * Tests pagination by group cost. Test covers non-empty group, empty group and non-cloud group
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testSortGroupsByCost() throws Exception {
+        final Grouping group1 = Grouping.newBuilder()
+                .setId(1L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("rg-1"))
+                .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+                .group(group1)
+                .entities(Arrays.asList(10L, 11L))
+                .members(Arrays.asList(10L, 11L))
+                .build();
+        final Grouping group2 = Grouping.newBuilder()
+                .setId(2L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("empty-rg"))
+                .build();
+        final GroupAndMembers groupAndMembers2 = ImmutableGroupAndMembers.builder()
+                .group(group2)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+        final Grouping group3 = Grouping.newBuilder()
+                .setId(3L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("non-cloud-group-3"))
+                .build();
+        final GroupAndMembers groupAndMembers3 = ImmutableGroupAndMembers.builder()
+                .group(group3)
+                .entities(Arrays.asList(31L, 32L))
+                .members(Arrays.asList(31L, 32L))
+                .build();
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 2, true, "COST");
+        Mockito.when(costServiceMole.getCloudCostStats(Mockito.any()))
+                .thenReturn(GetCloudCostStatsResponse.newBuilder()
+                        .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                                .addStatRecords(StatRecord.newBuilder()
+                                        .setAssociatedEntityId(10L)
+                                        .setValues(StatValue.newBuilder().setTotal(100F)))
+                                .addStatRecords(StatRecord.newBuilder()
+                                        .setAssociatedEntityId(11L)
+                                        .setValues(StatValue.newBuilder().setTotal(202F))))
+                        .build());
+        final List<GroupApiDTO> resultPage1 = groupMapper.toGroupApiDto(
+                Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
+                paginationRequest, null);
+        Assert.assertEquals(2, resultPage1.size());
+        Assert.assertEquals(Sets.newHashSet(group2.getId(), group3.getId()), resultPage1.stream()
+                .map(GroupApiDTO::getUuid)
+                .map(Long::parseLong)
+                .collect(Collectors.toSet()));
+
+        final SearchPaginationRequest paginationRequest2 =
+                new SearchPaginationRequest("2", 2, true, "COST");
+        final List<GroupApiDTO> resultPage2 = groupMapper.toGroupApiDto(
+                Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
+                paginationRequest2, null);
+        Assert.assertEquals(1, resultPage2.size());
+        Assert.assertEquals(group1.getId(),
+                Long.parseLong(resultPage2.iterator().next().getUuid()));
+    }
+
+    /**
+     * Method tests sorting groups by severities.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testSortGroupsBySeverity() throws Exception {
+        final Grouping group1 = Grouping.newBuilder()
+                .setId(1L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("rg-1"))
+                .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+                .group(group1)
+                .entities(Arrays.asList(10L, 11L))
+                .members(Arrays.asList(10L, 11L))
+                .build();
+        final Grouping group2 = Grouping.newBuilder()
+                .setId(2L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("empty-rg"))
+                .build();
+        final GroupAndMembers groupAndMembers2 = ImmutableGroupAndMembers.builder()
+                .group(group2)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+        final Grouping group3 = Grouping.newBuilder()
+                .setId(3L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("non-cloud-group-3"))
+                .build();
+        final GroupAndMembers groupAndMembers3 = ImmutableGroupAndMembers.builder()
+                .group(group3)
+                .entities(Arrays.asList(31L, 32L))
+                .members(Arrays.asList(31L, 32L))
+                .build();
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 3, false, "SEVERITY");
+        Mockito.when(severityService.getEntitySeverities(Mockito.any()))
+                .thenReturn(Arrays.asList(EntitySeveritiesResponse.newBuilder()
+                        .setEntitySeverity(EntitySeveritiesChunk.newBuilder()
+                                .addEntitySeverity(EntitySeverity.newBuilder()
+                                        .setEntityId(10L)
+                                        .setSeverity(Severity.NORMAL))
+                                .addEntitySeverity(EntitySeverity.newBuilder()
+                                        .setEntityId(11L)
+                                        .setSeverity(Severity.MAJOR))
+                                .addEntitySeverity(EntitySeverity.newBuilder()
+                                        .setEntityId(31L)
+                                        .setSeverity(Severity.CRITICAL))
+                        )
+                        .build()));
+        final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
+                Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
+                paginationRequest, null);
+        Assert.assertEquals(3, resultPage.size());
+        Assert.assertEquals(Long.toString(group3.getId()), resultPage.get(0).getUuid());
+        Assert.assertEquals(Long.toString(group1.getId()), resultPage.get(1).getUuid());
+        Assert.assertEquals(Long.toString(group2.getId()), resultPage.get(2).getUuid());
+    }
+
+    /**
+     * Method tests sorting groups by names.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testSortGroupsByName() throws Exception {
+        final Grouping group1 = Grouping.newBuilder()
+                .setId(1L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("rg-1"))
+                .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+                .group(group1)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+        final Grouping group2 = Grouping.newBuilder()
+                .setId(2L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("empty-rg"))
+                .build();
+        final GroupAndMembers groupAndMembers2 = ImmutableGroupAndMembers.builder()
+                .group(group2)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+        final Grouping group3 = Grouping.newBuilder()
+                .setId(3L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("non-cloud-group-3"))
+                .build();
+        final GroupAndMembers groupAndMembers3 = ImmutableGroupAndMembers.builder()
+                .group(group3)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 3, true, "NAME");
+        final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
+                Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
+                paginationRequest, null);
+        Assert.assertEquals(3, resultPage.size());
+        Assert.assertEquals(Long.toString(group2.getId()), resultPage.get(0).getUuid());
+        Assert.assertEquals(Long.toString(group3.getId()), resultPage.get(1).getUuid());
+        Assert.assertEquals(Long.toString(group1.getId()), resultPage.get(2).getUuid());
+    }
+
+    /**
+     * Tests how the OnPrem VM group is filtered in group mapper. OnPrem group is expected to be
+     * hidden only if cloud environment is requested
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testFilterByEnvironmentTypeVcVms() throws Exception {
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final Grouping grouping = Grouping.newBuilder().setId(1L).build();
+        final GroupAndMembers groupAndMembers1 = createGroup(grouping, VC_VM.getOid());
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(VC_VM));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        null).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.ONPREM).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.HYBRID).size());
+        Assert.assertEquals(0,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.CLOUD).size());
+    }
+
+    /**
+     * Tests how the cloud VM group is filtered in group mapper. Cloud group should not be shown
+     * only if OnPrem environment is requested.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testFilterByEnvironmentTypeCloudGroup() throws Exception {
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final Grouping grouping = Grouping.newBuilder().setId(1L).build();
+        final GroupAndMembers groupAndMembers1 = createGroup(grouping, ENTITY_VM1.getOid());
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(ENTITY_VM1));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        null).size());
+        Assert.assertEquals(0,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.ONPREM).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.HYBRID).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.CLOUD).size());
+    }
+
+    /**
+     * Tests how the hybrid VM group is filtered in group mapper. Hybrid group should not be shown
+     * in all the cases.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testFilterByEnvironmentTypeHybridGroup() throws Exception {
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final Grouping grouping = Grouping.newBuilder().setId(1L).build();
+        final GroupAndMembers groupAndMembers1 = createGroup(grouping, ENTITY_VM1.getOid(), VC_VM.getOid());
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ENTITY_VM1, VC_VM));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        null).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.ONPREM).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.HYBRID).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.CLOUD).size());
+    }
+
+    /**
+     * Filtering by environment type in homogeneous infrastructure.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testFilterByEnvironmentTypeHomogenousEnv() throws Exception {
+        targets.add(VC_TARGET);
+        final Grouping grouping = Grouping.newBuilder().setId(1L).build();
+        final GroupAndMembers groupAndMembers1 = createGroup(grouping, VC_VM.getOid());
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ENTITY_VM1, VC_VM));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        null).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.ONPREM).size());
+        Assert.assertEquals(1,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.HYBRID).size());
+        Assert.assertEquals(0,
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
+                        EnvironmentType.CLOUD).size());
+        Mockito.verify(repositoryApi, Mockito.never()).entitiesRequest(Mockito.any());
+    }
+
+    private GroupAndMembers createGroup(@Nonnull Grouping grouping, Long... members) {
+        return ImmutableGroupAndMembers.builder()
+                .group(grouping)
+                .members(Arrays.asList(members))
+                .entities(Arrays.asList(members))
+                .build();
     }
 }

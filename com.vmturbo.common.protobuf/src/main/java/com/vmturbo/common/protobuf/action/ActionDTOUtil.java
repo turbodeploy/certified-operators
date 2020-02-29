@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.commons.lang3.StringUtils;
@@ -490,6 +491,22 @@ public class ActionDTOUtil {
                 return ActionType.BUY_RI;
             default:
                 return ActionType.NONE;
+        }
+    }
+
+    /**
+     * Given an action, return it's cost type.
+     *
+     * @param action the action to check.
+     * @return the {@link ActionCostType} of the action.
+     */
+    public static ActionCostType getActionCostTypeFromAction(@Nonnull final Action action) {
+        if (action.getSavingsPerHour().getAmount() < 0.0) {
+            return ActionCostType.INVESTMENT;
+        } else if (action.getSavingsPerHour().getAmount() > 0.0) {
+            return ActionCostType.SAVINGS;
+        } else {
+            return ActionCostType.ACTION_COST_TYPE_NONE;
         }
     }
 

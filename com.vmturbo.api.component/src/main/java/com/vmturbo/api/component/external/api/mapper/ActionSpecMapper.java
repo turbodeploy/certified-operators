@@ -36,6 +36,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -54,6 +55,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -65,10 +67,12 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
@@ -187,6 +191,11 @@ public class ActionSpecMapper {
 
     private final BuyRiScopeHandler buyRiScopeHandler;
 
+    private static final Predicate<ActionState> IN_PROGRESS_PREDICATE = (state) ->
+            state == ActionState.IN_PROGRESS
+                    || state == ActionState.PRE_IN_PROGRESS
+                    || state == ActionState.POST_IN_PROGRESS;
+
     /**
      * The set of action states for operational actions (ie actions that have not
      * completed execution).
@@ -229,25 +238,57 @@ public class ActionSpecMapper {
      * @return A collection of {@link ActionApiDTO}s in the same order as the incoming actionSpecs.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec}
      * is not supported.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws ExecutionException on error mapping action spec
+     */
+    @Nonnull
+    public List<ActionApiDTO> mapActionSpecsToActionApiDTOs(
+            @Nonnull final Collection<ActionSpec> actionSpecs, final long topologyContextId)
+            throws UnsupportedActionException, ExecutionException, InterruptedException,
+            ConversionException {
+        return mapActionSpecsToActionApiDTOs(actionSpecs, topologyContextId, ActionDetailLevel.STANDARD);
+    }
+
+    /**
+     * The equivalent of {@link ActionSpecMapper#mapActionSpecToActionApiDTO(ActionSpec, long, ActionDetailLevel)}
+     * for a collection of {@link ActionSpec}s.
+     *
+     * <p>Processes the input specs atomically. If there is an error processing an individual action spec
+     * that action is skipped and an error is logged.
+     *
+     * @param actionSpecs       The collection of {@link ActionSpec}s to convert.
+     * @param topologyContextId The topology context within which the {@link ActionSpec}s were
+     *                          produced. We need this to get the right information from related
+     *                          entities.
+     * @param detailLevel       Level of action details requested, used to include or exclude certain information.
+     * @return A collection of {@link ActionApiDTO}s in the same order as the incoming actionSpecs.
+     * @throws UnsupportedActionException If the action type of the {@link ActionSpec}
+     *                                    is not supported.
+     * @throws ExecutionException
+     * @throws InterruptedException
      */
     @Nonnull
     public List<ActionApiDTO> mapActionSpecsToActionApiDTOs(
             @Nonnull final Collection<ActionSpec> actionSpecs,
-            final long topologyContextId)
-                    throws UnsupportedActionException, ExecutionException, InterruptedException {
+            final long topologyContextId,
+            @Nullable final ActionDetailLevel detailLevel)
+            throws UnsupportedActionException, ExecutionException, InterruptedException,
+            ConversionException {
         if (actionSpecs.isEmpty()) {
             return Collections.emptyList();
         }
         final List<ActionDTO.Action> recommendations = actionSpecs.stream()
-            .map(ActionSpec::getRecommendation)
-            .collect(Collectors.toList());
+                .map(ActionSpec::getRecommendation)
+                .collect(Collectors.toList());
         final ActionSpecMappingContext context =
-            actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations, topologyContextId);
+                actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations, topologyContextId);
         final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
         int unresolvedEntities = 0;
         for (ActionSpec spec : actionSpecs) {
             try {
-                final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId);
+                final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context,
+                        topologyContextId, detailLevel);
                 actionApiDTOS.add(actionApiDTO);
             } catch (UnknownObjectException e) {
                 unresolvedEntities += 1;
@@ -264,6 +305,8 @@ public class ActionSpecMapper {
      * Map an ActionSpec returned from the ActionOrchestratorComponent into an {@link ActionApiDTO}
      * to be returned from the API.
      *
+     * The detail level returned in the {@link ActionApiDTO} is STANDARD.
+     *
      * When required, a displayName value for a given Service Entity ID is gathered from the
      * Repository service.
      *
@@ -279,16 +322,48 @@ public class ActionSpecMapper {
      * the repository.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec} is not
      * supported.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
     public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
                                                     final long topologyContextId)
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
+            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+            InterruptedException, ConversionException {
+        return mapActionSpecToActionApiDTO(actionSpec, topologyContextId, ActionDetailLevel.STANDARD);
+    }
+
+    /**
+     * Map an ActionSpec returned from the ActionOrchestratorComponent into an {@link ActionApiDTO}
+     * to be returned from the API.
+     * <p>
+     * When required, a displayName value for a given Service Entity ID is gathered from the
+     * Repository service.
+     * <p>
+     * Some fields are returned as a constant:
+     * Some fields are ignored:
+     *
+     * @param actionSpec        The {@link ActionSpec} object to be mapped into an {@link ActionApiDTO}.
+     * @param topologyContextId The topology context within which the {@link ActionSpec} was
+     *                          produced. We need this to get the right information froGm related
+     *                          entities.
+     * @param detailLevel       Level of action details requested, used to include or exclude certain information.
+     * @return an {@link ActionApiDTO} object populated from the given ActionSpec
+     * @throws UnknownObjectException     If any entities involved in the action are not found in
+     *                                    the repository.
+     * @throws UnsupportedActionException If the action type of the {@link ActionSpec} is not
+     *                                    supported.
+     */
+    @Nonnull
+    public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
+                                                    final long topologyContextId,
+                                                    @Nullable final ActionDetailLevel detailLevel)
+            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+            InterruptedException, ConversionException {
         final ActionSpecMappingContext context =
-            actionSpecMappingContextFactory.createActionSpecMappingContext(
-                Lists.newArrayList(actionSpec.getRecommendation()), topologyContextId);
-        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId);
+                actionSpecMappingContextFactory.createActionSpecMappingContext(
+                        Lists.newArrayList(actionSpec.getRecommendation()), topologyContextId);
+        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId, detailLevel);
     }
 
     /**
@@ -325,6 +400,33 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Map an {@link ActionDTO.ActionState} to a {@link ActionState},
+     * return null if it's not an execution state.
+     *
+     * @param actionState state of the action
+     * @return an {@link ActionState} enum, null if it's not an execution state
+     */
+    @Nullable
+    public ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
+        switch (actionState) {
+            case PRE_IN_PROGRESS:
+                return ActionState.PRE_IN_PROGRESS;
+            case POST_IN_PROGRESS:
+                return ActionState.POST_IN_PROGRESS;
+            case IN_PROGRESS:
+                return ActionState.IN_PROGRESS;
+            case FAILED:
+                return ActionState.FAILED;
+            case SUCCEEDED:
+                return ActionState.SUCCEEDED;
+            case QUEUED:
+                return ActionState.QUEUED;
+            default:
+                return null;
+        }
+    }
+
+    /**
      * Map an API category string to an equivalent XL category.
      *
      * @param category The string representing the action category in the UI.
@@ -351,7 +453,8 @@ public class ActionSpecMapper {
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
             @Nonnull final ActionSpecMappingContext context,
-            final long topologyContextId)
+            final long topologyContextId,
+            @Nullable final ActionDetailLevel detailLevel)
                     throws UnsupportedActionException, UnknownObjectException, ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
@@ -475,6 +578,11 @@ public class ActionSpecMapper {
         // update actionApiDTO with more info for plan actions
         if (topologyContextId != realtimeTopologyContextId) {
             addMoreInfoToActionApiDTOForPlan(actionApiDTO, context, recommendation);
+        }
+
+        // add the Execution status
+        if (ActionDetailLevel.EXECUTION == detailLevel) {
+            actionApiDTO.setExecutionStatus(createActionExecutionAuditApiDTO(actionSpec));
         }
 
         return actionApiDTO;
@@ -1703,8 +1811,8 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Create RI historical Context Stat Snapshot DTOs
-     * snapshots - template demand snapshots
+     * Create RI historical Context Stat Snapshot DTOs.
+     * @param snapshots - template demand snapshots
      * @return
      */
     @Nonnull
@@ -1734,7 +1842,45 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Map UI's ActionMode to ActionDTO.ActionMode
+     * Create an ActionExecutionAuditApiDTO for when the Action State is in EXECUTION_ACTION_STATES,
+     * otherwise return null.
+     *
+     * @param actionSpec                    Action specifications
+     * @return ActionExecutionAuditApiDTO   contains details about the execution of the Action,
+     *                                      null if the Action is not executed yet.
+     */
+    @Nullable
+    private ActionExecutionAuditApiDTO createActionExecutionAuditApiDTO(@Nonnull final ActionSpec actionSpec) {
+        ActionState executionState = mapXlActionStateToExecutionApi(actionSpec.getActionState());
+        // If the Action was not executed, return null
+        if (executionState == null || actionSpec.getExecutionStep() == null) {
+            return null;
+        }
+
+        final ActionDTO.ExecutionStep executionStep = actionSpec.getExecutionStep();
+        ActionExecutionAuditApiDTO executionDTO = new ActionExecutionAuditApiDTO();
+        executionDTO.setState(executionState);
+        if (IN_PROGRESS_PREDICATE.test(executionDTO.getState())) {
+            executionDTO.setProgress(executionStep.getProgressPercentage());
+        }
+        if (CollectionUtils.isNotEmpty(executionStep.getErrorsList())) {
+            // Show the last most updated message
+            executionDTO.setMessage(Iterables.getLast(executionStep.getErrorsList()));
+        }
+        if (executionStep.hasStartTime()) {
+            final String startTime = DateTimeUtil.toString(executionStep.getStartTime());
+            executionDTO.setExecutionTime(startTime);
+        }
+        if (executionStep.hasCompletionTime()) {
+            final String completionTime = DateTimeUtil.toString(executionStep.getCompletionTime());
+            executionDTO.setCompletionTime(completionTime);
+        }
+
+        return executionDTO;
+    }
+
+    /**
+     * Map UI's ActionMode to ActionDTO.ActionMode.
      *
      * @param actionMode UI's ActionMode
      * @return ActionDTO.ActionMode

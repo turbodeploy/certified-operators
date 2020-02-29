@@ -6,14 +6,19 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -32,6 +37,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class QueryInfoFactoryTest {
@@ -51,7 +57,25 @@ public class QueryInfoFactoryTest {
         .setEnvironmentType(EnvironmentType.ON_PREM)
         .build();
 
-    private QueryInfoFactory queryInfoFactory = new QueryInfoFactory(REALTIME_CONTEXT_ID);
+    private static final ActionEntity ON_PREM_PM = ActionEntity.newBuilder()
+            .setId(123)
+            .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .build();
+
+
+    private UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
+
+    private QueryInfoFactory queryInfoFactory = new QueryInfoFactory(REALTIME_CONTEXT_ID, userSessionContext);
+
+    /**
+     * Setup.
+     */
+    @Before
+    public void setup() {
+        // default user will be unscoped.
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+    }
 
     @Test
     public void testQueryInfoExtractionSpecificTopologyContext() {
@@ -147,10 +171,6 @@ public class QueryInfoFactoryTest {
 
     @Test
     public void testQueryMarketEntityType() {
-        final ActionEntity pm = ActionEntity.newBuilder()
-            .setId(123)
-            .setType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .build();
         final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
             .setQuery(CurrentActionStatsQuery.newBuilder()
                 .setScopeFilter(ScopeFilter.newBuilder()
@@ -159,7 +179,67 @@ public class QueryInfoFactoryTest {
             .build());
         assertTrue(queryInfo.entityPredicate().test(CLOUD_VM));
         assertTrue(queryInfo.entityPredicate().test(ON_PREM_VM));
-        assertFalse(queryInfo.entityPredicate().test(pm));
+        assertFalse(queryInfo.entityPredicate().test(ON_PREM_PM));
+    }
+
+    @Test
+    public void testQueryMarketWithScopedUser() {
+        // create a scoped user that only has access to the on-prem VM and on-prem PM
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(ON_PREM_VM.getId(), ON_PREM_PM.getId())), null);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // Now, a general market query should only see the on prem vm.
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setScopeFilter(ScopeFilter.newBuilder()
+                                .setGlobal(GlobalScope.getDefaultInstance())))
+                .build());
+        assertTrue(queryInfo.entityPredicate().test(ON_PREM_VM));
+        assertFalse(queryInfo.entityPredicate().test(CLOUD_VM));
+        assertTrue(queryInfo.entityPredicate().test(ON_PREM_PM));
+    }
+
+    @Test
+    public void testQueryMarketByEntityTypeWithScopedUser() {
+        // create a scoped user that only has access to the on-prem VM and PM
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(ON_PREM_VM.getId(), ON_PREM_PM.getId())), null);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // Now, a market query for vm entities should only see the on prem vm.
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setScopeFilter(ScopeFilter.newBuilder()
+                                .setGlobal(GlobalScope.newBuilder()
+                                        .addEntityType(VM))))
+                .build());
+        assertTrue(queryInfo.entityPredicate().test(ON_PREM_VM));
+        assertFalse(queryInfo.entityPredicate().test(CLOUD_VM));
+        assertFalse(queryInfo.entityPredicate().test(ON_PREM_PM));
+    }
+
+    @Test
+    public void testQueryMarketByEntityTypeAndEnvironmentWithScopedUser() {
+        // create a scoped user that only has access to the on-prem VM and cloud VM
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(ON_PREM_VM.getId(), CLOUD_VM.getId())), null);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // Now, a market query for on-prem VM entities should only see the on prem vm.
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setScopeFilter(ScopeFilter.newBuilder()
+                                .setGlobal(GlobalScope.newBuilder()
+                                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                                        .addEntityType(VM))))
+                .build());
+        assertTrue(queryInfo.entityPredicate().test(ON_PREM_VM));
+        assertFalse(queryInfo.entityPredicate().test(CLOUD_VM));
+        assertFalse(queryInfo.entityPredicate().test(ON_PREM_PM));
     }
 
     @Test

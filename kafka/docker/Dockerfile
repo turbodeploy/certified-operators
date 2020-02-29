@@ -18,7 +18,7 @@ RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless && \
 
 RUN source /etc/kafka.profile && \
     cd /tmp && \
-    curl -k -s -O https://10.10.150.66/repository/xl/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
+    curl -k -s -O http://apache.mirrors.pair.com/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     tar -C /opt -xvf kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     ln -s kafka_${SCALA_VERSION}-${KAFKA_VERSION} /opt/kafka && \
     rm kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \

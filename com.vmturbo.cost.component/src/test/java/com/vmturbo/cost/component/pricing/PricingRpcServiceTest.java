@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -79,7 +80,9 @@ public class PricingRpcServiceTest {
 
     private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore = mock(BusinessAccountPriceTableKeyStore.class);
 
-    private PricingRpcService backend = new PricingRpcService(priceTableStore, riSpecStore, businessAccountPriceTableKeyStore);
+    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
+
+    private PricingRpcService backend = new PricingRpcService(priceTableStore, riSpecStore, reservedInstanceBoughtStore, businessAccountPriceTableKeyStore);
 
     /**
      * Create a grpc instance of the pricing rpc service.
@@ -240,11 +243,12 @@ public class PricingRpcServiceTest {
         List<ReservedInstanceSpecPrice> specPriceList = Arrays.asList(specPrice1, specPrice2, specPrice3);
 
         ReservedInstanceSpecStore riSpecstore = Mockito.spy(ReservedInstanceSpecStore.class);
+        ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
         Mockito.doReturn(tempSpecIdToRealId).when(riSpecstore).updateReservedInstanceSpec(Mockito.anyList());
 
         // generate the PriceTableStore
         PriceTableStore priceTableStore = Mockito.spy(PriceTableStore.class);
-        PricingRpcService service = new PricingRpcService(priceTableStore, riSpecstore,
+        PricingRpcService service = new PricingRpcService(priceTableStore, riSpecstore, reservedInstanceBoughtStore,
                 businessAccountPriceTableKeyStore);
         ReservedInstancePriceTable riPriceTable = service.updateRISpecsAndBuildRIPriceTable(specPriceList);
 

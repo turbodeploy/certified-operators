@@ -46,6 +46,8 @@ public class PrerequisiteDescriptionComposer {
         "Request a quota increase for {0} in {1} to allow resize of {2}";
     private static final String ACTION_TYPE_ERROR_MESSAGE =
         "Can not give a proper pre-requisite description as action type is not defined";
+    private static final String LOCK_PREREQUISITE_FORMAT =
+            "To execute action on {0}, please remove these read-only locks: {1}";
 
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
@@ -72,20 +74,28 @@ public class PrerequisiteDescriptionComposer {
         return action.getPrerequisiteList().stream()
             .filter(Prerequisite::hasPrerequisiteType).map(prerequisite -> {
                 try {
-                    return ActionDTOUtil.TRANSLATION_PREFIX +
-                        (prerequisite.getPrerequisiteType() == PrerequisiteType.CORE_QUOTAS ?
-                        MessageFormat.format(
-                            CORE_QUOTA_PREREQUISITE_FORMAT,
-                            prerequisite.getQuotaName(),
-                            buildEntityNameOrType(ActionEntity.newBuilder()
-                                .setId(prerequisite.getRegionId())
-                                .setType(EntityType.REGION_VALUE).build()),
-                            buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action))) :
-                        MessageFormat.format(
+                    switch (prerequisite.getPrerequisiteType()) {
+                        case CORE_QUOTAS:
+                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
+                                    CORE_QUOTA_PREREQUISITE_FORMAT,
+                                    prerequisite.getQuotaName(),
+                                    buildEntityNameOrType(ActionEntity.newBuilder()
+                                            .setId(prerequisite.getRegionId())
+                                            .setType(EntityType.REGION_VALUE).build()),
+                                    buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)));
+                        case LOCKS:
+                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
+                                    LOCK_PREREQUISITE_FORMAT,
+                                    buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
+                                    prerequisite.getLocks());
+                        default:
+                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                             prerequisiteTypeToString.get(prerequisite.getPrerequisiteType()),
-                            buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action))));
+                            buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)));
+                    }
                 } catch (UnsupportedActionException e) {
-                    logger.error("Cannot build action pre-requisite description", e);
+                    logger.error("Cannot build action pre-requisite {} description",
+                            prerequisite, e);
                     return ACTION_TYPE_ERROR_MESSAGE;
                 }
             })

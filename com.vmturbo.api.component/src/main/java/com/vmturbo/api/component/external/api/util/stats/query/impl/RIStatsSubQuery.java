@@ -21,6 +21,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -96,13 +97,18 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
     @Nonnull
     @Override
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
-            @Nonnull final StatsQueryContext context) throws OperationFailedException {
+            @Nonnull final StatsQueryContext context)
+            throws OperationFailedException, InterruptedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(context.getInputScope())) {
             if (containsStat(StringConstants.NUM_RI, stats)) {
-                snapshots.addAll(convertNumRIStatsMapToStatSnapshotApiDTO(
-                        getRIBoughtCountByTierName(createRIBoughtCountRequest(context))));
+                try {
+                    snapshots.addAll(convertNumRIStatsMapToStatSnapshotApiDTO(
+                            getRIBoughtCountByTierName(createRIBoughtCountRequest(context))));
+                } catch (ConversionException e) {
+                    throw new OperationFailedException(e.getMessage(), e);
+                }
             }
 
             if (containsStat(StringConstants.RI_COST, stats)) {
@@ -241,7 +247,8 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
     }
 
     private Map<String, Long> getRIBoughtCountByTierName(
-            final GetReservedInstanceBoughtCountRequest countRequest) {
+            final GetReservedInstanceBoughtCountRequest countRequest)
+            throws ConversionException, InterruptedException {
         final Map<Long, Long> riBoughtCountsByTierId =
                 riBoughtService.getReservedInstanceBoughtCountByTemplateType(countRequest)
                         .getReservedInstanceCountMapMap();

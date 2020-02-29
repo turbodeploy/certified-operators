@@ -3,6 +3,7 @@ package com.vmturbo.api.component.communication;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -16,6 +17,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.ManagedChannel;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,6 +30,7 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
@@ -73,9 +77,12 @@ public class RepositoryApiTest {
     @Before
     public void setup() {
         this.businessAccountMapper = Mockito.mock(BusinessAccountMapper.class);
+        final ManagedChannel grpcChannel = grpcTestServer.getChannel();
         repositoryApi = new RepositoryApi(severityPopulator,
-            RepositoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-            SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcChannel),
+            RepositoryServiceGrpc.newStub(grpcChannel),
+            SearchServiceGrpc.newBlockingStub(grpcChannel),
+            SearchServiceGrpc.newStub(grpcChannel),
             serviceEntityMapper,
             businessAccountMapper,
             realtimeContextId);
@@ -261,7 +268,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testGetSE() {
+    public void testGetSE() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -288,7 +295,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testGetSEUseAspectMapper() {
+    public void testGetSEUseAspectMapper() throws Exception {
         EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
 
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
@@ -301,9 +308,11 @@ public class RepositoryApiTest {
             .addEntities(PartialEntity.newBuilder()
                 .setFullEntity(ret))
             .build())).when(repoBackend).retrieveTopologyEntities(any());
+        when(aspectMapper.getAspectByEntity(any(TopologyEntityDTO.class), any())).thenReturn(null);
         assertThat(repositoryApi.entityRequest(7L)
-            .useAspectMapper(aspectMapper)
+            .useAspectMapper(aspectMapper, Collections.singletonList(AspectName.CLOUD.getApiName()))
             .getSE().get(), is(se));
+        assertThat(se.getAspects().get(AspectName.CLOUD.getApiName()), is(nullValue()));
 
         final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
             ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
@@ -315,12 +324,12 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.FULL));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret);
+        verify(aspectMapper).getAspectByEntity(ret, AspectName.CLOUD);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 
     @Test
-    public void testGetUseContext() {
+    public void testGetUseContext() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -348,7 +357,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testMultiGetMinimalEntity() {
+    public void testMultiGetMinimalEntity() throws Exception {
         MinimalEntity ret = minimal(7L);
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
@@ -472,7 +481,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testMultiGetSEList() {
+    public void testMultiGetSEList() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -500,7 +509,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testMultiGetSEMap() {
+    public void testMultiGetSEMap() throws Exception {
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -525,11 +534,11 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.API));
 
         verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
-        verify(severityPopulator).populate(realtimeContextId, ImmutableMap.of(7L, se));
+        verify(severityPopulator).populate(realtimeContextId, Collections.singleton(se));
     }
 
     @Test
-    public void testMultiGetSEUseAspectMapper() {
+    public void testMultiGetSEUseAspectMapper() throws Exception {
         EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
 
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
@@ -653,7 +662,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testSearchSEList() {
+    public void testSearchSEList() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -679,7 +688,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testSearchSEUseAspectMapper() {
+    public void testSearchSEUseAspectMapper() throws Exception {
         EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
@@ -702,7 +711,7 @@ public class RepositoryApiTest {
     }
 
     @Test
-    public void testSearchSEMap() {
+    public void testSearchSEMap() throws Exception {
         ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -725,6 +734,6 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.API));
 
         verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
-        verify(severityPopulator).populate(realtimeContextId, ImmutableMap.of(7L, se));
+        verify(severityPopulator).populate(realtimeContextId, Collections.singleton(se));
     }
 }

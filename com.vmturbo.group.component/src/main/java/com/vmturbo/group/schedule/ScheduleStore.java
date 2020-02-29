@@ -228,8 +228,8 @@ public class ScheduleStore implements DiagsRestorable {
                     .where(SCHEDULE.DISPLAY_NAME.eq(schedule.getDisplayName()))
                     .fetchOne();
                 if (existingId != null) {
-                    throw new DuplicateNameException(existingId.value1(),
-                        schedule.getDisplayName());
+                    throw new DuplicateNameException("Schedule with name `" + schedule.getDisplayName() +
+                        "` already exists.");
                 }
                 Schedule scheduleRecord = generateScheduleRecord(schedule);
                 context.newRecord(SCHEDULE, scheduleRecord).store();
@@ -280,7 +280,8 @@ public class ScheduleStore implements DiagsRestorable {
                     .and(SCHEDULE.ID.ne(id))
                     .fetchOne();
                 if (existingId != null) {
-                    throw new DuplicateNameException(existingId.value1(), schedule.getDisplayName());
+                    throw new DuplicateNameException("Schedule with name `" + schedule.getDisplayName() +
+                        "` already exists.");
                 }
 
                 // Validate before saving
@@ -325,8 +326,9 @@ public class ScheduleStore implements DiagsRestorable {
                 }
                 // Verify no setting policies are assigned to this schedule
                 if (getAssignedSettingPolicyCount(context, id) > 0) {
-                    throw new ScheduleInUseDeleteException("Cannot delete schedule record id: " + id +
-                        " because it is used by setting policies");
+                    throw new ScheduleInUseDeleteException("Cannot delete schedule `" +
+                        existingRecord.getDisplayName() + "` because it is used in one or more " +
+                        "automation policies");
                 }
 
                 final int modifiedRecords = existingRecord.delete();

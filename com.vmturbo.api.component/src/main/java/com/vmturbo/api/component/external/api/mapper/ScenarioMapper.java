@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -69,6 +68,7 @@ import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -597,9 +597,12 @@ public class ScenarioMapper {
      *
      * @param scenario The scenario to be converted.
      * @return The ScenarioApiDTO equivalent of the scenario.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public ScenarioApiDTO toScenarioApiDTO(@Nonnull final Scenario scenario) {
+    public ScenarioApiDTO toScenarioApiDTO(@Nonnull final Scenario scenario)
+            throws ConversionException, InterruptedException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         Scenario convertedScenario = toApiChanges(scenario);
         final ScenarioChangeMappingContext context = new ScenarioChangeMappingContext(repositoryApi,
@@ -1504,6 +1507,9 @@ public class ScenarioMapper {
      * Mainly intended to abstract away the details of interacting with other services in order
      * to supply all necessary information to the API (e.g. the names of groups, templates, and
      * entities).
+     *
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     public static class ScenarioChangeMappingContext {
         private final Map<Long, ServiceEntityApiDTO> serviceEntityMap;
@@ -1514,7 +1520,8 @@ public class ScenarioMapper {
                                             @Nonnull final TemplatesUtils templatesUtils,
                                             @Nonnull final GroupServiceBlockingStub groupRpcService,
                                             @Nonnull final GroupMapper groupMapper,
-                                            @Nonnull final List<ScenarioChange> changes) {
+                                            @Nonnull final List<ScenarioChange> changes)
+                throws ConversionException, InterruptedException {
             // Get type information about entities involved in the scenario changes. We get it
             // in a single call to reduce the number of round-trips and total wait-time.
             //
@@ -1528,7 +1535,6 @@ public class ScenarioMapper {
             this.templatesMap =
                     templatesUtils.getTemplatesMapByIds(PlanDTOUtil.getInvolvedTemplates(changes));
 
-            this.groupMap = new HashMap<>();
             final Set<Long> involvedGroups = PlanDTOUtil.getInvolvedGroups(changes);
             if (!involvedGroups.isEmpty()) {
                 final Iterator<Grouping> iterator = groupRpcService.getGroups(GetGroupsRequest.newBuilder()
@@ -1537,11 +1543,10 @@ public class ScenarioMapper {
                                     .addAllId(involvedGroups)
                         ).build());
                 final List<Grouping> groups = Lists.newArrayList(iterator);
-                final Map<Long, GroupApiDTO> apiGroups =
+                this.groupMap =
                         groupMapper.groupsToGroupApiDto(groups, false);
-                for (Entry<Long, GroupApiDTO> entry : apiGroups.entrySet()) {
-                    groupMap.put(entry.getKey(), entry.getValue());
-                }
+            } else {
+                groupMap = Collections.emptyMap();
             }
         }
 

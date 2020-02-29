@@ -9,11 +9,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -49,7 +47,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
@@ -118,8 +115,13 @@ public class HistoryStatPaginationSysTest {
     private static final double CAPACITY = 10_000.0;
 
 
+    /**
+     * Test paging through lots of stats.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
-    public void testPaginateThroughStats() throws CommunicationException, InterruptedException, TimeoutException, ExecutionException {
+    public void testPaginateThroughStats() throws Exception {
         final long topologyContextId = ComponentUtils.REALTIME_TOPOLOGY_CONTEXT;
         final List<TopologyEntityDTO> entities = Lists.newArrayList(
                 createNewEntity(1L, EntityType.PHYSICAL_MACHINE_VALUE,

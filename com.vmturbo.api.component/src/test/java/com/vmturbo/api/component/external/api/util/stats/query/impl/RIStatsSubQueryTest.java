@@ -92,7 +92,7 @@ public class RIStatsSubQueryTest {
     private final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         final MultiEntityRequest request = Mockito.mock(MultiEntityRequest.class);
         final ServiceEntityApiDTO tierApiDto = new ServiceEntityApiDTO();
         tierApiDto.setDisplayName(TIER_NAME);
@@ -136,7 +136,7 @@ public class RIStatsSubQueryTest {
     }
 
     @Test
-    public void testAggregateStats() throws OperationFailedException {
+    public void testAggregateStats() throws Exception {
         final ReservedInstanceStatsRecord cvgRecord =
                 ReservedInstanceStatsRecord.newBuilder().setSnapshotDate(MILLIS).build();
         Mockito.doReturn(GetReservedInstanceCoverageStatsResponse.newBuilder()
@@ -188,10 +188,10 @@ public class RIStatsSubQueryTest {
     /**
      * Test that getAggregateStats with NUM_RI request returns response with template name by count.
      *
-     * @throws OperationFailedException if getAggregateStats throws OperationFailedException.
+     * @throws Exception if getAggregateStats throws OperationFailedException.
      */
     @Test
-    public void testRiBoughtCountByTemplateType() throws OperationFailedException {
+    public void testRiBoughtCountByTemplateType() throws Exception {
         final long riBoughtCount = 3L;
         final Map<Long, Long> riBoughtCountByTierId =
                 Collections.singletonMap(TIER_ID, riBoughtCount);
@@ -475,7 +475,7 @@ public class RIStatsSubQueryTest {
     }
 
     @Test
-    public void testObserverUser() throws OperationFailedException {
+    public void testObserverUser() throws Exception {
         Mockito.when(userSessionContext.isUserObserver()).thenReturn(true);
 
         final List<StatSnapshotApiDTO> results =

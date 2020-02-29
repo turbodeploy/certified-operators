@@ -371,7 +371,7 @@ public class ActionInterpreter {
         final long entityId = deactivateTO.getTraderToDeactivate();
         final List<CommodityType> topologyCommodities =
                 deactivateTO.getTriggeringBasketList().stream()
-                        .map(commodityConverter::economyToTopologyCommodity)
+                        .map(commodityConverter::marketToTopologyCommodity)
                         .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
@@ -531,7 +531,7 @@ public class ActionInterpreter {
                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = resizeTO.getSellingTrader();
         final CommodityType topologyCommodityType =
-                commodityConverter.economyToTopologyCommodity(resizeTO.getSpecification())
+                commodityConverter.marketToTopologyCommodity(resizeTO.getSpecification())
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Resize commodity can't be converted to topology commodity format! "
                                         + resizeTO.getSpecification()));
@@ -626,7 +626,7 @@ public class ActionInterpreter {
         final long entityId = activateTO.getTraderToActivate();
         final List<CommodityType> topologyCommodities =
                 activateTO.getTriggeringBasketList().stream()
-                        .map(commodityConverter::economyToTopologyCommodity)
+                        .map(commodityConverter::marketToTopologyCommodity)
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .collect(Collectors.toList());
@@ -919,7 +919,7 @@ public class ActionInterpreter {
 
     private ProvisionExplanation
     interpretProvisionExplanation(ProvisionBySupplyTO provisionBySupply) {
-        CommodityType commType = commodityConverter.economyToTopologyCommodity(
+        CommodityType commType = commodityConverter.marketToTopologyCommodity(
                 provisionBySupply.getMostExpensiveCommodity()).orElseThrow(() -> new IllegalArgumentException(
             "Most expensive commodity in provision can't be converted to topology commodity format! "
                 + provisionBySupply.getMostExpensiveCommodity()));

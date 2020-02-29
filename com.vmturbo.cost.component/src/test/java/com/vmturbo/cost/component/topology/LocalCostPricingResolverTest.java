@@ -11,12 +11,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -81,11 +83,25 @@ public class LocalCostPricingResolverTest {
 
     private final TopologyEntityInfoExtractor topologyEntityInfoExtractor = mock(TopologyEntityInfoExtractor.class);
 
+    @BeforeClass
+    public static void initIdentityGenerator() {
+        IdentityGenerator.initPrefix(0);
+    }
+
+    /**
+     * Set up identity generator.
+     */
+    @BeforeClass
+    public static void setupClass() {
+        IdentityGenerator.initPrefix(0L);
+    }
+
     /**
      * Setup the test.
      */
     @Before
     public void setup() {
+        IdentityGenerator.initPrefix(0);
         localCostPricingResolver = new LocalCostPricingResolver(priceTableStore,
                 businessAccountPriceTableKeyStore, identityProvider, discountStore, discountApplicatorFactory,
                 topologyEntityInfoExtractor);
@@ -188,7 +204,8 @@ public class LocalCostPricingResolverTest {
      * @param businessAccountOid The business account oid.
      * @param priceTableKeyOid The price table key oid.
      */
-    public void populatePriceTableKeybyBusinessAccountOidMap(Long businessAccountOid, Long priceTableKeyOid) {
+    private void populatePriceTableKeybyBusinessAccountOidMap(Long businessAccountOid,
+            Long priceTableKeyOid) {
         priceTableKeyOidByBusinessAccountOid.put(businessAccountOid, priceTableKeyOid);
     }
 
@@ -198,7 +215,7 @@ public class LocalCostPricingResolverTest {
      * @param priceTableKeyOid The price table key oid.
      * @param priceTable The price table.
      */
-    public void populatePriceTableByPriceTableKeyOid(Long priceTableKeyOid, PriceTable priceTable) {
+    private void populatePriceTableByPriceTableKeyOid(Long priceTableKeyOid, PriceTable priceTable) {
         priceTableKeyOidByPriceTable.put(priceTableKeyOid, priceTable);
     }
 
@@ -209,8 +226,7 @@ public class LocalCostPricingResolverTest {
      *
      * @return The discount.
      */
-    public Discount createDiscountByAccount(Long baOid) {
-        Discount discount = Discount.newBuilder().setAssociatedAccountId(baOid).build();
-        return discount;
+    private static Discount createDiscountByAccount(Long baOid) {
+        return Discount.newBuilder().setAssociatedAccountId(baOid).build();
     }
 }

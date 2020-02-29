@@ -7,6 +7,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -45,16 +47,35 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
 
     private final StitchingJournalFactory journalFactory;
 
+    // Used to determine whether the plan Bought RIs (newly recommended RI purchases) should be fed to the market,
+    // and the market should perform analysis on them, or if the Buy RI Impact Analysis should be performed.
+    // BUY_RI_IMPACT_ANALYSIS is evaluated to true if either it's OCP with RI Buy only, or it's OCP with RI Buy + Market Optimization,
+    // and allowBoughtRiInAnalysis is false.
+    private boolean allowBoughtRiInAnalysis;
+
+    /**
+     * AnalysisRpcService constructor.
+     *
+     * @param pipelineExecutorService Pipeline executor service.
+     * @param topologyHandler Topology Handler.
+     * @param identityProvider Identity Provider.
+     * @param journalFactory Journal Factory.
+     * @param clock Clock.
+     * @param allowBoughtRiInAnalysis Flag to determine whether the new Bought RIs should be analyzed in the market
+     * or whether Buy RI Impact Analysis should be run.
+     */
     AnalysisRpcService(@Nonnull final TopologyPipelineExecutorService pipelineExecutorService,
                        @Nonnull final TopologyHandler topologyHandler,
                        @Nonnull final IdentityProvider identityProvider,
                        @Nonnull final StitchingJournalFactory journalFactory,
-                       @Nonnull final Clock clock) {
+                       @Nonnull final Clock clock,
+                       final boolean allowBoughtRiInAnalysis) {
         this.pipelineExecutorService = Objects.requireNonNull(pipelineExecutorService);
         this.topologyHandler = topologyHandler;
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.journalFactory = Objects.requireNonNull(journalFactory);
         this.clock = Objects.requireNonNull(clock);
+        this.allowBoughtRiInAnalysis = allowBoughtRiInAnalysis;
     }
 
     @Override
@@ -121,16 +142,25 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
      * @param topologyHandler the {@link TopologyHandler} instance
      * @return set of {@link AnalysisType}s
      */
-    private Set<AnalysisType> getAnalysisTypes(@Nonnull String planType,
+    @VisibleForTesting
+    Set<AnalysisType> getAnalysisTypes(@Nonnull String planType,
                                                @Nonnull String planSubType,
                                                @Nonnull TopologyHandler topologyHandler) {
-
-        // Run buy RI impact analysis, if this is OCP with RI buy only
+        // Run buy RI impact analysis on newly Bought RIs (Buy RI recommendations), if this is OCP with RI buy only,
+        // or it is OCP with RI Buy plus Optimize Services and allowBoughtRiInAnalysis is false.
+        // OCP RI Buy Only => Always run Buy RI Impact Analysis, as Market analysis is not relevant here.
+        // OCP Optimize only (Market Optimization) => There will be no Bought RIs, hence neither Market Analysis nor
+        // Buy RI Impact Analysis is relevant here.
+        // OCP Buy RI + Optimize (Market Optimization) => Do only Market analysis of Bought RIs if allowBoughtRiInAnalysis
+        // is true (default).  Run Buy RI Impact Analysis only if allowBoughtRiInAnalysis is false.
         final Set<AnalysisType> analysisTypes = new HashSet<>();
         if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(planType) &&
-                StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)) {
+            (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)
+             || (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES.equals(planSubType)
+                 && allowBoughtRiInAnalysis == false))) {
             analysisTypes.add(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
-        } else {
+        } else {    // real-time, on-prem plans, OCP Option 2 (Optimize only) or OCP Option 1 (Buy RI + Optimize) with
+                    // allowBoughtRiInAnalysis == true
             analysisTypes.add(AnalysisType.MARKET_ANALYSIS);
             // do not run wasted files analysis for Cloud Migration plan or if no related targets
             if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType) &&
@@ -140,5 +170,15 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
         }
 
         return analysisTypes;
+    }
+
+    /**
+     * Setter for allowBoughtRiInAnalysis.
+     *
+     * @param allowBoughtRiInAnalysis value to set (true/false).
+     */
+    @VisibleForTesting
+    protected void setAllowBoughtRiInAnalysis(boolean allowBoughtRiInAnalysis) {
+        this.allowBoughtRiInAnalysis = allowBoughtRiInAnalysis;
     }
 }

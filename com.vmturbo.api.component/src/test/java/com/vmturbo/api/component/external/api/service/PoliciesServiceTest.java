@@ -75,10 +75,10 @@ public class PoliciesServiceTest {
      * Test for {@link PoliciesService#getPolicyByUuid(String)}.
      * When there is no Policy with the uuid provided.
      *
-     * @throws UnknownObjectException if there is no policy associated with the uuid provided.
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testGetPolicyByNonexistingUuid() throws UnknownObjectException {
+    public void testGetPolicyByNonexistingUuid() throws Exception {
         Long testUuid = 1234L;
         final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
                 .setPolicyId(testUuid)
@@ -94,10 +94,10 @@ public class PoliciesServiceTest {
      * Test for {@link PoliciesService#getPolicyByUuid(String)}.
      * When there is a Policy with the uuid provided.
      *
-     * @throws UnknownObjectException if there is no policy associated with the uuid provided.
+     * @throws Exception on exception occurred
      */
     @Test
-    public void testGetPolicyByUuid() throws UnknownObjectException {
+    public void testGetPolicyByUuid() throws Exception {
         Long testUuidLong = 123456789L;
         final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
                 .setPolicyId(testUuidLong)

@@ -20,8 +20,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -50,6 +50,7 @@ import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -60,7 +61,9 @@ import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
@@ -72,7 +75,6 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -98,6 +100,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioMoles.ScenarioServiceMole;
@@ -112,6 +115,8 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -409,8 +414,8 @@ public class MarketsServiceTest {
     }
 
     /**
-     * Test that getting entities by real market Id causes a retrieveTopologyEntities call
-     * to the repository rpc service.
+     * Test that getting entities by real market Id causes a searchEntities call
+     * to the search rpc service.
      *
      * @throws Exception If anything goes wrong.
      */
@@ -445,6 +450,75 @@ public class MarketsServiceTest {
     }
 
     /**
+     * Test that getting entities by plan market Id causes a retrieveTopologyEntities call
+     * to the repository rpc service and then properly paginates that response.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrievePaginatedPlanEntities() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
+        se1.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setDisplayName("SE1");
+        se1.setUuid("1");
+        ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
+        se2.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se2.setDisplayName("SE2");
+        se2.setUuid("2");
+        ServiceEntityApiDTO se3 = new ServiceEntityApiDTO();
+        se3.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se3.setDisplayName("SE3");
+        se3.setUuid("3");
+        ServiceEntityApiDTO se4 = new ServiceEntityApiDTO();
+        se4.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se4.setDisplayName("SE4");
+        se4.setUuid("4");
+        final List<PartialEntity> partialEntities = Stream.of(1, 2, 3, 4)
+            .map(id -> PartialEntity.newBuilder()
+                .setApi(ApiPartialEntity.newBuilder()
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setOid(id))
+                .build())
+            .collect(Collectors.toList());
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(123)
+                .setProjectedTopologyId(projectedPlanTopologyId)
+                .setStatus(PlanStatus.SUCCEEDED))
+            .build())
+            .when(planBackend).getPlan(any());
+        doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+            .addAllEntities(partialEntities)
+            .build())).when(repositoryBackend).retrieveTopologyEntities(any());
+        when(serviceEntityMapper.toServiceEntityApiDTO(any(TopologyEntityDTO.class)))
+            .thenReturn(se1).thenReturn(se2).thenReturn(se3).thenReturn(se4);
+
+        when(paginationMapper.toProtoParams(any())).thenReturn(PaginationParameters.getDefaultInstance());
+
+        // Pagination parameters - asks for records 2-3
+        final String cursor = "1";
+        final Integer limit = 2;
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(
+            planUuid,
+            new EntityPaginationRequest(cursor, limit, true, null));
+
+        // verify
+        assertThat(response.getRawResults(), containsInAnyOrder(se2, se3));
+        Assert.assertEquals("3", response.getRestResponse().getHeaders().get("X-Next-Cursor").get(0));
+        Assert.assertEquals("4", response.getRestResponse().getHeaders().get("X-Total-Record-Count").get(0));
+        verify(planBackend).getPlan(any());
+        verify(repositoryBackend).retrieveTopologyEntities(any());
+        verify(priceIndexPopulator)
+            .populatePlanEntities(projectedPlanTopologyId, Arrays.asList(se2, se3));
+        verify(severityPopulator).populate(REALTIME_PLAN_ID, Arrays.asList(se2, se3));
+    }
+
+    /**
      * call the MarketsService group stats API and check the results.
      *
      * @throws Exception To satisfy compiler.
@@ -459,9 +533,11 @@ public class MarketsServiceTest {
 
         // Mock expected members response
         GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .setGroupId(1L)
+                .addAllMemberId(expandedUids)
                 .build();
-        doReturn(membersResponse).when(groupBackend).getMembers(any());
+        Mockito.when(groupBackend.getMembers(Mockito.any()))
+                .thenReturn(Collections.singletonList(membersResponse));
 
         // Mock call to stats service which is called from MarketService
         final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
@@ -524,9 +600,11 @@ public class MarketsServiceTest {
 
         // Mock expected members response
         GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .setGroupId(1L)
+                .addAllMemberId(expandedUids)
                 .build();
-        doReturn(membersResponse).when(groupBackend).getMembers(any());
+        Mockito.when(groupBackend.getMembers(Mockito.any()))
+                .thenReturn(Collections.singletonList(membersResponse));
 
         ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, uuidMapper);
 
@@ -546,9 +624,11 @@ public class MarketsServiceTest {
     /**
      * Test for {@link MarketsService#addPolicy(String, PolicyApiInputDTO)}.
      * When merge policy required hidden group.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testAddMergePolicyWhenNeedCreateHiddenGroup() {
+    public void testAddMergePolicyWhenNeedCreateHiddenGroup() throws Exception {
         testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
             final CreateGroupRequest createGroupRequest = CreateGroupRequest.newBuilder()
                     .setGroupDefinition(groupDefinition)
@@ -576,9 +656,11 @@ public class MarketsServiceTest {
     /**
      * Test for {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)}.
      * When merge policy required hidden group.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testEditMergePolicyWhenNeedUpdateHiddenGroup() {
+    public void testEditMergePolicyWhenNeedUpdateHiddenGroup() throws Exception {
         testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
             doReturn(PolicyResponse.newBuilder()
                 .setPolicy(Policy.newBuilder()
@@ -606,10 +688,10 @@ public class MarketsServiceTest {
         });
     }
 
-    private void testMergePolicyRequiredHiddenGroupAddOrEdit(
-            final BiConsumer<PolicyApiInputDTO, GroupDefinition.Builder> addOrEdit) {
-        Stream.of(MergePolicyType.DesktopPool, MergePolicyType.DataCenter)
-                .forEach(mergePolicyType -> {
+    private void testMergePolicyRequiredHiddenGroupAddOrEdit(final EditOrCreateOperation addOrEdit)
+            throws ConversionException, InterruptedException {
+        for (MergePolicyType mergePolicyType : Arrays.asList(MergePolicyType.DesktopPool,
+                MergePolicyType.DataCenter)) {
                     final PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
                     policyApiInputDTO.setType(PolicyType.MERGE);
                     policyApiInputDTO.setMergeType(mergePolicyType);
@@ -642,12 +724,12 @@ public class MarketsServiceTest {
                                             .setType(MemberType.newBuilder()
                                                     .setEntity(entityType.getNumber()))
                                             .addAllMembers(MERGE_GROUP_IDS)));
-                    addOrEdit.accept(policyApiInputDTO, groupDefinition);
+                    addOrEdit.createOrEdit(policyApiInputDTO, groupDefinition);
                     // Assert
                     Assert.assertEquals(1, policyApiInputDTO.getMergeUuids().size());
                     Assert.assertEquals(String.valueOf(MERGE_GROUP_ID),
                             policyApiInputDTO.getMergeUuids().iterator().next());
-                });
+                }
     }
 
     /**
@@ -678,5 +760,63 @@ public class MarketsServiceTest {
             MERGE_GROUP_IDS.forEach(groupId -> Assert.assertTrue(
                     captor.getAllValues().contains(GroupID.newBuilder().setId(groupId).build())));
         });
+    }
+
+    /**
+     * Tests expected behavior when renaming plan.
+     *
+     * @throws Exception thrown if no plan matches marketUuid or user does not have plan access
+     */
+    @Test
+    public void testRenamePlan() throws Exception {
+        //GIVEN
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+        final PlanInstance plan = PlanInstance.newBuilder(planDefault)
+                .setPlanId(REALTIME_PLAN_ID)
+                .build();
+
+        doReturn(Optional.of(plan)).when(mockApi).getPlanInstance();
+
+        final ArgumentCaptor<UpdatePlanRequest> argument = ArgumentCaptor.forClass(UpdatePlanRequest.class);
+        doReturn(planDefault).when(planBackend).updatePlan(argument.capture());
+        final String displayName = "newPlanName";
+
+        //WHEN
+        marketsService.renameMarket(planUuid, displayName);
+
+        //THEN
+        assertEquals(argument.getValue().getName(), displayName);
+        assertEquals(argument.getValue().getPlanId(), REALTIME_PLAN_ID);
+        final ArgumentCaptor<PlanInstance> updatedPlanArgument = ArgumentCaptor.forClass(PlanInstance.class);
+        verify(marketMapper).dtoFromPlanInstance(updatedPlanArgument.capture());
+        assertEquals(updatedPlanArgument.getValue(), planDefault);
+    }
+
+    /**
+     * Test Exception thrown when no plan matches marketUuid.
+     *
+     * @throws Exception thrown if no plan matches marketUuid
+     */
+    @Test (expected = InvalidOperationException.class)
+    public void testRenamePlanInvalidMarketUuid() throws Exception {
+        //GIVEN
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        doReturn(Optional.empty()).when(mockApi).getPlanInstance();
+
+        //WHEN
+        marketsService.renameMarket(planUuid, "");
+    }
+
+
+    /**
+     * Function to trigger creation or update of a policy.
+     */
+    @FunctionalInterface
+    private interface EditOrCreateOperation {
+        void createOrEdit(PolicyApiInputDTO policy, GroupDefinition.Builder groupBuilder)
+                throws ConversionException, InterruptedException;
     }
 }

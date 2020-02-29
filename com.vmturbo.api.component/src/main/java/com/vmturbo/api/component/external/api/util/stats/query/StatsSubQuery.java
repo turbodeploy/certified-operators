@@ -9,6 +9,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 
 /**
@@ -51,11 +52,13 @@ public interface StatsSubQuery {
      * @return a list of {@link StatSnapshotApiDTO}, each representing a particular stats snapshot
      *         time. There should be one stat per (snapshot, name) tuple.
      * @throws OperationFailedException If anything goes wrong.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
-    List<StatSnapshotApiDTO> getAggregateStats(
-        @Nonnull Set<StatApiInputDTO> stats,
-        @Nonnull StatsQueryContext context) throws OperationFailedException;
+    List<StatSnapshotApiDTO> getAggregateStats(@Nonnull Set<StatApiInputDTO> stats,
+            @Nonnull StatsQueryContext context)
+            throws OperationFailedException, InterruptedException, ConversionException;
 
     /**
      * Determine whether the set of requested stats contains a specific stat.

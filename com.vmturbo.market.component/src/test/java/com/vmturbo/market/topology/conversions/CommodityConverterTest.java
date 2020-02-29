@@ -3,15 +3,18 @@ package com.vmturbo.market.topology.conversions;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
+
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -25,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -60,8 +64,7 @@ public class CommodityConverterTest {
         dsBasedBicliquer = mock(BiCliquer.class);
         numConsumersOfSoldCommTable = mock(Table.class);
         consistentScalingHelper = new ConsistentScalingHelper(null);
-        converterToTest = new CommodityConverter(commodityTypeAllocator,
-                commoditySpecMap, includeGuaranteedBuyer,  dsBasedBicliquer,
+        converterToTest = new CommodityConverter(commodityTypeAllocator, includeGuaranteedBuyer,  dsBasedBicliquer,
                 numConsumersOfSoldCommTable, new ConversionErrorCounts(), consistentScalingHelper);
     }
 
@@ -156,8 +159,10 @@ public class CommodityConverterTest {
         assertThat(commodityTO.getCapacity(), equalTo(expectedCapacity));
         assertThat(commodityTO.getQuantity(), equalTo(expectedUsed));
         final float scalingFactor = rawScalingFactor == null ? 1 : rawScalingFactor;
-        assertThat(commodityTO.getHistoricalQuantity(),
-                        equalTo(PERCENTILE_USED * scalingFactor * RAW_CAPACITY));
+        if (commodityTO.hasHistoricalQuantity()) {
+            assertThat(commodityTO.getHistoricalQuantity(),
+                    equalTo(PERCENTILE_USED * scalingFactor * RAW_CAPACITY));
+        }
     }
 
     private CommoditySoldDTO createSoldCommodity(HistoricalValues histUsed, Float scalingFactor,
@@ -175,4 +180,69 @@ public class CommodityConverterTest {
         return builder.build();
     }
 
+    /**
+     * Tests creation of multiple commodity Specifications as in case of
+     * Pool commodities that are time slot based.
+     */
+    @Test
+    public void testCreateSpecifications() {
+
+        CommodityType poolType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+        Collection<CommoditySpecificationTO> specifications =
+                converterToTest.commoditySpecification(poolType, 3);
+        assertEquals(3, specifications.size());
+        int index = 0;
+        for (CommoditySpecificationTO spec: specifications) {
+            index++;
+            assertEquals(poolType.getType(), spec.getBaseType());
+            final Optional<CommodityType> convertedType =
+                    converterToTest.marketToTopologyCommodity(spec, Optional.of(index));
+            assertTrue(convertedType.isPresent());
+            assertEquals(convertedType.get(), poolType);
+        }
+    }
+
+    /**
+     * Tests creation of single commodity Specifications.
+     */
+    @Test
+    public void testSingleSpecifications() {
+        CommodityType vcpuType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
+        CommoditySpecificationTO specification =
+                converterToTest.commoditySpecification(vcpuType);
+        assertEquals(vcpuType.getType(), specification.getBaseType());
+        final Optional<CommodityType> convertedType =
+                converterToTest.marketToTopologyCommodity(specification);
+        assertTrue(convertedType.isPresent());
+        assertEquals(convertedType.get(), vcpuType);
+    }
+
+    /**
+     * Tests creation of multiple sold commodity TOs as in case of
+     * Pool commodities that are time slot based.
+     */
+    @Test
+    public void testCreateSplitSoldCommodities() {
+        HistoricalValues histUsed = HistoricalValues.newBuilder()
+                .setHistUtilization(0)
+                .addTimeSlot(0d)
+                .addTimeSlot(0d)
+                .build();
+        final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(PM_OID)
+                .setEntityType(EntityType.DESKTOP_POOL_VALUE)
+                .addCommoditySoldList(createSoldCommodity(histUsed, SCALING_FACTOR,
+                        CommodityDTO.CommodityType.POOL_CPU, 95))
+                .build();
+        final Collection<CommoditySoldTO> result =
+                converterToTest.commoditiesSoldList(originalTopologyEntityDTO);
+        // Assert
+        assertThat(result.size(), equalTo(2));
+        for (CommoditySoldTO to : result) {
+            checkSoldCommodityTO(to, SCALING_FACTOR, RAW_CAPACITY * SCALING_FACTOR,
+                    0f);
+        }
+    }
 }

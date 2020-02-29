@@ -122,9 +122,9 @@ public class ReservedCapacityAnalysis {
                     // reservation value from being considered when calculating the max reservation
                     // for a scaling group.
                     // TODO: Mediation should expose the reservation lock value on an entity
-                    if (commSold == null || !commSold.getIsResizeable()
-                            || (commBought.getReservedCapacity() - commSold.getCapacity()
-                                    >= -MarketAnalysisUtils.EPSILON)) {
+                    if (commSold == null || (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) && (!commSold.getIsResizeable()
+                       || (commBought.getReservedCapacity() - commSold.getCapacity()
+                                    >= -MarketAnalysisUtils.EPSILON))) {
                         continue;
                     }
                     calculateReservedCapacity(oid, commBought, commSold, consistentScalingHelper);

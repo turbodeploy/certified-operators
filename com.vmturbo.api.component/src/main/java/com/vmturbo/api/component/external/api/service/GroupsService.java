@@ -77,17 +77,17 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
-import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
@@ -105,8 +105,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -277,9 +275,13 @@ public class GroupsService implements IGroupsService {
      * paginate the results. Consider using {@link #getPaginatedGroupApiDTOs} instead.
      *
      * @return a list of {@link GroupApiDTO}.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if invalid request has been passed
      */
     @Override
-    public List<GroupApiDTO> getGroups()  {
+    public List<GroupApiDTO> getGroups()
+            throws ConversionException, InterruptedException, InvalidOperationException {
         return getGroupApiDTOS(GetGroupsRequest.newBuilder()
             .setGroupFilter(GroupFilter.getDefaultInstance())
             .build(), true);
@@ -287,7 +289,8 @@ public class GroupsService implements IGroupsService {
 
 
     @Override
-    public GroupApiDTO getGroupByUuid(String uuid, boolean includeAspects) throws UnknownObjectException {
+    public GroupApiDTO getGroupByUuid(String uuid, boolean includeAspects)
+            throws UnknownObjectException, ConversionException, InterruptedException {
         // The "Nightly Plan Configuration" UI calls this API to populate the list of clusters and
         // their associated templates. The UI uses the uuid "GROUP-PhysicalMachineByCluster" with
         // request.  This UUID is defined in the context of version 6.1 implementation.
@@ -298,11 +301,10 @@ public class GroupsService implements IGroupsService {
             return null;
         }
 
-        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
+        final Optional<Grouping> groupAndMembers = groupExpander.getGroup(uuid);
         if (groupAndMembers.isPresent()) {
-            return groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers.get()), true)
-                    .iterator()
-                    .next();
+            return groupMapper.groupsToGroupApiDto(Collections.singletonList(groupAndMembers.get()),
+                    true).values().iterator().next();
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -403,7 +405,10 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public ActionApiDTO getActionByGroupUuid(String uuid, String aUuid) throws Exception {
+    public ActionApiDTO getActionByGroupUuid(@Nonnull final String uuid,
+                                             @Nonnull final String aUuid,
+                                             @Nullable final ActionDetailLevel detailLevel)
+            throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -624,7 +629,8 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public GroupApiDTO createGroup(GroupApiDTO inputDTO) throws Exception {
+    public GroupApiDTO createGroup(GroupApiDTO inputDTO)
+            throws ConversionException, InterruptedException {
         String username = getUsername();
 
         final GroupDefinition groupDefinition = groupMapper
@@ -663,7 +669,7 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     @Override
     public GroupApiDTO editGroup(@Nonnull String uuid, @Nonnull GroupApiDTO inputDTO)
-            throws UnknownObjectException, OperationFailedException {
+            throws UnknownObjectException, ConversionException, InterruptedException {
 
         final GetGroupResponse groupResponse =
                 groupServiceRpc.getGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
@@ -838,14 +844,16 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public Map<String, EntityAspect> getAspectsByGroupUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException {
+    public Map<String, EntityAspect> getAspectsByGroupUuid(String uuid)
+            throws UnknownObjectException, ConversionException, InterruptedException {
         return entityAspectMapper.getAspectsByGroup(getGroupMembers(uuid))
             .entrySet().stream()
             .collect(Collectors.toMap(entry -> entry.getKey().getApiName(), Entry::getValue));
     }
 
     @Override
-    public EntityAspect getAspectByGroupUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
+    public EntityAspect getAspectByGroupUuid(String uuid, String aspectTag)
+            throws UnknownObjectException, ConversionException, InterruptedException {
         return entityAspectMapper.getAspectByGroup(getGroupMembers(uuid), aspectTag);
     }
 
@@ -903,7 +911,10 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public GroupMembersPaginationResponse getMembersByGroupUuid(String uuid, final GroupMembersPaginationRequest request) throws UnknownObjectException, InvalidOperationException, OperationFailedException {
+    public GroupMembersPaginationResponse getMembersByGroupUuid(String uuid,
+            final GroupMembersPaginationRequest request)
+            throws InvalidOperationException, OperationFailedException, ConversionException,
+            InterruptedException {
         if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
             return request.allResultsResponse(getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER, Collections.emptyList(),
                 Collections.emptyList())
@@ -1025,44 +1036,6 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Get the ID's of entities that are members of a group or cluster.
-     *
-     * @param groupUuid The UUID of the group or cluster.
-     * @return An optional containing the ID's of the entities in the group/cluster.
-     *         An empty optional if the group UUID is not valid (e.g. "Market").
-     * @throws UnknownObjectException if the UUID is valid, but group with the UUID exists.
-     */
-    @VisibleForTesting
-    Optional<Set<Long>> getMemberIds(@Nonnull final String groupUuid)
-            throws UnknownObjectException {
-        Set<Long> memberIds = null;
-
-        // These magic UI strings currently have no associated group in XL, so they are not valid.
-        if (groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
-                groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID)) {
-            return Optional.empty();
-        }
-
-        // If the uuid is not for the global, get the group membership from Group component.
-        if (!GLOBAL_SCOPE_SUPPLY_CHAIN.contains(groupUuid)) {
-            final long id = Long.parseLong(groupUuid);
-            try {
-                GetMembersResponse groupResp = groupServiceRpc.getMembers(GetMembersRequest.newBuilder()
-                        .setId(id)
-                        .build());
-                memberIds = Sets.newHashSet(groupResp.getMembers().getIdsList());
-            } catch (StatusRuntimeException e) {
-                if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                    throw new UnknownObjectException("Can't find group " + groupUuid);
-                } else {
-                    throw e;
-                }
-            }
-        }
-        return Optional.ofNullable(memberIds);
-    }
-
-    /**
      * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
      * them to the associated {@link GroupApiDTO} format.
      *
@@ -1072,17 +1045,28 @@ public class GroupsService implements IGroupsService {
      *                         only when necessary.
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return The list of {@link GroupApiDTO} objects.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     private List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
-            final boolean populateSeverity,
-            @Nullable final EnvironmentType environmentType) {
+            final boolean populateSeverity, @Nullable final EnvironmentType environmentType)
+            throws ConversionException, InterruptedException {
         final List<GroupAndMembers> groupsWithMembers =
                 groupExpander.getGroupsWithMembers(groupsRequest)
                         .stream()
                         .filter(group -> !isHiddenGroup(group.group()))
                         .collect(Collectors.toList());
-        final List<GroupApiDTO> result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity);
+        final List<GroupApiDTO> result;
+        try {
+            result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity, null, environmentType);
+        } catch (InvalidOperationException e) {
+            throw new ConversionException("Error faced converting groups " +
+                    groupsWithMembers.stream()
+                            .map(GroupAndMembers::group)
+                            .map(Grouping::getId)
+                            .collect(Collectors.toList()), e);
+        }
         if ((environmentType == null) || (environmentType == EnvironmentType.HYBRID)) {
             return result;
         } else {
@@ -1101,10 +1085,12 @@ public class GroupsService implements IGroupsService {
      *                         severity requires another relatively expensive RPC call, so use this
      *                         only when necessary.
      * @return The list of {@link GroupApiDTO} objects.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
-                                             final boolean populateSeverity) {
+            final boolean populateSeverity) throws ConversionException, InterruptedException {
         return getGroupApiDTOS(groupsRequest, populateSeverity, null);
     }
 
@@ -1126,7 +1112,14 @@ public class GroupsService implements IGroupsService {
                 .stream()
                 .filter(group -> !isHiddenGroup(group.group()))
                 .collect(Collectors.toList());
-        final List<GroupApiDTO> result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity);
+        final List<GroupApiDTO> result;
+        try {
+            result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity,
+                    null, null);
+        } catch (Exception e) {
+            logger.error(e.getLocalizedMessage(), e);
+            return Collections.emptyList();
+        }
 
         return result.stream()
             .filter(groupApiDTO -> EnvironmentTypeMapper.matches(null, groupApiDTO.getEnvironmentType()))
@@ -1148,7 +1141,9 @@ public class GroupsService implements IGroupsService {
      *
      * @return The list of {@link GroupApiDTO} objects.
      * @throws InvalidOperationException When the cursor is invalid.
-     * @throws OperationFailedException when the input filters do not apply.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws OperationFailedException when input filters do not apply to group type.
      */
     @Nonnull
     public SearchPaginationResponse getPaginatedGroupApiDTOs(final List<FilterApiDTO> filterList,
@@ -1157,7 +1152,8 @@ public class GroupsService implements IGroupsService {
                                                              @Nullable EnvironmentType environmentType,
                                                              @Nullable List<String> scopes,
                                                              final boolean includeAllGroupClasses)
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, ConversionException, OperationFailedException,
+            InterruptedException {
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
                 filterList, scopes, includeAllGroupClasses).build();
         final List<GroupAndMembers> groupsWithMembers;
@@ -1236,10 +1232,12 @@ public class GroupsService implements IGroupsService {
      *                   currently supported
      * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
      * @throws OperationFailedException when input filters do not apply to group type.
+     * @throws ConversionException on errors converting data to API DTOs
      */
     @VisibleForTesting
     GetGroupsRequest.Builder getGroupsRequestForFilters(@Nonnull GroupType groupType,
-                    @Nonnull List<FilterApiDTO> filterList) throws OperationFailedException {
+            @Nonnull List<FilterApiDTO> filterList)
+            throws OperationFailedException, ConversionException {
         return getGroupsRequestForFilters(groupType, filterList, Collections.emptyList(), false);
     }
 
@@ -1256,12 +1254,13 @@ public class GroupsService implements IGroupsService {
      *                               if the groupType is REGULAR and filterList is empty.
      * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
      * @throws OperationFailedException when input filters do not apply to group type.
+     * @throws ConversionException If the input filters cannot be converted.
      */
     private GetGroupsRequest.Builder getGroupsRequestForFilters(
             @Nonnull GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList,
             @Nullable List<String> scopes,
-            boolean includeAllGroupClasses) throws OperationFailedException {
+            boolean includeAllGroupClasses) throws OperationFailedException, ConversionException {
         GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
         GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, filterList);
         if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
@@ -1309,11 +1308,14 @@ public class GroupsService implements IGroupsService {
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link SearchPaginationResponse} containing the groups.
      * @throws InvalidOperationException When the cursor is invalid.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     private SearchPaginationResponse nextGroupPage(final List<GroupAndMembers> groupsWithMembers,
             final Map<String, GroupAndMembers> idToGroupAndMembers,
             final SearchPaginationRequest paginationRequest,
-            @Nullable final EnvironmentType environmentType) throws InvalidOperationException {
+            @Nullable final EnvironmentType environmentType)
+            throws InvalidOperationException, ConversionException, InterruptedException {
 
         final long skipCount;
         if (paginationRequest.getCursor().isPresent()) {
@@ -1332,26 +1334,10 @@ public class GroupsService implements IGroupsService {
             skipCount = 0;
         }
 
-        final List<GroupApiDTO> allGroupApiDTOs = groupMapper.toGroupApiDto(groupsWithMembers, true);
-        final List<GroupApiDTO> groupApiDTOs;
-        if (environmentType == null || environmentType == EnvironmentType.HYBRID) {
-            groupApiDTOs = allGroupApiDTOs;
-        } else {
-            groupApiDTOs = allGroupApiDTOs.stream()
-                    .filter(group -> group.getEnvironmentType() == environmentType)
-                    .collect(Collectors.toList());
-        }
-
         final List<GroupApiDTO> paginatedGroupApiDTOs =
-            groupApiDTOs.stream()
-                .sorted(SearchOrderBy.fromString(
-                    paginationRequest.getOrderBy().name()).getComparator(paginationRequest.isAscending()))
-                .skip(skipCount)
-                .limit(paginationRequest.getLimit())
-                .collect(Collectors.toList());
-
-        final List<BaseApiDTO> retList = new ArrayList<>();
-        retList.addAll(paginatedGroupApiDTOs);
+                groupMapper.toGroupApiDto(groupsWithMembers, true, paginationRequest,
+                        environmentType);
+        final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs);
 
         long nextCursor = skipCount + paginatedGroupApiDTOs.size();
         if (nextCursor == idToGroupAndMembers.values().size()) {
@@ -1374,13 +1360,18 @@ public class GroupsService implements IGroupsService {
      * @return The {@link GroupApiDTO}s returning the groups matching the criteria inside the
      *         provided scopes.
      * @throws OperationFailedException if the filters do not apply to the group type.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if invalid request has been passed
      */
     @Nonnull
     private List<GroupApiDTO> getNestedGroupsInGroups(
             @Nonnull GroupType groupType,
             @Nonnull final List<String> scopes,
             @Nonnull final List<FilterApiDTO> filterList,
-            @Nullable final EnvironmentType environmentType) throws OperationFailedException {
+            @Nullable final EnvironmentType environmentType)
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
         final GetGroupsRequest.Builder reqBuilder = getGroupsRequestForFilters(groupType,
                         filterList);
         GroupFilter.Builder builder = GroupFilter.newBuilder(reqBuilder.getGroupFilter());
@@ -1463,12 +1454,16 @@ public class GroupsService implements IGroupsService {
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return the list of groups.
      * @throws OperationFailedException when the filters don't match the group type.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if invalid request has been passed
      */
     @Nonnull
     List<GroupApiDTO> getGroupsByType(@Nonnull GroupType groupType,
             @Nullable final List<String> scopes,
-            @Nonnull final List<FilterApiDTO> filterList,
-            @Nullable EnvironmentType environmentType) throws OperationFailedException {
+            @Nonnull final List<FilterApiDTO> filterList, @Nullable EnvironmentType environmentType)
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
         // We assume it's either-or - i.e. either all scopes are groups, or all scopes are entities.
         if (UuidMapper.hasLimitedScope(scopes)) {
             if (scopes.stream().anyMatch(uuid -> {
@@ -1508,10 +1503,14 @@ public class GroupsService implements IGroupsService {
      * @param environmentType type of the environment to include in response, if null, all are
      * included
      * @return the list of groups owned by accounts from scope.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if invalid request has been passed
      */
     @Nonnull
     private List<GroupApiDTO> getResourceGroupsOwnedByAccount(List<String> scopes,
-            EnvironmentType environmentType) {
+            EnvironmentType environmentType)
+            throws ConversionException, InterruptedException, InvalidOperationException {
         final GetGroupsRequest.Builder groupsRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .addPropertyFilters(
@@ -1531,11 +1530,15 @@ public class GroupsService implements IGroupsService {
      * @param filterList The list of filters to apply to the groups.
      * @return the list of groups.
      * @throws OperationFailedException when the filters don't match the group type.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if invalid request has been passed
      */
     @Nonnull
     List<GroupApiDTO> getGroupsByType(@Nonnull GroupType groupType,
-                                  @Nullable final List<String> scopes,
-                                  @Nonnull final List<FilterApiDTO> filterList) throws OperationFailedException {
+            @Nullable final List<String> scopes, @Nonnull final List<FilterApiDTO> filterList)
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
         return getGroupsByType(groupType, scopes, filterList, null);
     }
 

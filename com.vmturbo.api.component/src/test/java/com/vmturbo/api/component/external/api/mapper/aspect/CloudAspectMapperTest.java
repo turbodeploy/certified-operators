@@ -32,6 +32,10 @@ import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRe
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -46,6 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 
@@ -68,10 +73,16 @@ public class CloudAspectMapperTest {
     private static final String NVME = "Installed";
     private static final int VM_COUPON_CAPACITY = 10;
     private static final double DELTA = 0.001;
+    private static final long RESOURCE_GROUP_ID = 1L;
+    private static final long VIRTUAL_MACHINE_NO_RG_OID = 2L;
+    private static final long VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID = 3L;
+    private static final String RESOURCE_GROUP_DISPLAYNAME = "aResourceGroup";
 
     private ReservedInstanceUtilizationCoverageServiceMole riCoverageServiceMole =
             spy(new ReservedInstanceUtilizationCoverageServiceMole());
-    private GrpcTestServer testServer = GrpcTestServer.newServer(riCoverageServiceMole);
+    private GroupDTOMoles.GroupServiceMole groupServiceMole =
+            spy(GroupDTOMoles.GroupServiceMole.class);
+    private GrpcTestServer testServer = GrpcTestServer.newServer(riCoverageServiceMole, groupServiceMole);
     private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
     private CloudAspectMapper cloudAspectMapper;
     private TopologyEntityDTO.Builder topologyEntityBuilder;
@@ -88,7 +99,9 @@ public class CloudAspectMapperTest {
         final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService =
                 ReservedInstanceUtilizationCoverageServiceGrpc
                         .newBlockingStub(testServer.getChannel());
-        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService);
+        final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(
+                testServer.getChannel());
+        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService, groupServiceBlockingStub);
         topologyEntityBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(VIRTUAL_MACHINE_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -138,6 +151,12 @@ public class CloudAspectMapperTest {
                 ApiTestUtils.mockSearchMinReq(Collections.singletonList(region));
         final SearchRequest businessAccountSearchRequest =
                 ApiTestUtils.mockSearchMinReq(Collections.singletonList(businessAccount));
+        final Grouping grouping1 = Grouping.newBuilder()
+                .setId(RESOURCE_GROUP_ID)
+                .setDefinition(GroupDTO.GroupDefinition.newBuilder()
+                    .setType(CommonDTO.GroupDTO.GroupType.RESOURCE)
+                    .setDisplayName(RESOURCE_GROUP_DISPLAYNAME))
+                .build();
         Mockito.when(repositoryApi.entitiesRequest(ImmutableSet.of(COMPUTE_TIER_OID, ZONE_OID)))
                 .thenReturn(templateAndZone);
         Mockito.when(repositoryApi.entitiesRequest(ImmutableSet.of(COMPUTE_TIER_OID)))
@@ -151,6 +170,32 @@ public class CloudAspectMapperTest {
                 SearchProtoUtil.neighborsOfType(VIRTUAL_MACHINE_OID,
                         TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT)))
                 .thenReturn(businessAccountSearchRequest);
+        Mockito.when(repositoryApi.newSearchRequest(
+                SearchProtoUtil.neighborsOfType(VIRTUAL_MACHINE_NO_RG_OID,
+                        TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT)))
+                .thenReturn(businessAccountSearchRequest);
+        Mockito.when(repositoryApi.newSearchRequest(
+                SearchProtoUtil.neighborsOfType(VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID,
+                        TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT)))
+                .thenReturn(businessAccountSearchRequest);
+
+        GroupDTO.GetGroupsForEntitiesRequest.Builder request = GroupDTO.GetGroupsForEntitiesRequest.newBuilder()
+                .addGroupType(CommonDTO.GroupDTO.GroupType.RESOURCE)
+                .setLoadGroupObjects(true);
+        when(groupServiceMole.getGroupsForEntities(request.addEntityId(VIRTUAL_MACHINE_OID).build()))
+            .thenReturn(GroupDTO.GetGroupsForEntitiesResponse.newBuilder()
+                .putEntityGroup(VIRTUAL_MACHINE_OID, GroupDTO.Groupings.newBuilder().addGroupId(grouping1.getId())
+                        .build())
+                .addGroups(grouping1)
+                .build());
+        when(groupServiceMole.getGroupsForEntities(request.addEntityId(VIRTUAL_MACHINE_NO_RG_OID).build()))
+                .thenReturn(GroupDTO.GetGroupsForEntitiesResponse.newBuilder()
+                        .putEntityGroup(VIRTUAL_MACHINE_NO_RG_OID, GroupDTO.Groupings.newBuilder().addGroupId(grouping1.getId())
+                                .build())
+                        .build());
+        when(groupServiceMole.getGroupsForEntities(request.addEntityId(VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID).build()))
+                .thenReturn(null);
+
     }
 
     /**
@@ -324,6 +369,53 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(REGION_NAME, aspect.getRegion().getDisplayName());
         Assert.assertEquals(UIEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
         Assert.assertNull(aspect.getZone());
+    }
+
+    /**
+     * Test for {@link CloudAspectMapper#mapEntityToAspect(TopologyEntityDTO)} method.
+     * Azure case - when an associated resource group is present
+     */
+    @Test
+    public void testAzureResourceGroup() {
+        // when
+        final CloudAspectApiDTO aspect = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+                topologyEntityBuilder.build());
+
+        // then
+        Assert.assertNotNull(aspect);
+        com.vmturbo.api.dto.BaseApiDTO resourceGroup = aspect.getResourceGroup();
+        Assert.assertNotNull(resourceGroup);
+        Assert.assertEquals(Long.valueOf(RESOURCE_GROUP_ID), Long.valueOf(resourceGroup.getUuid()));
+        Assert.assertEquals(RESOURCE_GROUP_DISPLAYNAME, resourceGroup.getDisplayName());
+        Assert.assertEquals("ResourceGroup", resourceGroup.getClassName());
+
+        // when
+        final CloudAspectApiDTO aspectNoRG = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+            TopologyEntityDTO.newBuilder()
+                .setOid(VIRTUAL_MACHINE_NO_RG_OID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                        .setProviderId(COMPUTE_TIER_OID))
+                .build());
+        // then
+        Assert.assertNotNull(aspectNoRG);
+        Assert.assertNull(aspectNoRG.getResourceGroup());
+
+        // when
+        final CloudAspectApiDTO aspectNullRG = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
+                TopologyEntityDTO.newBuilder()
+                    .setOid(VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID)
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                            .setProviderId(COMPUTE_TIER_OID))
+                    .build());
+        // then
+        Assert.assertNotNull(aspectNullRG);
+        Assert.assertNull(aspectNullRG.getResourceGroup());
     }
 
     /**

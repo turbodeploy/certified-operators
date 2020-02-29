@@ -26,6 +26,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -46,6 +47,8 @@ public class ReservedInstanceCoverageStoreTest {
     private ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+
+    private PriceTableStore priceTableStore;
 
     private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
@@ -90,7 +93,7 @@ public class ReservedInstanceCoverageStoreTest {
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator);
+                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
     }
 

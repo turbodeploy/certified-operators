@@ -233,6 +233,10 @@ data:
         # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
         # making analysis take too long. If this number is <= 0, uses the default set in the market analysis codebase.
         maxPlacementIterations: -1
+        # Whether quotes should be cached for reuse during SNM-enabled placement analysis.
+        # Setting to true can improve performance in some cases. Usually those cases involve a
+        # high number of biclique overlaps and volumes per VM.
+        useQuoteCacheDuringSNM: false
         # If entity utilization is below the lower watermark, Market could generate resize down actions.
         rightsizeLowerWatermark: 0.7
         # If entity utilization is above the upper watermark, Market could generate resize up actions.
@@ -493,6 +497,11 @@ data:
         # How often to expire the timeslot cached data going out of observation window
         historyAggregation.timeslotMaintenanceWindowHours: 23
         fullAzureEARIDiscovery: false
+        # Used to determine whether the plan Bought RIs (newly recommended RI purchases) should be fed to the market,
+        # and the market should perform analysis on them, or if the Buy RI Impact Analysis should be performed.
+        # BUY_RI_IMPACT_ANALYSIS is evaluated to true if either it's OCP with RI Buy only, or it's OCP with RI Buy + Market Optimization,
+        # and allowBoughtRiInAnalysis is false.
+        allowBoughtRiInAnalysis: false
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

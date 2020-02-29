@@ -1,8 +1,13 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
+import static java.util.stream.Collectors.groupingBy;
+
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,6 +17,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -24,26 +30,43 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
+import com.vmturbo.api.pagination.PaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
+import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -54,9 +77,15 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 
 /**
  * Supports paginated requests for stats calls.
@@ -75,6 +104,27 @@ public class PaginatedStatsExecutor {
     private static Logger logger = LogManager.getLogger(StatsService.class);
     private final GroupExpander groupExpander;
 
+    /**
+     * To do in-memory pagination of entities.
+     */
+    private final EntityStatsPaginator entityStatsPaginator;
+
+    /**
+     * A factory for creating {@link EntityStatsPaginationParams}.
+     */
+    private final EntityStatsPaginationParamsFactory paginationParamsFactory;
+
+    /**
+     * Responsible for mapping API {@link PaginationRequest}s to {@link PaginationParameters}.
+     */
+    private final PaginationMapper paginationMapper;
+
+    /**
+     * Service which will provide cost information by entities.
+     */
+    private final CostServiceBlockingStub costServiceRpc;
+
+
     public PaginatedStatsExecutor(@Nonnull final StatsMapper statsMapper,
             @Nonnull final UuidMapper uuidMapper,
             @Nonnull final Clock clock,
@@ -82,7 +132,11 @@ public class PaginatedStatsExecutor {
             @Nonnull final StatsHistoryServiceBlockingStub historyRpcService,
             @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
             @Nonnull final UserSessionContext userSessionContext,
-            @Nonnull final GroupExpander groupExpander) {
+            @Nonnull final GroupExpander groupExpander,
+            @Nonnull final EntityStatsPaginator entityStatsPaginator,
+            @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
+            @Nonnull final PaginationMapper paginationMapper,
+            @Nonnull final CostServiceBlockingStub costServiceRpc) {
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.clock = Objects.requireNonNull(clock);
@@ -91,7 +145,10 @@ public class PaginatedStatsExecutor {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.groupExpander = Objects.requireNonNull(groupExpander);
-
+        this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
+        this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.costServiceRpc = Objects.requireNonNull(costServiceRpc);
     }
 
     public EntityStatsPaginationResponse getLiveEntityStats(@Nonnull final StatScopesApiInputDTO inputDto,
@@ -104,7 +161,6 @@ public class PaginatedStatsExecutor {
 
     @VisibleForTesting
     class PaginatedStatsGather {
-
         /**
          * Contains the query arguments.
          *
@@ -116,7 +172,7 @@ public class PaginatedStatsExecutor {
 
         private final long clockTimeNow;
 
-        private final Optional<StatPeriodApiInputDTO> period;
+        private final StatPeriodApiInputDTO period;
 
         /**
          * This variable will be set to the pagination response.
@@ -141,10 +197,10 @@ public class PaginatedStatsExecutor {
          */
         PaginatedStatsGather(@Nonnull final StatScopesApiInputDTO inputDto,
                 @Nonnull final EntityStatsPaginationRequest paginationRequest) {
-            this.inputDto = inputDto;
-            this.paginationRequest = paginationRequest;
+            this.inputDto = Objects.requireNonNull(inputDto);
+            this.paginationRequest = Objects.requireNonNull(paginationRequest);
             this.clockTimeNow = clock.millis();
-            this.period = Optional.ofNullable(this.inputDto.getPeriod());
+            this.period = this.inputDto.getPeriod();
         }
 
         /**
@@ -158,12 +214,11 @@ public class PaginatedStatsExecutor {
          */
         void getAdditionalDisplayInfoForAllEntities(List<EntityStats> nextStatsPage,
                 Optional<Pagination.PaginationResponse> paginationResponseOpt) {
-            final Set<Long> entitiesWithStats =
-                    nextStatsPage.stream().map(EntityStats::getOid).collect(Collectors.toSet());
+            final Set<Long> entitiesWithStats = nextStatsPage.stream()
+                    .map(EntityStats::getOid)
+                    .collect(Collectors.toSet());
 
-            final Map<Long, MinimalEntity> entities =
-                    repositoryApi.entitiesRequest(entitiesWithStats).getMinimalEntities().collect(Collectors.toMap(MinimalEntity::getOid, Function
-                            .identity()));
+            final Map<Long, MinimalEntity> entities = getMinimalEntitiesForEntityList(new HashSet<>(entitiesWithStats));
 
             //Combines the nextStatsPages results with minimalEntityData
             final List<EntityStatsApiDTO> dto = nextStatsPage.stream().map(entityStats -> {
@@ -182,8 +237,6 @@ public class PaginatedStatsExecutor {
 
         /**
          * Kicks off reading and processing historical or projected stats request.
-         *
-         * @throws OperationFailedException
          */
         void processRequest() throws OperationFailedException {
             if (isHistoricalStatsRequest()) {
@@ -201,9 +254,11 @@ public class PaginatedStatsExecutor {
          * @return true if startDate in the past or not provided
          */
         boolean isHistoricalStatsRequest() {
-            return period.map(StatPeriodApiInputDTO::getStartDate)
-                    .map(startDate -> DateTimeUtil.parseTime(startDate) < clockTimeNow)
-                    .orElse(true);
+            if (period == null || period.getStartDate() == null) {
+                return true;
+            }
+
+            return DateTimeUtil.parseTime(period.getStartDate()) < clockTimeNow;
         }
 
         /**
@@ -212,44 +267,113 @@ public class PaginatedStatsExecutor {
          * @return true only if endDate set and in the future
          */
         boolean isProjectedStatsRequest() {
-            return period.map(StatPeriodApiInputDTO::getEndDate)
-                    .map(endDate -> DateTimeUtil.parseTime(endDate) > clockTimeNow)
-                    .orElse(false);
+            if (period == null || period.getEndDate() == null) {
+                return false;
+            }
+            return DateTimeUtil.parseTime(period.getEndDate()) > clockTimeNow;
         }
 
         /**
-         * Makes request for historical stat data.
+         * Makes call to history component get to get request stats.
          *
-         * @throws OperationFailedException exception thrown if the scope can not be recognized
+         * @param entityStatsScope The scope for an entity stats query.
+         * @param period Describes the request for Statistics by a Time range
+         * @param paginationRequest Request for data the needs paginating
+         * @return response from history component
          */
-        void runHistoricalStatsRequest() throws OperationFailedException {
+        GetEntityStatsResponse requestHistoricalStats(EntityStatsScope entityStatsScope,
+                StatPeriodApiInputDTO period, EntityStatsPaginationRequest paginationRequest) {
+            return historyRpcService.getEntityStats(
+                    statsMapper.toEntityStatsRequest(entityStatsScope, period, paginationRequest));
+
+        }
+
+        /**
+         * Processes api request via historical component first followed by cost component.
+         *
+         * @throws OperationFailedException exception thrown from unexpected behavior
+         */
+        void runRequestThroughHistoricalComponent() throws OperationFailedException {
             // For historical requests, we use the EntityStatsScope object
             // which has some optimizations to deal with global requests.
             final EntityStatsScope entityStatsScope;
-            if (this.getContainsEntityGroupScope()) {
+            if (this.containsEntityGroupScope()) {
                 // create stats scope which will be used to get aggregated stats for each
                 // seedEntity (based on derived members)
                 entityStatsScope = createEntityGroupsStatsScope();
             } else {
                 entityStatsScope = createEntityStatsScope();
             }
-            // fetch the historical stats for the given entities using the given search spec
-            final GetEntityStatsResponse statsResponse = historyRpcService.getEntityStats(
-                    statsMapper.toEntityStatsRequest(entityStatsScope, inputDto.getPeriod(),
-                            paginationRequest));
 
-            List<EntityStats> nextStatsPage = statsResponse.getEntityStatsList();
-            Optional<Pagination.PaginationResponse> paginationResponseOpt =
-                    statsResponse.hasPaginationResponse() ?
-                            Optional.of(statsResponse.getPaginationResponse()) : Optional.empty();
+            //Process
+            //  1. Call History component
+            //      a. If no history results there will be no cost results
+            //  2. Call Cost component use entity list response from history results
+            //  3. Get Additional Entity Data list from 3.
+            //  4. Map all gathered results to apiDtos
+            //  5. Create the pagination response
+            //  6. Set the response for access outside of class
 
-            getAdditionalDisplayInfoForAllEntities(nextStatsPage, paginationResponseOpt);
+            //1. History Stats call
+            final GetEntityStatsResponse historyEntityStatResponse =
+                    requestHistoricalStats(entityStatsScope, this.period, paginationRequest);
+
+            //2. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
+            final List<Long> sortedList =  getSortedListFromHistoryResponse(historyEntityStatResponse);
+            final Set<Long> entitiesSet = new HashSet<>(sortedList);
+            final GetCloudCostStatsResponse costStatsResponse =
+                    getCloudCostStatsForEntities(entitiesSet);
+
+            //3. Entity Info call
+            final Map<Long, MinimalEntity> minimalEntityMap =
+                    getMinimalEntitiesForEntityList(entitiesSet);
+
+            //4. Combine Stats
+            final List<EntityStatsApiDTO> combinedResultsInOrder =
+                    constructEntityStatsApiDTOFromResults(sortedList, minimalEntityMap,
+                            costStatsResponse, historyEntityStatResponse);
+
+            //5. Construct paginated response
+            final EntityStatsPaginationResponse entityStatsPaginationResponse =
+                    constructPaginatedResponse(historyEntityStatResponse.getPaginationResponse(),
+                            combinedResultsInOrder);
+
+            //6. Set results
+            setEntityStatsPaginationResponse(entityStatsPaginationResponse);
+        }
+
+        /**
+         * Iterates history stat response and returns entityUuids in expected order.
+         *
+         * @param historyEntityStatResponse history stats response sorted that comes sorted from
+         *                                  history component
+         * @return List with expected order of entities
+         */
+        List<Long> getSortedListFromHistoryResponse(@Nonnull GetEntityStatsResponse historyEntityStatResponse) {
+            return historyEntityStatResponse.getEntityStatsList()
+                    .stream()
+                    .map(EntityStats::getOid)
+                    .collect(Collectors.toList());
+        }
+
+        /**
+         * Gets cloud cost stats from list of entityUuids.
+         *
+         * @param scope list of entity uuids to query
+         * @return cloud cost stats response
+         */
+        GetCloudCostStatsResponse getCloudCostStatsForEntities(Set<Long> scope) {
+            if (scope.isEmpty()) {
+                return GetCloudCostStatsResponse.getDefaultInstance();
+            }
+
+            return getCloudCostStats(scope, this.inputDto);
         }
 
         /**
          * Makes request for projected stat data.
          *
-         * @throws OperationFailedException
+         * @throws OperationFailedException exception thrown if expanding scope failed
          */
         void runProjectedStatsRequest() throws OperationFailedException {
             // The projected stats service doesn't support the global entity type optimization,
@@ -257,7 +381,7 @@ public class PaginatedStatsExecutor {
             // per-entity stats on the global scope, and it would require modifications
             // to the way we store projected stats.
             final EntityStatsScope entityStatsScope;
-            if (this.getContainsEntityGroupScope()) {
+            if (this.containsEntityGroupScope()) {
                 entityStatsScope = createEntityGroupsStatsScope();
             } else {
                 entityStatsScope = EntityStatsScope.newBuilder()
@@ -284,7 +408,7 @@ public class PaginatedStatsExecutor {
          * scope
          * @throws OperationFailedException exception thrown if the scope can not be recognized
          */
-        boolean getContainsEntityGroupScope()
+        boolean containsEntityGroupScope()
                 throws OperationFailedException {
 
             // if scope is empty, then it doesn't contain aggregated scope, returning false so
@@ -373,6 +497,20 @@ public class PaginatedStatsExecutor {
                 entityStatsApiDTO.getStats().addAll(statsMapper.toStatsSnapshotApiDtoList(entityStats));
             }
             return entityStatsApiDTO;
+        }
+
+        /**
+         * Gets history stats for entityUuids.
+         *
+         * @param entityUuids entities to query stats from history component
+         * @return the {@link GetEntityStatsResponse} history stats reponse for entityUuids
+         */
+        GetEntityStatsResponse getHistoryComponentStatsFromCostStatsResults(final List<Long> entityUuids) {
+            if (!requestContainsMoreThanCostStats()) {
+                return GetEntityStatsResponse.getDefaultInstance();
+            }
+
+            return requestHistoryStatsFromCostStatsResponse(entityUuids);
         }
 
         /**
@@ -499,6 +637,16 @@ public class PaginatedStatsExecutor {
             return entityStatsPaginationResponse;
         }
 
+
+        /**
+         * Sets {@link EntityStatsPaginationResponse} containing class response.
+         *
+         * @param response the {@link EntityStatsPaginationResponse} to set class response
+         */
+        public void setEntityStatsPaginationResponse(EntityStatsPaginationResponse response) {
+            this.entityStatsPaginationResponse = response;
+        }
+
         /**
          * Check if group is a temporary group with global scope. And if temp group entity need to expand,
          * it should use expanded entity type instead of group entity type. If it is a temporary group
@@ -547,7 +695,7 @@ public class PaginatedStatsExecutor {
          * Get the scope that a {@link StatScopesApiInputDTO} is trying to select. This includes,
          * for example, expanding groups, or getting the IDs of related entities. Calling this method
          * may result in one or more remote calls to other components.
-         * m
+         *
          * @param inputDto The {@link StatScopesApiInputDTO}.
          * @return A set of entity OIDs of entities in the scope.
          * @throws OperationFailedException If any part of the operation failed.
@@ -643,5 +791,437 @@ public class PaginatedStatsExecutor {
                     : supplyChainFetcherFactory.expandScope(entityIds, relatedEntityTypes);
         }
 
+        /**
+         * Returns true if pagination request to be sorted by cloud cost stat.
+         *
+         * @return true if pagination request to be sorted by cloud cost stat else false
+         */
+        boolean requestIsSortByCloudCostStats() {
+            return paginationRequest.getOrderByStat()
+                    .map(CloudCostsStatsSubQuery.COST_STATS_SET::contains)
+                    .orElse(false);
+        }
+
+        /**
+         * Kicks of processing historical stats query.
+         *
+         * @throws OperationFailedException exception thrown from unexpected behavior
+         */
+        void runHistoricalStatsRequest() throws OperationFailedException {
+            if (requestIsSortByCloudCostStats()) {
+                runRequestThroughCostComponent();
+            } else {
+                runRequestThroughHistoricalComponent();
+            }
+        }
+
+        /**
+         * Paginates cost stats data according to request sortBy.
+         *
+         * @param cloudCostStatsResponse the cloud results to paginate
+         * @param expandedScope the scope for an entity stats query.
+         * @return PaginatedStats paginated cloud cost results
+         */
+        PaginatedStats paginateAndSortCostResponse(
+                final GetCloudCostStatsResponse cloudCostStatsResponse,
+                final Set<Long> expandedScope) {
+            final List<CloudCostStatRecord> cloudCostStatRecords =
+                    cloudCostStatsResponse.getCloudStatRecordList();
+            final int cloudCostStatRecordSize = cloudCostStatRecords.size();
+
+            //CloudCostStatRecords Empty - create a default instance
+            //CloudCostStatRecords Not Empty - take last array entry,
+            //                                 results based on latest snapshot
+            final CloudCostStatRecord cloudCostStatRecordToBasePaginationOn =
+                    cloudCostStatRecordSize == 0 ? CloudCostStatRecord.getDefaultInstance() :
+                            cloudCostStatsResponse.getCloudStatRecordList()
+                                    .get(cloudCostStatRecordSize - 1);
+
+            final Map<Long, List<StatRecord>> costStats =
+                    cloudCostStatRecordToBasePaginationOn.getStatRecordsList()
+                            .stream()
+                            .collect(groupingBy(StatRecord::getAssociatedEntityId));
+
+
+            final String orderByStat = this.paginationRequest.getOrderByStat().orElse(null);
+            final SortCommodityValueGetter sortCommodityValueGetter = (entityId) -> {
+                if (!costStats.containsKey(entityId)) {
+                    //SortCommodityValueGetter applies a secondary sort on entity uuid if
+                    //optional empty is returned.
+                    return Optional.empty();
+                }
+
+                List<StatRecord> statRecordList = costStats.get(entityId);
+                return statRecordList.stream()
+                        .filter(statRecord -> statRecord.getName().equals(orderByStat))
+                        .findFirst() // Would only ever be 1, cloud cost stats aggregated to entity level
+                        .map(statRecord -> statRecord.getValues().getTotal());
+            };
+
+            final EntityStatsPaginationParams paginationParams =
+                    paginationParamsFactory.newPaginationParams(
+                            paginationMapper.toProtoParams(this.paginationRequest));
+
+            return entityStatsPaginator.paginate(expandedScope, sortCommodityValueGetter,
+                    paginationParams);
+        }
+
+        /**
+         * Requests additional stats from history component that will append cost stats response.
+         *
+         * @param entityUuids entities to query in history component
+         * @return            GetEntityStatsResponse, stats response from history component
+         */
+        GetEntityStatsResponse requestHistoryStatsFromCostStatsResponse(
+                List<Long> entityUuids) {
+
+            //History component stats can't be sorted on by costStats, create null paginationRequest
+            final EntityStatsPaginationRequest paginationRequestRemovedOrderBy =
+                    new EntityStatsPaginationRequest(null, null, true, null);
+            EntityStatsScope historyEntityStatsScope = EntityStatsScope.newBuilder()
+                    .setEntityList(EntityList.newBuilder().addAllEntities(entityUuids))
+                    .build();
+            return requestHistoricalStats(historyEntityStatsScope, period,
+                    paginationRequestRemovedOrderBy);
+        }
+
+        /**
+         * Executes request for cloud cost stats using request passed params.
+         *
+         * @param cloudEntityOids Entities to query
+         * @param requestInputDto Multiple scope stat request.  Scoping information not
+         *                        derived from this object, use cloudEntityOids for scoping query.
+         * @return                {@link GetCloudCostStatsResponse} cloud cost stats response
+         */
+        private GetCloudCostStatsResponse getCloudCostStats(Set<Long> cloudEntityOids,
+                StatScopesApiInputDTO requestInputDto) {
+
+            final CloudCostStatsQuery.Builder costStatsBuilder = CloudCostStatsQuery.newBuilder();
+
+            //Set the scope
+             if (!cloudEntityOids.isEmpty()) {
+                 costStatsBuilder.getEntityFilterBuilder().addAllEntityId(cloudEntityOids);
+             }
+
+            StatPeriodApiInputDTO statPeriod = requestInputDto.getPeriod();
+
+            if (requestInputDto.getRelatedType() != null) {
+                EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
+                        .addEntityTypeId(
+                                UIEntityType.fromString(
+                                        requestInputDto.getRelatedType())
+                                        .typeNumber())
+                        .build();
+                costStatsBuilder.setEntityTypeFilter(entityTypeFilter);
+            }
+
+            //startDate and endDate
+            if (statPeriod.getStartDate() != null) {
+                costStatsBuilder.setStartDate(DateTimeUtil.parseTime(statPeriod.getStartDate()));
+            }
+
+            if (statPeriod.getEndDate() != null) {
+                costStatsBuilder.setEndDate(DateTimeUtil.parseTime(statPeriod.getEndDate()));
+            }
+
+            //Get cost sources aggregated
+            CostSourceFilter costSourceFilter = CostSourceFilter.newBuilder()
+                    .setExclusionFilter(true)
+                    .build();
+            costStatsBuilder.setCostSourceFilter(costSourceFilter);
+
+            //Get cost stats on entity level
+            costStatsBuilder.addGroupBy(GroupBy.ENTITY);
+
+            final GetCloudCostStatsRequest getCloudCostStatsRequest =
+                    GetCloudCostStatsRequest.newBuilder()
+                            .addCloudCostStatsQuery(costStatsBuilder)
+                            .build();
+
+            //Make Request
+            return costServiceRpc.getCloudCostStats(getCloudCostStatsRequest);
+        }
+
+        /**
+         * Queries cost component then further building additional stat requirements from history.
+         *
+         * <p>Will make request for cost stats first followed by a
+         * call to the history component to fullfil any remaining stats requested</p>
+         *
+         * @throws OperationFailedException Unsupported operation when response from cost or history
+         *                                  component contains stats for multiple timestamps
+         */
+        void runRequestThroughCostComponent() throws OperationFailedException {
+            final Set<Long> expandedScope = getExpandedScope(this.inputDto);
+
+            //Process
+            //  1. Call cost component
+            //  2. Paginate, sort cost results to narrow collection of entities we
+            //     will use to query for additional history stats
+            //      a. Cost results may not have data for all entities requested, i.e. onprem vms or
+            //         cloud vms with no cloud cost stats
+            //      b. We pass original expandedScope for pagination, if cost results do not have
+            //         all or enough results for paginated limit page (see 2a.) we add remaining
+            //         entities from original scope
+            //  3. Get the paginated page entity list, this is now sorted and what we should return
+            //  4. Get History stats with list from 3.
+            //  5. Get Additional Entity Data list from 3.
+            //  6. Map all gathered results to apiDtos
+            //  7. Create the pagination response
+            //  8. Set the response for access outside of class
+
+            //1. Cost Call
+            final GetCloudCostStatsResponse
+                    getCloudCostStatsResponse = getCloudCostStats(expandedScope, this.inputDto);
+
+            //2.3 Paginate and sort cost Results
+            final PaginatedStats paginatedCostStats =
+                    paginateAndSortCostResponse(getCloudCostStatsResponse, expandedScope);
+            final List<Long> sortedNextPageEntityIds = paginatedCostStats.getNextPageIds();
+
+            //4. History Stats call
+            final GetEntityStatsResponse historyEntityStatsResponse =
+                    getHistoryComponentStatsFromCostStatsResults(sortedNextPageEntityIds);
+
+            //5. Entity Info call
+            final Map<Long, MinimalEntity> minimalEntityMap =
+                    getMinimalEntitiesForEntityList(new HashSet<>(sortedNextPageEntityIds));
+
+            //6. Combine Stats
+            final List<EntityStatsApiDTO> combinedResultsInOrder =
+                    constructEntityStatsApiDTOFromResults(sortedNextPageEntityIds,
+                            minimalEntityMap, getCloudCostStatsResponse,
+                            historyEntityStatsResponse);
+
+            //7. Construct paginated response
+            final EntityStatsPaginationResponse entityStatsPaginationResponse =
+                    constructPaginatedResponse(paginatedCostStats.getPaginationResponse(),
+                            combinedResultsInOrder);
+
+            //8.
+            setEntityStatsPaginationResponse(entityStatsPaginationResponse);
+        }
+
+
+        /**
+         * Constructs {@link EntityStatsPaginationResponse} with sorted results.
+         *
+         * @param paginationResponse paginationResponse providing nextCursor and totalRecordCount
+         *                           information
+         * @param sortedResults Results of paginated request
+         * @return {@link EntityStatsPaginationResponse}
+         */
+        EntityStatsPaginationResponse constructPaginatedResponse(
+                @Nullable PaginationResponse paginationResponse,
+                @Nonnull List<EntityStatsApiDTO> sortedResults) {
+                if (paginationResponse == null) {
+                    paginationRequest.allResultsResponse(sortedResults);
+                }
+
+                return PaginationProtoUtil.getNextCursor(paginationResponse)
+                        .map(nextCursor ->
+                                paginationRequest.nextPageResponse(sortedResults,
+                                        nextCursor, paginationResponse.getTotalRecordCount()))
+                        .orElseGet(() ->
+                                paginationRequest.finalPageResponse(sortedResults,
+                                        paginationResponse.getTotalRecordCount()));
+        }
+
+        /**
+         * Map {@link GetCloudCostStatsResponse} to entityUuuid, snapShotTime and records.
+         *
+         *<p>Stats with same entityUuid and snapShot will be collected into single list</p>
+         *
+         * @param cloudCostStatsResponse    the cloud stats to map
+         * @param pagedEntities             set of entities that will be in paged response
+         * @return mapped response
+         */
+        Map<Long, Map<Long, List<StatApiDTO>>> mapCostEntityResults(
+                @Nonnull GetCloudCostStatsResponse cloudCostStatsResponse,
+                @Nonnull Set<Long> pagedEntities) {
+            final Map<Long, Map<Long, List<StatApiDTO>>> entityUuidMap = new HashMap<>();
+
+            for (CloudCostStatRecord cloudCostStatRecord: cloudCostStatsResponse.getCloudStatRecordList()) {
+                long snapShotDate = cloudCostStatRecord.getSnapshotDate();
+
+                for (StatRecord statRecord: cloudCostStatRecord.getStatRecordsList()) {
+                    final long entityUuid = statRecord.getAssociatedEntityId();
+                    if (!pagedEntities.contains(entityUuid)) {
+                        //Ignore entities that are not part of paged response
+                        continue;
+                    }
+
+                    //Unroll the maps
+                    final Map<Long, List<StatApiDTO>> snapShotToRecords =
+                            entityUuidMap.getOrDefault(entityUuid, new HashMap<>());
+
+                    List<StatApiDTO> statApiDTOS = snapShotToRecords.getOrDefault(snapShotDate,
+                            new LinkedList<>());
+
+                    //Add Stat to list
+                    statApiDTOS.add(CloudCostsStatsSubQuery.mapStatRecordToStatApiDTO(statRecord));
+
+                    //Roll the maps back up
+                    snapShotToRecords.put(snapShotDate, statApiDTOS);
+                    entityUuidMap.put(entityUuid, snapShotToRecords);
+                }
+            }
+
+            return entityUuidMap;
+        }
+
+        /**
+         * Maps cloud and history stat results.
+         *
+         * <p>Cloud and history stats will be combined into
+         * a single collection according to entityUuid and snapShopDate</p>
+         *
+         * @param cloudCostStatsResponse    the cloud cost stats
+         * @param historyStatsResponse      the history stats
+         * @param pagedEntities             set of entities that will be in paged response
+         * @return mapped results by entityUuid, snapShotDate with list of stat
+         */
+        Map<Long, Map<Long, List<StatApiDTO>>> mapAndCombineCloudAndHistoryStats(
+                @Nonnull GetCloudCostStatsResponse cloudCostStatsResponse,
+                @Nonnull GetEntityStatsResponse historyStatsResponse,
+                @Nonnull Set<Long> pagedEntities) {
+            final Map<Long, Map<Long, List<StatApiDTO>>> costEntitiesMap =
+                    mapCostEntityResults(cloudCostStatsResponse, pagedEntities);
+
+            for (EntityStats entityStats : historyStatsResponse.getEntityStatsList()) {
+                final long entityUuid = entityStats.getOid();
+                final Map<Long, List<StatApiDTO>> snapShotMap =
+                        costEntitiesMap.getOrDefault(entityUuid, new HashMap<>());
+
+                for (StatSnapshot statSnapshot: entityStats.getStatSnapshotsList()) {
+                    final long snapShotDate = statSnapshot.getSnapshotDate();
+                    final List<StatApiDTO> statApiDTOS = snapShotMap.getOrDefault(snapShotDate, new LinkedList<>());
+
+                    final List<StatApiDTO> historyStats = statSnapshot.getStatRecordsList().stream()
+                            .map(statsMapper::toStatApiDto)
+                            .collect(Collectors.toList());
+                    statApiDTOS.addAll(historyStats);
+
+                    snapShotMap.put(snapShotDate, statApiDTOS);
+                }
+
+                costEntitiesMap.put(entityUuid, snapShotMap);
+            }
+
+            return costEntitiesMap;
+        }
+
+        /**
+         * Create {@link EntityStatsApiDTO} from stats results.
+         *
+         * <p>All gathered information will be combined to create a list of
+         * {@link EntityStatsApiDTO}.  This dto is a grouping of stats by entity and snapshotdate.
+         * The list will be follow order of entities in sortedNextPageEntityIds
+         * </p>
+         *
+         * @param sortedNextPageEntityIds list of entities in expected sort order
+         * @param minimalEntityMap entityUuid to {@link MinimalEntity}
+         * @param cloudCostStatsResponse  cloud cost stas response {@link GetCloudCostStatsResponse}
+         * @param historyStatsResponse history stats response {@link GetEntityStatsResponse}
+         * @return entityUuid to {@link EntityStatsApiDTO}
+         *
+         */
+        List<EntityStatsApiDTO> constructEntityStatsApiDTOFromResults(
+                @Nonnull final List<Long> sortedNextPageEntityIds,
+                @Nonnull final Map<Long, MinimalEntity> minimalEntityMap,
+                @Nonnull final GetCloudCostStatsResponse cloudCostStatsResponse,
+                @Nonnull final GetEntityStatsResponse historyStatsResponse) {
+
+            List<EntityStatsApiDTO> entityStatsApiDTOS =
+                    Lists.newArrayListWithCapacity(sortedNextPageEntityIds.size());
+
+            Map<Long, Map<Long, List<StatApiDTO>>> combinedCloudAndHistoryStats =
+                    mapAndCombineCloudAndHistoryStats(cloudCostStatsResponse, historyStatsResponse, new HashSet<>(sortedNextPageEntityIds));
+
+            for (long entityUuid: sortedNextPageEntityIds) {
+                final EntityStatsApiDTO entityStatsApiDTO =
+                        constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
+
+                Map<Long, List<StatApiDTO>> snapShotToStats =
+                        combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
+
+                List<StatSnapshotApiDTO> statSnapshotApiDTOS = snapShotToStats.keySet()
+                        .stream()
+                        .map(snapShotDate -> {
+                            final StatSnapshotApiDTO statSnapshotApiDTO =
+                                    constructEntityStatsApiDtO(snapShotDate);
+                            statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
+                            return statSnapshotApiDTO;
+                        }).collect(Collectors.toList());
+
+                entityStatsApiDTO.setStats(Lists.newArrayList(statSnapshotApiDTOS));
+
+                entityStatsApiDTOS.add(entityStatsApiDTO);
+            }
+
+            return entityStatsApiDTOS;
+        }
+
+        /**
+         * Construcst {@link StatSnapshotApiDTO} with date and derived EPOCH.
+         *
+         * @param date the date to set dto date value to
+         * @return StatSnapshotApiDTO configured with date
+         */
+        StatSnapshotApiDTO constructEntityStatsApiDtO(long date) {
+            final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+            statSnapshotApiDTO.setDate(DateTimeUtil.toString(date));
+            statSnapshotApiDTO.setEpoch( date <= clockTimeNow ? Epoch.HISTORICAL : Epoch.PROJECTED);
+            return statSnapshotApiDTO;
+        }
+
+        /**
+         * Constructs {@link EntityStatsApiDTO} from {@link MinimalEntity}.
+         *
+         * @param entityUuid The entityUuid of interest
+         * @param minimalEntityMap Map of entityUuids to their {@link MinimalEntity}
+         * @return {@link EntityStatsApiDTO}
+         */
+        EntityStatsApiDTO constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
+                @Nonnull final Map<Long, MinimalEntity> minimalEntityMap) {
+            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+            MinimalEntity minimalEntity = minimalEntityMap.get(entityUuid);
+            entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
+            entityStatsApiDTO.setClassName(UIEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+            entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
+            return entityStatsApiDTO;
+        }
+
+        /**
+         * Returns map of entity.uuid to {@link MinimalEntity}.
+         *
+         * @param entityList List of entites to gather {@link MinimalEntity} and map results
+         * @return Map entityUuid to {@link MinimalEntity}
+         */
+        Map<Long, MinimalEntity> getMinimalEntitiesForEntityList(@Nonnull Set<Long> entityList) {
+            if (entityList.isEmpty()) {
+                return Collections.emptyMap();
+            }
+
+            return repositoryApi.entitiesRequest(entityList)
+                    .getMinimalEntities()
+                    .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+        }
+
+        /**
+         * Checks if query request for stats other than cloud cost.
+         *
+         * @return returns true if stats other than cloud cost stats requested
+         */
+        private boolean requestContainsMoreThanCostStats() {
+            if (period == null) {
+                return false;
+            }
+
+            Set<String> costStatsSet = CloudCostsStatsSubQuery.COST_STATS_SET;
+
+            return period.getStatistics().stream()
+                    .anyMatch(stat -> !costStatsSet.contains(stat.getName()));
+        }
     }
 }

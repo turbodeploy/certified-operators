@@ -4,6 +4,7 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import javax.annotation.Nonnull;
 
 import com.ecwid.consul.ConsulException;
 import com.ecwid.consul.v1.ConsulClient;
+import com.ecwid.consul.v1.Response;
 import com.ecwid.consul.v1.agent.model.NewCheck;
 import com.ecwid.consul.v1.agent.model.NewService;
 
@@ -58,7 +60,7 @@ public class ConsulHealthcheckRegistration {
     private final ConsulClient consulClient;
     private final Boolean enableConsulRegistration;
     private final String componentType;
-    private final String instanceId;
+    private final String instanceIdWithTimestamp;
     private final String instanceIp;
     private final String instanceRoute;
     private final Integer serverPort;
@@ -82,6 +84,7 @@ public class ConsulHealthcheckRegistration {
      *                   a health-check for this service
      * @param maxRetrySecs the maximum time window in which to keep retrying retry-able consul operations.
      * @param consulServiceNamePrefix Consul service name prefix to be appended to service name.
+     * @param clock Clock to use for time.
      */
     public ConsulHealthcheckRegistration(final ConsulClient consulClient,
                                          final Boolean enableConsulRegistration,
@@ -91,11 +94,20 @@ public class ConsulHealthcheckRegistration {
                                          final String instanceRoute,
                                          final Integer serverPort,
                                          final int maxRetrySecs,
-                                         final String consulServiceNamePrefix) {
+                                         final String consulServiceNamePrefix,
+                                         final Clock clock) {
         this.consulClient = consulClient;
         this.enableConsulRegistration = enableConsulRegistration;
         this.componentType = componentType;
-        this.instanceId = instanceId;
+
+        // We use k8s pod names as instance IDs. However, these names do not change when k8s pods
+        // restart. This creates the possibility of race conditions, where an old pod's JVM is
+        // shutting down as the "restarted" pod's JVM is starting up. The old pod's shutdown can
+        // trigger the deregistration of the new pod's health check in Consul.
+        //
+        // To guard against this, we append the current epoch time at the end of the instance ID.
+        this.instanceIdWithTimestamp = instanceId + "-" + clock.millis();
+
         this.instanceRoute = instanceRoute;
         // for backwards compatibility with docker-compose invocation, look up instanceIp
         if (!StringUtils.isEmpty(instanceIp)) {
@@ -127,7 +139,7 @@ public class ConsulHealthcheckRegistration {
         // tenancy. For single-tenant case, consulNamespace is not enabled and the prefix is empty
         // string.
         svc.setName(consulServiceNamePrefix + componentType);
-        svc.setId(instanceId);
+        svc.setId(instanceIdWithTimestamp);
         svc.setAddress(instanceIp);
         svc.setPort(serverPort);
         final List<String> tags = new ArrayList<>(2);
@@ -136,6 +148,9 @@ public class ConsulHealthcheckRegistration {
             tags.add(encodeInstanceRoute(instanceRoute));
         }
         svc.setTags(tags);
+
+        logger.info("Registering service {} instance {} with consul.", svc.getName(), svc.getId());
+
         doConsulOperation(() -> consulClient.agentServiceRegister(svc));
 
         // register the health check for this service
@@ -154,6 +169,9 @@ public class ConsulHealthcheckRegistration {
         healthCheck.setServiceId(svc.getId());
         healthCheck.setInterval(HEALTH_CHECK_PERIOD);
         healthCheck.setDeregisterCriticalServiceAfter(HEALTH_CHECK_CRITICAL_TIME);
+
+        logger.info("Registering service {} instance {} health check with consul.", svc.getName(), svc.getId());
+
         doConsulOperation(() -> consulClient.agentCheckRegister(healthCheck));
     }
 
@@ -162,12 +180,12 @@ public class ConsulHealthcheckRegistration {
      *
      * @param operation the operation to execute
      */
-    private void doConsulOperation(Operation operation) {
+    private void doConsulOperation(Operation<Response<Void>> operation) {
         try {
             RetriableOperation.newOperation(operation)
                     .retryOnException(e -> {
                         if (e instanceof ConsulException) {
-                            Throwable cause = ((ConsulException)e).getCause();
+                            Throwable cause = e.getCause();
                             if (cause instanceof SocketTimeoutException
                                     || cause instanceof ConnectException
                                     || cause instanceof ConnectTimeoutException
@@ -191,7 +209,9 @@ public class ConsulHealthcheckRegistration {
      */
     public void deregisterService() {
         if (Boolean.TRUE.equals(enableConsulRegistration)) {
-            consulClient.agentServiceDeregister(instanceId);
+            logger.info("De-registering instance {} from consul.", instanceIdWithTimestamp);
+            consulClient.agentServiceDeregister(instanceIdWithTimestamp);
+            logger.info("Successfully de-registered instance {} from consul.", instanceIdWithTimestamp);
         }
     }
 

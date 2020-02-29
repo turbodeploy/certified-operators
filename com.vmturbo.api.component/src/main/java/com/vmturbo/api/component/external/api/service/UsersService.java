@@ -53,6 +53,7 @@ import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
 import com.vmturbo.api.dto.user.PropertyValueApiDTO;
 import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.Base64CodecUtils;
@@ -589,9 +590,12 @@ public class UsersService implements IUsersService {
      *
      * @param adDTO The internal format DTO.
      * @return The API format DTO.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
-    private @Nonnull ActiveDirectoryApiDTO convertADInfoFromAuth(
-            final @Nonnull ActiveDirectoryDTO adDTO) {
+    private @Nonnull
+    ActiveDirectoryApiDTO convertADInfoFromAuth(final @Nonnull ActiveDirectoryDTO adDTO)
+            throws ConversionException, InterruptedException {
         ActiveDirectoryApiDTO dto = new ActiveDirectoryApiDTO();
         dto.setDomainName(adDTO.getDomainName());
         dto.setLoginProviderURI(adDTO.getLoginProviderURI());
@@ -635,8 +639,11 @@ public class UsersService implements IUsersService {
      *
      * @param groupOids a set of OIDs for groups to be mapped
      * @return a map of group oid -> {@link GroupApiDTO} based on the input group oids.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
-    private Map<Long, GroupApiDTO> getApiGroupMap(Set<Long> groupOids) {
+    private Map<Long, GroupApiDTO> getApiGroupMap(Set<Long> groupOids)
+            throws ConversionException, InterruptedException {
         if (CollectionUtils.isEmpty(groupOids)) {
             return Collections.emptyMap();
         }
@@ -678,9 +685,12 @@ public class UsersService implements IUsersService {
      * Returns the list of active directories.
      *
      * @return The list of active directories.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
-    public List<ActiveDirectoryApiDTO> getActiveDirectories() {
+    public List<ActiveDirectoryApiDTO> getActiveDirectories()
+            throws ConversionException, InterruptedException {
         UriComponentsBuilder builder = baseRequest().path("/users/ad");
         ResponseEntity<List> result;
         result = restTemplate_.exchange(builder.build().toUriString(), HttpMethod.GET,
@@ -704,10 +714,12 @@ public class UsersService implements IUsersService {
      *
      * @param inputDTO The Active Directory description.
      * @return The Active Directory representation object.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
-    public ActiveDirectoryApiDTO createActiveDirectory(
-            final ActiveDirectoryApiDTO inputDTO) {
+    public ActiveDirectoryApiDTO createActiveDirectory(final ActiveDirectoryApiDTO inputDTO)
+            throws ConversionException, InterruptedException {
         validateActiveDirectoryInput(inputDTO);
         try {
             final String request = baseRequest().path("/users/ad").build().toUriString();
@@ -735,9 +747,12 @@ public class UsersService implements IUsersService {
      * Returns the list of AD group objects.
      *
      * @return The list of AD group objects.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
-    public List<ActiveDirectoryGroupApiDTO> getActiveDirectoryGroups() {
+    public List<ActiveDirectoryGroupApiDTO> getActiveDirectoryGroups()
+            throws ConversionException, InterruptedException {
         String request = baseRequest().path("/users/ad/groups").build().toUriString();
         HttpHeaders headers = composeHttpHeaders();
         ResponseEntity<List> result;

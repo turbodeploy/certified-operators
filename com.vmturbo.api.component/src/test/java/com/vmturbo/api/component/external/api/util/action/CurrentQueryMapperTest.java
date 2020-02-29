@@ -449,7 +449,7 @@ public class CurrentQueryMapperTest {
     public void testActionGroupFilterExtractorType() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setActionTypeList(Arrays.asList(ActionType.SUSPEND,
-            ActionType.MOVE, ActionType.RESERVE_ON_DS));
+            ActionType.MOVE, ActionType.NONE));
         final BuyRiScopeHandler buyRiScopeHandler = new BuyRiScopeHandler();
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
             actionSpecMapper, buyRiScopeHandler);

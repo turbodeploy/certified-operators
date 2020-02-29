@@ -71,7 +71,7 @@ public class StorageTierConverter implements TierConverter {
                 .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                         .setRiskBased(RiskBased.newBuilder()
                                 .setCloudCost(costDTOCreator.createStorageTierCostDTO(
-                                        storageTier, connectedRegions, businessAccounts, uniqueAccountPricingData)).build()))
+                                        storageTier, connectedRegions, uniqueAccountPricingData)).build()))
                 .setQuoteFactor(1)
                 .build();
 

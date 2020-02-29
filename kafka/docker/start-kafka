@@ -45,6 +45,12 @@ else
     # KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=PLAINTEXT://:$KAFKA_INTERNAL_PORT"
     KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=INTERNAL://:$KAFKA_INTERNAL_PORT"
 fi
+
+if [ -z "$KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS" ]; then
+    # we'll default zookeeper timeout to 18 seconds now, which is also the new default in kafka 2.5.0+
+    KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS="18000"
+fi
+
 # Set a default retention period to 24 hours for now. TODO: refine this setting per-topic based
 # our topic-specific needs.
 KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=$KAFKA_LOG_RETENTION_HRS"
@@ -52,6 +58,8 @@ KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=$KAFKA_LOG_RETENTION_
 KAFKA_PARAMS="$KAFKA_PARAMS --override message.max.bytes=$KAFKA_MAX_MESSAGE_BYTES"
 # set the broker default message timestamp type
 KAFKA_PARAMS="$KAFKA_PARAMS --override log.message.timestamp.type=LogAppendTime"
+# override the zookeeper session timeout. This should help us with noisy / resource-congested environments.
+KAFKA_PARAMS="$KAFKA_PARAMS --override zookeeper.session.timeout.ms=$KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS"
 
 echo Executing kafka with options: $KAFKA_PARAMS | $LOGGER_COMMAND
 

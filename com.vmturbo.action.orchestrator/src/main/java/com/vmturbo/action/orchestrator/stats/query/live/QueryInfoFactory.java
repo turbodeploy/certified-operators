@@ -10,6 +10,8 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
@@ -26,8 +28,11 @@ public class QueryInfoFactory {
 
     private final long realtimeContextId;
 
-    public QueryInfoFactory(final long realtimeContextId) {
+    private final UserSessionContext userSessionContext;
+
+    public QueryInfoFactory(final long realtimeContextId, final UserSessionContext userSessionContext) {
         this.realtimeContextId = realtimeContextId;
+        this.userSessionContext = userSessionContext;
     }
 
     /**
@@ -49,6 +54,7 @@ public class QueryInfoFactory {
             topologyContextId = query.getQuery().getScopeFilter().getTopologyContextId();
         } else {
             topologyContextId = realtimeContextId;
+
         }
 
         return ImmutableQueryInfo.builder()
@@ -90,7 +96,14 @@ public class QueryInfoFactory {
                     // Note - we don't expect to hit this condition if the scope case is "entity list."
                     entityTypePredicate = actionEntity -> desiredEntityTypes.contains(actionEntity.getType());
                 }
-                entityPredicate = envTypePredicate.and(entityTypePredicate);
+                // if the user is scoped, add that as a predicate too
+                if (userSessionContext.isUserScoped()) {
+                    EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+                    final Predicate<ActionEntity> userScopePredicate = actionEntity -> entityAccessScope.contains(actionEntity.getId());
+                    entityPredicate = userScopePredicate.and(envTypePredicate.and(entityTypePredicate));
+                } else {
+                    entityPredicate = envTypePredicate.and(entityTypePredicate);
+                }
                 break;
             default:
                 logger.warn("Unexpected scope {} for filter. Assuming \"market\" scope.",

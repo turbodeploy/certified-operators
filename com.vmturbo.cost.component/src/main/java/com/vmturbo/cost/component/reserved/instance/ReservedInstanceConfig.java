@@ -122,7 +122,8 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator());
+                identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
+                pricingConfig.priceTableStore());
     }
 
     /**

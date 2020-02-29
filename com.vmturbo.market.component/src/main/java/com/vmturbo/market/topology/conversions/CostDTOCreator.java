@@ -1,11 +1,8 @@
 package com.vmturbo.market.topology.conversions;
 
-import io.jsonwebtoken.lang.Collections;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,6 +25,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Comput
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
@@ -58,16 +56,16 @@ public class CostDTOCreator {
      *
      * @param tier is topology entity DTO representation of the tier.
      * @param regions list of region topology entity DTOs.
-     * @param businessAccountDTOs all business accounts in the topology.
      * @param uniqueAccountPricingData The unique set of pricing in the topology.
      *
      * @return CostDTO
      */
-    public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs, Set<AccountPricingData> uniqueAccountPricingData) {
+    public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
+            Set<AccountPricingData> uniqueAccountPricingData) {
         if (tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-            return createComputeTierCostDTO(tier, regions, businessAccountDTOs, uniqueAccountPricingData );
+            return createComputeTierCostDTO(tier, regions, uniqueAccountPricingData);
         } else {
-            return createDatabaseTierCostDTO(tier, regions, businessAccountDTOs, uniqueAccountPricingData);
+            return createDatabaseTierCostDTO(tier, regions, uniqueAccountPricingData);
         }
     }
 
@@ -76,22 +74,16 @@ public class CostDTOCreator {
      *
      * @param tier the compute tier topology entity DTO.
      * @param regions list of region topology entity DTOs.
-     * @param businessAccountDTOs all business accounts in the topology.
      * @param uniqueAccountPricingData The set of unique account pricing data.
      *
      * @return CostDTO
      */
-    public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs,
+    public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
                                             Set<AccountPricingData> uniqueAccountPricingData) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
                 ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData);
-                if (priceBundle == null) {
-                    logger.warn("Failed to get pricing information for tier {} on region {}",
-                            tier.getDisplayName(), region.getDisplayName());
-                    return CostDTO.newBuilder().setComputeTierCost(computeTierDTOBuilder.build()).build();
-                }
                 Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
                 priceBundle.getPrices().forEach(price ->
                         computePrices.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
@@ -130,19 +122,20 @@ public class CostDTOCreator {
                                         region.getDisplayName(), licenseCommodity.getKey());
                             }
                         }
+                        CommoditySpecificationTO spec = commodityConverter
+                                .commoditySpecification(licenseCommodity);
                         computeTierDTOBuilder
                                 .addCostTupleList(CostTuple.newBuilder()
                                         .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                         .setRegionId(region.getOid())
-                                        .setLicenseCommodityType(commodityConverter
-                                                .toMarketCommodityId(licenseCommodity))
+                                        .setLicenseCommodityType(spec.getType())
                                         .setPrice(price));
                     }
                 }
             }
         }
-        Optional<ComputeResourceDependency> dependency = createComputeResourceDependency(tier);
-        dependency.map(computeResourceDependency -> computeTierDTOBuilder.addComputeResourceDepedency(computeResourceDependency));
+        createComputeResourceDependency(tier)
+                .map(computeTierDTOBuilder::addComputeResourceDepedency);
 
         return CostDTO.newBuilder()
                 .setComputeTierCost(computeTierDTOBuilder
@@ -153,8 +146,8 @@ public class CostDTOCreator {
                 .build();
     }
 
-    private CostTuple.Builder  createCostTuple(Long baOid, Integer licenseCommodityId, double hourlyPrice,
-                                              Long regionId) {
+    private CostTuple.Builder createCostTuple(long baOid, int licenseCommodityId, double hourlyPrice,
+                                              long regionId) {
         return CostTuple.newBuilder().setBusinessAccountId(baOid)
                 .setLicenseCommodityType(licenseCommodityId)
                 .setRegionId(regionId)
@@ -166,25 +159,17 @@ public class CostDTOCreator {
      *
      * @param tier the database tier topology entity DTO
      * @param regions the regions topology entity DTO
-     * @param businessAccountDTOs all business accounts in the topology
      * @param uniqueAccountPricingData The set of unique account pricing data.
      *
      * @return CostDTO
      */
-    public CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-                                             Set<TopologyEntityDTO> businessAccountDTOs,
+    private CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
                                              Set<AccountPricingData> uniqueAccountPricingData) {
         ComputeTierCostDTO.Builder dbTierDTOBuilder = ComputeTierCostDTO.newBuilder();
-        Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
                 DatabasePriceBundle priceBundle = marketPriceTable.getDatabasePriceBundle(tier.getOid(),
                         region.getOid(), accountPricingData);
-                if (priceBundle == null) {
-                    logger.warn("Failed to get pricing information for tier {} on region {}",
-                            tier.getDisplayName(), region.getDisplayName());
-                    return CostDTO.newBuilder().setComputeTierCost(dbTierDTOBuilder.build()).build();
-                }
                 Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
                         .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                         .map(CommoditySoldDTO::getCommodityType)
@@ -224,23 +209,26 @@ public class CostDTOCreator {
                     } else {
                         // License is for BYOL, return INFINITE price
                         if (logger.isTraceEnabled()) {
-                            logger.trace("Returning INFINITE price for {} license sold by tier {} - region {} - BA {}",
+                            logger.trace("Returning INFINITE price for {} license sold by tier {} - region {}",
                                     licenseId, tier.getDisplayName(), region.getDisplayName());
                         }
                     }
+                    CommoditySpecificationTO spec = commodityConverter
+                            .commoditySpecification(licenseCommodity);
                     dbTierDTOBuilder
-                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(), commodityConverter
-                                    .toMarketCommodityId(licenseCommodity), price, region.getOid()));
+                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(),
+                                    spec.getType(), price, region.getOid()));
                 }
                 // price when license isn't available
+                CommoditySpecificationTO spec = commodityConverter
+                        .commoditySpecification(dataCenterAccessCommodity.get());
                 dbTierDTOBuilder
                         .addCostTupleList(CostTuple.newBuilder()
                                 .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                 .setLicenseCommodityType(-1)
                                 .setRegionId(dataCenterAccessCommodity.isPresent() ?
-                                        commodityConverter.toMarketCommodityId(dataCenterAccessCommodity.get()) : null)
+                                        spec.getType() : null)
                                 .setPrice(Double.POSITIVE_INFINITY));
-
             }
         }
 
@@ -277,14 +265,29 @@ public class CostDTOCreator {
             }
         }
 
-        return CostDTO.newBuilder().setCbtpResourceBundle(
-                CbtpCostDTO.newBuilder().setCouponBaseType(
-                        CommodityDTO.CommodityType
-                                .COUPON_VALUE)
+        // Set CBTP scope to billing family (for shared RI) or account (for single scoped RI)
+        final long scopeId;
+        if (reservedInstanceKey.getShared()) {
+            scopeId = reservedInstanceKey.getAccountScopeId();
+        } else if (!applicableBusinessAccounts.isEmpty()) {
+            // For single scoped RI applicable accounts set must contain a single element
+            if (applicableBusinessAccounts.size() > 1) {
+                logger.error("More than one applicable account for " + reservedInstanceKey);
+            }
+            scopeId = applicableBusinessAccounts.iterator().next();
+        } else {
+            logger.error("Empty applicable accounts list for " + reservedInstanceKey);
+            scopeId = reservedInstanceKey.getAccountScopeId();
+        }
+
+        return CostDTO.newBuilder()
+                .setCbtpResourceBundle(CbtpCostDTO.newBuilder()
+                        .setCouponBaseType(CommodityDTO.CommodityType.COUPON_VALUE)
                         .addAllCostTupleList(costTupleList)
                         .setDiscountPercentage(1)
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                        .build()).build();
+                        .setScopeId(scopeId))
+                .build();
     }
 
     /**
@@ -320,14 +323,14 @@ public class CostDTOCreator {
         List<ComputePrice> reservedLicensePriceList = licensePriceBundle.getPrices();
         // If we have reserved license pricing and the pricing is not 0 then that price is set on the
         // cbtp cost dto. If we don't have reserved license pricing, we will use fractional compute pricing.
-        if (Collections.isEmpty(reservedLicensePriceList)) {
+        if (reservedLicensePriceList.isEmpty()) {
             CostTuple.Builder builder = CostTuple.newBuilder();
-            setZoneIdAndRegionInfo(riKey, accountPricingData, builder, accountId);
+            setZoneIdAndRegionInfo(riKey, builder);
             Optional<CommodityType> osComm = computeTier.getCommoditySoldListList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
                             && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riKey.getOs())))
                     .map(CommoditySoldDTO::getCommodityType).findFirst();
-            builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.toMarketCommodityId(osComm.get()) : 0);
+            builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.commoditySpecification(osComm.get()).getType() : 0);
             if (templatePrice.isPresent()) {
                 builder.setPrice(templatePrice.get().getHourlyPrice() * riCostDeprecationFactor);
             }
@@ -336,7 +339,7 @@ public class CostDTOCreator {
             // Iterate over all the reserved license prices for all licenses
             for (ComputePrice riPrice : reservedLicensePriceList) {
                 CostTuple.Builder builder = CostTuple.newBuilder();
-                setZoneIdAndRegionInfo(riKey, accountPricingData, builder, accountId);
+                setZoneIdAndRegionInfo(riKey, builder);
                 if (riPrice.getHourlyPrice() != 0.0) {
                     builder.setPrice(riPrice.getHourlyPrice());
                 } else {
@@ -348,7 +351,7 @@ public class CostDTOCreator {
                         .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
                                 && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riPrice.getOsType())))
                         .map(CommoditySoldDTO::getCommodityType).findFirst();
-                builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.toMarketCommodityId(osComm.get()) : 0);
+                builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.commoditySpecification(osComm.get()).getType() : 0);
                 costTuples.add(builder.build());
             }
         }
@@ -359,21 +362,14 @@ public class CostDTOCreator {
      * Sets the ri zone and region info on the cbtp cost dto builder.
      *
      * @param riKey Info about the reserved instance key object.
-     * @param accountPricingData The account specific pricing data.
      * @param builder The cbtp cost dto builder.
-     * @param accountId The account id to be set on the cbtp cost dto builder.
      */
-    private void setZoneIdAndRegionInfo(ReservedInstanceKey riKey, AccountPricingData accountPricingData,
-                                        CostTuple.Builder builder, Long accountId) {
+    private void setZoneIdAndRegionInfo(ReservedInstanceKey riKey, CostTuple.Builder builder) {
         if (riKey.getZoneId() != 0) {
             builder.setZoneId(riKey.getZoneId());
         } else {
             builder.setRegionId(riKey.getRegionId());
         }
-
-        // Set account id (for single scope RI) or price id (for shared scope RI)
-        builder.setBusinessAccountId(riKey.getShared() ?
-                accountPricingData.getAccountPricingDataOid() : accountId);
     }
 
     /**
@@ -381,13 +377,12 @@ public class CostDTOCreator {
      *
      * @param tier the storage tier topology entity DTO.
      * @param connectedRegions the region topology entity DTO.
-     * @param businessAccountDTOs all business accounts in the topology.
      * @param uniqueAccountPricingData The unique account pricing data in the system.
      *
      * @return CostDTO
      */
     public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> connectedRegions,
-                                            Set<TopologyEntityDTO> businessAccountDTOs, Set<AccountPricingData> uniqueAccountPricingData) {
+                                            Set<AccountPricingData> uniqueAccountPricingData) {
         CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
         StorageTierCostDTO.StorageResourceCost.Builder builder = StorageTierCostDTO.StorageResourceCost
                 .newBuilder();
@@ -396,6 +391,7 @@ public class CostDTOCreator {
                 StoragePriceBundle storageCostBundle = marketPriceTable
                         .getStoragePriceBundle(tier.getOid(), region.getOid(), accountPricingData);
                 if (storageCostBundle == null) {
+                    // This can happen in unit tests
                     logger.warn("Failed to get pricing information for tier {} on region {}",
                             tier.getDisplayName(), region.getDisplayName());
                     return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
@@ -440,7 +436,7 @@ public class CostDTOCreator {
      * @param tier the compute tier topology entity DTO
      * @return ComputeResourceDependency
      */
-    public Optional<ComputeResourceDependency> createComputeResourceDependency(
+    private Optional<ComputeResourceDependency> createComputeResourceDependency(
             TopologyEntityDTO tier) {
         // if the compute tier has dedicated storage network state as configured disabled or not supported,
         // the sum of netTpUsed and ioTpUsed should be within the netTpSold capacity so we populate a

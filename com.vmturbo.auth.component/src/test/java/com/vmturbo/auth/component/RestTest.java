@@ -1,5 +1,6 @@
 package com.vmturbo.auth.component;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +13,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import org.junit.Assert;
@@ -224,18 +226,23 @@ public class RestTest {
     }
 
     private String constructAddDTO(int suffix) {
+        // ideally we should use Parameterized test, but we already have Spring Runner, so
+        // we just randomly change to role to upper case or lower case.
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix,
                                           constructPassword(suffix), "1.1.1.1", null, null,
-                                          ImmutableList.of("ADMINISTRATOR", "USER"), null);
+                                          ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                                                  : ADMINISTRATOR.toLowerCase(), "USER"), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
     }
 
+
     private String constructAddSSODTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(PROVIDER.LDAP, "user" + suffix,
                 constructPassword(suffix), "1.1.1.1", null, null,
-                ImmutableList.of("ADMINISTRATOR", "USER"), null);
+                ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                        : ADMINISTRATOR.toLowerCase(), "USER"), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -279,8 +286,8 @@ public class RestTest {
     private MockHttpServletRequestBuilder postAddSSOGroup() {
 
         SecurityGroupDTO activeDirectorySecurityGroupDTO = new SecurityGroupDTO("group",
-                "group",
-                "administrator");
+                "group", new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                        : ADMINISTRATOR.toLowerCase());
         String jsonGroup = GSON.toJson(activeDirectorySecurityGroupDTO, SecurityGroupDTO.class);
 
         return post("/users/ad/groups")
@@ -361,7 +368,7 @@ public class RestTest {
 
         AuthUserDTO userToModify = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 2,
                                                       constructPassword(2), null, null, null,
-                                                      ImmutableList.of("ADMINISTRATOR", "USER"), null);
+                                                      ImmutableList.of(ADMINISTRATOR, "USER"), null);
         AuthUserModifyDTO dto = new AuthUserModifyDTO(userToModify, "password1_" + 2);
 
         String json = GSON.toJson(dto, AuthUserModifyDTO.class);

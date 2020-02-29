@@ -58,6 +58,10 @@ import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
@@ -140,6 +144,15 @@ public class ServiceConfig {
      */
     @Value("${deploymentMode:SERVER}")
     private DeploymentMode deploymentMode;
+
+    @Value("${apiPaginationDefaultLimit:100}")
+    private int apiPaginationDefaultLimit;
+
+    @Value("${apiPaginationMaxLimit:500}")
+    private int apiPaginationMaxLimit;
+
+    @Value("${apiPaginationDefaultSortCommodity:priceIndex}")
+    private String apiPaginationDefaultSortCommodity;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -527,8 +540,37 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 communicationConfig.supplyChainFetcher(),
                 userSessionContext(),
-                communicationConfig.groupExpander()
+                communicationConfig.groupExpander(),
+                entityStatsPaginator(),
+                paginationParamsFactory(),
+                mapperConfig.paginationMapper(),
+                communicationConfig.costServiceBlockingStub()
                 );
+    }
+
+    /**
+     * A utility class to do in-memory pagination of entities given a way to access their
+     * sort commodity (via a {@link SortCommodityValueGetter}.
+     *
+     * @return {link EntityStatsPaginator}
+     */
+    @Bean
+    public EntityStatsPaginator entityStatsPaginator() {
+        return new EntityStatsPaginator();
+    }
+
+    /**
+     * Default factory of EntityStatsPaginationParamsFactory.
+     *
+     * @return {@link EntityStatsPaginationParamsFactory} for creating paginating entityStats
+     */
+    @Bean
+    public EntityStatsPaginationParamsFactory paginationParamsFactory() {
+        return new DefaultEntityStatsPaginationParamsFactory(
+                apiPaginationDefaultLimit,
+                apiPaginationMaxLimit,
+                apiPaginationDefaultSortCommodity);
+
     }
 
     @Bean
@@ -635,7 +677,8 @@ public class ServiceConfig {
                 communicationConfig.supplyChainFetcher(),
                 communicationConfig.thinTargetCache(),
                 mapperConfig.buyRiScopeHandler(),
-                storageStatsSubQuery());
+                storageStatsSubQuery(),
+                userSessionContext());
         statsQueryExecutor().addSubquery(cloudCostsStatsQuery);
         return cloudCostsStatsQuery;
     }

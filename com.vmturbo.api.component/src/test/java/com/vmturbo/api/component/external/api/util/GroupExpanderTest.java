@@ -25,11 +25,11 @@ import io.grpc.StatusRuntimeException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -158,10 +158,10 @@ public class GroupExpanderTest {
     @Test
     public void testExpandNonGroupNonMarketUuid() throws Exception {
         when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
-            .setId(1234L)
+            .addId(1234L)
             .setExpectPresent(false)
             .build()))
-            .thenReturn(GetMembersResponse.getDefaultInstance());
+            .thenReturn(Collections.singletonList(GetMembersResponse.getDefaultInstance()));
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(1));
         assertThat(expandedOids.iterator().next(), equalTo(1234L));
@@ -190,15 +190,16 @@ public class GroupExpanderTest {
     public void testExpandGroupUuid() throws Exception {
         doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
             .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
-
-        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
-            .addIds(10)
-            .addIds(11)
-            .addIds(12))
-            .build()).when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                .setId(DYNAMIC_GROUP_OID)
+        Mockito.when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .addId(DYNAMIC_GROUP_OID)
                 .setExpectPresent(true)
-                .build());
+                .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(DYNAMIC_GROUP_OID)
+                        .addMemberId(10)
+                        .addMemberId(11)
+                        .addMemberId(12)
+                        .build()));
 
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(3));
@@ -281,14 +282,16 @@ public class GroupExpanderTest {
         doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
             .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
 
-        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
-            .addIds(10)
-            .addIds(11)
-            .addIds(12))
-            .build()).when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
-            .setId(DYNAMIC_GROUP_OID)
-            .setExpectPresent(true)
-            .build());
+        Mockito.when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .addId(DYNAMIC_GROUP_OID)
+                .setExpectPresent(true)
+                .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(DYNAMIC_GROUP_OID)
+                        .addMemberId(10)
+                        .addMemberId(11)
+                        .addMemberId(12)
+                        .build()));
 
         // ACT
         Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(DYNAMIC_GROUP_OID);
@@ -310,17 +313,18 @@ public class GroupExpanderTest {
             .setGroup(NESTED_GROUP).build())
             .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(NESTED_GROUP_OID).build());
 
-        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
-                .addIds(10)
-                .addIds(11)
-                .addIds(12)
-                .addIds(20))
-                .build())
-            .when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                .setId(NESTED_GROUP_OID)
+        Mockito.when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .addId(NESTED_GROUP_OID)
                 .setExpandNestedGroups(true)
                 .setExpectPresent(true)
-                .build());
+                .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(NESTED_GROUP_OID)
+                        .addMemberId(10)
+                        .addMemberId(11)
+                        .addMemberId(12)
+                        .addMemberId(20)
+                        .build()));
 
         doReturn(GetGroupResponse.newBuilder()
             .setGroup(RG_GROUP).build())
@@ -329,16 +333,16 @@ public class GroupExpanderTest {
         doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
             .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
 
-        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
-                .addIds(10)
-                .addIds(11)
-                .addIds(12))
-                .build())
-            .when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                .setId(DYNAMIC_GROUP_OID)
+        Mockito.when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .addId(DYNAMIC_GROUP_OID)
                 .setExpectPresent(true)
-                .build());
-
+                .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(DYNAMIC_GROUP_OID)
+                        .addMemberId(10)
+                        .addMemberId(11)
+                        .addMemberId(12)
+                        .build()));
         // ACT
         Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(NESTED_GROUP_OID);
 

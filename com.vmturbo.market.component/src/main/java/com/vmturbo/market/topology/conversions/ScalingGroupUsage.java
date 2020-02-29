@@ -92,7 +92,7 @@ public class ScalingGroupUsage {
      *                             peak used, so it is ignored at this time.
      */
     public void addUsage(final CommodityBoughtDTO commBought,
-                         final Pair<Double, Double> commBoughtQuantities) {
+                         final Pair<Float, Float> commBoughtQuantities) {
         Integer commodityType = commBought.getCommodityType().getType();
         Double currentUsage = topUsage_.getOrDefault(commodityType, 0D);
         Double newUsage = Math.max(currentUsage, commBoughtQuantities.first);

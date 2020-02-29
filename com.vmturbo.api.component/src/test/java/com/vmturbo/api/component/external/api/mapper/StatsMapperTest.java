@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -759,7 +760,7 @@ public class StatsMapperTest {
         final StatSnapshotApiDTO result = statsMapper.toStatSnapshotApiDTO(entityStats.getStatSnapshots(0));
 
         Assert.assertEquals(3L, result.getStatistics().size());
-        Assert.assertEquals("", result.getStatistics().get(0).getDisplayName());
+        Assert.assertNull(result.getStatistics().get(0).getDisplayName());
         Assert.assertEquals("FROM: " + providerName + " ", result.getStatistics().get(1).getDisplayName());
         Assert.assertEquals("FROM: " + providerName + " KEY: " + key,
                             result.getStatistics().get(2).getDisplayName());
@@ -889,7 +890,11 @@ public class StatsMapperTest {
 
         assertThat(mappedStat.getRelatedEntity().getDisplayName(), is(test.getProviderDisplayName()));
         assertThat(mappedStat.getRelatedEntity().getUuid(), is(test.getProviderUuid()));
-        assertThat(mappedStat.getUnits(), is(test.getUnits()));
+        if (test.hasUnits()) {
+            assertThat(mappedStat.getUnits(), is(test.getUnits()));
+        } else {
+            assertThat(mappedStat.getUnits(), is(nullValue()));
+        }
         assertThat(mappedStat.getValue(), is(test.getUsed().getAvg()));
         final StatHistUtilizationApiDTO percentile = mappedStat.getHistUtilizations().get(0);
         final HistUtilizationValue expected = test.getHistUtilizationValueList().stream()

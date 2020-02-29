@@ -62,6 +62,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -408,7 +409,8 @@ public class SupplyChainFetcherFactoryTest {
     }
 
     private void setUpForCostTest(long entityId, EnvironmentType entityEnvType,
-            float costComponent1, float costComponent2) {
+            float costComponent1, float costComponent2)
+            throws InterruptedException, ConversionException {
         final ImmutableList<String> searchUuids = ImmutableList.of(String.valueOf(entityId));
         final String vmName = "vm1";
         final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);

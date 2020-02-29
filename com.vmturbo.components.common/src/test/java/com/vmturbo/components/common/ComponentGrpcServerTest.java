@@ -6,6 +6,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.net.BindException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -64,8 +65,6 @@ public class ComponentGrpcServerTest {
 
         // Find a random port to use.
         final MockEnvironment env = new MockEnvironment();
-        env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT,
-            Integer.toString(SocketUtils.findAvailableTcpPort()));
 
         final TestInterceptor interceptor = new TestInterceptor();
 
@@ -74,7 +73,7 @@ public class ComponentGrpcServerTest {
                 Collections.singletonList(interceptor));
 
         // Start the server.
-        ComponentGrpcServer.get().start(env);
+        startGrpcServer(env);
 
         // Set up the mock response.
         final LogConfigurationServiceBlockingStub client =
@@ -112,15 +111,13 @@ public class ComponentGrpcServerTest {
     public void testAddServicesAfterStartRestartsServer() {
         // Find a random port to use.
         final MockEnvironment env = new MockEnvironment();
-        env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT,
-            Integer.toString(SocketUtils.findAvailableTcpPort()));
 
         ComponentGrpcServer.get().addServices(
             Collections.singletonList(logConfigurationServiceMole),
             Collections.emptyList());
 
         // Start the server.
-        ComponentGrpcServer.get().start(env);
+        startGrpcServer(env);
 
         // Create a client.
         final LogConfigurationServiceBlockingStub client =
@@ -140,11 +137,46 @@ public class ComponentGrpcServerTest {
         // The restart should be transparent to the client, so we shouldn't have to create a
         // new stub.
         ComponentGrpcServer.get().addServices(
-            Collections.singletonList(updatedMole),
-            Collections.emptyList());
+                Collections.singletonList(updatedMole),
+                Collections.emptyList());
 
         // Check that an RPC to the server works.
         assertThat(client.getLogLevels(GetLogLevelsRequest.getDefaultInstance()), is(logLevelsResponse));
+    }
+
+    /*
+     * Start the gRPC server, retrying a few times if we lose a port allocation race.
+     *
+     * <p>Tests in this class have failed and casued commits to be revereted, because they lose
+     * an unavoidable race condition that appears when attempting to bind an available port for
+     * use by our gRPC server. The only way to do this is to find an unused port and then try to
+     * bind it. Between those steps, any other process on the system could do the same and bind
+     * the port, causing our attempt to bind to fail. This is a rare failure, and retrying a few
+     * times should eliminate resulting build failures.</p>
+     *
+     * @param env mock environment to hold desired port number
+     */
+    private void startGrpcServer(final MockEnvironment env) {
+        for (int tries = 1; ; tries++) {
+            try {
+                env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT,
+                        Integer.toString(SocketUtils.findAvailableTcpPort()));
+                ComponentGrpcServer.get().start(env);
+                // succeeded!
+                return;
+            } catch (Exception e) {
+                Throwable cause = e;
+                // try up to three times, as long as we're catching BindException
+                while (cause != null && !(cause instanceof BindException)) {
+                    cause = cause.getCause();
+                }
+                if (cause == null || tries >= 3) {
+                    // we caught something that wasn't ulimately a BindException, or we ran
+                    // out of tries, so re-throw what we last caught
+                    throw e;
+                }
+            }
+        }
     }
 
     /**

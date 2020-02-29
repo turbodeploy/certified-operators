@@ -47,6 +47,7 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.HierarchicalRelationship;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -448,7 +449,8 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private BusinessUnitApiDTO createPriceAdjustment(long businessAccountId,
                                                      BusinessUnitApiInputDTO businessUnitApiInputDTO)
-        throws OperationFailedException, InvalidOperationException, UnknownObjectException {
+        throws OperationFailedException, InvalidOperationException, UnknownObjectException,
+            ConversionException, InterruptedException {
         // We also need to create separate discount entries for children accounts of the account
         // as well.
         List<Long> childAccounts = getChildAccounts(businessAccountId);
@@ -554,7 +556,9 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         return response.getUpdatedDiscount();
     }
 
-    private List<Long> getChildAccounts(long businessAccountId) throws OperationFailedException, UnknownObjectException, InvalidOperationException {
+    private List<Long> getChildAccounts(long businessAccountId)
+            throws OperationFailedException, UnknownObjectException, InvalidOperationException,
+            ConversionException, InterruptedException {
         BusinessUnitApiDTO businessAccount =
             businessAccountRetriever.getBusinessAccount(String.valueOf(businessAccountId));
         if (!businessAccount.isMaster()) {

@@ -67,6 +67,9 @@ message PlanInstance {
     // the plan was created by the system.
     optional string created_by_user = 20;
 
+    // Plan name, on creation derived from Scenario.ScenarioInfo.Name
+    optional string name = 21;
+
     enum PlanStatus {
         // Plan is ready to be executed, but has not been
         // triggered.
@@ -143,7 +146,6 @@ message PlanScenario {
     optional int64 scenario_id = 2;
 }
 
-message Empty {}
 
 // Message that can hold plan instance, or may not.
 message OptionalPlanInstance {
@@ -156,6 +158,17 @@ message GetPlansOptions {
     // TODO: Support for pagination and filtering by user
 }
 
+
+//Message to update the PlanInstance
+//Currently only support updating a plan's name
+message UpdatePlanRequest {
+    // ID of the plan
+    required int64 plan_id = 1;
+
+    // New name of the plan
+    optional string name = 2;
+}
+
 // A service responsible for CRUD operations for plan instances.
 service PlanService {
     // Create a runnable PlanInstance given the id of the topology to begin with
@@ -166,6 +179,12 @@ service PlanService {
     // @param createPlanRequest indicates the source topology id and the ID of a scenario to apply
     // @throws Status.INTERNAL if either the source topology or the scenario are not found
     rpc CreatePlan (CreatePlanRequest) returns (PlanInstance);
+
+    // Update a PlanInstance and persist in DB.
+    //
+    // @param UpdatePlanRequest the plan ID to information to update
+    // @returns the updated PlanInstance
+    rpc UpdatePlan (UpdatePlanRequest) returns (PlanInstance);
 
     // Update the scenario for an existing PlanInstance and persist the result back to the database.
     // The update does not impact the plan if currently running.

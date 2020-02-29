@@ -36,6 +36,7 @@ import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.policy.InvalidPolicyException;
 import com.vmturbo.group.policy.PolicyStore;
 
 public class PolicyRpcService extends PolicyServiceImplBase {
@@ -159,11 +160,16 @@ public class PolicyRpcService extends PolicyServiceImplBase {
                     .setPolicy(policy)
                     .build());
             responseObserver.onCompleted();
-        } catch (DuplicateNameException e) {
-            logger.error("Failed to create a policy due to duplicate name exception!", e);
+        } catch (InvalidPolicyException e) {
+            logger.error("Failed to create a policy because it's invalid", e);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage())
                     .asException());
+        } catch (DuplicateNameException e) {
+            logger.error("Failed to create a policy because a policy with the same name exists.", e);
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getMessage())
+                .asException());
         }
     }
 
@@ -215,7 +221,7 @@ public class PolicyRpcService extends PolicyServiceImplBase {
                     .setPolicy(updatedPolicy)
                     .build());
             responseObserver.onCompleted();
-        } catch (DuplicateNameException | PolicyNotFoundException e) {
+        } catch (DuplicateNameException | InvalidPolicyException | PolicyNotFoundException e) {
             logger.error("Failed to update policy " + id + "!", e);
             responseObserver.onError(
                     Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());

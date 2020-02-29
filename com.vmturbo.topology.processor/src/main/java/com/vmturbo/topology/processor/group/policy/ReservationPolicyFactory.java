@@ -20,10 +20,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -34,10 +34,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -180,10 +180,11 @@ public class ReservationPolicyFactory {
         switch (constraint.getType()) {
             case CLUSTER:
                 final GetMembersRequest request = GetMembersRequest.newBuilder()
-                        .setId(constraint.getConstraintId())
+                        .addId(constraint.getConstraintId())
                         .build();
-                final GetMembersResponse response = groupServiceBlockingStub.getMembers(request);
-                final Set<TopologyEntity> topologyEntities = response.getMembers().getIdsList().stream()
+                final GetMembersResponse response =
+                        groupServiceBlockingStub.getMembers(request).next();
+                final Set<TopologyEntity> topologyEntities = response.getMemberIdList().stream()
                         .map(graph::getEntity)
                         .flatMap(entity -> entity.isPresent() ? Stream.of(entity.get()) :
                                 Stream.empty())
@@ -293,7 +294,7 @@ public class ReservationPolicyFactory {
      *
      * @param members a set of ids of group members.
      * @param entityType entity type of group.
-     * @return {@link Group}.
+     * @return {@link Grouping}.
      */
     private Grouping generateStaticGroup(@Nonnull final Set<Long> members, final int entityType) {
         //TODO (mahdi) this group is super weird. It does not a saved in group component

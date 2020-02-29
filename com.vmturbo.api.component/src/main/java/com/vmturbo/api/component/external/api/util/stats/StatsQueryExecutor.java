@@ -38,6 +38,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.Epoch;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
@@ -101,10 +102,13 @@ public class StatsQueryExecutor {
      * @return A list of {@link StatSnapshotApiDTO}, one for every snapshot in the requested
      *         time range.
      * @throws OperationFailedException If there is a critical error.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final ApiId scope,
-                                                      @Nonnull final StatPeriodApiInputDTO inputDTO) throws OperationFailedException {
+            @Nonnull final StatPeriodApiInputDTO inputDTO)
+            throws OperationFailedException, InterruptedException, ConversionException {
         final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, inputDTO.getStatistics());
 
         // Check if there is anything in the scope.
@@ -160,10 +164,12 @@ public class StatsQueryExecutor {
         // Sort the stats in ascending order by time.
         final Comparator<Entry<StatTimeAndEpoch, Map<String, StatApiDTO>>> ascendingByTime =
             Comparator.comparingLong(entry -> entry.getKey().getTime());
+        final String scopeDisplayName = scope.getDisplayName();
         final List<StatSnapshotApiDTO> stats = statsByDateAndId.rowMap().entrySet().stream()
             .sorted(ascendingByTime)
             .map(entry -> {
                 final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                statSnapshotApiDTO.setDisplayName(scopeDisplayName);
                 statSnapshotApiDTO.setDate(DateTimeUtil.toString(entry.getKey().getTime()));
                 statSnapshotApiDTO.setEpoch(entry.getKey().getEpoch());
                 statSnapshotApiDTO.setStatistics(new ArrayList<>(entry.getValue().values()));
@@ -194,6 +200,7 @@ public class StatsQueryExecutor {
             }
             stats.clear();
             StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+            statSnapshotApiDTO.setDisplayName(scopeDisplayName);
             statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
             statSnapshotApiDTO.setEpoch(Epoch.CURRENT);
             statSnapshotApiDTO.setStatistics(statistics);

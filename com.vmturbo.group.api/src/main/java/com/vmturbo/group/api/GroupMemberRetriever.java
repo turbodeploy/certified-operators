@@ -1,12 +1,11 @@
 package com.vmturbo.group.api;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -43,58 +42,75 @@ public class GroupMemberRetriever {
     public List<GroupAndMembers> getGroupsWithMembers(
             @Nonnull final GetGroupsRequest getGroupsRequest) {
         final Iterator<Grouping> retIt = groupServiceGrpc.getGroups(getGroupsRequest);
-        final List<GroupAndMembers> result = new ArrayList<>();
+        final List<Grouping> groups = new ArrayList<>();
         while (retIt.hasNext()) {
-            result.add(getMembersForGroup(retIt.next()));
+            groups.add(retIt.next());
         }
-        return result;
+        return getMembersForGroup(groups);
     }
 
     /**
      * Given a {@link Grouping}, get its members. If the {@link Grouping} is a dynamic group, this
-     * may make a call to the group component.
+     * may make a call to the groups component.
      * Note - it's preferable to use this method for convenience, and to allow for (potential)
      * caching in the future.
      *
-     * @param group The {@link Grouping}
-     * @return  The {@link GroupAndMembers} describing the group and its members.
+     * @param groups The {@link Grouping}
+     * @return  The {@link GroupAndMembers} describing the groups and its members.
      */
     @Nonnull
-    public GroupAndMembers getMembersForGroup(@Nonnull final Grouping group) {
-        ImmutableGroupAndMembers.Builder retBuilder = ImmutableGroupAndMembers.builder()
-                .group(group);
-        final List<Long> members;
-        if (group.getDefinition().hasStaticGroupMembers()) {
-            members = GroupProtoUtil.getStaticMembers(group);
-        } else {
-            final GetMembersResponse groupMembersResp =
-                    groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
-                            .setId(group.getId())
-                            .setExpectPresent(true)
-                            .build());
-            members = groupMembersResp.getMembers().getIdsList();
+    public List<GroupAndMembers> getMembersForGroup(@Nonnull final List<Grouping> groups) {
+        final Map<Long, List<Long>> members = new HashMap<>();
+        final GetMembersRequest.Builder membersBuilder =
+                GetMembersRequest.newBuilder().setExpectPresent(true);
+        for (Grouping group: groups) {
+            if (group.getDefinition().hasStaticGroupMembers()) {
+                members.put(group.getId(), GroupProtoUtil.getStaticMembers(group));
+            } else {
+                membersBuilder.addId(group.getId());
+            }
         }
+        populateMembers(members, membersBuilder.build());
 
-        // now get the entities in the group. If this is a group-of-groups, the "members" in the group
-        // will be the group id's, while the "entities" in the group will be all the service entities
-        // contained within those nested groups. If this is NOT a group-of-groups, the "members" and
-        // "entities" will be the same -- the set of service entities contained in the group.
-        final Collection<Long> entities;
-        // If the group is nested, make a 2nd call with the "expand nested groups" flag to fetch
-        // the leaf entities in the nested groups.
-        if (GroupProtoUtil.isNestedGroup(group)) {
-            entities = groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
-                    .setId(group.getId())
-                    .setExpectPresent(true)
-                    .setExpandNestedGroups(true)
-                    .build())
-                    .getMembers().getIdsList();
-        } else {
-            entities = members;
+        // now get the entities in the groups. If this is a groups-of-groups, the "members" in the groups
+        // will be the groups id's, while the "entities" in the groups will be all the service entities
+        // contained within those nested groups. If this is NOT a groups-of-groups, the "members" and
+        // "entities" will be the same -- the set of service entities contained in the groups.
+        final Map<Long, List<Long>> entities = new HashMap<>();
+        final GetMembersRequest.Builder entitiesBuilder =
+                GetMembersRequest.newBuilder().setExpectPresent(true).setExpandNestedGroups(true);
+        for (Grouping group: groups) {
+            // If the groups is nested, make a 2nd call with the "expand nested groups" flag to fetch
+            // the leaf entities in the nested groups.
+            if (GroupProtoUtil.isNestedGroup(group)) {
+                entitiesBuilder.addId(group.getId());
+            } else {
+                entities.put(group.getId(), members.get(group.getId()));
+            }
         }
+        populateMembers(entities, entitiesBuilder.build());
+        final List<GroupAndMembers> result = new ArrayList<>(groups.size());
+        for (Grouping group : groups) {
+            final long groupId = group.getId();
+            final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                    .group(group)
+                    .members(members.get(groupId))
+                    .entities(entities.get(groupId))
+                    .build();
+            result.add(groupAndMembers);
+        }
+        return result;
+    }
 
-        retBuilder.members(members);
-        retBuilder.entities(entities);
-        return retBuilder.build();
+    private void populateMembers(@Nonnull Map<Long, List<Long>> map,
+            @Nonnull GetMembersRequest request) {
+        if (request.getIdCount() > 0) {
+            final Iterator<GetMembersResponse> groupMembersResp =
+                    groupServiceGrpc.getMembers(request);
+            while (groupMembersResp.hasNext()) {
+                final GetMembersResponse response = groupMembersResp.next();
+                map.put(response.getGroupId(), response.getMemberIdList());
+            }
+        }
     }
 }

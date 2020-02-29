@@ -18,6 +18,7 @@ import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
@@ -39,7 +40,8 @@ public class MarketMapper {
     }
 
     @Nonnull
-    public MarketApiDTO dtoFromPlanInstance(@Nonnull final PlanInstance instance) {
+    public MarketApiDTO dtoFromPlanInstance(@Nonnull final PlanInstance instance)
+            throws ConversionException, InterruptedException {
         final MarketApiDTO retDto = new MarketApiDTO();
         retDto.setClassName(MARKET);
         retDto.setUuid(Long.toString(instance.getPlanId()));
@@ -54,7 +56,9 @@ public class MarketMapper {
         scenarioApiDTO.setOwners(Collections.singletonList(userApiDTO));
         retDto.setScenario(scenarioApiDTO);
 
-        retDto.setDisplayName(scenarioApiDTO.getDisplayName());
+        //We want the name to come from the plan
+        //For backwards compatibility we fallback to the scenario name
+        retDto.setDisplayName(instance.hasName() ? instance.getName() : scenarioApiDTO.getDisplayName());
 
         retDto.setSaved(true);
         if (instance.hasStartTime()) {

@@ -7,9 +7,12 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.group.group.GroupConfig;
 
 @Configuration
-@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class})
+@Import({GroupComponentDBConfig.class,
+    IdentityProviderConfig.class,
+    GroupConfig.class})
 public class PolicyConfig {
 
     @Autowired
@@ -18,11 +21,15 @@ public class PolicyConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    private GroupConfig groupConfig;
+
     @Bean
     public PolicyStore policyStore() {
         return new PolicyStore(databaseConfig.dsl(),
-                discoveredPoliciesMapperFactory(),
-                identityProviderConfig.identityProvider());
+            discoveredPoliciesMapperFactory(),
+            identityProviderConfig.identityProvider(),
+            groupConfig.groupStore());
     }
 
     @Bean

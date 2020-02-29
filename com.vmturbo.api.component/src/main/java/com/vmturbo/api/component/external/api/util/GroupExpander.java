@@ -171,7 +171,9 @@ public class GroupExpander {
      */
     @Nonnull
     public GroupAndMembers getMembersForGroup(@Nonnull final Grouping group) {
-        return groupMemberRetriever.getMembersForGroup(group);
+        return groupMemberRetriever.getMembersForGroup(Collections.singletonList(group))
+                .iterator()
+                .next();
     }
 
     /**

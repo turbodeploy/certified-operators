@@ -51,6 +51,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -420,7 +421,8 @@ public class TargetsService implements ITargetsService {
         final List<ActionApiDTO> result = actionSpecMapper.mapActionSpecsToActionApiDTOs(
             response.getActionsList().stream()
                 .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), realtimeTopologyContextId);
+                    .collect(Collectors.toList()), realtimeTopologyContextId,
+                actionApiInputDTO.getDetailLevel());
         return result;
     }
 
@@ -1203,11 +1205,11 @@ public class TargetsService implements ITargetsService {
      * Gets the entities that belong to the given target
      * @param targetDTO The TargetApiDTO object
      * @return A list of ServiceEntityApiDTO of the target's entities
-     * @throws OperationFailedException if communication with the repository
-     *                                  fails for any reason
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
-                throws OperationFailedException {
+                throws ConversionException, InterruptedException {
         final String targetUuid = targetDTO.getUuid();
         final String targetType = targetDTO.getType();
 

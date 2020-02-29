@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -78,7 +79,6 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
-import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
@@ -87,6 +87,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
@@ -1321,7 +1322,14 @@ public class Stages {
                     counts.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
                             k -> new MutableInt(0)).increment();
                     for (TopologyBroadcast broadcast : broadcasts) {
-                        broadcast.append(entity);
+                        try {
+                            broadcast.append(entity);
+                        } catch (OversizedElementException e) {
+                            logger.error("Entity {} (name: {}, type: {}) failed to be" +
+                                " broadcast because it's too large: {}", entity.getOid(),
+                                entity.getDisplayName(), entity.getEntityType(), e.getMessage());
+                            continue;
+                        }
                     }
                 }
             }

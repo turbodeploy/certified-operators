@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -68,9 +69,11 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -319,36 +322,48 @@ public class EntitiesService implements IEntitiesService {
                 paginationRequest);
     }
 
+    /**
+     * Return the Action information given the id for the action.
+     *
+     * @param uuid        uuid of the entity
+     * @param actionUuid  uuid of the action
+     * @param detailLevel the level of Action details to be returned
+     * @return
+     * @throws Exception
+     */
     @Override
     @Nonnull
-    public ActionApiDTO getActionByEntityUuid(@Nonnull String uuid, @Nonnull String aUuid)
+    public ActionApiDTO getActionByEntityUuid(@Nonnull final String uuid,
+                                              @Nonnull final String actionUuid,
+                                              @Nullable final ActionDetailLevel detailLevel)
             throws Exception {
         if (!uuidMapper.fromUuid(uuid).isEntity()) {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));
         }
-        long oid = uuidMapper.fromUuid(aUuid).oid();
+        long oid = uuidMapper.fromUuid(actionUuid).oid();
         final ActionApiDTO result;
         try {
             // get the action object from the action orchestrator
             // and translate it to an ActionApiDTO object
             result =
-                actionSpecMapper.mapActionSpecToActionApiDTO(
-                    actionOrchestratorRpcService
-                        .getAction(
-                            SingleActionRequest.newBuilder()
-                                .setActionId(oid)
-                                .setTopologyContextId(realtimeTopologyContextId)
-                                .build())
-                        .getActionSpec(),
-                    realtimeTopologyContextId);
+                    actionSpecMapper.mapActionSpecToActionApiDTO(
+                            actionOrchestratorRpcService
+                                    .getAction(
+                                            SingleActionRequest.newBuilder()
+                                                    .setActionId(oid)
+                                                    .setTopologyContextId(realtimeTopologyContextId)
+                                                    .build())
+                                    .getActionSpec(),
+                            realtimeTopologyContextId,
+                            detailLevel);
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
         // check if the passed in entity uuid is related to the action
         if (!isRelatedAction(uuid, result)) {
             throw new IllegalArgumentException(String.format("Entity %s in the query is not " +
-                "related to the action %s.", uuid, aUuid));
+                    "related to the action %s.", uuid, actionUuid));
         }
         return result;
     }
@@ -738,7 +753,9 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException {
+    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid)
+            throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
+            ConversionException, InterruptedException {
         if (!uuidMapper.fromUuid(uuid).isEntity()) {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));
@@ -753,7 +770,9 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException {
+    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag)
+            throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
+            ConversionException, InterruptedException {
         if (!uuidMapper.fromUuid(uuid).isEntity()) {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));

@@ -33,7 +33,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -369,10 +368,9 @@ public class ScopedTopologyTest {
                         consistentScalingHelperFactory);
             });
 
-        Analysis analysis =
-                runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
-                        Optional.empty(), rightsizeLowerWatermark, rightsizeUpperWatermark,
-                        discountedComputeCostFactor);
+        Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
+            Optional.empty(), false, rightsizeLowerWatermark, rightsizeUpperWatermark,
+            discountedComputeCostFactor);
 
         assertThat(analysis.getConfig().getRightsizeLowerWatermark(), is(rightsizeLowerWatermark));
         assertThat(analysis.getConfig().getRightsizeUpperWatermark(), is(rightsizeUpperWatermark));

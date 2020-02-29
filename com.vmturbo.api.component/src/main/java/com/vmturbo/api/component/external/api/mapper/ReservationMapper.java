@@ -13,15 +13,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.ReservationNotificationDTO;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
@@ -39,6 +39,7 @@ import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -157,9 +158,12 @@ public class ReservationMapper {
      * @param reservation {@link Reservation}.
      * @return {@link DemandReservationApiDTO}.
      * @throws UnknownObjectException if there are any unknown objects.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     public DemandReservationApiDTO convertReservationToApiDTO(
-            @Nonnull final Reservation reservation) throws UnknownObjectException {
+            @Nonnull final Reservation reservation)
+            throws UnknownObjectException, ConversionException, InterruptedException {
         final DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
         reservationApiDTO.setUuid(String.valueOf(reservation.getId()));
         reservationApiDTO.setDisplayName(reservation.getName());
@@ -217,10 +221,12 @@ public class ReservationMapper {
      * @param reservationTemplate {@link ReservationTemplate} contains placement information by template.
      * @param reservationApiDTO {@link DemandReservationApiDTO}
      * @throws UnknownObjectException if there are any unknown objects.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private void convertToDemandEntityDTO(@Nonnull final ReservationTemplate reservationTemplate,
                                           @Nonnull final DemandReservationApiDTO reservationApiDTO)
-            throws UnknownObjectException {
+            throws UnknownObjectException, ConversionException, InterruptedException {
         reservationApiDTO.setCount(Math.toIntExact(reservationTemplate.getCount()));
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
@@ -383,9 +389,12 @@ public class ReservationMapper {
      *
      * @param placementInfos contains all initial placement results which only keep ids.
      * @return a map which key is entity id, value is {@link ServiceEntityApiDTO}.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     private Map<Long, ServiceEntityApiDTO> getServiceEntityMap(
-            @Nonnull final List<PlacementInfo> placementInfos) {
+            @Nonnull final List<PlacementInfo> placementInfos)
+            throws ConversionException, InterruptedException {
         final Set<Long> entitiesOid = placementInfos.stream()
                 .map(placementInfo -> Sets.newHashSet(placementInfo.getProviderInfos())
                         .stream().map(a -> a.getProviderId()).collect(Collectors.toSet()))

@@ -208,7 +208,8 @@ public class ReservedInstanceAggregatorTest {
                         topologyEntityCloudTopology);
 
         final Collection<ReservedInstanceAggregate> reservedInstanceAggregates =
-                reservedInstanceAggregator.aggregate(TopologyInfo.newBuilder().build());
+                reservedInstanceAggregator.aggregate(TopologyInfo.newBuilder()
+                                 .build());
         final Map<Long, ReservedInstanceData> riDataMap = reservedInstanceAggregator.getRIDataMap();
         Assert.assertEquals(1, riDataMap.size());
         Assert.assertEquals(riData1, riDataMap.get(riData1.getReservedInstanceBought().getId()));

@@ -2,11 +2,10 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import javax.annotation.Nonnull;
 
-import org.springframework.security.access.AccessDeniedException;
-
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.component.external.api.service.ProbesService;
+import org.springframework.security.access.AccessDeniedException;
+
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -41,9 +40,16 @@ public class ExceptionMapper {
                 return new AccessDeniedException(statusException.getMessage(), statusException.getCause());
             case CANCELLED:
                 return new InterruptedException(statusException.getMessage());
+            // gRPC framework pre-pends error code (eg INVALID_ARGUMENT) to the StatusRuntimeException.getMessage()
+            // which is then shown in the UI.
+            // On the other hand, Status object embedded in StatusRuntimeException has description
+            // without the status code pre-pended.
             case INVALID_ARGUMENT:
             case ALREADY_EXISTS:
-                return new InvalidOperationException(statusException.getMessage());
+                final String message = statusException.getStatus() != null &&
+                    statusException.getStatus().getDescription() != null ?
+                    statusException.getStatus().getDescription() : statusException.getMessage();
+                return new InvalidOperationException(message);
             default:
                 return new OperationFailedException(statusException.getMessage(), statusException);
         }

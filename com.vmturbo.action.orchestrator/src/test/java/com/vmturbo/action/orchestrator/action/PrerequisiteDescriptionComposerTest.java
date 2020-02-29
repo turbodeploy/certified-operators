@@ -37,6 +37,8 @@ public class PrerequisiteDescriptionComposerTest {
                 Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.NVME).build(),
                 Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.ARCHITECTURE).build(),
                 Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.VIRTUALIZATION_TYPE).build(),
+                Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.LOCKS)
+                    .setLocks("[Scope: vm1, name: vm-lock-1, notes: VM lock]").build(),
                 Prerequisite.newBuilder().setPrerequisiteType(PrerequisiteType.CORE_QUOTAS)
                     .setRegionId(123).setQuotaName("test_quota_name").build()))
             .build();
@@ -50,6 +52,8 @@ public class PrerequisiteDescriptionComposerTest {
                 "Alternatively, you can exclude templates that require 64-bit AMIs",
             "(^_^)~To unblock, enable HVM AMIs for {entity:1:displayName:Virtual Machine}. " +
                 "Alternatively, you can exclude templates that require HVM AMIs",
+            "(^_^)~To execute action on {entity:1:displayName:Virtual Machine}, please remove these" +
+                    " read-only locks: [Scope: vm1, name: vm-lock-1, notes: VM lock]",
             "(^_^)~Request a quota increase for test_quota_name in {entity:123:displayName:Region} to " +
                 "allow resize of {entity:1:displayName:Virtual Machine}")),
             new HashSet<>(PrerequisiteDescriptionComposer.composePrerequisiteDescription(action)));

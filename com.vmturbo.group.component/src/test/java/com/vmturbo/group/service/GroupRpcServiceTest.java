@@ -69,7 +69,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -786,11 +785,12 @@ public class GroupRpcServiceTest {
         final List<Long> mockSearchResults = Arrays.asList(1L, 2L);
 
         final GroupDTO.GetMembersRequest req = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .build();
 
         final Grouping group = Grouping
                         .newBuilder()
+                        .setId(groupId)
                         .setDefinition(GroupDefinition
                             .newBuilder()
                             .setEntityFilters(
@@ -815,8 +815,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        Mockito.when(groupStoreDAO.getGroupsById(Collections.singleton(groupId)))
-                .thenReturn(Collections.singleton(group));
+        groupStoreDAO.addGroup(group);
         Mockito.when(searchServiceMole.searchEntityOids(Mockito.any()))
                 .thenReturn(Search.SearchEntityOidsResponse.newBuilder()
                         .addAllEntities(mockSearchResults)
@@ -825,7 +824,8 @@ public class GroupRpcServiceTest {
         groupRpcService.getMembers(req, mockObserver);
 
         final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(mockSearchResults))
+                .setGroupId(groupId)
+                .addAllMemberId(mockSearchResults)
                 .build();
 
         verify(mockObserver, never()).onError(any(Exception.class));
@@ -839,7 +839,7 @@ public class GroupRpcServiceTest {
         final List<Long> staticGroupMembers = Arrays.asList(1L, 2L);
 
         final GroupDTO.GetMembersRequest req = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .build();
 
 
@@ -869,7 +869,8 @@ public class GroupRpcServiceTest {
         groupRpcService.getMembers(req, mockObserver);
 
         final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(staticGroupMembers))
+                .setGroupId(grouping.getId())
+                .addAllMemberId(staticGroupMembers)
                 .build();
 
         verify(mockObserver, never()).onError(any(Exception.class));
@@ -949,30 +950,34 @@ public class GroupRpcServiceTest {
 
         // a request without expansion should get the list of clusters
         final GroupDTO.GetMembersRequest reqNoExpansion = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .build();
 
         groupRpcService.getMembers(reqNoExpansion, mockObserver);
 
         final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(clusterGroupMembers))
+                .setGroupId(groupId)
+                .addAllMemberId(clusterGroupMembers)
                 .build();
 
         verify(mockObserver).onNext(expectedResponse);
 
         // verify that a request WITH expansion should get all of the cluster members.
         final GroupDTO.GetMembersRequest requestExpanded = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .setExpandNestedGroups(true)
                 .build();
 
         final GroupDTO.GetMembersResponse expectedExpandedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(cluster2Members).addAllIds(cluster1Members))
+                .setGroupId(groupId)
+                .addAllMemberId(cluster1Members)
+                .addAllMemberId(cluster2Members)
                 .build();
 
         groupRpcService.getMembers(requestExpanded, mockObserver);
 
-        verify(mockObserver).onNext(expectedExpandedResponse);
+        verify(mockObserver).onNext(
+                Mockito.argThat(new GetMembersMatcher(expectedExpandedResponse)));
     }
 
     @Test
@@ -1051,38 +1056,45 @@ public class GroupRpcServiceTest {
                         .setGroupFilter(groupFilter)
                         .build();
 
-        Mockito.when(groupStoreDAO.getGroupIds(
-                GroupFilters.newBuilder().addGroupFilter(request.getGroupFilter()).build()))
-                .thenReturn(Collections.singleton(1L));
+        Mockito.when(groupStoreDAO.getMembers(Collections.singleton(groupId), false))
+                .thenReturn(
+                        new GroupMembersPlain(Collections.emptySet(), Sets.newHashSet(cluster1Id),
+                                Collections.emptySet()));
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
         // a request without expansion should get the list of clusters
         final GroupDTO.GetMembersRequest reqNoExpansion = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .build();
 
         groupRpcService.getMembers(reqNoExpansion, mockObserver);
 
         final GroupDTO.GetMembersResponse expectedNonExpandedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(Arrays.asList(1L)))
+                .setGroupId(groupId)
+                .addAllMemberId(Arrays.asList(1L))
                 .build();
 
         verify(mockObserver).onNext(expectedNonExpandedResponse);
 
         // verify that a request WITH expansion should get all of the cluster members.
         final GroupDTO.GetMembersRequest requestExpanded = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .setExpandNestedGroups(true)
                 .build();
 
         final GroupDTO.GetMembersResponse expectedExpandedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(cluster1Members))
+                .setGroupId(groupId)
+                .addAllMemberId(cluster1Members)
                 .build();
+        Mockito.when(groupStoreDAO.getMembers(Collections.singleton(groupId), true))
+                .thenReturn(new GroupMembersPlain(new HashSet<>(cluster1Members),
+                        Collections.singleton(cluster1Id), Collections.emptySet()));
 
         groupRpcService.getMembers(requestExpanded, mockObserver);
 
-        verify(mockObserver).onNext(expectedExpandedResponse);
+        verify(mockObserver).onNext(
+                Mockito.argThat(new GetMembersMatcher(expectedExpandedResponse)));
     }
 
     @Test
@@ -1090,17 +1102,14 @@ public class GroupRpcServiceTest {
         final long groupId = 1234L;
 
         final GroupDTO.GetMembersRequest req = GroupDTO.GetMembersRequest.newBuilder()
-                .setId(groupId)
+                .addId(groupId)
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        given(groupStoreDAO.getGroupsById(Mockito.anyCollectionOf(Long.class))).willReturn(
-                Collections.emptyList());
-
         groupRpcService.getMembers(req, mockObserver);
-        Mockito.verify(groupStoreDAO).getGroupsById(Collections.singleton(groupId));
+        Mockito.verify(groupStoreDAO).getExistingGroupIds(Collections.singleton(groupId));
 
         verify(mockObserver).onError(any(IllegalArgumentException.class));
         verify(mockObserver, never()).onNext(any(GroupDTO.GetMembersResponse.class));
@@ -2152,11 +2161,11 @@ public class GroupRpcServiceTest {
                         .addAllEntities(searchResults)
                         .build());
         final CountDownLatch latch = new CountDownLatch(1);
-        groupRpcService.getMembers(GetMembersRequest.newBuilder().setId(groupId).build(),
+        groupRpcService.getMembers(GetMembersRequest.newBuilder().addId(groupId).build(),
                 new StreamObserver<GetMembersResponse>() {
                     @Override
                     public void onNext(GetMembersResponse value) {
-                        members.addAll(value.getMembers().getIdsList());
+                        members.addAll(value.getMemberIdList());
                     }
 
                     @Override
@@ -2241,4 +2250,16 @@ public class GroupRpcServiceTest {
             super(expected, Collections.singleton("entity_group.value.group_id"));
         }
     }
+
+    /**
+     * A matcher for group definition. It is used instead of equality operator in order to
+     * match orderless collections inside.
+     */
+    private static class GetMembersMatcher extends ProtobufMessageMatcher<GetMembersResponse> {
+
+        GetMembersMatcher(@Nonnull GetMembersResponse expected) {
+            super(expected, Collections.singleton("member_id"));
+        }
+    }
+
 }

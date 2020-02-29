@@ -59,6 +59,7 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
     private static final long VM_REFERENCE_ID = 1002;
     private static final long PHYSICAL_MACHINE_OID = 1003;
     private static final long CLUSTER_ID = 1004;
+    private static final long VDC_OID = 1005;
     private static final String CLUSTER_NAME = "vsphere-dc01-DC01\\vsphere-dc01-Clus01";
     private static final String SNAPSHOT = "/Clone Snapshot";
     private static final String VENDOR_ID = "SITE01-POD01-POOL01-FULL-SMALL-1VCPU-2GB";
@@ -143,10 +144,14 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
                         .build());
         final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders =
                 ImmutableList.of(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE)
-                        .setProviderId(DESKTOP_POOL_OID)
-                        .addAllCommodityBought(commodityBoughtDTOList)
-                        .build());
+                                                 .setProviderEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
+                                                 .setProviderId(VDC_OID)
+                                                 .build(),
+                                 CommoditiesBoughtFromProvider.newBuilder()
+                                                 .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE)
+                                                 .setProviderId(DESKTOP_POOL_OID)
+                                                 .addAllCommodityBought(commodityBoughtDTOList)
+                                                 .build());
         final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
                 .setOid(VIRTUAL_MACHINE_ID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)

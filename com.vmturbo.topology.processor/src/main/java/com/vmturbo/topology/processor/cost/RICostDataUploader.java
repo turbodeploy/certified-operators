@@ -1,12 +1,14 @@
 package com.vmturbo.topology.processor.cost;
 
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CLOUD_COST_UPLOAD_TIME;
+import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.MILLIS_PER_3_YEAR;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.MILLIS_PER_YEAR;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.RI_DATA_SECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_BUILD_STAGE;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_UPLOAD_STAGE;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -14,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -50,8 +51,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
-import com.vmturbo.topology.processor.entity.Entity;
-import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -72,6 +71,8 @@ public class RICostDataUploader {
 
     // track the last upload time. We want to space the uploads apart, to once-per-hour.
     private Instant lastUploadTime = null;
+
+    private static final int DELTA_RI_DURATION_DAYS = 1;
 
     private final boolean fullAzureEARIDiscovery;
 
@@ -251,6 +252,9 @@ public class RICostDataUploader {
 
                     // create an RI spec based on the details of the entity
                     ReservedInstanceData riData = riStitchingEntity.getEntityBuilder().getReservedInstanceData();
+                    double riDuration = (double)riData.getDuration() / MILLIS_PER_YEAR;
+                    // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years
+                    if (isRIDurationStandard(riData)) {
                     ReservedInstanceSpecInfo.Builder riSpecInfoBuilder = ReservedInstanceSpecInfo.newBuilder()
                             .setType(ReservedInstanceType.newBuilder()
                                     .setOfferingClass(OfferingClass.forNumber(riData.getOfferingClass().getNumber()))
@@ -259,8 +263,7 @@ public class RICostDataUploader {
                                     // round to the nearest number of years.
                                     .setTermYears((int)Math.round((double)riData.getDuration()/MILLIS_PER_YEAR)))
                             .setTenancy(Tenancy.forNumber(riData.getInstanceTenancy().getNumber()))
-                            .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()))
-                            .setPlatformFlexible(riData.getPlatformFlexible());
+                            .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()));
                     // haz region?
                     if (riData.hasRegion() && cloudEntitiesMap.containsKey(riData.getRegion())) {
                         riSpecInfoBuilder.setRegionId(cloudEntitiesMap.get(riData.getRegion()));
@@ -273,7 +276,9 @@ public class RICostDataUploader {
                     if (riData.hasInstanceSizeFlexible()) {
                         riSpecInfoBuilder.setSizeFlexible(riData.getInstanceSizeFlexible());
                     }
-
+                    if (riData.hasPlatformFlexible()) {
+                        riSpecInfoBuilder.setPlatformFlexible(riData.getInstanceSizeFlexible());
+                    }
                     ReservedInstanceSpecInfo riSpecInfo = riSpecInfoBuilder.build();
 
                     // if we haven't already saved this spec, add it to the list.
@@ -368,6 +373,7 @@ public class RICostDataUploader {
                         scopeInfo);
 
                     riBoughtByLocalId.put(riStitchingEntity.getLocalId(), riBought);
+                    }
                 });
 
         // add the extracted data to the cost component data object.
@@ -382,6 +388,19 @@ public class RICostDataUploader {
         riCostComponentData.riSpecs = riSpecs;
         riCostComponentData.riBoughtByLocalId = riBoughtByLocalId;
     }
+
+    /**
+     * The RI duration should be within 1 day of 1*365 days (1 year RI term) or 3*365 days (3 year RI term).
+     * @param riData RI spec based on the details of the entity
+     * @return true if a standard RI duration.
+     */
+    private boolean isRIDurationStandard(final ReservedInstanceData riData) {
+        return (Duration.ofMillis(riData.getDuration()).minusMillis(MILLIS_PER_YEAR).abs().toDays()
+                < DELTA_RI_DURATION_DAYS)
+                || (Duration.ofMillis(riData.getDuration()).minusMillis(MILLIS_PER_3_YEAR).abs().toDays()
+                < DELTA_RI_DURATION_DAYS);
+    }
+
 
     private static long getOwnerAccountOid(
             @Nonnull TopologyStitchingEntity riStitchingEntity,

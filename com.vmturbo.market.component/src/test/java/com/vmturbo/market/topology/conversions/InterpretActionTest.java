@@ -72,6 +72,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -151,21 +152,20 @@ public class InterpretActionTest {
             .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
             .setKey("bar")
             .build();
-        final CommodityType cpu = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-            .build();
-        final CommodityType cpuRed = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-            .setKey("red")
-            .build();
 
         int segmentationFooId = converter.getCommodityConverter()
-                .toMarketCommodityId(segmentationFoo);
+                .commoditySpecification(segmentationFoo).getType();
         int segmentationBarId = converter.getCommodityConverter()
-                .toMarketCommodityId(segmentationBar);
-        int cpuId = converter.getCommodityConverter().toMarketCommodityId(cpu);
-        int cpuRedId = converter.getCommodityConverter().toMarketCommodityId(cpuRed);
-
+                .commoditySpecification(segmentationBar).getType();
+        final CommodityType cpu = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                .build();
+        final CommodityType cpuRed = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                .setKey("red")
+                .build();
+        final int cpuId = converter.getCommodityConverter().commoditySpecification(cpu).getType();
+        final int cpuRedId = converter.getCommodityConverter().commoditySpecification(cpuRed).getType();
         assertEquals(segmentationFoo, converter.getCommodityConverter().commodityIdToCommodityType(segmentationFooId));
         assertEquals(segmentationBar, converter.getCommodityConverter().commodityIdToCommodityType(segmentationBarId));
         assertEquals(cpu, converter.getCommodityConverter().commodityIdToCommodityType(cpuId));
@@ -448,7 +448,7 @@ public class InterpretActionTest {
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
-               .when(commConverter).economyToTopologyCommodity(eq(economyCommodity1));
+               .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
 
         final float oldCapacity = 10;
         final float newCapacity = 9;
@@ -480,6 +480,7 @@ public class InterpretActionTest {
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
             ImmutableMap.of(entityToActivate, entity(entityToActivate, entityType, EnvironmentType.ON_PREM));
         final CommodityConverter commConverter = mock(CommodityConverter.class);
+
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
@@ -491,8 +492,16 @@ public class InterpretActionTest {
             .setKey("Foo")
             .build();
 
+        final CommoditySpecificationTO spec = CommoditySpecificationTO.newBuilder()
+                .setBaseType(12)
+                .setType(10)
+                .build();
+        Mockito.doReturn(spec)
+                .when(commConverter).commoditySpecification(eq(expectedCommodityType));
+
+
         final int marketCommodityId = converter.getCommodityConverter().
-                toMarketCommodityId(expectedCommodityType);
+                commoditySpecification(expectedCommodityType).getType();
         final  CommodityDTOs.CommoditySpecificationTO economyCommodity =
             CommodityDTOs.CommoditySpecificationTO.newBuilder()
                 .setType(marketCommodityId)
@@ -500,9 +509,10 @@ public class InterpretActionTest {
                 .build();
 
         Mockito.doReturn(Optional.of(topologyCommodity1))
-               .when(commConverter).economyToTopologyCommodity(eq(economyCommodity));
+               .when(commConverter).marketToTopologyCommodity(eq(economyCommodity));
         Mockito.doReturn(Optional.of(topologyCommodity2))
-                .when(commConverter).economyToTopologyCommodity(eq(economyCommodity2));
+                .when(commConverter).marketToTopologyCommodity(eq(economyCommodity2));
+
 
         final ActionTO activateAction = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -541,9 +551,9 @@ public class InterpretActionTest {
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
-                .when(commConverter).economyToTopologyCommodity(eq(economyCommodity1));
+                .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))
-                .when(commConverter).economyToTopologyCommodity(eq(economyCommodity2));
+                .when(commConverter).marketToTopologyCommodity(eq(economyCommodity2));
 
         final ActionTO deactivateAction = ActionTO.newBuilder()
                 .setImportance(0.)

@@ -48,7 +48,7 @@ public class PolicyMapperTest {
     private static final long testProviderId = 1234567890L;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         final Grouping consumerGroup = Grouping.newBuilder().setId(testConsumerId).build();
         final Grouping providerGroup = Grouping.newBuilder().setId(testProviderId).build();
 
@@ -83,7 +83,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoDiscoveredPolicy() {
+    public void testPolicyToApiDtoDiscoveredPolicy() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder().clearCommodityType();
         final Policy policy = rawPolicyBuilder
                 .setTargetId(1L)
@@ -95,7 +95,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoDiscoveredPolicyExplicitCommodityType() {
+    public void testPolicyToApiDtoDiscoveredPolicyExplicitCommodityType() throws Exception {
         final Policy policy = rawPolicyBuilder
                 .setTargetId(1L)
                 .build();
@@ -106,7 +106,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoAtMostN() {
+    public void testPolicyToApiDtoAtMostN() throws Exception {
         // given
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setAtMostN(PolicyInfo.AtMostNPolicy.newBuilder()
@@ -139,7 +139,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoAtMostNBound() {
+    public void testPolicyToApiDtoAtMostNBound() throws Exception {
         // given
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setAtMostNbound(PolicyInfo.AtMostNBoundPolicy.newBuilder()
@@ -171,7 +171,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoBindToCompGroup() {
+    public void testPolicyToApiDtoBindToCompGroup() throws Exception {
         // given
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setBindToComplementaryGroup(PolicyInfo.BindToComplementaryGroupPolicy.newBuilder()
@@ -201,7 +201,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroup() {
+    public void testPolicyToApiDtoBindToGroup() throws Exception {
          rawPolicyBuilder.getPolicyInfoBuilder()
                 .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -227,7 +227,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroupLicense() {
+    public void testPolicyToApiDtoBindToGroupLicense() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setBindToGroupAndLicense(PolicyInfo.BindToGroupAndLicencePolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -255,7 +255,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroupGeoRedundancy() {
+    public void testPolicyToApiDtoBindToGroupGeoRedundancy() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder()
             .setBindToGroupAndGeoRedundancy(PolicyInfo.BindToGroupAndGeoRedundancyPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -282,7 +282,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoMergeCluster() {
+    public void testPolicyToApiDtoMergeCluster() throws Exception {
 
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMerge(rawMergeBuilder
@@ -310,7 +310,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoMergeStorageCluster() {
+    public void testPolicyToApiDtoMergeStorageCluster() throws Exception {
 
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMerge(rawMergeBuilder
@@ -338,7 +338,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoMergeDataCenter() {
+    public void testPolicyToApiDtoMergeDataCenter() throws Exception {
 
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMerge(rawMergeBuilder
@@ -366,7 +366,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoMustRunTogether() {
+    public void testPolicyToApiDtoMustRunTogether() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMustRunTogether(PolicyInfo.MustRunTogetherPolicy.newBuilder()
                         .setGroupId(testConsumerId)
@@ -393,7 +393,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoMustNotRunTogether() {
+    public void testPolicyToApiDtoMustNotRunTogether() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMustNotRunTogether(PolicyInfo.MustNotRunTogetherPolicy.newBuilder()
                         .setGroupId(testConsumerId)
@@ -416,7 +416,7 @@ public class PolicyMapperTest {
 
 
     @Test
-    public void testPolicyApiInputDtoToProtoBindGroup() {
+    public void testPolicyApiInputDtoToProtoBindGroup() throws Exception {
         final PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.BIND_TO_GROUP);
 
@@ -625,9 +625,11 @@ public class PolicyMapperTest {
     /**
      * Test that if group can not be found, basic info for PolicyApiDTO is still populated, and
      * GroupApiDTO is returned with only one uuid field.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testPolicyToApiDtoGroupNotFound() {
+    public void testPolicyToApiDtoGroupNotFound() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)

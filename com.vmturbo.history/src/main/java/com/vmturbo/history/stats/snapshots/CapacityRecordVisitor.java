@@ -4,14 +4,15 @@
 
 package com.vmturbo.history.stats.snapshots;
 
+import java.util.Collection;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.google.common.collect.ImmutableSet;
+
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -20,6 +21,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.history.stats.PropertySubType;
 
 /**
  * {@link CapacityRecordVisitor} visits capacity and effective capacity property in DB record,
@@ -29,8 +31,9 @@ import com.vmturbo.components.common.utils.StringConstants;
 @ThreadSafe
 public class CapacityRecordVisitor
                 extends AbstractVisitor<Record, Pair<StatsAccumulator, StatsAccumulator>> {
-    private static final Logger LOGGER = LogManager.getLogger(CapacityRecordVisitor.class);
-    private final BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> capacityPopulator;
+    private static final Collection<PropertySubType> CAPACITY_AWARE_SUB_TYPES =
+                    ImmutableSet.of(PropertySubType.Utilization, PropertySubType.Used);
+    private final SharedPropertyPopulator<Pair<StatValue, Float>> capacityPopulator;
 
     /**
      * Creates {@link CapacityRecordVisitor} instance.
@@ -39,7 +42,7 @@ public class CapacityRecordVisitor
      *                 related stuff.
      */
     public CapacityRecordVisitor(
-                    @Nonnull BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> capacityPopulator) {
+            @Nonnull SharedPropertyPopulator<Pair<StatValue, Float>> capacityPopulator) {
         super((state) -> {
             state.first.clear();
             state.second.clear();
@@ -51,8 +54,17 @@ public class CapacityRecordVisitor
     public void visit(@Nonnull Record record) {
         final Float capacity =
                         RecordVisitor.getFieldValue(record, StringConstants.CAPACITY, Float.class);
+        final String rawPropertySubType =
+                        RecordVisitor.getFieldValue(record, StringConstants.PROPERTY_SUBTYPE,
+                                        String.class);
+        final PropertySubType propertySubType =
+                        PropertySubType.fromApiParameter(rawPropertySubType);
+        if (!CAPACITY_AWARE_SUB_TYPES.contains(propertySubType)) {
+            return;
+        }
         if (capacity == null) {
-            LOGGER.warn("Cannot get '{}' value from '{}'", StringConstants.CAPACITY, record);
+            addProblematicRecord(String.format("Cannot get '%s' value from record",
+                            StringConstants.CAPACITY), record);
             return;
         }
         final Pair<StatsAccumulator, StatsAccumulator> state =
@@ -77,7 +89,8 @@ public class CapacityRecordVisitor
         final StatsAccumulator effectiveCapacityAccumulator = state.second;
         final float reserved = (float)(capacityAccumulator.getTotal() - effectiveCapacityAccumulator
                         .getTotal());
-        capacityPopulator.accept(builder, new Pair<>(capacityAccumulator.toStatValue(), reserved));
+        capacityPopulator.accept(builder, new Pair<>(capacityAccumulator.toStatValue(), reserved),
+                        record);
     }
 
     private static Pair<StatsAccumulator, StatsAccumulator> createAccumulators() {
@@ -88,12 +101,13 @@ public class CapacityRecordVisitor
      * {@link CapacityPopulator} populates capacity and reserved values in {@link
      * StatRecord.Builder}.
      */
-    public static class CapacityPopulator
-                    implements BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> {
+    public static class CapacityPopulator extends SharedPropertyPopulator<Pair<StatValue, Float>> {
 
         @Override
-        public void accept(Builder builder, Pair<StatValue, Float> capacityReserved) {
-            if (capacityReserved.first != null) {
+        public void accept(@Nonnull Builder builder,
+                @Nullable Pair<StatValue, Float> capacityReserved, @Nullable Record record) {
+            if (capacityReserved != null && capacityReserved.first != null && whetherToSet(
+                            builder.hasCapacity(), record)) {
                 builder.setCapacity(capacityReserved.first);
                 if (capacityReserved.second != null) {
                     builder.setReserved(capacityReserved.second);

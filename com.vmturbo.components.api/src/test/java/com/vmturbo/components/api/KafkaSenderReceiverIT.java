@@ -85,7 +85,7 @@ public class KafkaSenderReceiverIT {
     public void init() throws Exception {
         kafkaConsumer =
                 new KafkaMessageConsumer(kafkaServer.getBootstrapServers(), "test-consumer-group");
-        kafkaProducer = new KafkaMessageProducer((kafkaServer.getBootstrapServers()));
+        kafkaProducer = new KafkaMessageProducer(kafkaServer.getBootstrapServers(), "", Integer.MAX_VALUE, Integer.MAX_VALUE);
         threadPool = Executors.newCachedThreadPool();
     }
 

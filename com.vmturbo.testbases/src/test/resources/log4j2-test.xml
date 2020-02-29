@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration name="ComponentConfig" status="error">
+    <Appenders>
+        <Console name="stdout">
+            <PatternLayout>
+                <Pattern>ttt %d %5p [%t] [%c]\t: %m%n%throwable</Pattern>
+            </PatternLayout>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="stdout"/>
+        </Root>
+        <Logger name="com.vmturbo" level="info" />
+        <logger name="org.flywaydb" level="info"/>
+    </Loggers>
+</Configuration>

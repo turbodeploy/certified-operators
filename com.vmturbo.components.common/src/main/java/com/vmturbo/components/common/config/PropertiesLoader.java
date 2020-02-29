@@ -81,6 +81,12 @@ public class PropertiesLoader {
         // Fetch other configuration properties from files compiled into the component
         applicationContext.getEnvironment().getPropertySources()
             .addFirst(fetchOtherProperties(CONFIG));
+        if (logger.isInfoEnabled()) {
+            // print the property source list
+            logger.info("Application context property sources:");
+            applicationContext.getEnvironment().getPropertySources().iterator()
+                    .forEachRemaining(source -> logger.info("    {}", source.getName()));
+        }
     }
 
     /**

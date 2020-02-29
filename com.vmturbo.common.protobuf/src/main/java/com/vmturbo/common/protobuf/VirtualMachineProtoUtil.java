@@ -127,6 +127,11 @@ public class VirtualMachineProtoUtil {
     public static final String PROPERTY_VM_VIRTUALIZATION_TYPE = "virtualizationType";
 
     /**
+     * Info about any read-only lock prerequisites on VM preventing action execution.
+     */
+    public static final String PROPERTY_LOCKS = "locks";
+
+    /**
      * String representation of architecture type to protobuf type.
      */
     public static final BiMap<String, Architecture> ARCHITECTURE =

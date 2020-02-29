@@ -24,8 +24,8 @@ public class Scalability2TimesRIsZonalWindows {
         OSType platform = OSType.WINDOWS;
         int familyRange = 13;
         // templates, VMs, RIs, families, zones, accounts, isZonalRIs, OS, family range
-        SMAUtilsTest.testRandomInput(templates, 10000, 20000, families, zones, accounts, typeOfRIs, platform, familyRange);
-        SMAUtilsTest.testRandomInput(templates, 16000, 32000, families, zones, accounts, typeOfRIs, platform, familyRange);
+        SMAUtilsTest.testRandomInput(templates, 20000, 10000, families, zones, accounts, typeOfRIs, platform, familyRange);
+        SMAUtilsTest.testRandomInput(templates, 16000,  8000, families, zones, accounts, typeOfRIs, platform, familyRange);
         SMAUtilsTest.testRandomInput(templates, 20000, 10000, families, zones, accounts, typeOfRIs, platform, familyRange);
         SMAUtilsTest.testRandomInput(templates, 32000, 16000, families, zones, accounts, typeOfRIs, platform, familyRange);
         SMAUtilsTest.testRandomInput(templates, 40000, 20000, families, zones, accounts, typeOfRIs, platform, familyRange);

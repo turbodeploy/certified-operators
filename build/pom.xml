@@ -42,7 +42,7 @@
         <protobuf.version>3.6.1</protobuf.version>
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
-
+        <owasp.version>5.3.0</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <lz4.version>1.4</lz4.version>
@@ -126,7 +126,7 @@
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>
-        <kafka.version>1.1.0</kafka.version>
+        <kafka.version>2.4.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <failsafe.version>2.19.1</failsafe.version>
@@ -235,6 +235,7 @@
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.history</module>
                 <module>../com.vmturbo.history.schema</module>
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -379,6 +380,13 @@
             <id>kafka</id>
             <modules>
                 <module>../kafka</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>zookeeper</id>
+            <modules>
+                <module>../zookeeper</module>
             </modules>
         </profile>
 
@@ -856,6 +864,9 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -917,6 +928,9 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -1087,6 +1101,9 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
         <profile>
@@ -1105,6 +1122,28 @@
                 <module>../nginx</module>
                 <module>../diags</module>
             </modules>
+        </profile>
+        <profile>
+            <id>securitycheck</id>
+    <build>
+      <plugins>
+        <plugin>
+          <groupId>org.owasp</groupId>
+          <artifactId>dependency-check-maven</artifactId>
+          <version>${owasp.version}</version>
+          <!--configuration>
+            <suppressionFiles>${basedir}/suppressed.xml</suppressionFiles>
+          </configuration-->
+          <executions>
+            <execution>
+              <goals>
+                <goal>check</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </build>
         </profile>
         <profile>
             <id>save</id>
@@ -1889,6 +1928,12 @@
                 <artifactId>system-notification-receiver</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.testbases</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
 
             <dependency>
                 <groupId>com.vmturbo</groupId>
@@ -2188,6 +2233,12 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>jcl-over-slf4j</artifactId>
                 <version>1.7.25</version>
+            </dependency>
+            <dependency>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>${owasp.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>
@@ -2691,6 +2742,11 @@
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
                 <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jgit</groupId>
+                <artifactId>org.eclipse.jgit</artifactId>
+                <version>5.6.0.201912101111-r</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

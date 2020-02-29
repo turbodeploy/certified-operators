@@ -2,7 +2,9 @@ package com.vmturbo.topology.processor.analysis;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
@@ -56,7 +58,7 @@ public class AnalysisRpcServiceTest {
 
     private AnalysisRpcService analysisService =
             new AnalysisRpcService(pipelineExecutorService, topologyHandler, identityProvider,
-                journalFactory, clock);
+                journalFactory, clock, true);
 
     private final long returnEntityNum = 1337;
 
@@ -219,5 +221,46 @@ public class AnalysisRpcServiceTest {
         final TopologyInfo response = responseCaptor.getValue();
         assertThat(response.getAnalysisTypeCount(), is(1));
         assertThat(response.getAnalysisType(0), is(AnalysisType.MARKET_ANALYSIS));
+    }
+
+    /**
+     * Tests whether BUY_RI_IMPACT_ANALYSIS is a relevant AnalysisType for the 3 OCP Plan options,
+     * given the allowBoughtRiInAnalysis user specifiable flag (true/false).
+     *
+     */
+    @Test
+    public void testGetAnalysisTypes() {
+        // OCP Option #3, always run Buy RI impact analysis, hence BUY_RI_IMPACT_ANALYSIS should be one of the
+        // return AnalysisTypes.
+        assertTrue(analysisService.getAnalysisTypes(StringConstants.OPTIMIZE_CLOUD_PLAN,
+                                                       StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY,
+                                                       topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+        analysisService.setAllowBoughtRiInAnalysis(false);
+        assertTrue(analysisService.getAnalysisTypes(StringConstants.OPTIMIZE_CLOUD_PLAN,
+                                                    StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY,
+                                                    topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+
+        // OCP Option #2, no need to run Buy RI impact analysis, hence BUY_RI_IMPACT_ANALYSIS should not be one of the
+        // return AnalysisTypes.
+        analysisService.setAllowBoughtRiInAnalysis(true);
+        assertFalse(analysisService.getAnalysisTypes(StringConstants.OPTIMIZE_CLOUD_PLAN,
+                                                    StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES,
+                                                    topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+        analysisService.setAllowBoughtRiInAnalysis(false);
+        assertFalse(analysisService.getAnalysisTypes(StringConstants.OPTIMIZE_CLOUD_PLAN,
+                                                 StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES,
+                                                 topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+
+        // OCP Option #1, run Buy RI impact analysis if allowBoughtRiInAnalysis is false and vice versa, hence
+        // BUY_RI_IMPACT_ANALYSIS should not be one of the return AnalysisTypes, only in the flag is false.
+        analysisService.setAllowBoughtRiInAnalysis(true);
+        assertFalse(analysisService.getAnalysisTypes(StringConstants.OPTIMIZE_CLOUD_PLAN,
+                                                    StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES,
+                                                    topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+        analysisService.setAllowBoughtRiInAnalysis(false);
+        assertTrue(analysisService.getAnalysisTypes(StringConstants.OPTIMIZE_CLOUD_PLAN,
+                                                 StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES,
+                                                 topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+
     }
 }

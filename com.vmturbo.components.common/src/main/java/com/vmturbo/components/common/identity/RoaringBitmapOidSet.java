@@ -16,7 +16,7 @@ public class RoaringBitmapOidSet implements OidSet {
     private final Roaring64NavigableMap roaringBitmap;
 
     public RoaringBitmapOidSet(long[] oids) {
-        roaringBitmap = Roaring64NavigableMap.bitmapOf(oids);
+        roaringBitmap = Roaring64NavigableMap.bitmapOf(oids != null ? oids : new long[0]);
     }
 
     public RoaringBitmapOidSet(Collection<Long> oids) {

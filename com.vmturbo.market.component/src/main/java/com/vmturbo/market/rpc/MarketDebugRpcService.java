@@ -93,6 +93,7 @@ public class MarketDebugRpcService extends MarketDebugServiceImplBase {
                     .setTopologyInfo(analysis.getTopologyInfo())
                     .addAllEntities(analysis.getOriginalInputTopology().values())
                     .setIncludeVdc(analysisConfig.getIncludeVdc())
+                    .setUseQuoteCacheDuringSnm(analysisConfig.getUseQuoteCacheDuringSNM())
                     .setRightSizeLowerWatermark(analysisConfig.getRightsizeLowerWatermark())
                     .setRightSizeUpperWatermark(analysisConfig.getRightsizeUpperWatermark())
                     .setQuoteFactor(analysisConfig.getQuoteFactor())

@@ -164,7 +164,8 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.Q16_VCPU_VALUE,
                     CommodityDTO.CommodityType.Q32_VCPU_VALUE,
                     CommodityDTO.CommodityType.Q64_VCPU_VALUE,
-                    CommodityDTO.CommodityType.QN_VCPU_VALUE);
+                    CommodityDTO.CommodityType.QN_VCPU_VALUE,
+                    CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE);
 
     /**
      * These are the types that in the platform are subclasses of AccessCommodity.

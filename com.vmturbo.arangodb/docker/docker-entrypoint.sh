@@ -35,7 +35,34 @@ if [ "$1" = 'arangod' ]; then
 	 if [[ ! -f $ARANGO_CONF ]] ; then
 	    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF (initial setup)" | $LOGGER_COMMAND
 	    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
-	fi
+	 fi
+
+	    # Test arangoDB version for a mismatch (search for old 3.3.22 version from previous image)
+	echo "Testing if a database upgrade is needed." | $LOGGER_COMMAND
+    if [[ `grep  '30323' -r  /var/lib/arangodb3/databases/**/VERSION 2>/dev/null | wc -l` -gt 0 ]] ; then
+        echo "Database upgrade needed!" | $LOGGER_COMMAND
+        UPGRADE_FLAGS="--database.auto-upgrade true"
+        # Replace config file on upgrade
+        echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF as part of the upgrade" | $LOGGER_COMMAND
+        cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
+    fi
+
+    # Test if an existing mmfiles database needs to be replaced with rocksDB
+    if [[ `grep 'mmfiles'  /var/lib/arangodb3/ENGINE 2>/dev/null | wc -l` -gt 0 ]] ; then
+        # Location for the mmfiles ArangoDB database backup
+        MMFILES_DUMP_LOCATION=/home/arangodb/arangodb-dump/mmfiles-dump
+        if [[ ! -d  "$MMFILES_DUMP_LOCATION" ]] ; then
+            # Run mmfiles-dump in background waiting for ArangoDB to start
+            /mmfiles-dump.sh &
+        else
+            echo "Database backup was successfully stored at $MMFILES_DUMP_LOCATION. Deleting the obsolete mmfiles data files..." | $LOGGER_COMMAND
+            rm -rf /var/lib/arangodb3/journals | $LOGGER_COMMAND
+            rm -rf /var/lib/arangodb3/databases | $LOGGER_COMMAND
+            rm -rf /var/lib/arangodb3/ENGINE | $LOGGER_COMMAND
+            # Run mmfiles-restore in background waiting for ArangoDB to start
+            /mmfiles-restore.sh &
+        fi
+    fi
 
 	# if we really want to start arangod and not bash or any other thing
 	# prepend --authentication as the FIRST argument

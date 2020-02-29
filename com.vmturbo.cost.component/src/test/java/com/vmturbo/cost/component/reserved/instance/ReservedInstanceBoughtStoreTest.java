@@ -9,13 +9,13 @@ import static org.junit.Assert.assertThat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.vmturbo.common.protobuf.cost.Cost;
+import com.google.common.collect.Sets;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -24,13 +24,13 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.Sets;
-
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
@@ -40,18 +40,21 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
+import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
+import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
@@ -73,6 +76,8 @@ public class ReservedInstanceBoughtStoreTest {
 
     private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
+
+    private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
     private DSLContext dsl;
@@ -139,10 +144,14 @@ public class ReservedInstanceBoughtStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
+        Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
+        ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
+                .putAllRiPricesBySpecId(map).build();
+        Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator);
+                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         insertDefaultReservedInstanceSpec();
     }
 

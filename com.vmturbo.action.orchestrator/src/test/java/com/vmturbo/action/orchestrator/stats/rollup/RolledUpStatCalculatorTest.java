@@ -254,8 +254,8 @@ public class RolledUpStatCalculatorTest {
         dayRecord2.record().setMgmtUnitSubgroupId(MGMT_SUBUNIT_ID);
         dayRecord2.record().setDayTime(LocalDateTime.MAX);
 
-        dayRecord1.record().setPriorActionCount(10);
-        dayRecord1.record().setNewActionCount(5);
+        dayRecord2.record().setPriorActionCount(10);
+        dayRecord2.record().setNewActionCount(5);
         dayRecord2.record().setAvgActionCount(BigDecimal.valueOf(10));
         dayRecord2.record().setAvgEntityCount(BigDecimal.valueOf(12));
         dayRecord2.record().setAvgInvestment(BigDecimal.valueOf(14));
@@ -283,6 +283,8 @@ public class RolledUpStatCalculatorTest {
         assertThat(groupStat.avgInvestment(), closeTo((7.0 + 14) / 4, 0.0001));
         assertThat(groupStat.avgSavings(), closeTo((8.0 + 16) / 4, 0.00001));
 
+        assertThat(groupStat.priorActionCount(), is(dayRecord1.record().getPriorActionCount()));
+        assertThat(groupStat.newActionCount(), is(dayRecord1.record().getNewActionCount() + dayRecord2.record().getNewActionCount()));
         assertThat(groupStat.minActionCount(), is(3));
         assertThat(groupStat.minEntityCount(), is(4));
         assertThat(groupStat.minInvestment(), closeTo(5, 0.00001));

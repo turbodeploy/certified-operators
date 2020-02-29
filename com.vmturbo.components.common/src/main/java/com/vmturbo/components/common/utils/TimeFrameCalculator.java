@@ -3,6 +3,8 @@ package com.vmturbo.components.common.utils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -54,4 +56,34 @@ public class TimeFrameCalculator {
         }
         return TimeFrame.MONTH;
     }
+
+    /**
+     * It is possible that one timestamp lies in more than one tables related to timeframe.
+     * For example, a timestamp an hour ago (LATEST timeframe) from current time has potential to be in hour/day/month
+     * table. Hence, for such a case we return all such time frames.
+     * @param timeFrame current time frame to apply.
+     * @return all time frames where this timeframe can possibly fit.
+     */
+    public List<TimeFrame> getAllRelevantTimeFrames(TimeFrame timeFrame) {
+        List<TimeFrame> timeFrames = new ArrayList<>();
+        // NOTE : Break statements are intentionally avoided after every case.
+        switch (timeFrame) {
+            case LATEST:
+                timeFrames.add(TimeFrame.LATEST);
+            case HOUR:
+                timeFrames.add(TimeFrame.HOUR);
+            case DAY:
+                timeFrames.add(TimeFrame.DAY);
+            case MONTH:
+                timeFrames.add(TimeFrame.MONTH);
+                break;
+            default:
+                timeFrames.add(TimeFrame.MONTH);
+        }
+        return timeFrames;
+    }
+
+
+
+
 }

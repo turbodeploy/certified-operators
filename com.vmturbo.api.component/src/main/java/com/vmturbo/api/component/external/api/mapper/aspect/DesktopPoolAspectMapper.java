@@ -143,8 +143,19 @@ public class DesktopPoolAspectMapper extends AbstractAspectMapper {
                         .stream()
                         .anyMatch(commodity -> commodity.getCommodityType().getType() ==
                                 CommodityType.CPU_ALLOCATION_VALUE))
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .findFirst();
+                        .sorted((entity1, entity2) -> {
+                            // We expect only one desktop pool for VM and it has more priority than VDC
+                            if (entity1.getProviderEntityType() == EntityType.DESKTOP_POOL_VALUE) {
+                                return -1;
+                            } else if (entity2.getProviderEntityType()
+                                       == EntityType.DESKTOP_POOL_VALUE) {
+                                return 1;
+                            } else {
+                                return 0;
+                            }
+                        })
+                        .map(CommoditiesBoughtFromProvider::getProviderId)
+                        .findFirst();
     }
 
     @Nonnull

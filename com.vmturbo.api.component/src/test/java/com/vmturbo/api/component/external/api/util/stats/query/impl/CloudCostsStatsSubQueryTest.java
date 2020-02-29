@@ -45,6 +45,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -96,6 +97,9 @@ public class CloudCostsStatsSubQueryTest {
 
     @Mock
     private StorageStatsSubQuery storageStatsSubQuery;
+
+    @Mock
+    private UserSessionContext userSessionContext;
 
     private static final long TARGET_ID_1 = 11L;
     private static final long TARGET_ID_2 = 12L;
@@ -168,7 +172,7 @@ public class CloudCostsStatsSubQueryTest {
                 mockSupplyChainNodeFetcherBuilder();
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
         query = spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
-                supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler(), storageStatsSubQuery));
+                supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler(), storageStatsSubQuery, userSessionContext ));
     }
 
     private SupplyChainNodeFetcherBuilder mockSupplyChainNodeFetcherBuilder()

@@ -17,6 +17,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -125,8 +126,21 @@ public class MockGroupStore implements IGroupStore {
 
     @Nonnull
     @Override
-    public GroupMembersPlain getMembers(@Nonnull Collection<Long> groupIds,
-            boolean expandNestedGroups) {
+    public GroupMembersPlain getMembers(@Nonnull Collection<Long> groupId,
+            boolean expandNestedGroups) throws StoreOperationException {
+        final GroupMembersPlain members = getDirectMembers(groupId);
+        if (expandNestedGroups) {
+            Set<Long> newGroups = members.getGroupIds();
+            while (!newGroups.isEmpty()) {
+                final GroupMembersPlain subMembers = getDirectMembers(newGroups);
+                newGroups = members.mergeMembers(subMembers);
+            }
+        }
+        return members.unmodifiable();
+    }
+
+    @Nonnull
+    private GroupMembersPlain getDirectMembers(@Nonnull Collection<Long> groupIds) {
         if (CollectionUtils.isEmpty(groupIds)) {
             return new GroupMembersPlain(Collections.emptySet(), Collections.emptySet(),
                     Collections.emptySet());
@@ -149,7 +163,14 @@ public class MockGroupStore implements IGroupStore {
                 .map(StaticMembersByType::getMembersList)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
-        return new GroupMembersPlain(entities, groups, Collections.emptySet());
+        final Set<EntityFilters> entitiesFilter = groupIds.stream()
+                .map(this.groups::get)
+                .filter(Objects::nonNull)
+                .map(Grouping::getDefinition)
+                .filter(GroupDefinition::hasEntityFilters)
+                .map(GroupDefinition::getEntityFilters)
+                .collect(Collectors.toSet());
+        return new GroupMembersPlain(entities, groups, entitiesFilter);
     }
 
     @Override
@@ -202,5 +223,13 @@ public class MockGroupStore implements IGroupStore {
             groupingStream.filter(gr -> gr.getDefinition().getType() == groupType);
         }
         return groupingStream.map(Grouping::getId).collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    @Override
+    public Set<Long> getExistingGroupIds(@Nonnull Collection<Long> groupIds) {
+        final Set<Long> requested = new HashSet<>(groupIds);
+        requested.retainAll(groups.keySet());
+        return requested;
     }
 }

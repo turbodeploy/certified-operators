@@ -1,6 +1,10 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.time.Instant;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,6 +34,7 @@ import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.RecurrenceType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISchedulesService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.CreateScheduleRequest;
@@ -52,6 +57,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
  * The operations include adding, editing, retrieving, deleting, and getting associated actions and policies.
  */
 public class SchedulesService implements ISchedulesService {
+
+    // 1970-01-01 00:00:01 UTC
+    private static final long MIN_TIME_TS = 1000L;
+    private static final ZonedDateTime MIN_TIME = ZonedDateTime.ofInstant(Instant.ofEpochMilli(MIN_TIME_TS),
+        ZoneId.systemDefault());
+    // 2038-01-19 03:14:07 UTC
+    static final long MAX_TIME_TS = 2147483647000L;
+    private static final ZonedDateTime MAX_TIME = ZonedDateTime.ofInstant(
+        Instant.ofEpochMilli(MAX_TIME_TS), ZoneId.systemDefault());
 
     private final Logger logger = LogManager.getLogger();
 
@@ -206,13 +220,28 @@ public class SchedulesService implements ISchedulesService {
      * @throws Exception in case of error during retrieving the policies of the input schedule.
      */
     @Override
-    public List<SettingsPolicyApiDTO> getPoliciesUsingTheSchedule(String uuid) {
+    public List<SettingsPolicyApiDTO> getPoliciesUsingTheSchedule(String uuid) throws Exception {
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
-        settingPolicyService.getSettingPoliciesUsingSchedule(
-            GetSettingPoliciesUsingScheduleRequest.newBuilder()
-                .setScheduleId(Long.valueOf(uuid))
-                .build())
-            .forEachRemaining(settingPolicies::add);
+
+        try {
+            // verify the schedule is valid
+            GetScheduleResponse response = scheduleService.getSchedule(
+                    GetScheduleRequest.newBuilder()
+                            .setOid(Long.valueOf(uuid))
+                            .build());
+            if (!response.hasSchedule()) {
+                throw new UnknownObjectException("Schedule '" + uuid + "' not found");
+            }
+
+            settingPolicyService.getSettingPoliciesUsingSchedule(
+                    GetSettingPoliciesUsingScheduleRequest.newBuilder()
+                            .setScheduleId(Long.valueOf(uuid))
+                            .build())
+                    .forEachRemaining(settingPolicies::add);
+        } catch (StatusRuntimeException e) {
+            logger.error(e);
+            throw ExceptionMapper.translateStatusException(e);
+        }
 
         return settingsMapper.convertSettingPolicies(settingPolicies);
     }
@@ -300,7 +329,17 @@ public class SchedulesService implements ISchedulesService {
         }
 
         long startTime = scheduleDto.getStartTime().atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+        if (startTime < MIN_TIME_TS) {
+            errors.append(String.format(ScheduleValidationMessages.EARLIEST_START_TIME_MESSAGE,
+                ScheduleValidationMessages.SCHEDULE_START_TIME));
+        }
         long endTime = scheduleDto.getEndTime().atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+        if (endTime > MAX_TIME_TS) {
+            // round down the request to the valid range
+            scheduleDto.setEndTime(Instant.ofEpochMilli(MAX_TIME_TS).atZone(timeZone.toZoneId())
+                .toLocalDateTime());
+            endTime = MAX_TIME_TS;
+        }
 
         // The start date should be before end date
         if (startTime >= endTime) {
@@ -360,12 +399,22 @@ public class SchedulesService implements ISchedulesService {
         if (scheduleDto.getStartDate() != null) {
             startDate = scheduleDto.getStartDate().atZone(timeZone.toZoneId()).toInstant()
                 .toEpochMilli();
+            if (startDate < MIN_TIME_TS) {
+                errors.append(String.format(ScheduleValidationMessages.EARLIEST_START_TIME_MESSAGE,
+                    ScheduleValidationMessages.SCHEDULE_START_DATE));
+            }
         }
 
         Long endDate = null;
         if (scheduleDto.getEndDate() != null) {
             endDate = scheduleDto.getEndDate().atTime(LocalTime.MAX).atZone(timeZone.toZoneId())
                 .toInstant().toEpochMilli();
+            if (endDate > MAX_TIME_TS) {
+                // round down the request to the valid range
+                scheduleDto.setEndDate(Instant.ofEpochMilli(MAX_TIME_TS).atZone(timeZone.toZoneId())
+                    .toLocalDate().minusDays(1));
+                endDate = MAX_TIME_TS;
+            }
         }
 
         if (startDate != null && endDate != null && startDate > endDate) {
@@ -560,5 +609,13 @@ public class SchedulesService implements ISchedulesService {
             "monthly recurring schedules that have days of month defined";
         private static final String MONTHLY = "monthly";
         private static final String NON_RECURRING_SCHEDULES = "non recurring schedules";
+        private static final String SCHEDULE_START_TIME = "Start time";
+        private static final String SCHEDULE_END_TIME = "End time";
+        private static final String SCHEDULE_START_DATE = "Start date";
+        private static final String SCHEDULE_END_DATE = "End date";
+        private static final String EARLIEST_START_TIME = MIN_TIME.format(DateTimeFormatter
+            .ofPattern(DateTimeUtil.DEFAULT_DATE_PATTERN));
+        private static final String EARLIEST_START_TIME_MESSAGE = "%s cannot be earlier than " +
+            EARLIEST_START_TIME + ".\n";
     }
 }

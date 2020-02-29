@@ -14,21 +14,26 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import org.junit.Assert;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
@@ -40,6 +45,11 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -379,10 +389,13 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test mapVirtualVolume for multiple volume with same storage tier.
-     * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the information.
+     * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the
+     * information.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapCloudVolumes() {
+    public void testMapCloudVolumes() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -447,9 +460,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test mapOnVolume for Cloud Volume.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeCloud() {
+    public void testMapVolumeCloud() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -510,9 +525,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * Test Azure Volume Mapping.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeAzure() {
+    public void testMapVolumeAzure() throws Exception {
         storageTierSEApiDTO.setUuid(azureStorageTierId.toString());
         storageTierSEApiDTO.setDisplayName(azureStorageTierName);
 
@@ -575,9 +592,11 @@ public class VirtualVolumeAspectMapperTest {
 
     /**
      * test MapOnVolume method for on-perm volume.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeOnPerm() {
+    public void testMapVolumeOnPerm() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -671,18 +690,25 @@ public class VirtualVolumeAspectMapperTest {
 
     private CostServiceMole costServiceMole = spy(new CostServiceMole());
 
+    private StatsHistoryServiceMole statsHistoryServiceMole = spy(new StatsHistoryServiceMole());
+
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(costServiceMole);
 
+    @Rule
+    public GrpcTestServer grpcTestHistoryServer = GrpcTestServer.newServer(statsHistoryServiceMole);
+
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         // init mapper
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi));
+        final StatsHistoryServiceBlockingStub historyRpc =
+                StatsHistoryServiceGrpc.newBlockingStub(grpcTestHistoryServer.getChannel());
+        volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi, historyRpc));
     }
 
     @Test
-    public void testMapStorageTiers() {
+    public void testMapStorageTiers() throws Exception {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 
@@ -798,8 +824,208 @@ public class VirtualVolumeAspectMapperTest {
         });
     }
 
+    /**
+     * Test that if the current time is less than the snapshot time returned by
+     * HistoryRpcService, then numDaysUnattached and lastAttachedVm are not populated.
+     */
     @Test
-    public void testMapStorage() {
+    public void testUnattachedVolumeInvalidSnapshotTime() throws Exception {
+        // given
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
+        when(statsHistoryServiceMole.getMostRecentStat(any()))
+                .thenReturn(createMostRecentStatsResponse("vm-123",
+                        System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3),
+                        StatHistoricalEpoch.HOUR));
+        stubRepositoryApi();
+
+        // when
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
+                .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
+
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertFalse(aspect.getVirtualDisks().isEmpty());
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
+        Assert.assertNull(virtualDiskApiDTO.getNumDaysUnattached());
+        Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
+    }
+
+    /**
+     * Test that numDaysUnattached and lastAttachedVm are being set correctly for the following
+     * valid conditions:
+     * 1. HistoryRpcService response contains the epoch and snapshot time values.
+     * 2. The snapshot time returned by historyRpcService is a date in the past (< current time).
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testUnattachedVolumePropertiesValidData() throws Exception {
+        // given
+        final String lastAttachedVmName = "vm-11111";
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
+        when(statsHistoryServiceMole.getMostRecentStat(any()))
+                .thenReturn(createMostRecentStatsResponse(lastAttachedVmName,
+                        System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3),
+                        StatHistoricalEpoch.HOUR));
+        stubRepositoryApi();
+
+        // when
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
+                .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
+
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertFalse(aspect.getVirtualDisks().isEmpty());
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
+        Assert.assertEquals(lastAttachedVmName, virtualDiskApiDTO.getLastAttachedVm());
+        Assert.assertEquals("3 days", virtualDiskApiDTO.getNumDaysUnattached());
+    }
+
+    /**
+     * Test that if the HistoryRpcService response is empty, then the numDaysUnattached and
+     * lastAttachedVm fields are not set.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testUnattachedVolumeNoHistory() throws Exception {
+        // given
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
+        when(statsHistoryServiceMole.getMostRecentStat(any()))
+                .thenReturn(createEmptyMostRecentStatsResponse());
+        stubRepositoryApi();
+
+        // when
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
+                .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
+
+        // then
+        Assert.assertNotNull(aspect);
+        Assert.assertFalse(aspect.getVirtualDisks().isEmpty());
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
+        Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
+        Assert.assertNull(virtualDiskApiDTO.getNumDaysUnattached());
+    }
+
+    /**
+     * Test that if the HistoryRpcService response contains the Month StatHistoricalEpoch, then the
+     * numDaysUnattached has a '+' suffix.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testUnattachedVolumeHistoryMonthEpoch() throws Exception {
+        // given
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
+        when(statsHistoryServiceMole.getMostRecentStat(any()))
+                .thenReturn(createMostRecentStatsResponse("vm-1111", 123L,
+                        StatHistoricalEpoch.MONTH));
+        stubRepositoryApi();
+
+        // when
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
+                .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
+
+        // then
+        Assert.assertNotNull(aspect);
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
+        Assert.assertTrue(virtualDiskApiDTO.getNumDaysUnattached().endsWith("+ days"));
+    }
+
+    /**
+     * Test that if the HistoryRpcService response does not have contain entity display name, then
+     * lastAttachedVm is not set.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testUnattachedVolumeInfoNoVmInfo() throws Exception {
+        // given
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
+        when(statsHistoryServiceMole.getMostRecentStat(any()))
+                .thenReturn(createMostRecentStatsResponse(null, 123L,
+                        StatHistoricalEpoch.MONTH));
+        stubRepositoryApi();
+
+        // when
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
+                .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
+
+        // then
+        Assert.assertNotNull(aspect);
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
+        Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
+    }
+
+    /**
+     * Test that the attachment history is not retrieved for bulk calls to mapEntitiesToAspect.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testUnattachedVolumeHistoryRpcSkippedForBulk() throws Exception {
+        // given
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
+        when(statsHistoryServiceMole.getMostRecentStat(any()))
+                .thenReturn(createMostRecentStatsResponse("vm-1111", 123L,
+                        StatHistoricalEpoch.DAY));
+        stubRepositoryApi();
+
+        // when
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
+                .mapEntitiesToAspect(Arrays.asList(unattachedVolume, unattachedVolume));
+
+        // then
+        verify(statsHistoryServiceMole, never()).getMostRecentStat(any());
+        Assert.assertNotNull(aspect);
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
+        Assert.assertNull(virtualDiskApiDTO.getNumDaysUnattached());
+        Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
+    }
+
+    private GetMostRecentStatResponse createEmptyMostRecentStatsResponse() {
+        return GetMostRecentStatResponse.newBuilder().build();
+    }
+
+    private GetMostRecentStatResponse createMostRecentStatsResponse(final String vmDisplayName,
+                                                                    final long snapshotTime,
+                                                                    final StatHistoricalEpoch
+                                                                            epoch) {
+        final GetMostRecentStatResponse.Builder response = GetMostRecentStatResponse.newBuilder()
+                .setSnapshotDate(snapshotTime)
+                .setEpoch(epoch);
+        if (vmDisplayName != null) {
+            response.setEntityDisplayName(vmDisplayName);
+        }
+        return response.build();
+    }
+
+    private TopologyEntityDTO createUnattachedVolume() {
+        final long volId = 77777L;
+        return TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(volId)
+                .setDisplayName("random_vm")
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                                .setAttachmentState(AttachmentState.UNATTACHED))
+                        .build())
+                .build();
+    }
+
+    private void stubRepositoryApi() throws Exception {
+        final SearchRequest searchRequest = mock(SearchRequest.class);
+        when(searchRequest.getFullEntities()).thenReturn(Stream.of()).thenReturn(Stream.of());
+        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
+        final MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
+        when(multiEntityRequest.getSEMap()).thenReturn(Collections.emptyMap())
+                .thenReturn(Collections.emptyMap());
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+    }
+
+    @Test
+    public void testMapStorage() throws Exception {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 

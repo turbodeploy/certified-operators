@@ -3,11 +3,9 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.apache.logging.log4j.LogManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -135,11 +133,10 @@ public class MapperConfig {
             groupFilterMapper(),
             communicationConfig.severityPopulator(),
             serviceConfig.businessAccountRetriever(),
-            communicationConfig.costServiceBlockingStub(),
+            communicationConfig.costServiceStub(),
             communicationConfig.getRealtimeTopologyContextId(),
             communicationConfig.thinTargetCache(),
-            cloudTypeMapper(),
-            mapperThreadPool()
+            cloudTypeMapper()
             );
     }
 
@@ -269,13 +266,13 @@ public class MapperConfig {
     @Bean
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
         return new VirtualVolumeAspectMapper(communicationConfig.costServiceBlockingStub(),
-            communicationConfig.repositoryApi());
+            communicationConfig.repositoryApi(), communicationConfig.historyRpcService());
     }
 
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
         return new CloudAspectMapper(communicationConfig.repositoryApi(), communicationConfig
-                .reservedInstanceUtilizationCoverageServiceBlockingStub());
+                .reservedInstanceUtilizationCoverageServiceBlockingStub(), communicationConfig.groupRpcService());
     }
 
     @Bean
@@ -390,19 +387,5 @@ public class MapperConfig {
             communicationConfig.getRealtimeTopologyContextId());
         repositoryClientConfig.repository().addListener(gateway);
         return gateway;
-    }
-
-    /**
-     * Thread pool for mapping rutines.
-     *
-     * @return thread pool
-     */
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService mapperThreadPool() {
-        final ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("mapper-%d")
-                .setUncaughtExceptionHandler((thread, exception) -> LogManager.getLogger(getClass())
-                        .error("Exception occurred in thread " + thread.getName(), exception))
-                .build();
-        return Executors.newCachedThreadPool(factory);
     }
 }

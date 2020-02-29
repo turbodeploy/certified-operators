@@ -26,6 +26,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -131,9 +132,12 @@ public class WidgetsetMapper {
      *
      * @param widgetset an internal protobuf {@link Widgetset} to convert
      * @return an external API {@link WidgetsetApiDTO} initialized from the given {@link Widgetset}
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public WidgetsetApiDTO toUiWidgetset(Widgetset widgetset) {
+    public WidgetsetApiDTO toUiWidgetset(Widgetset widgetset)
+            throws ConversionException, InterruptedException {
         WidgetsetApiDTO answer = new WidgetsetApiDTO();
         if (widgetset.hasOid()) {
             answer.setUuid(Long.toString(widgetset.getOid()));
@@ -188,10 +192,13 @@ public class WidgetsetMapper {
      *
      * @param widgets The de-serialized {@link WidgetApiDTO}s. This input will get modified.
      * @return A list of {@link WidgetApiDTO}s that can be returned to the client.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     @VisibleForTesting
-    List<WidgetApiDTO> postProcessWidgets(@Nonnull final WidgetApiDTO... widgets) {
+    List<WidgetApiDTO> postProcessWidgets(@Nonnull final WidgetApiDTO... widgets) throws
+            ConversionException, InterruptedException {
         // A multimap of (group oid) -> (widget API DTOs scoped to the group)
         // This is to get all referenced groups in a single RPC call later.
         // We need the referenced groups so we can replace the "BaseApiDTO"s saved in the widget

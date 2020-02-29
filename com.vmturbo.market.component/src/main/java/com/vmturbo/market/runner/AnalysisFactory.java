@@ -10,13 +10,14 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -263,6 +264,14 @@ public interface AnalysisFactory {
         private final Optional<Integer> maxPlacementsOverride;
 
         /**
+         * Whether quotes should be cached for reuse during SNM-enabled placement analysis.
+         *
+         * <p>Setting to true can improve performance in some cases. Usually those cases involve a
+         * high number of biclique overlaps and volumes per VM.</p>
+         */
+        private final boolean useQuoteCacheDuringSNM;
+
+        /**
          * The minimum utilization threshold, if entity's utilization is below threshold,
          * Market could generate resize down action.
          */
@@ -301,6 +310,7 @@ public interface AnalysisFactory {
                               final Map<String, Setting> globalSettingsMap,
                               final boolean includeVDC,
                               final Optional<Integer> maxPlacementsOverride,
+                              final boolean useQuoteCacheDuringSNM,
                               final float rightsizeLowerWatermark,
                               final float rightsizeUpperWatermark,
                               final float discountedComputeCostFactor) {
@@ -310,6 +320,7 @@ public interface AnalysisFactory {
             this.globalSettingsMap = globalSettingsMap;
             this.includeVDC = includeVDC;
             this.maxPlacementsOverride = maxPlacementsOverride;
+            this.useQuoteCacheDuringSNM = useQuoteCacheDuringSNM;
             this.rightsizeLowerWatermark = rightsizeLowerWatermark;
             this.rightsizeUpperWatermark = rightsizeUpperWatermark;
             this.enableSMA = enableSMA;
@@ -340,6 +351,19 @@ public interface AnalysisFactory {
         @Nonnull
         public Optional<Integer> getMaxPlacementsOverride() {
             return maxPlacementsOverride;
+        }
+
+        /**
+         * Returns whether quotes should be cached for reuse during SNM-enabled placement
+         * analysis.
+         *
+         * <p>Setting to true can improve performance in some cases. Usually those cases involve
+         * a high number of biclique overlaps and volumes per VM.</p>
+         *
+         * @see Builder#setUseQuoteCacheDuringSNM(boolean)
+         */
+        public boolean getUseQuoteCacheDuringSNM() {
+            return useQuoteCacheDuringSNM;
         }
 
         public float getRightsizeLowerWatermark() {
@@ -432,6 +456,8 @@ public interface AnalysisFactory {
 
             private Optional<Integer> maxPlacementsOverride = Optional.empty();
 
+            private boolean useQuoteCacheDuringSNM = false;
+
             private float rightsizeLowerWatermark;
 
             private float rightsizeUpperWatermark;
@@ -472,6 +498,22 @@ public interface AnalysisFactory {
             @Nonnull
             public Builder setMaxPlacementsOverride(@Nonnull final Optional<Integer> maxPlacementsOverride) {
                 this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
+                return this;
+            }
+
+            /**
+             * Sets the value of the <b>use quote cache during SNM</b> field.
+             *
+             * <p>Has no observable side-effects except setting the above field.</p>
+             *
+             * @param useQuoteCacheDuringSNM the new value for the field.
+             * @return {@code this}
+             *
+             * @see AnalysisConfig#getUseQuoteCacheDuringSNM()
+             */
+            @NonNull
+            public Builder setUseQuoteCacheDuringSNM(final boolean useQuoteCacheDuringSNM) {
+                this.useQuoteCacheDuringSNM = useQuoteCacheDuringSNM;
                 return this;
             }
 
@@ -523,9 +565,9 @@ public interface AnalysisFactory {
             @Nonnull
             public AnalysisConfig build() {
                 return new AnalysisConfig(enableSMA, quoteFactor, liveMarketMoveCostFactor,
-                    suspensionsThrottlingConfig, globalSettings,
-                    includeVDC, maxPlacementsOverride, rightsizeLowerWatermark,
-                    rightsizeUpperWatermark, discountedComputeCostFactor);
+                    suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
+                    useQuoteCacheDuringSNM, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                    discountedComputeCostFactor);
             }
         }
     }

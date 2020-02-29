@@ -73,9 +73,11 @@ public class PlanRIStatsSubQueryTest {
 
     /**
      * Initialize instances before test.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
         final MultiEntityRequest request = Mockito.mock(MultiEntityRequest.class);
         final ServiceEntityApiDTO tierApiDto = new ServiceEntityApiDTO();

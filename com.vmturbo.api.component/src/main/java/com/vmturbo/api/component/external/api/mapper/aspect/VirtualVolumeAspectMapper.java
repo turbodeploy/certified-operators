@@ -7,21 +7,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -37,6 +38,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -47,6 +49,10 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -56,12 +62,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
@@ -89,10 +97,15 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
     private final RepositoryApi repositoryApi;
 
+    private final StatsHistoryServiceBlockingStub historyRpcService;
+
     public VirtualVolumeAspectMapper(@Nonnull final CostServiceBlockingStub costServiceRpc,
-                                     @Nonnull final RepositoryApi repositoryApi) {
+                                     @Nonnull final RepositoryApi repositoryApi,
+                                     @Nonnull final StatsHistoryServiceBlockingStub
+                                             historyRpcService) {
         this.costServiceRpc = costServiceRpc;
         this.repositoryApi = repositoryApi;
+        this.historyRpcService = historyRpcService;
     }
 
     @Override
@@ -111,7 +124,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity)
+            throws InterruptedException, ConversionException {
         STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
         aspect.setDisplayName(entity.getDisplayName());
         aspect.setName(String.valueOf(entity.getOid()));
@@ -124,10 +138,13 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      *
      * @param entities list of entities to get aspect for, which are members of a group
      * @return an {@link EntityAspect} of type {@link VirtualDisksAspectApiDTO} representing the details of {@param entities}
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nullable
     @Override
-    public EntityAspect mapEntitiesToAspect(@Nonnull List<TopologyEntityDTO> entities) {
+    public EntityAspect mapEntitiesToAspect(@Nonnull List<TopologyEntityDTO> entities)
+            throws InterruptedException, ConversionException {
         if (CollectionUtils.isEmpty(entities)) {
             return null;
         }
@@ -208,8 +225,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
     /**
      * Create VirtualVolumeAspect for volumes related to a list of storage tiers.
+     *
+     * @param entities entities to map
+     * @return entity aspect
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
-    private EntityAspect mapStorageTiers(@Nonnull List<TopologyEntityDTO> entities) {
+    private EntityAspect mapStorageTiers(@Nonnull List<TopologyEntityDTO> entities)
+            throws ConversionException, InterruptedException {
         final Map<Long, TopologyEntityDTO> storageTierById = Maps.newHashMap();
         final Set<Long> regionIds = Sets.newHashSet();
         final Map<Long, ApiPartialEntity> regionByZoneId = Maps.newHashMap();
@@ -284,12 +307,11 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 }
             })
         );
-
-        final List<VirtualDiskApiDTO> virtualDisks = volumes.stream()
-            .map(volume -> convert(volume, vmByVolumeId, storageTierByVolumeId,
-                    regionByVolumeId, volumeCostStatById))
-            .collect(Collectors.toList());
-
+        final List<VirtualDiskApiDTO> virtualDisks = new ArrayList<>(volumes.size());
+        for (TopologyEntityDTO volume: volumes) {
+            virtualDisks.add(convert(volume, vmByVolumeId, storageTierByVolumeId,
+                    regionByVolumeId, volumeCostStatById, volumes.size() == 1));
+        }
         if (virtualDisks.isEmpty()) {
             return null;
         }
@@ -301,9 +323,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
     /**
      * Create VirtualVolumeAspect for volumes related to a list of virtual machines.
+     *
+     * @param vmDTOs VMs to create aspects from
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nullable
-    private EntityAspect mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vmDTOs) {
+    private EntityAspect mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vmDTOs)
+            throws ConversionException, InterruptedException {
         Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = mapVirtualMachines(vmDTOs, null);
         if (volumeAspectsByVMId.isEmpty()) {
             return null;
@@ -314,8 +341,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         return aspect;
     }
 
-    private Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vms,
-                                                                  @Nullable Long topologyContextId) {
+    private Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(
+            @Nonnull List<TopologyEntityDTO> vms, @Nullable Long topologyContextId)
+            throws ConversionException, InterruptedException {
         // mapping from volume id to vm
         final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
         // mapping from zone id to region
@@ -371,17 +399,17 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
         // convert to VirtualDiskApiDTO
         final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = new HashMap<>();
-        volumes.forEach(volume -> {
+        for (TopologyEntityDTO volume: volumes) {
             VirtualDiskApiDTO volumeAspect = convert(volume, vmByVolumeId, storageTierByVolumeId,
-                regionByVolumeId, volumeCostStatById);
+                regionByVolumeId, volumeCostStatById, volumes.size() == 1);
             Long vmId = vmByVolumeId.get(volume.getOid()).getOid();
             volumeAspectsByVMId.computeIfAbsent(vmId, k -> Lists.newArrayList()).add(volumeAspect);
-        });
+        }
         return volumeAspectsByVMId;
     }
 
     public Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull Set<Long> vmIds,
-                                                                 final long topologyContextId) {
+            final long topologyContextId) throws InterruptedException, ConversionException {
         // fetch vms from given topology, for example: a plan projected topology
         final List<TopologyEntityDTO> vms = repositoryApi.entitiesRequest(vmIds)
             .contextId(topologyContextId)
@@ -394,15 +422,18 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * Create VirtualVolumeAspect for a list of virtual volumes.
      *
      * @param volumeDTOs a list of virtual volumes.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nullable
-    private EntityAspect mapVirtualVolumes(@Nonnull List<TopologyEntityDTO> volumeDTOs) {
+    private EntityAspect mapVirtualVolumes(@Nonnull List<TopologyEntityDTO> volumeDTOs)
+            throws InterruptedException, ConversionException {
         return mapVirtualVolumes(volumeDTOs, null);
     }
 
     @Nullable
     private EntityAspect mapVirtualVolumes(@Nonnull List<TopologyEntityDTO> vols,
-                                           @Nullable Long topologyContextId) {
+            @Nullable Long topologyContextId) throws InterruptedException, ConversionException {
         final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
 
         // create mapping from volume id to storage tier and region
@@ -459,12 +490,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(vols, topologyContextId);
 
         // convert to VirtualDiskApiDTO
-        List<VirtualDiskApiDTO> virtualDisks = vols.stream()
-            .map(volume -> convert(volume, vmByVolumeId, storageTierByVolumeId,
-                regionByVolumeId, volumeCostStatById))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-
+        final List<VirtualDiskApiDTO> virtualDisks = new ArrayList<>(vols.size());
+        for (TopologyEntityDTO volume: vols) {
+            final VirtualDiskApiDTO disk = convert(volume, vmByVolumeId, storageTierByVolumeId,
+                    regionByVolumeId, volumeCostStatById, vols.size() == 1);
+            if (disk != null) {
+                virtualDisks.add(disk);
+            }
+        }
         if (virtualDisks.isEmpty()) {
             return null;
         }
@@ -631,14 +664,19 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @param storageTierByVolumeId mapping from volume id to storage tier
      * @param regionByVolumeId mapping from volume id to region
      * @param volumeCostStatById mapping from volume id to its cost stat
+     * @param fetchAttachmentHistory true if attachment history should be retrieved for the volume
      * @return VirtualDiskApiDTO representing the volume
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private VirtualDiskApiDTO convert(@Nonnull TopologyEntityDTO volume,
             @Nonnull Map<Long, TopologyEntityDTO> vmByVolumeId,
             @Nonnull Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
             @Nonnull Map<Long, ApiPartialEntity> regionByVolumeId,
-            @Nonnull Map<Long, List<StatApiDTO>> volumeCostStatById) {
-        Long volumeId = volume.getOid();
+            @Nonnull Map<Long, List<StatApiDTO>> volumeCostStatById,
+            boolean fetchAttachmentHistory)
+            throws InterruptedException, ConversionException {
+        long volumeId = volume.getOid();
         // the VirtualDiskApiDTO to return
         VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         virtualDiskApiDTO.setUuid(String.valueOf(volumeId));
@@ -748,7 +786,50 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 storageAccessCapacity, storageTier, volume.getDisplayName()));
         virtualDiskApiDTO.setStats(statDTOs);
 
+        if (virtualDiskApiDTO.getEnvironmentType() == EnvironmentType.CLOUD
+                && AttachmentState.UNATTACHED.name()
+                .equals(virtualDiskApiDTO.getAttachmentState()) && fetchAttachmentHistory) {
+            populateUnattachedHistoryInfo(volume, virtualDiskApiDTO);
+        }
         return virtualDiskApiDTO;
+    }
+
+    private void populateUnattachedHistoryInfo(final TopologyEntityDTO volume,
+                                               final VirtualDiskApiDTO virtualDiskApiDTO) {
+        final GetMostRecentStatResponse response = retrieveUnattachedHistoryStat(volume);
+        if (response.hasSnapshotDate() && response.hasEpoch()) {
+            final long currentTime = System.currentTimeMillis();
+            final long lastAttachedTime = response.getSnapshotDate();
+            if (currentTime > lastAttachedTime) {
+                final long numDaysUnattached =
+                        TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachedTime);
+                String numDaysUnattachedDisplayValue = Long.toString(numDaysUnattached);
+                if (response.getEpoch() == StatHistoricalEpoch.MONTH) {
+                    numDaysUnattachedDisplayValue += "+";
+                }
+                numDaysUnattachedDisplayValue += numDaysUnattached == 1 ? " day" : " days";
+                virtualDiskApiDTO.setNumDaysUnattached(numDaysUnattachedDisplayValue);
+                if (response.hasEntityDisplayName()) {
+                    virtualDiskApiDTO.setLastAttachedVm(response.getEntityDisplayName());
+                }
+            }
+            logger.trace("Last attached history for volume: {}, days: {}, vm name: {}",
+                    volume.getOid(), virtualDiskApiDTO.getNumDaysUnattached(),
+                    virtualDiskApiDTO.getLastAttachedVm());
+        }
+    }
+
+    private GetMostRecentStatResponse retrieveUnattachedHistoryStat(
+            final TopologyEntityDTO volume) {
+        final GetMostRecentStatRequest request = GetMostRecentStatRequest.newBuilder()
+                .setCommodityName(StringConstants.STORAGE_AMOUNT)
+                .setEntityType(StringConstants.VIRTUAL_MACHINE)
+                .setCommodityKey(TopologyDTOUtil.createVolumeKey(volume))
+                .build();
+        final GetMostRecentStatResponse response = historyRpcService.getMostRecentStat(request);
+        logger.debug("Unattached volume history for volume: {}, request: {}, response: {}",
+                volume::getOid, () -> request, () -> response);
+        return response;
     }
 
     /**

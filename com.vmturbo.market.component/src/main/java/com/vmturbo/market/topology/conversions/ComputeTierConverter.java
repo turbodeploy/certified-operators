@@ -13,11 +13,11 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
@@ -84,7 +84,7 @@ public class ComputeTierConverter implements TierConverter {
                 .setIsEligibleForResizeDown(false)
                 .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                         .setRiskBased(RiskBased.newBuilder()
-                                .setCloudCost(costDTOCreator.createCostDTO(computeTier, connectedRegions, businessAccounts,
+                                .setCloudCost(costDTOCreator.createCostDTO(computeTier, connectedRegions,
                                         uniqueAccountPricingData)).build()))
                 .setQuoteFactor(1)
                 .build();

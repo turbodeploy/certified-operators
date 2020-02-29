@@ -7,23 +7,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import io.grpc.stub.StreamObserver;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMap;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk.Builder;
@@ -31,11 +33,17 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResp
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
+/**
+ * Unit test for {@link SeverityPopulator}.
+ */
 public class SeverityPopulatorTest {
+
+    private static final long TIMEOUT_SEC = 30;
+
 
     private static final long VM1_OID = 1L;
     private static final String VM1_UUID = String.valueOf(VM1_OID);
@@ -43,7 +51,7 @@ public class SeverityPopulatorTest {
     private static final String VM2_UUID = String.valueOf(VM2_OID);
 
     private EntitySeverityHandler actionOrchestratorImpl = new EntitySeverityHandler();
-    private EntitySeverityServiceBlockingStub entitySeverityRpc;
+    private EntitySeverityServiceStub entitySeverityRpc;
     private final int realtimeTopologyContextId = 0;
 
     private final ServiceEntityApiDTO vm1 = new ServiceEntityApiDTO();
@@ -56,7 +64,7 @@ public class SeverityPopulatorTest {
 
     @Before
     public void setup() throws IOException {
-        entitySeverityRpc = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        entitySeverityRpc = EntitySeverityServiceGrpc.newStub(grpcServer.getChannel());
         severityPopulator = new SeverityPopulator(entitySeverityRpc);
 
         vm1.setUuid(VM1_UUID);
@@ -77,7 +85,7 @@ public class SeverityPopulatorTest {
      * </ol>
      */
     @Test
-    public void testPopulateSeveritiesCollection() {
+    public void testPopulateSeveritiesCollection() throws ConversionException, InterruptedException {
         long oidCount = 1;
         ServiceEntityApiDTO onlyEntityLevelSeverity = makeEntity(oidCount++);
         ServiceEntityApiDTO breakdownBiggerThanEntityLevel = makeEntity(oidCount++);
@@ -131,16 +139,13 @@ public class SeverityPopulatorTest {
 
     @Test
     public void testPopulateSeveritiesMap() throws Exception {
-        final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
-            Long.parseLong(vm1.getUuid()), vm1,
-            Long.parseLong(vm2.getUuid()), vm2
-        );
+        final List<ServiceEntityApiDTO> vms = Arrays.asList(vm1, vm2);
 
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
-            severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
-            severityBuilder(2L).build()
+                severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
+                severityBuilder(2L).build()
         ));
-        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+        severityPopulator.populate(realtimeTopologyContextId, vms);
 
         // The call to populate mutates the vmInstances and pmInstances maps in the dto.
         Assert.assertEquals("Major", vm1.getSeverity());
@@ -183,16 +188,15 @@ public class SeverityPopulatorTest {
     }
 
     @Test
-    public void testCalculateSeverityWithMixedSeverities1() {
+    public void testCalculateSeverityWithMixedSeverities1() throws Exception {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
                 severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
                 severityBuilder(2L).build(),
                 severityBuilder(3L).setSeverity(Severity.NORMAL).build(),
                 severityBuilder(9999L).setSeverity(Severity.CRITICAL).build()
         ));
-        final SeverityMap severity = severityPopulator
-                .getSeverityMap(realtimeTopologyContextId,
-                        Sets.newHashSet(1L, 2L, 3L, 9999L));
+        final SeverityMap severity = severityPopulator.getSeverityMap(realtimeTopologyContextId,
+                Sets.newHashSet(1L, 2L, 3L, 9999L)).get(TIMEOUT_SEC, TimeUnit.SECONDS);
         Assert.assertEquals(Severity.CRITICAL,
                 severity.calculateSeverity(Arrays.asList(1L, 2L, 3L, 9999L)));
         Assert.assertEquals(Severity.MAJOR,
@@ -204,10 +208,11 @@ public class SeverityPopulatorTest {
     }
 
     @Test
-    public void testCalculateSeverityWithoutOid() {
+    public void testCalculateSeverityWithoutOid() throws Exception {
         actionOrchestratorImpl.setSeveritySupplier(Collections::emptyList);
         final SeverityMap severityMap =
-                severityPopulator.getSeverityMap(realtimeTopologyContextId, Collections.emptySet());
+                severityPopulator.getSeverityMap(realtimeTopologyContextId, Collections.emptySet())
+                        .get(TIMEOUT_SEC, TimeUnit.SECONDS);
         Assert.assertEquals(Severity.NORMAL,
                 severityMap.calculateSeverity(Collections.emptyList()));
     }
@@ -226,7 +231,7 @@ public class SeverityPopulatorTest {
      * </ol>
      */
     @Test
-    public void testCalculateSeverityEdgeCases() {
+    public void testCalculateSeverityEdgeCases() throws ExecutionException, InterruptedException {
         long oidCount = 1;
         long onlyEntityLevelSeverity = oidCount++;
         long breakdownBiggerThanEntityLevel = oidCount++;
@@ -265,7 +270,7 @@ public class SeverityPopulatorTest {
                     breakdownZeroCount1,
                     breakdownZeroCount2,
                     noBreakdownNoEntityLevel,
-                    notFoundEntity));
+                    notFoundEntity)).get();
 
         Assert.assertEquals(Severity.MAJOR,
             severityMap.calculateSeverity(Collections.singletonList(onlyEntityLevelSeverity)));
@@ -284,13 +289,13 @@ public class SeverityPopulatorTest {
     }
 
     @Test
-    public void testCalculateSeverityWithAllNormalSeverity() {
+    public void testCalculateSeverityWithAllNormalSeverity() throws Exception {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
                 severityBuilder(1L).setSeverity(Severity.NORMAL).build(),
                 severityBuilder(2L).build(),
                 severityBuilder(3L).setSeverity(Severity.NORMAL).build()));
         final SeverityMap severityMap = severityPopulator.getSeverityMap(realtimeTopologyContextId,
-                Sets.newHashSet(1L, 2L, 3L));
+                Sets.newHashSet(1L, 2L, 3L)).get(TIMEOUT_SEC, TimeUnit.SECONDS);
         Assert.assertEquals(Severity.NORMAL,
                 severityMap.calculateSeverity(Arrays.asList(1L, 2L, 3L)));
     }
@@ -300,13 +305,13 @@ public class SeverityPopulatorTest {
      * oid.
      */
     @Test
-    public void testNotInMap() {
+    public void testNotInMap() throws ConversionException, InterruptedException {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of());
 
         final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
             VM1_OID, vm1
         );
-        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs.values());
 
         Assert.assertNull(entityDTOs.get(VM1_OID).getSeverityBreakdown());
     }
@@ -316,7 +321,7 @@ public class SeverityPopulatorTest {
      * but has a Severity.
      */
     @Test
-    public void testEmptySeverityBreakdown() {
+    public void testEmptySeverityBreakdown() throws ConversionException, InterruptedException {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
             severityBuilder(VM1_OID)
                 .setSeverity(Severity.MAJOR)
@@ -326,7 +331,7 @@ public class SeverityPopulatorTest {
         final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
             VM1_OID, vm1
         );
-        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs.values());
 
         Assert.assertNotNull(entityDTOs.get(VM1_OID).getSeverityBreakdown());
         Assert.assertTrue(entityDTOs.get(VM1_OID).getSeverityBreakdown().isEmpty());
@@ -336,7 +341,7 @@ public class SeverityPopulatorTest {
      * Severity breakdown should be populated when EntitySeverityService returns it.
      */
     @Test
-    public void testHasSeverityAndSeverityBreakDown() {
+    public void testHasSeverityAndSeverityBreakDown() throws ConversionException, InterruptedException {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
             severityBuilder(VM1_OID)
                 .setSeverity(Severity.MAJOR)
@@ -348,7 +353,7 @@ public class SeverityPopulatorTest {
         final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
             VM1_OID, vm1
         );
-        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs.values());
 
         Map<String, Long> severityBreakdown = entityDTOs.get(VM1_OID).getSeverityBreakdown();
         Assert.assertNotNull(severityBreakdown);
@@ -363,7 +368,7 @@ public class SeverityPopulatorTest {
      * return the 'overall severity' for the entity.
      */
     @Test
-    public void testNullSeverityButHasSeverityBreakDown() {
+    public void testNullSeverityButHasSeverityBreakDown() throws ConversionException, InterruptedException {
         actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
             severityBuilder(VM1_OID)
                 .putSeverityBreakdown(Severity.MAJOR.getNumber(), 2L)
@@ -374,7 +379,7 @@ public class SeverityPopulatorTest {
         final Map<Long, ServiceEntityApiDTO> entityDTOs = ImmutableMap.of(
             VM1_OID, vm1
         );
-        severityPopulator.populate(realtimeTopologyContextId, entityDTOs);
+        severityPopulator.populate(realtimeTopologyContextId, entityDTOs.values());
 
         Map<String, Long> severityBreakdown = entityDTOs.get(VM1_OID).getSeverityBreakdown();
         Assert.assertNotNull(severityBreakdown);

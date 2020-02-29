@@ -42,7 +42,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvertedIndex;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.TheMatrix;
@@ -506,8 +505,13 @@ public class StagesTest {
         verify(postStitchingJournal).flushRecorders();
     }
 
+    /**
+     * Test that the broadcast stage makes the necessary calls to the broadcast manager.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
-    public void testPlanBroadcastStage() throws CommunicationException, InterruptedException, PipelineStageException {
+    public void testPlanBroadcastStage() throws Exception {
         final TopoBroadcastManager broadcastManager = mock(TopoBroadcastManager.class);
         final BroadcastStage stage = new BroadcastStage(Collections.singletonList(broadcastManager), TheMatrix.instance());
 

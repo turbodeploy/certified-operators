@@ -16,21 +16,21 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -43,6 +43,15 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
@@ -63,8 +72,8 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builde
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
-import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -110,6 +119,8 @@ public class TopologyEntitiesHandlerTest {
 
     private final Optional<Integer> maxPlacementIterations = Optional.empty();
 
+    private final boolean useQuoteCacheDuringSNM = false;
+
     private static final float rightsizeLowerWatermark = 0.1f;
 
     private static final float rightsizeUpperWatermark = 0.7f;
@@ -118,7 +129,7 @@ public class TopologyEntitiesHandlerTest {
 
     private static final float desiredUtilizationRange = 0.1f;
 
-    private static String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
+    private static final String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
                     "protobuf/messages/simple-cloudTopology.json";
     private static final Gson GSON = new Gson();
 
@@ -239,7 +250,8 @@ public class TopologyEntitiesHandlerTest {
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setMaxPlacementsOverride(maxPlacementIterations).build();
+                        .setMaxPlacementsOverride(maxPlacementIterations)
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
                 analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
@@ -593,7 +605,8 @@ public class TopologyEntitiesHandlerTest {
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setMaxPlacementsOverride(maxPlacementIterations).build();
+                        .setMaxPlacementsOverride(maxPlacementIterations)
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
         // Call analysis
         final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
                 REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
@@ -702,7 +715,8 @@ public class TopologyEntitiesHandlerTest {
                                             Collections.emptyMap())
                             .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                             .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                            .setMaxPlacementsOverride(maxPlacementIterations).build();
+                            .setMaxPlacementsOverride(maxPlacementIterations)
+                            .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
             // Call analysis
             final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
                     REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
@@ -821,7 +835,8 @@ public class TopologyEntitiesHandlerTest {
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setMaxPlacementsOverride(maxPlacementIterations).build();
+                        .setMaxPlacementsOverride(maxPlacementIterations)
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
                 analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,

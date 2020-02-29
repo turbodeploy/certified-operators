@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -53,12 +55,13 @@ public class ScenariosService implements IScenariosService {
      */
     @Override
     public List<ScenarioApiDTO> getScenarios(Boolean showForAllUsers) throws Exception {
-        final Iterable<Scenario> iterable =
-            () -> scenarioService.getScenarios(GetScenariosOptions.getDefaultInstance());
-
-        return StreamSupport.stream(iterable.spliterator(), false)
-            .map(scenarioMapper::toScenarioApiDTO)
-            .collect(Collectors.toList());
+        final Iterator<Scenario> iterator =
+                scenarioService.getScenarios(GetScenariosOptions.getDefaultInstance());
+        final List<ScenarioApiDTO> result = new ArrayList<>();
+        while (iterator.hasNext()) {
+            result.add(scenarioMapper.toScenarioApiDTO(iterator.next()));
+        }
+        return result;
     }
 
     /**

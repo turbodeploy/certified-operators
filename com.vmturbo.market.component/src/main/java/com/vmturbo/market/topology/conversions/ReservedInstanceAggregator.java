@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -66,8 +67,11 @@ class ReservedInstanceAggregator {
      */
     Collection<ReservedInstanceAggregate> aggregate(@Nonnull TopologyInfo topologyInfo) {
         final Collection<ReservedInstanceData> riCollection;
+        // If Market analysis takes into account the Bought RI recommendations, the Buy RI
+        // impact analysis won't be run and vice-versa.
         if (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
-                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN)) {
+                        .equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
+            && !topologyInfo.getAnalysisTypeList().contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS)) {
             // get buy RI and existing RI
             riCollection = cloudCostData.getAllRiBought();
         } else {

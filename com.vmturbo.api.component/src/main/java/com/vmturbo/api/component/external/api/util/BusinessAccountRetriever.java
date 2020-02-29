@@ -31,6 +31,7 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -200,9 +201,12 @@ public class BusinessAccountRetriever {
      * @return The Business Unit DTO for the input OID.
      * @throws UnknownObjectException if the Business Unit cannot be found or is invalid.
      * @throws InvalidOperationException If the UUID is not numeric.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     public BusinessUnitApiDTO getBusinessAccount(@Nonnull final String uuid)
-            throws InvalidOperationException, UnknownObjectException {
+            throws InvalidOperationException, UnknownObjectException, ConversionException,
+            InterruptedException {
         if (!StringUtils.isNumeric(uuid)) {
             throw new InvalidOperationException("Business account ID must be numeric. Got: " + uuid);
         }
@@ -220,10 +224,13 @@ public class BusinessAccountRetriever {
      * @return The {@link BusinessUnitApiDTO}s describing this account's children.
      * @throws InvalidOperationException If the input UUID is invalid.
      * @throws UnknownObjectException If the input UUID does not refer to an existing business account.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     public Collection<BusinessUnitApiDTO> getChildAccounts(@Nonnull final String uuid)
-            throws InvalidOperationException, UnknownObjectException {
+            throws InvalidOperationException, UnknownObjectException, ConversionException,
+            InterruptedException {
         if (!StringUtils.isNumeric(uuid)) {
             throw new InvalidOperationException("Business account ID must be numeric. Got: " + uuid);
         }
@@ -244,9 +251,12 @@ public class BusinessAccountRetriever {
      *
      * @param ids the oids of the business units to retrieve.
      * @return the business units with the oids provided.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public Collection<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) {
+    public Collection<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) throws
+            ConversionException, InterruptedException {
         final Collection<BusinessUnitApiDTO> result =
                 repositoryApi.getByIds(ids, Collections.singleton(EntityType.BUSINESS_ACCOUNT),
                         false).getBusinessAccounts();

@@ -116,6 +116,10 @@ public class AbstractProjectedEntityCostStore {
      * @return {@link Optional} with filtered entity cost.
      */
     protected Optional<EntityCost> applyFilter(EntityCost entityCost, EntityCostFilter filter) {
+        if (filter.getEntityFilters().isPresent() &&
+                !filter.getEntityFilters().get().contains(entityCost.getAssociatedEntityId())) {
+            return Optional.empty();
+        }
         // If entity in question is not any of the requested types ignore it
         if (filter.getEntityTypeFilters().isPresent()
             && !filter.getEntityTypeFilters().get().contains(entityCost.getAssociatedEntityType())) {

@@ -31,7 +31,6 @@ import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -123,16 +122,16 @@ public class UserScopeServiceTest {
 
         final long memberId = 2;
 
-        doReturn(GetMembersResponse.newBuilder()
-            .setMembers(Members.newBuilder()
-                .addIds(memberId))
-            .build())
-                .when(groupService).getMembers(GetMembersRequest.newBuilder()
-                    .setId(GROUP_ID)
+        Mockito.when(groupService.getMembers(GetMembersRequest.newBuilder()
+                    .addId(GROUP_ID)
                     .setExpectPresent(false)
                     .setEnforceUserScope(false)
                     .setExpandNestedGroups(true)
-                    .build());
+                    .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .addMemberId(memberId)
+                        .setGroupId(GROUP_ID)
+                        .build()));
 
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_SUPPLY_CHAIN)

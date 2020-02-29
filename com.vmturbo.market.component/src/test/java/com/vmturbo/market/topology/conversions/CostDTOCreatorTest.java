@@ -1,8 +1,5 @@
 package com.vmturbo.market.topology.conversions;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOREST.CommoditySoldDTO;
-import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,7 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
@@ -191,7 +188,7 @@ public class CostDTOCreatorTest {
         }
         accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
         HashSet<AccountPricingData> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
-        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, bas,uniqueAccountPricingData);
+        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, uniqueAccountPricingData);
         Assert.assertEquals(1, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
         ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
         Assert.assertNotNull(dependency.getBaseResourceType());

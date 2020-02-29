@@ -19,6 +19,8 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -69,6 +71,7 @@ public class ActionSearchUtil {
      * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
      *                                    because of action type that is not supported by the translation.
      * @throws ExecutionException translation to {@link ActionApiDTO} object failed for one object.
+     * @throws ConversionException if error faced converting objects to API DTOs
      */
     @Nonnull
     public ActionPaginationResponse getActionsByEntity(
@@ -76,7 +79,7 @@ public class ActionSearchUtil {
             ActionApiInputDTO inputDto,
             ActionPaginationRequest paginationRequest)
             throws  InterruptedException, OperationFailedException,
-                    UnsupportedActionException, ExecutionException {
+                    UnsupportedActionException, ExecutionException, ConversionException {
         final Set<Long> scope = groupExpander.expandOids(ImmutableSet.of(scopeId.oid()));
         if (scope.isEmpty()) {
             return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
@@ -111,11 +114,13 @@ public class ActionSearchUtil {
                             .build());
 
             // translate results
+            ActionDetailLevel detailLevel = inputDto != null ? inputDto.getDetailLevel() : ActionDetailLevel.STANDARD;
             final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
                     response.getActionsList().stream()
                         .map(ActionOrchestratorAction::getActionSpec)
                         .collect(Collectors.toList()),
-                    realtimeTopologyContextId);
+                    realtimeTopologyContextId,
+                    detailLevel);
 
             return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
                     .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))

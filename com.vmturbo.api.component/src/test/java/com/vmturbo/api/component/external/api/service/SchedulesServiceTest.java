@@ -9,8 +9,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -58,37 +60,37 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class SchedulesServiceTest {
     private static final String NOT_RECURRING_SCHED_DISPLAY_NAME = "Schedule A";
-    private static final String NOT_RECURRING_SCHED_TIME_ZONE = "America/Toronto";
-    private static final LocalDateTime NOT_RECURRING_SCHED_START_TIME_LOCAL = LocalDateTime.of(2219, 4, 1, 16, 30);
-    private static final LocalDateTime NOT_RECURRING_SCHED_END_TIME_LOCAL = LocalDateTime.of(2219, 4, 2, 10, 30);
+    private static final String NOT_RECURRING_SCHED_TIME_ZONE = "UTC";
+    private static final LocalDateTime NOT_RECURRING_SCHED_START_TIME_LOCAL = LocalDateTime.of(2037, 4, 1, 16, 30);
+    private static final LocalDateTime NOT_RECURRING_SCHED_END_TIME_LOCAL = LocalDateTime.of(2037, 4, 2, 10, 30);
 
     private static final String MONTHLY_RECURRING_SCHED_DISPLAY_NAME = "Schedule B";
-    private static final String MONTHLY_RECURRING_SCHED_TIME_ZONE = "America/Vancouver";
-    private static final LocalDateTime MONTHLY_SCHED_START_LOCAL = LocalDateTime.of(2119, 6, 5, 0, 0);
-    private static final LocalDateTime MONTHLY_SCHED_START_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 10, 20);
-    private static final LocalDate MONTHLY_SCHED_END_LOCAL = LocalDate.of(2120, 6, 6);
-    private static final LocalDateTime MONTHLY_SCHED_END_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 11, 20);
+    private static final String MONTHLY_RECURRING_SCHED_TIME_ZONE = "UTC";
+    private static final LocalDateTime MONTHLY_SCHED_START_LOCAL = LocalDateTime.of(2037, 6, 5, 0, 0);
+    private static final LocalDateTime MONTHLY_SCHED_START_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 10, 20);
+    private static final LocalDate MONTHLY_SCHED_END_LOCAL = LocalDate.of(2037, 6, 6);
+    private static final LocalDateTime MONTHLY_SCHED_END_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 11, 20);
 
     private static final String MONTHLY_RECURRING_SCHED2_DISPLAY_NAME = "Schedule C";
-    private static final String MONTHLY_RECURRING_SCHED2_TIME_ZONE = "America/Vancouver";
-    private static final LocalDateTime MONTHLY_SCHED2_START_LOCAL = LocalDateTime.of(2119, 6, 5, 0, 0);
-    private static final LocalDateTime MONTHLY_SCHED2_START_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 10, 20);
-    private static final LocalDate MONTHLY_SCHED2_END_LOCAL = LocalDate.of(2120, 6, 6);
-    private static final LocalDateTime MONTHLY_SCHED2_END_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 11, 20);
+    private static final String MONTHLY_RECURRING_SCHED2_TIME_ZONE = "UTC";
+    private static final LocalDateTime MONTHLY_SCHED2_START_LOCAL = LocalDateTime.of(2037, 6, 5, 0, 0);
+    private static final LocalDateTime MONTHLY_SCHED2_START_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 10, 20);
+    private static final LocalDate MONTHLY_SCHED2_END_LOCAL = LocalDate.of(2037, 6, 6);
+    private static final LocalDateTime MONTHLY_SCHED2_END_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 11, 20);
 
     private static final String WEEKLY_RECURRING_SCHED_DISPLAY_NAME = "Schedule D";
-    private static final String WEEKLY_RECURRING_SCHED_TIME_ZONE = "America/Vancouver";
-    private static final LocalDateTime WEEKLY_SCHED_START_LOCAL = LocalDateTime.of(2119, 6, 5, 0, 0);
-    private static final LocalDateTime WEEKLY_SCHED_START_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 10, 20);
-    private static final LocalDate WEEKLY_SCHED_END_LOCAL = LocalDate.of(2120, 6, 6);
-    private static final LocalDateTime WEEKLY_SCHED_END_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 11, 20);
+    private static final String WEEKLY_RECURRING_SCHED_TIME_ZONE = "UTC";
+    private static final LocalDateTime WEEKLY_SCHED_START_LOCAL = LocalDateTime.of(2037, 6, 5, 0, 0);
+    private static final LocalDateTime WEEKLY_SCHED_START_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 10, 20);
+    private static final LocalDate WEEKLY_SCHED_END_LOCAL = LocalDate.of(2037, 6, 6);
+    private static final LocalDateTime WEEKLY_SCHED_END_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 11, 20);
 
     private static final String DAILY_RECURRING_SCHED_DISPLAY_NAME = "Schedule E";
-    private static final String DAILY_RECURRING_SCHED_TIME_ZONE = "America/Vancouver";
-    private static final LocalDateTime DAILY_SCHED_START_LOCAL = LocalDateTime.of(2119, 6, 5, 0, 0);
-    private static final LocalDateTime DAILY_SCHED_START_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 10, 20);
-    private static final LocalDateTime DAILY_SCHED_END_LOCAL = LocalDateTime.of(2120, 6, 6, 0, 0);
-    private static final LocalDateTime DAILY_SCHED_END_TIME_LOCAL = LocalDateTime.of(2119, 6, 5, 11, 20);
+    private static final String DAILY_RECURRING_SCHED_TIME_ZONE = "UTC";
+    private static final LocalDateTime DAILY_SCHED_START_LOCAL = LocalDateTime.of(2037, 6, 5, 0, 0);
+    private static final LocalDateTime DAILY_SCHED_START_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 10, 20);
+    private static final LocalDateTime DAILY_SCHED_END_LOCAL = LocalDateTime.of(2037, 6, 6, 0, 0);
+    private static final LocalDateTime DAILY_SCHED_END_TIME_LOCAL = LocalDateTime.of(2037, 6, 5, 11, 20);
 
     private static final LocalDateTime PAST_START_TIME_LOCAL = LocalDateTime.of(1984, 4, 1, 16, 30);
     private static final LocalDateTime PAST_DATE_LOCAL = LocalDateTime.of(1984, 6, 5, 0, 0);
@@ -397,6 +399,9 @@ public class SchedulesServiceTest {
             .build());
         doReturn(Arrays.asList(SETTINGS_POLICY_API_DTO, SETTINGS_POLICY_API_DTO))
             .when(settingsMapper).convertSettingPolicies(settingPolicies);
+        doReturn(GetScheduleResponse.newBuilder().setSchedule(SCHEDULE).build())
+                .when(grpcScheduleService).getSchedule(GetScheduleRequest.newBuilder().setOid(ID)
+                .build());
 
         List<SettingsPolicyApiDTO> retList = schedulesService.getPoliciesUsingTheSchedule(
             String.valueOf(ID));
@@ -504,6 +509,56 @@ public class SchedulesServiceTest {
         scheduleDTO.setEndTime(DAILY_SCHED_START_TIME_LOCAL);
         thrown.expect(IllegalArgumentException.class);
         schedulesService.validateInput(scheduleDTO, null);
+    }
+
+    /**
+     * Validate start time is after allowed min time.
+     */
+    @Test
+    public void testValidateInputMinStartTime() {
+        ScheduleApiDTO scheduleDTO = createDailyRecurringScheduleDTO();
+        scheduleDTO.setStartTime(LocalDateTime.of(1960,01,01,0,0,
+            0).atOffset(ZoneOffset.UTC).toLocalDateTime());
+        thrown.expect(IllegalArgumentException.class);
+        schedulesService.validateInput(scheduleDTO, null);
+    }
+
+    /**
+     * Validate start date is after allowed min time.
+     */
+    @Test
+    public void testValidateInputMinStartDate() {
+        ScheduleApiDTO scheduleDTO = createDailyRecurringScheduleDTO();
+        scheduleDTO.setStartDate(LocalDateTime.of(1960,01,01,0,0,
+            0).atOffset(ZoneOffset.UTC).toLocalDateTime());
+        thrown.expect(IllegalArgumentException.class);
+        schedulesService.validateInput(scheduleDTO, null);
+    }
+
+    /**
+     * Validate end time is before allowed max time.
+     */
+    @Test
+    public void testValidateInputMaxEndTime() {
+        ScheduleApiDTO scheduleDTO = createDailyRecurringScheduleDTO();
+        scheduleDTO.setEndTime(LocalDateTime.of(2050,01,01,0,0,
+            0).atOffset(ZoneOffset.UTC).toLocalDateTime());
+        schedulesService.validateInput(scheduleDTO, null);
+        assertEquals(Instant.ofEpochMilli(SchedulesService.MAX_TIME_TS).atOffset(ZoneOffset.UTC)
+            .toLocalDateTime(), scheduleDTO.getEndTime());
+    }
+
+    /**
+     * Validate end time is before allowed max time.
+     */
+    @Test
+    public void testValidateInputMaxEndDate() {
+        ScheduleApiDTO scheduleDTO = createDailyRecurringScheduleDTO();
+        scheduleDTO.setEndDate(LocalDateTime.of(2050,01,01,0,0,
+            0).atOffset(ZoneOffset.UTC).toLocalDate());
+        schedulesService.validateInput(scheduleDTO, null);
+        assertEquals(Instant.ofEpochMilli(SchedulesService.MAX_TIME_TS).atOffset(ZoneOffset.UTC)
+        .minusDays(1).toLocalDate(), scheduleDTO.getEndDate());
     }
 
     /**

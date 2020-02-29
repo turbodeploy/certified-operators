@@ -86,9 +86,11 @@ public class WidgetSetsServiceTest {
 
     /**
      * Initialize widgetset store with two widgetsets.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Before
-    public void setup() {
+    public void setup() throws Exception {
 
         // set up a unique prefix for IDs generated here
         IdentityGenerator.initPrefix(1);
@@ -120,9 +122,11 @@ public class WidgetSetsServiceTest {
 
     /**
      * Test that we can retrieve the full widgetset list.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testGetFullWidgetsetList() {
+    public void testGetFullWidgetsetList() throws Exception {
         // Arrange
         when(widgetsetsserviceSpy.getWidgetsetList(anyObject()))
                 .thenReturn(Lists.newArrayList(widgetsetProto1, widgetsetProto2));

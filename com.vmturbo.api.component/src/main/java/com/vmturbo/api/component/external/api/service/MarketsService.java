@@ -63,8 +63,10 @@ import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -116,6 +118,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -264,10 +267,13 @@ public class MarketsService implements IMarketsService {
      *
      * @param scopeUuids this argument is currently ignored.
      * @return list of all markets
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
     @Nonnull
-    public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids) {
+    public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
+            throws ConversionException, InterruptedException {
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
                 planRpcService.getAllPlans(GetPlansOptions.getDefaultInstance());
@@ -382,11 +388,14 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public ActionPaginationResponse getCurrentActionsByMarketUuid(String uuid,
+    public ActionPaginationResponse getCurrentActionsByMarketUuid(@Nonnull final String uuid,
                                                                   EnvironmentType environmentType,
-                                                                  ActionPaginationRequest paginationRequest) throws Exception {
+                                                                  @Nullable final ActionDetailLevel detailLevel,
+                                                                  ActionPaginationRequest paginationRequest)
+            throws Exception {
         ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setEnvironmentType(environmentType);
+        inputDto.setDetailLevel(detailLevel);
         return getActionsByMarketUuid(uuid, inputDto, paginationRequest);
     }
 
@@ -409,7 +418,7 @@ public class MarketsService implements IMarketsService {
                 response.getActionsList().stream()
                         .filter(ActionOrchestratorAction::hasActionSpec)
                         .map(ActionOrchestratorAction::getActionSpec)
-                        .collect(Collectors.toList()), apiId.oid());
+                        .collect(Collectors.toList()), apiId.oid(), inputDto.getDetailLevel());
         return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
                 .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
                 .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
@@ -418,13 +427,17 @@ public class MarketsService implements IMarketsService {
     /**
      * Get an action by the market.
      *
-     * @param marketUuid the market uuid.
-     * @param actionUuid the action uuid.
+     * @param marketUuid    the market uuid.
+     * @param actionUuid    the action uuid.
+     * @param detailLevel   the level of Action details to be returned
+     *
      * @return an action.
      * @throws Exception exception.
      */
     @Override
-    public ActionApiDTO getActionByMarketUuid(String marketUuid, String actionUuid) throws Exception {
+    public ActionApiDTO getActionByMarketUuid(@Nonnull final String marketUuid,
+                                              @Nonnull final String actionUuid,
+                                              @Nullable final ActionDetailLevel detailLevel) throws Exception {
         logger.debug("Request to get action by market UUID: {}, action ID: {}", marketUuid, actionUuid);
         ActionOrchestratorAction action = actionOrchestratorRpcService
                 .getAction(actionRequest(marketUuid, actionUuid));
@@ -433,7 +446,7 @@ public class MarketsService implements IMarketsService {
         }
         logger.debug("Mapping actions for: {}", marketUuid);
         final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, detailLevel);
         logger.trace("Result: {}", () -> answer.toString());
         return answer;
     }
@@ -511,6 +524,7 @@ public class MarketsService implements IMarketsService {
             final int limit = Math.max(paginationRequest.getLimit(), 1);
 
             final List<ServiceEntityApiDTO> nextPage = allConvertedResults.stream()
+                // assumes that ServiceEntityApiDTO::getDisplayName will never return null
                 .sorted(Comparator.comparing(ServiceEntityApiDTO::getDisplayName)
                         .thenComparing(ServiceEntityApiDTO::getUuid))
                 .skip(skipCount)
@@ -519,7 +533,7 @@ public class MarketsService implements IMarketsService {
 
             final Optional<String> nextCursor;
             if (nextPage.size() > limit) {
-                nextCursor = Optional.of(Integer.toString(limit));
+                nextCursor = Optional.of(Integer.toString(skipCount + limit));
                 // Remove the last element from the results. It was only there to check if there
                 // are more results.
                 nextPage.remove(limit);
@@ -557,10 +571,15 @@ public class MarketsService implements IMarketsService {
                                 .setIncludeHidden(true))
                         .build()).forEachRemaining(group -> groupings.put(group.getId(), group));
             }
-            return policyRespList.stream()
-                    .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .map(resp -> policyMapper.policyToApiDto(resp.getPolicy(), groupings))
-                    .collect(Collectors.toList());
+            final List<PolicyApiDTO> result = new ArrayList<>();
+            for (PolicyResponse response: policyRespList) {
+                if (response.hasPolicy()) {
+                    final PolicyApiDTO policy =
+                            policyMapper.policyToApiDto(response.getPolicy(), groupings);
+                    result.add(policy);
+                }
+            }
+            return result;
         } catch (RuntimeException e) {
             logger.error("Problem getting policies", e);
             throw e;
@@ -574,7 +593,7 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public ResponseEntity<PolicyApiDTO> addPolicy(final String uuid,
-            PolicyApiInputDTO policyApiInputDTO) throws UnknownObjectException {
+            PolicyApiInputDTO policyApiInputDTO) throws UnknownObjectException, ConversionException, InterruptedException {
         try {
             if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policyApiInputDTO)) {
                 // Create a hidden group to support the merge policy for entities that are not groups.
@@ -680,6 +699,16 @@ public class MarketsService implements IMarketsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Get real-time Actions by Market.
+     *
+     * @param uuid              uuid of the Market
+     * @param environmentType   environment type filter
+     * @param detailLevel       the level of Action details to be returned
+     * @param paginationRequest pagination data
+     * @return {@link ActionPaginationResponse}
+     * @throws Exception
+     */
     @Override
     public MarketApiDTO deleteMarketByUuid(String uuid) throws Exception {
         logger.debug("Deleting market with UUID: {}", uuid);
@@ -800,9 +829,40 @@ public class MarketsService implements IMarketsService {
         return marketMapper.dtoFromPlanInstance(updatedInstance);
     }
 
+    /**
+     * Renames a plan.
+     *
+     * @param marketUuid    interpreted as planUuid
+     * @param displayName   new name for plan
+     * @return
+     * @throws Exception    if no plan matches marketUuid or user does not have plan access
+     */
     @Override
     public MarketApiDTO renameMarket(String marketUuid, String displayName) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+
+        //marketUuid is interpreted as planUuid
+        final ApiId planInstanceId = uuidMapper.fromUuid(marketUuid);
+        final Optional<PlanInstance> planInstanceOptional = planInstanceId.getPlanInstance();
+
+        if (!planInstanceOptional.isPresent()) {
+            throw new InvalidOperationException("Invalid market id: " + marketUuid);
+        }
+
+        final PlanInstance planInstance = planInstanceOptional.get();
+
+        // verify the user can access the plan
+        if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+            throw new UserAccessException("User does not have access to modify this plan.");
+        }
+
+        final UpdatePlanRequest updatePlanRequest = UpdatePlanRequest.newBuilder()
+                .setPlanId(planInstance.getPlanId())
+                .setName(displayName)
+                .build();
+
+        final PlanInstance updatePlanInstance = planRpcService.updatePlan(updatePlanRequest);
+
+        return marketMapper.dtoFromPlanInstance(updatePlanInstance);
     }
 
     @Override
@@ -897,16 +957,21 @@ public class MarketsService implements IMarketsService {
             boolean enforceUserScope = !apiId.isPlan();
 
             final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(Long.parseLong(groupUuid))
+                    .addId(Long.parseLong(groupUuid))
                     .setEnforceUserScope(enforceUserScope)
                     .setExpectPresent(false)
                     .build();
 
-            final GetMembersResponse groupMembersResp =
+            final Iterator<GetMembersResponse> groupMembersResp =
                     groupRpcService.getMembers(getGroupMembersReq);
-            List<String> membersUuids = groupMembersResp.getMembers().getIdsList().stream()
+        final List<String> membersUuids;
+        if (groupMembersResp.hasNext()) {
+            membersUuids = groupMembersResp.next().getMemberIdList().stream()
                     .map(id -> Long.toString(id))
                     .collect(Collectors.toList());
+        } else {
+            membersUuids = Collections.emptyList();
+        }
         // If an input scope was also specified, use the intersection.
         if (!CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
             membersUuids.retainAll(statScopesApiInputDTO.getScopes());

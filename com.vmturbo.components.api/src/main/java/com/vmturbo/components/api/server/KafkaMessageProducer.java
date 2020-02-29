@@ -10,6 +10,11 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.AbstractMessage;
+
+import io.prometheus.client.Counter;
+import io.prometheus.client.Gauge;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -17,10 +22,6 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.protobuf.AbstractMessage;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Gauge;
 
 import com.vmturbo.communication.CommunicationException;
 
@@ -66,6 +67,8 @@ public class KafkaMessageProducer implements AutoCloseable {
     private final Logger logger = LogManager.getLogger(getClass());
     private final AtomicLong msgCounter = new AtomicLong(0);
     private final String namespacePrefix;
+    private final int maxRequestSizeBytes;
+    private final int recommendedRequestSizeBytes;
 
     // boolean tracking if the last send was successful or not. Used as a simple health check.
     private AtomicBoolean lastSendFailed = new AtomicBoolean(false);
@@ -75,20 +78,17 @@ public class KafkaMessageProducer implements AutoCloseable {
      * namespace prefix.
      *
      * @param bootstrapServer the list of Kafka bootstrap servers
-     */
-    public KafkaMessageProducer(@Nonnull String bootstrapServer) {
-        this(bootstrapServer, "");
-    }
-
-    /**
-     * Construct a {@link KafkaMessageProducer} given the list of bootstrap servers and the
-     * namespace prefix.
-     *
-     * @param bootstrapServer the list of Kafka bootstrap servers
      * @param namespacePrefix the namespace prefix to be added to the topics
+     * @param maxRequestSizeBytes Maximum size of message that can be sent with this producer, in bytes.
+     * @param recommendedRequestSizeBytes Recommended size for messages sent with this producer, in bytes.
      */
-    public KafkaMessageProducer(@Nonnull String bootstrapServer, @Nonnull String namespacePrefix) {
+    public KafkaMessageProducer(@Nonnull String bootstrapServer,
+                                @Nonnull String namespacePrefix,
+                                final int maxRequestSizeBytes,
+                                final int recommendedRequestSizeBytes) {
         this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+        this.maxRequestSizeBytes = maxRequestSizeBytes;
+        this.recommendedRequestSizeBytes = recommendedRequestSizeBytes;
 
         // set the default properties
         final Properties props = new Properties();
@@ -98,9 +98,8 @@ public class KafkaMessageProducer implements AutoCloseable {
         props.put("retry.backoff.ms", RETRY_INTERVAL_MS);
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
-        // pjs: set a max request size based on standard max protobuf serializabe size for now
-        props.put("max.request.size", 67108864); // 64mb
-        props.put("buffer.memory", 67108864);
+        props.put("max.request.size", maxRequestSizeBytes);
+        props.put("buffer.memory", maxRequestSizeBytes);
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
 
@@ -234,6 +233,16 @@ public class KafkaMessageProducer implements AutoCloseable {
                 throw new CommunicationException("Unexpected exception sending message " +
                         serverMsg.getClass().getSimpleName(), e);
             }
+        }
+
+        @Override
+        public int getMaxRequestSizeBytes() {
+            return maxRequestSizeBytes;
+        }
+
+        @Override
+        public int getRecommendedRequestSizeBytes() {
+            return recommendedRequestSizeBytes;
         }
     }
 }

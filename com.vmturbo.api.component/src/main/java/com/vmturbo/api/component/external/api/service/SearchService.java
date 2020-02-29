@@ -74,6 +74,7 @@ import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -271,7 +272,8 @@ public class SearchService implements ISearchService {
     private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(@Nullable String nameRegex,
                                                                    @Nullable List<String> types,
                                                                    @Nullable String state,
-                                                                   @Nullable EntityDetailType entityDetailType) {
+                                                                   @Nullable EntityDetailType entityDetailType)
+            throws ConversionException, InterruptedException {
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
             IllegalArgumentException e = new IllegalArgumentException("Type must be set for search result.");
@@ -439,11 +441,14 @@ public class SearchService implements ISearchService {
      * @param paginationRequest The pagination related parameter.
      * @param aspectNames The input list of aspect names for a particular entity type.
      * @return a list of DTOs based on the type of the search: ServiceEntityApiDTO or GroupApiDTO
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
     public SearchPaginationResponse getMembersBasedOnFilter(String query, GroupApiDTO inputDTO,
             SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
-            throws OperationFailedException, InvalidOperationException {
+            throws OperationFailedException, InvalidOperationException, ConversionException,
+            InterruptedException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // if this is a group search, we need to know the right "name filter type" that can be used
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
@@ -545,10 +550,13 @@ public class SearchService implements ISearchService {
      * @param paginationRequest The pagination related parameter.
      * @param aspectNames The input list of aspect names.
      * @return A list of {@link BaseApiDTO} will be sent back to client
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws OperationFailedException on error performing search
      */
     private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO, @Nullable String nameQuery,
             @Nonnull SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
-                throws OperationFailedException {
+                throws OperationFailedException, ConversionException, InterruptedException {
         final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
         final List<String> entityTypes = getEntityTypes(inputDTO.getClassName());
         List<SearchParameters> searchParameters = entityFilterMapper.convertToSearchParameters(
@@ -689,6 +697,8 @@ public class SearchService implements ISearchService {
      * @param searchEntityOidsRequest {@link SearchEntityOidsRequest}.
      * @param aspectNames The input list of requested aspects by name.
      * @return {@link SearchPaginationResponse}.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @VisibleForTesting
     protected SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
@@ -696,7 +706,8 @@ public class SearchService implements ISearchService {
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
             @Nonnull final SearchEntityOidsRequest searchEntityOidsRequest,
-            @Nullable Collection<String> aspectNames) {
+            @Nullable Collection<String> aspectNames)
+            throws InterruptedException, ConversionException {
         final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds,
                 searchEntityOidsRequest);
         /*
@@ -761,7 +772,9 @@ public class SearchService implements ISearchService {
      * @param expandedIds a list of entity oids after expanded.
      * @param searchRequest {@link Search.SearchEntityOidsRequest}.
      * @param isGlobalScope a boolean represents if search scope is global scope or not.
-     * @return
+     * @return pagination response
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private SearchPaginationResponse getServiceEntityPaginatedWithUtilization(
             @Nonnull final GroupApiDTO inputDTO,
@@ -769,7 +782,7 @@ public class SearchService implements ISearchService {
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
             @Nonnull final Search.SearchEntityOidsRequest searchRequest,
-            @Nonnull final boolean isGlobalScope) {
+            @Nonnull final boolean isGlobalScope) throws ConversionException, InterruptedException {
         // if it is global scope and there is no other search criteria, it means all service entities
         // of same entity type are search candidates.
         final boolean isGlobalEntities =
@@ -1037,17 +1050,22 @@ public class SearchService implements ISearchService {
     }
 
     @Nonnull
-    private List<CriteriaOptionApiDTO> getResourceGroupsOptions() throws OperationFailedException {
+    private List<CriteriaOptionApiDTO> getResourceGroupsOptions()
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
         return getGroupsOptions(GroupType.RESOURCE);
     }
 
     @Nonnull
-    private List<CriteriaOptionApiDTO> getBillingFamiliesOptions() throws OperationFailedException {
+    private List<CriteriaOptionApiDTO> getBillingFamiliesOptions()
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
         return getGroupsOptions(GroupType.BILLING_FAMILY);
     }
 
     private List<CriteriaOptionApiDTO> getGroupsOptions(GroupType groupType)
-            throws OperationFailedException {
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
         final List<GroupApiDTO> resourceGroups =
                 groupsService.getGroupsByType(groupType, null, Collections.emptyList());
         final List<CriteriaOptionApiDTO> result = new ArrayList<>(resourceGroups.size());
@@ -1083,11 +1101,15 @@ public class SearchService implements ISearchService {
      * @return list of criteria options
      * @throws OperationFailedException if something failed executing
      * @throws UnknownObjectException if options loading is not supported for the criteria
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if error faced processing the request
      */
     @Override
     public List<CriteriaOptionApiDTO> getCriteriaOptions(final String criteriaKey,
             final List<String> scopes, final String entityType, final EnvironmentType envType)
-            throws OperationFailedException, UnknownObjectException {
+            throws OperationFailedException, UnknownObjectException, ConversionException,
+            InterruptedException, InvalidOperationException {
         final CriteriaOptionProvider optionsProvider = criteriaOptionProviders.get(criteriaKey);
         if (optionsProvider == null) {
             throw new UnknownObjectException("Unknown criterion key: " + criteriaKey);
@@ -1117,6 +1139,8 @@ public class SearchService implements ISearchService {
     private interface CriteriaOptionProvider {
         @Nonnull
         List<CriteriaOptionApiDTO> getOptions(List<String> scopes, String entityType,
-                EnvironmentType envType) throws OperationFailedException;
+                EnvironmentType envType)
+                throws OperationFailedException, ConversionException, InterruptedException,
+                InvalidOperationException;
     }
 }

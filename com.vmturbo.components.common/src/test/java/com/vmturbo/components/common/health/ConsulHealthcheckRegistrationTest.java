@@ -20,6 +20,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.ComponentController;
 
 /**
@@ -35,10 +36,15 @@ public class ConsulHealthcheckRegistrationTest {
     private final String instanceRoute = "";
     private final Integer serverPort = 8080;
     private final int maxRetrySecs = 60;
+    private final MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
     // the ConsulHealthcheckRegistration under test
     private ConsulHealthcheckRegistration consulHealthcheckRegistration;
 
+
+    private String expectedRandomizedId(final String instanceId) {
+        return instanceId + "-" + clock.millis();
+    }
 
     /**
      * Test the register service call when registration is enabled.
@@ -48,19 +54,19 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             true, componentType, instanceId, instanceIp, instanceRoute, serverPort,
-                maxRetrySecs, "");
+                maxRetrySecs, "", clock);
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
-        expectedNewService.setId(instanceId);
+        expectedNewService.setId(expectedRandomizedId(instanceId));
         expectedNewService.setAddress(instanceIp);
         expectedNewService.setPort(serverPort);
         expectedNewService.setTags(Collections.singletonList(ConsulHealthcheckRegistration.COMPONENT_TAG));
         NewCheck expectedNewCheck = new NewCheck();
-        expectedNewCheck.setId("service:" + instanceId);
+        expectedNewCheck.setId("service:" + expectedRandomizedId(instanceId));
         expectedNewCheck.setName("Service '" + componentType + "' check");
         expectedNewCheck.setHttp("http://" + instanceIp + ':' + serverPort +
             ComponentController.HEALTH_PATH);
-        expectedNewCheck.setServiceId(instanceId);
+        expectedNewCheck.setServiceId(expectedRandomizedId(instanceId));
         expectedNewCheck.setInterval("60s");
         expectedNewCheck.setDeregisterCriticalServiceAfter("60m");
         Response<Void> dummyResponse = new Response<>(null, new Long(1), true, new Long(0));
@@ -92,20 +98,20 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             true, componentType, instanceId, null, instanceRoute,
-                serverPort, maxRetrySecs, "");
+                serverPort, maxRetrySecs, "", clock);
         String localhostIp = InetAddress.getLocalHost().getHostAddress();
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
-        expectedNewService.setId(instanceId);
+        expectedNewService.setId(expectedRandomizedId(instanceId));
         expectedNewService.setTags(Collections.singletonList(ConsulHealthcheckRegistration.COMPONENT_TAG));
         expectedNewService.setAddress(localhostIp);
         expectedNewService.setPort(serverPort);
         NewCheck expectedNewCheck = new NewCheck();
-        expectedNewCheck.setId("service:" + instanceId);
+        expectedNewCheck.setId("service:" + expectedRandomizedId(instanceId));
         expectedNewCheck.setName("Service '" + componentType + "' check");
         expectedNewCheck.setHttp("http://" + localhostIp + ':' + serverPort +
             ComponentController.HEALTH_PATH);
-        expectedNewCheck.setServiceId(instanceId);
+        expectedNewCheck.setServiceId(expectedRandomizedId(instanceId));
         expectedNewCheck.setInterval("60s");
         expectedNewCheck.setDeregisterCriticalServiceAfter("60m");
         Response<Void> dummyResponse = new Response<>(null, new Long(1), true, new Long(0));
@@ -135,7 +141,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             false, componentType, instanceId, instanceIp, instanceRoute,
-                serverPort, 0, "");
+                serverPort, 0, "", clock);
         // act
         consulHealthcheckRegistration.registerService();
         // assert
@@ -150,11 +156,11 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             true, componentType, instanceId, instanceIp, instanceRoute,
-                serverPort, maxRetrySecs, "");
+                serverPort, maxRetrySecs, "", clock);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert
-        verify(consulClient).agentServiceDeregister(eq(instanceId));
+        verify(consulClient).agentServiceDeregister(eq(expectedRandomizedId(instanceId)));
         verifyNoMoreInteractions(consulClient);
     }
 
@@ -167,7 +173,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             false, componentType, instanceId, instanceIp, instanceRoute,
-                serverPort, maxRetrySecs, "");
+                serverPort, maxRetrySecs, "", clock);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert

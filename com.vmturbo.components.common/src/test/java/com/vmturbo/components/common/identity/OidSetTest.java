@@ -41,17 +41,49 @@ public abstract class OidSetTest<T extends OidSet> {
 
     @Test
     public void testContainsCollection() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L});
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
         Assert.assertTrue(testFilter.contains(Collections.emptyList()));
         Assert.assertTrue(testFilter.contains(Arrays.asList(1L, 2L)));
         Assert.assertTrue(testFilter.contains(Arrays.asList(1L, 2L, 3L)));
         Assert.assertFalse(testFilter.contains(Arrays.asList(1L, 5L)));
     }
 
+    /**
+     * Test if the oidset contains any elements of an input collection of Longs.
+     */
+    @Test
+    public void testContainsAnyCollection() {
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
+        Assert.assertFalse(testFilter.containsAny(Collections.emptyList()));
+        Assert.assertTrue(testFilter.containsAny(Arrays.asList(1L, 2L)));
+        Assert.assertTrue(testFilter.containsAny(Arrays.asList(1L, 2L, 3L)));
+        Assert.assertTrue(testFilter.containsAny(Arrays.asList(1L, 5L)));
+        Assert.assertFalse(testFilter.containsAny(Arrays.asList(4L, 5L)));
+    }
+
+    /**
+     * Test if the oidset contains any elements of an input oidset
+     */
+    @Test
+    public void testContainsAnyOidSet() {
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
+        Assert.assertFalse(testFilter.containsAny(createOidSet(null)));
+        Assert.assertTrue(testFilter.containsAny(createOidSet(new long[]{1L, 2L})));
+        Assert.assertTrue(testFilter.containsAny(createOidSet(new long[]{1L, 2L, 3L})));
+        Assert.assertTrue(testFilter.containsAny(createOidSet(new long[]{1L, 5L})));
+        Assert.assertFalse(testFilter.containsAny(createOidSet(new long[]{4L, 5L})));
+    }
+
     @Test
     public void testEmptySet() {
         T testFilter = createOidSet(new long[0]);
         Assert.assertFalse(testFilter.contains(5L));
+    }
+
+    @Test
+    public void testNullConstructorParameter() {
+        T testFilter = createOidSet(null);
+        Assert.assertEquals(0, testFilter.size());
     }
 
     @Test

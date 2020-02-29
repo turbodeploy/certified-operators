@@ -8,26 +8,24 @@ import static org.mockito.Mockito.mock;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import com.vmturbo.commons.analysis.NumericIDAllocator;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
-
 
 /**
  * Unit tests for ComputeTierConverter.
@@ -43,7 +41,7 @@ public class ComputeTierConverterTest {
     @Before
     public void setUp() {
         IdentityGenerator.initPrefix(0);
-        commodityConverter = new CommodityConverter(new NumericIDAllocator(), new HashMap<>(),
+        commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class));
         final TopologyInfo info = TopologyInfo.newBuilder().build();

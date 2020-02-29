@@ -210,7 +210,9 @@ public class PlanDaoImpl implements PlanDao {
             builder.setSourceTopologyId(planRequest.getTopologyId());
         }
         if (planRequest.hasScenarioId()) {
-            builder.setScenario(ensureScenarioExist(planRequest.getScenarioId()));
+            Scenario scenario = ensureScenarioExist(planRequest.getScenarioId());
+            builder.setScenario(scenario);
+            builder.setName(scenario.getScenarioInfo().getName());
         }
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(PlanStatus.READY);
