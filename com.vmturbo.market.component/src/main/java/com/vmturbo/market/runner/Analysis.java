@@ -32,6 +32,7 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -174,7 +175,7 @@ public class Analysis {
 
     private AnalysisState state;
 
-    private ReplayActions realtimeReplayActions;
+    private @NonNull ReplayActions realtimeReplayActions = new ReplayActions();
 
     private final TopologyInfo topologyInfo;
 
@@ -1132,7 +1133,7 @@ public class Analysis {
      * Replay actions are used only in real-time topologies.
      * @return actions (suspend/deactivate) generated in this cycle to replay.
      */
-    public ReplayActions getReplayActions() {
+    public @NonNull ReplayActions getReplayActions() {
         return realtimeReplayActions;
     }
 
@@ -1141,8 +1142,8 @@ public class Analysis {
      * @param replayActions Suspend/deactivate actions from previous cycle are set to replay
      * in current analysis.
      */
-    public void setReplayActions(ReplayActions replayActions) {
-        this.realtimeReplayActions = replayActions;
+    public void setReplayActions(@NonNull ReplayActions replayActions) {
+        realtimeReplayActions = replayActions;
     }
 
     /**
