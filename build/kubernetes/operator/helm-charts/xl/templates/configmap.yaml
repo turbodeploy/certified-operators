@@ -233,10 +233,6 @@ data:
         # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
         # making analysis take too long. If this number is <= 0, uses the default set in the market analysis codebase.
         maxPlacementIterations: -1
-        # Whether quotes should be cached for reuse during SNM-enabled placement analysis.
-        # Setting to true can improve performance in some cases. Usually those cases involve a
-        # high number of biclique overlaps and volumes per VM.
-        useQuoteCacheDuringSNM: false
         # If entity utilization is below the lower watermark, Market could generate resize down actions.
         rightsizeLowerWatermark: 0.7
         # If entity utilization is above the upper watermark, Market could generate resize up actions.

@@ -158,14 +158,14 @@ spec:
         - "15020"
 {{- if .Values.istioingress.mtls }}
         - --controlPlaneAuthPolicy
-        - NONE
-        - --discoveryAddress
-        - istio-pilot.istio-system.svc.cluster.local:15010
-{{ else }}
-        - --controlPlaneAuthPolicy
         - MUTUAL_TLS
         - --discoveryAddress
         - istio-pilot.istio-system.svc.cluster.local:15011
+{{ else }}
+        - --controlPlaneAuthPolicy
+        - NONE
+        - --discoveryAddress
+        - istio-pilot.istio-system.svc.cluster.local:15010
 {{- end }}
         env:
         - name: POD_NAME
