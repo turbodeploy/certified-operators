@@ -226,8 +226,7 @@ public class TopologyEntitiesHandler {
                 + Long.toString(topologyInfo.getTopologyId());
         // Set replay actions.
         if (isRealtime) {
-            ede.setReplayActions(analysis.getReplayActions() == null ? new ReplayActions()
-                            : analysis.getReplayActions());
+            ede.setReplayActions(analysis.getReplayActions());
         }
         // trigger suspension throttling in XL
         actions = ede.generateActions(economy, true, true, true, true,

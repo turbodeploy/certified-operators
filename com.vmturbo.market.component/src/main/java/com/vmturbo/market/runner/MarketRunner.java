@@ -51,7 +51,7 @@ public class MarketRunner {
     private final AnalysisFactory analysisFactory;
     // This variable keeps track of actions to replay from last round of analysis.
     // For real time analysis, this is passed to Analysis object created in this class.
-    private ReplayActions realtimeReplayActions = new ReplayActions();
+    private @Nonnull ReplayActions realtimeReplayActions = new ReplayActions();
 
     private final Optional<MarketDebugRpcService> marketDebugRpcService;
 
