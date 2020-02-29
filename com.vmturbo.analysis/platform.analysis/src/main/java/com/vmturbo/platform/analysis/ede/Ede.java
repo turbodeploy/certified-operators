@@ -36,7 +36,6 @@ import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
-import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
@@ -51,7 +50,7 @@ import com.vmturbo.platform.analysis.utilities.StatsWriter;
 public final class Ede {
 
     // Fields
-    private transient @NonNull ReplayActions replayActions_;
+    private transient @NonNull ReplayActions replayActions_ = new ReplayActions();
 
     // Constructor
 
@@ -285,7 +284,7 @@ public final class Ede {
         // resize time
         statsUtils.after();
 
-        if (isReplay && getReplayActions() != null) {
+        if (isReplay) {
             getReplayActions().replayActions(economy, ledger);
             actions.addAll(getReplayActions().getActions());
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
@@ -319,18 +318,14 @@ public final class Ede {
         statsUtils.before();
         if (isSuspension) {
             Suspension suspension = new Suspension();
-            if (getReplayActions() != null) {
-                // initialize the rolled back trader list from last run
-                getReplayActions().translateRolledbackTraders(economy, economy.getTopology());
-                suspension.setRolledBack(getReplayActions().getRolledBackSuspensionCandidates());
-            }
+            // initialize the rolled back trader list from last run
+            getReplayActions().translateRolledbackTraders(economy, economy.getTopology());
+            suspension.setRolledBack(getReplayActions().getRolledBackSuspensionCandidates());
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
             actions.addAll(suspension.suspensionDecisions(economy, ledger, this));
-            if (getReplayActions() != null) {
-                getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
-            }
+            getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
         }
         // suspension time
@@ -393,15 +388,14 @@ public final class Ede {
         Suspension.setSuspensionsThrottlingConfig(suspensionsThrottlingConfig);
         @NonNull List<Action> actions = new ArrayList<>();
         // only run replay in first sub round for realTime market.
-        boolean isReplay = true;
         if (isRealTime) {
             economy.getSettings().setResizeDependentCommodities(false);
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
-                            isResize, collapse, isReplay, mktData));
+                            isResize, collapse, true, mktData));
         } else {
             actions.addAll(generateActions(economy, classifyActions, isProvision,
-                            isSuspension, isResize, collapse, !isReplay, mktData));
+                            isSuspension, isResize, collapse, false, mktData));
         }
 
         return actions;
@@ -454,7 +448,7 @@ public final class Ede {
     /**
      * save the {@link ReplayActions} associated with this {@link Ede}
      */
-    public Ede setReplayActions(ReplayActions state) {
+    public Ede setReplayActions(@NonNull ReplayActions state) {
         replayActions_ = state;
         return this;
     }
@@ -462,7 +456,7 @@ public final class Ede {
     /**
      * @return return the {@link ReplayActions} associated with this {@link Ede}
      */
-     public ReplayActions getReplayActions() {
+     public @NonNull ReplayActions getReplayActions() {
          return replayActions_;
      }
 

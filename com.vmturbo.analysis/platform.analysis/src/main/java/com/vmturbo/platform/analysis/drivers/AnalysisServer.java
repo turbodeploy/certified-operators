@@ -16,11 +16,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
@@ -64,7 +64,7 @@ public class AnalysisServer implements AutoCloseable {
     private final Map<Long, AnalysisInstanceInfo> analysisInstanceInfoMap = new
             ConcurrentHashMap<>();
     // map that associates every market name with actions from last run
-    private final Map<String, ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
+    private final Map<String, @NonNull ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
     // a queue to save the AnalysisResult message that was not sent to client side
     private final BlockingQueue<AnalysisResults> resultsToSend = new LinkedBlockingQueue<>();
     // websocket transport handler
@@ -379,12 +379,10 @@ public class AnalysisServer implements AutoCloseable {
                             startPriceStatement, true);
         } else {
             // if there are no templates to be added this is not a headroom plan
-            ReplayActions lastDecisions = replayActionsMap.get(mktName);
             Ede ede = new Ede();
             boolean isReplayOrRealTime = instInfo.isReplayActions() || instInfo.isRealTime();
             if (isReplayOrRealTime) {
-                ede.setReplayActions(
-                                (lastDecisions != null) ? lastDecisions : new ReplayActions());
+                ede.setReplayActions(replayActionsMap.getOrDefault(mktName, new ReplayActions()));
             }
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
                             instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
