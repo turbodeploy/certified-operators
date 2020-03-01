@@ -1125,25 +1125,25 @@
         </profile>
         <profile>
             <id>securitycheck</id>
-    <build>
-      <plugins>
-        <plugin>
-          <groupId>org.owasp</groupId>
-          <artifactId>dependency-check-maven</artifactId>
-          <version>${owasp.version}</version>
-          <!--configuration>
-            <suppressionFiles>${basedir}/suppressed.xml</suppressionFiles>
-          </configuration-->
-          <executions>
-            <execution>
-              <goals>
-                <goal>check</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
-      </plugins>
-    </build>
+            <build>
+              <plugins>
+                <plugin>
+                  <groupId>org.owasp</groupId>
+                  <artifactId>dependency-check-maven</artifactId>
+                  <version>${owasp.version}</version>
+                  <!--configuration>
+                    <suppressionFiles>${basedir}/suppressed.xml</suppressionFiles>
+                  </configuration-->
+                  <executions>
+                    <execution>
+                      <goals>
+                        <goal>check</goal>
+                      </goals>
+                    </execution>
+                  </executions>
+                </plugin>
+              </plugins>
+            </build>
         </profile>
         <profile>
             <id>save</id>
