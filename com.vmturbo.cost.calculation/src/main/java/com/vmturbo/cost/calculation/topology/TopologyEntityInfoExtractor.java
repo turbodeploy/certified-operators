@@ -79,7 +79,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             VirtualVolumeInfo volumeConfig = entity.getTypeSpecificInfo().getVirtualVolume();
             return Optional.of(new VirtualVolumeConfig(
                     volumeConfig.getStorageAccessCapacity(),
-                    volumeConfig.getStorageAmountCapacity()));
+                    volumeConfig.getStorageAmountCapacity(),
+                    volumeConfig.getIsEphemeral()));
         } else {
             return Optional.empty();
         }

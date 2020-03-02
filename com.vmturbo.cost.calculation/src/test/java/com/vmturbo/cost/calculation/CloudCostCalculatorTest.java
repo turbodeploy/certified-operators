@@ -364,7 +364,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostIOPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0))
+                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, false))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -385,7 +385,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostGBMonth() {
         final int vVolSizeMb = 19; // should be >= GB_RANGE
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, false);
 
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
@@ -399,7 +399,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostSizeEqualToEndRange() {
         final int vVolSizeMb = 32;
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, false);
         assertThat(journal.getTotalHourlyCost().getValue(),
                 closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                         + GB_MONTH_PRICE_32, DELTA));
@@ -409,13 +409,16 @@ public class CloudCostCalculatorTest {
      * Creates cloudCost data for a given virtual volume size.
      *
      * @param vVolSizeMb virtual volume size.
+     * @param isEphemeral if the volume is Ephemeral. E.G. AWS Instance Store directly attached to EC2 instance.
+     *
      * @return {@link CostJournal} for volume of a given virtual volume size.
      */
     private CostJournal<TestEntityClass> createCostJournalForVolumeCostCalculation(
-                                                            final int vVolSizeMb) {
+            final int vVolSizeMb,
+            final boolean isEphemeral) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024))
+                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, isEphemeral))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -598,6 +601,18 @@ public class CloudCostCalculatorTest {
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(noCostEntity);
         assertThat(journal.getEntity(), is(noCostEntity));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
+        assertThat(journal.getCategories(), is(Collections.emptySet()));
+    }
+
+    /**
+     * Verify that an Ephemeral Volume returns an empty journal.
+     */
+    @Test
+    public void testEphemeralVolumeEmptyCost() {
+        final int vVolSizeMb = 19;
+        final CostJournal<TestEntityClass> journal =
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, true);
         assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
         assertThat(journal.getCategories(), is(Collections.emptySet()));
     }
