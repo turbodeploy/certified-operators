@@ -1121,9 +1121,7 @@ public class GroupsService implements IGroupsService {
             return Collections.emptyList();
         }
 
-        return result.stream()
-            .filter(groupApiDTO -> EnvironmentTypeMapper.matches(null, groupApiDTO.getEnvironmentType()))
-            .collect(Collectors.toList());
+        return result;
     }
 
     /**
