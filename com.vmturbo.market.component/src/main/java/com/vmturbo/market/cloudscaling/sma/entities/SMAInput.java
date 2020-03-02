@@ -921,7 +921,7 @@ public class SMAInput {
      * @param msg           who is
      * @return business account ID
      */
-    private long getBusinessAccountId(long oid,
+     public static long getBusinessAccountId(long oid,
                                       @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
                                       String msg) {
         long businessAccont = -1;
@@ -1206,7 +1206,7 @@ public class SMAInput {
          *
          * @param region region to process.
          */
-        void updateWithRegion(TopologyEntityDTO region) {
+        public void updateWithRegion(TopologyEntityDTO region) {
             long regionId = region.getOid();
             if (regionIdToCspCache.get(regionId) == null) {
                 // not in the map
@@ -1230,7 +1230,7 @@ public class SMAInput {
          * @param regionOid the region OID
          * @return if not found return UNKNOWN.
          */
-        SMACSP lookupWithRegionId(long regionOid) {
+        public SMACSP lookupWithRegionId(long regionOid) {
             SMACSP csp = regionIdToCspCache.get(regionOid);
             if (csp == null) {
                 logger.trace("lookupWithRegionId no CSP found for region ID={}", regionOid);
