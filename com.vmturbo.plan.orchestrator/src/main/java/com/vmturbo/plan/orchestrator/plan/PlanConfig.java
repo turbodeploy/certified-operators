@@ -76,6 +76,9 @@ public class PlanConfig {
     @Value("${startAnalysisRetryTimeoutMin:30}")
     private long startAnalysisRetryTimeoutMin;
 
+    @Value("${numPlanAnalysisThreads:5}")
+    private int numPlanAnalysisThreads;
+
     @Autowired
     private PlanOrchestratorDBConfig dbConfig;
 
@@ -286,7 +289,7 @@ public class PlanConfig {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("plan-analysis-starter-%d")
                 .build();
-        return Executors.newFixedThreadPool(5, threadFactory);
+        return Executors.newFixedThreadPool(Math.max(1, numPlanAnalysisThreads), threadFactory);
     }
 
     @Bean

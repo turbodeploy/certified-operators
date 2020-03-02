@@ -366,6 +366,8 @@ defaultProperties:
         # If true, calculate headroom for all clusters in one plan instance.
         # If false, calculate headroom for restricted number of clusters in multiple plan instances.
         headroomCalculationForAllClusters: true
+        # Number of analysis threads to start
+        numPlanAnalysisThreads: 5
     reporting:
         dbSchemaName: vmtdb
         identityGeneratorPrefix: 8
