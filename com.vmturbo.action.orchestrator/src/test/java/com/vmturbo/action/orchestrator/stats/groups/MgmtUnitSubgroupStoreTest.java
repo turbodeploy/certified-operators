@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.groups;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -9,6 +8,9 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -21,12 +23,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryResult;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -150,11 +151,11 @@ public class MgmtUnitSubgroupStoreTest {
         final Optional<QueryResult> result =
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 .setMgmtUnitId(mu1Id)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
         assertThat(result.get().mgmtUnit().get(), is(123L));
         assertThat(result.get().mgmtUnitSubgroups(),
-            containsInAnyOrder(subgroups.get(mu1Key1).id()));
+            is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
 
     @Test
@@ -180,10 +181,11 @@ public class MgmtUnitSubgroupStoreTest {
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 .setMgmtUnitId(mu1Id)
                 .addEntityType(1)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
         assertThat(result.get().mgmtUnit().get(), is(mu1Id));
-        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+        assertThat(result.get().mgmtUnitSubgroups(),
+            is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
 
     @Test
@@ -208,11 +210,12 @@ public class MgmtUnitSubgroupStoreTest {
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 .setMgmtUnitId(mu1Id)
                 // Unset entity type in the request.
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
         assertThat(result.get().mgmtUnit().get(), is(mu1Id));
         // Should only return the ID of the mgmt unit subgroup with no entity type set.
-        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+        assertThat(result.get().mgmtUnitSubgroups(),
+            is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
 
     @Test
@@ -239,10 +242,11 @@ public class MgmtUnitSubgroupStoreTest {
                 .setMgmtUnitId(mu1Id)
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .addEntityType(1)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
         assertThat(result.get().mgmtUnit().get(), is(mu1Id));
-        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+        assertThat(result.get().mgmtUnitSubgroups(),
+            is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
 
     @Test
@@ -263,17 +267,18 @@ public class MgmtUnitSubgroupStoreTest {
                 // Check if we can find it by explicitly specifying the on-prem env type.
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .addEntityType(1)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
         assertThat(result.get().mgmtUnit().get(), is(mu1Id));
-        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+        assertThat(result.get().mgmtUnitSubgroups(),
+            is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
 
         final Optional<QueryResult> result2 =
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 .setMgmtUnitId(mu1Id)
                 // Check if we can find it without explicitly specifying an env type.
                 .addEntityType(1)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         // Should be the same result.
         assertThat(result2, is(result));
     }
@@ -303,14 +308,15 @@ public class MgmtUnitSubgroupStoreTest {
         final Optional<QueryResult> result =
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 .setMarket(true)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
 
         // Mgmt unit should be unset.
         assertFalse(result.get().mgmtUnit().isPresent());
 
         assertThat(result.get().mgmtUnitSubgroups(),
-            containsInAnyOrder(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key2).id()));
+            is(ImmutableMap.of(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1),
+                subgroups.get(mu1Key2).id(), subgroups.get(mu1Key2))));
     }
 
     @Test
@@ -318,7 +324,7 @@ public class MgmtUnitSubgroupStoreTest {
         final Optional<QueryResult> result =
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 .setMgmtUnitId(7)
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertFalse(result.isPresent());
     }
 
@@ -327,7 +333,7 @@ public class MgmtUnitSubgroupStoreTest {
         final Optional<QueryResult> result =
             mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
                 // No market, and no specific mgmt unit.
-                .build());
+                .build(), GroupBy.ACTION_CATEGORY);
         assertFalse(result.isPresent());
     }
 }

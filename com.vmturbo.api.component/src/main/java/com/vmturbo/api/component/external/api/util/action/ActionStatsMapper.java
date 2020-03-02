@@ -2,8 +2,10 @@ package com.vmturbo.api.component.external.api.util.action;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -12,6 +14,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -238,12 +241,16 @@ class ActionStatsMapper {
     private List<StatApiDTO> actionStatXLtoAPI(@Nonnull final ActionStat actionStat,
                                               @Nonnull final ActionStatsQuery query) {
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
-        if (actionStat.hasActionCategory()) {
-            groupByFilters.setCategory(actionStat.getActionCategory());
+        if (actionStat.getStatGroup().hasActionCategory()) {
+            groupByFilters.setCategory(actionStat.getStatGroup().getActionCategory());
         }
 
-        if (actionStat.hasActionState()) {
-            groupByFilters.setState(actionStat.getActionState());
+        if (actionStat.getStatGroup().hasActionState()) {
+            groupByFilters.setState(actionStat.getStatGroup().getActionState());
+        }
+
+        if (actionStat.getStatGroup().hasBusinessAccountId()) {
+            groupByFilters.setBusinessAccountId(actionStat.getStatGroup().getBusinessAccountId());
         }
 
         final List<StatApiDTO> retStats = new ArrayList<>();
@@ -259,7 +266,11 @@ class ActionStatsMapper {
                 actionStatValueXLtoAPI(actionStat.getEntityCount())));
         }
 
-        query.getCostType().ifPresent(costType -> {
+        final Set<ActionCostType> requestedCostTypes = query.getCostType()
+            .map(Collections::singleton)
+            // By default, we return both savings and investments.
+            .orElseGet(() -> Sets.newHashSet(ActionCostType.INVESTMENT, ActionCostType.SAVING));
+        requestedCostTypes.forEach(costType -> {
             // Note - Feb 26 2019 - the UI doesn't expect zero values for investments/savings.
             // We only want to return those stats when there were some investments/savings.
             // If any investments or savings were provided, we would expect the "max" to be greater than 0.

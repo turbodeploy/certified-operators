@@ -1450,6 +1450,12 @@ message HistoricalActionStatsQuery {
         // compliance, the returned action count will be 2 for the "performance" category and
         // 1 for the "compliance" category.
         ACTION_CATEGORY = 2;
+
+        // The ID of the business account associated with the action.
+        // Only actions that have associated business accounts will be returned. Unlike the
+        // "live" action stats query, we will NOT return a "0"-valued business account group for
+        // actions without a business account.
+        BUSINESS_ACCOUNT_ID = 9;
     }
 
     // The time range for the query.
@@ -1590,13 +1596,25 @@ message ActionStat {
         optional double total = 4;
     }
 
-    // The state for this action stat, only present if the "group_by" in the query was
-    // "ACTION_STATE."
-    optional ActionState action_state = 1;
+    // If the "group_by" in the query was non-empty, this message contains the values of the
+    // grouping criteria that a particular "ActionStat" aggregated across.
+    message StatGroup {
+        // The state for this action stat, only present if the "group_by" in the query was
+        // "ACTION_STATE."
+        optional ActionState action_state = 1;
 
-    // The category for this action stat, only present if the "group_by" in the query was
-    // "ACTION_CATEGORY."
-    optional ActionCategory action_category = 2;
+        // The category for this action stat, only present if the "group_by" in the query was
+        // "ACTION_CATEGORY."
+        optional ActionCategory action_category = 2;
+
+        // The business account for this action stat. Only present if the "group_by" in the query was
+        // "BUSINESS_ACCOUNT_ID".
+        optional int64 business_account_id = 3;
+    }
+
+    // The stat group for this particular stat. Only set if the group_by in the request was
+    // set to something other than NONE.
+    optional StatGroup stat_group = 1;
 
     // The number of actions affecting the mgmt unit subgroups that matched the query.
     optional Value action_count = 20;

@@ -182,6 +182,7 @@ public class PartialEntityConverterTest {
 
         assertThat(withConnections.getOid(), is(ENTITY.getOid()));
         assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
+        assertThat(withConnections.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(withConnections.getConnectedEntitiesList(), is(ENTITY.getConnectedEntityListList()));
     }
 
@@ -304,6 +305,7 @@ public class PartialEntityConverterTest {
 
         assertThat(withConnections.getOid(), is(ENTITY.getOid()));
         assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
+        assertThat(withConnections.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(withConnections.getConnectedEntitiesList(), is(ENTITY.getConnectedEntityListList()));
     }
 

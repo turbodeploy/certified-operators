@@ -232,14 +232,32 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable {
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(stitchingContext, probeTypesForTargetId);
         try {
             // call the upload methods of our helper objects.
-            accountExpensesUploader.uploadAccountExpenses(costDataByTargetIdSnapshot, topologyInfo,
+            try {
+                accountExpensesUploader.uploadAccountExpenses(costDataByTargetIdSnapshot, topologyInfo,
                     stitchingContext, cloudEntitiesMap);
-            riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo,
-                    stitchingContext, cloudEntitiesMap);
-            businessAccountPriceTableKeyUploader.uploadAccountPriceTableKeys(stitchingContext,
-                    probeTypesForTargetId);
+            } catch (RuntimeException e) {
+                logger.error("Failed to upload account expenses data.", e);
+            }
 
-            priceTableUploader.checkForUpload(probeTypesForTargetId, cloudEntitiesMap);
+            try {
+                riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo,
+                    stitchingContext, cloudEntitiesMap);
+            } catch (RuntimeException e) {
+                logger.error("Failed to upload RI data.", e);
+            }
+
+            try {
+                businessAccountPriceTableKeyUploader.uploadAccountPriceTableKeys(stitchingContext,
+                    probeTypesForTargetId);
+            } catch (RuntimeException e) {
+                logger.error("Failed to upload price table keys.", e);
+            }
+
+            try {
+                priceTableUploader.checkForUpload(probeTypesForTargetId, cloudEntitiesMap);
+            } catch (RuntimeException e) {
+                logger.error("Failed to upload price table.", e);
+            }
 
         } finally {
             // there will be exceptions if cost component is not running, we should remove

@@ -65,6 +65,7 @@ public class PartialEntityConverter {
                 final EntityWithConnections.Builder withConnectionsBuilder =
                     EntityWithConnections.newBuilder()
                         .setOid(repoGraphEntity.getOid())
+                        .setEntityType(repoGraphEntity.getEntityType())
                         .setDisplayName(repoGraphEntity.getDisplayName());
                 withConnectionsBuilder.addAllConnectedEntities(repoGraphEntity.getBroadcastConnections());
                 partialEntityBldr.setWithConnections(withConnectionsBuilder);
@@ -171,6 +172,7 @@ public class PartialEntityConverter {
                     EntityWithConnections.newBuilder()
                         .setOid(topoEntity.getOid())
                         .setDisplayName(topoEntity.getDisplayName())
+                        .setEntityType(topoEntity.getEntityType())
                         .addAllConnectedEntities(topoEntity.getConnectedEntityListList());
                 partialEntityBldr.setWithConnections(withConnectionsBuilder);
                 break;

@@ -15,6 +15,9 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
@@ -22,13 +25,12 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Maps;
-
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -147,28 +149,38 @@ public class MgmtUnitSubgroupStore {
      *
      * @param mgmtUnitSubgroupFilter A {@link MgmtUnitSubgroupFilter} indicating which
      *                               management unit to target, and which subgroups to return.
+     * @param groupBy The {@link GroupBy} indicating how to group final results. This may affect
+     *                which management units we need to query.
      * @return A {@link QueryResult} if one or more mgmt unit subgroups match the filter. Empty
      *         otherwise.
      */
     @Nonnull
-    public Optional<QueryResult> query(@Nonnull final MgmtUnitSubgroupFilter mgmtUnitSubgroupFilter) {
+    public Optional<QueryResult> query(@Nonnull final MgmtUnitSubgroupFilter mgmtUnitSubgroupFilter,
+                                       @Nonnull final HistoricalActionStatsQuery.GroupBy groupBy) {
         final List<Condition> conditions = new ArrayList<>();
-        final long mgmtUnitId;
+
+        final long targetMgmtUnitId;
         if (mgmtUnitSubgroupFilter.getMarket()) {
-            mgmtUnitId = GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
+            targetMgmtUnitId = GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
+            if (groupBy == GroupBy.BUSINESS_ACCOUNT_ID) {
+                // This is a pretty specific case - if we are going to want to group the resulting
+                // stats by business account ID, we shouldn't look for the "global" management unit.
+                // We should look for all the individual management unit subgroups associated with
+                // business accounts.
+                conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_TYPE.eq((short)ManagementUnitType.BUSINESS_ACCOUNT.getNumber()));
+            } else {
+                conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(targetMgmtUnitId));
+            }
         } else if (mgmtUnitSubgroupFilter.hasMgmtUnitId()) {
-            mgmtUnitId = mgmtUnitSubgroupFilter.getMgmtUnitId();
+            targetMgmtUnitId = mgmtUnitSubgroupFilter.getMgmtUnitId();
+            conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(targetMgmtUnitId));
         } else {
             logger.error("Invalid filter does not target the market or a specific mgmt unit: {}",
                 mgmtUnitSubgroupFilter);
             return Optional.empty();
         }
 
-
-        logger.debug("Querying for subgroups in mgmt unit: {}", mgmtUnitId);
-
-        // This will guarantee that all records we get back have the same mgmt unit ID.
-        conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(mgmtUnitId));
+        logger.debug("Querying for subgroups in mgmt unit: {}", targetMgmtUnitId);
 
         if (mgmtUnitSubgroupFilter.getEntityTypeList().isEmpty()) {
             // Special case - unset entity type, look in the "global" record.
@@ -212,14 +224,16 @@ public class MgmtUnitSubgroupStore {
             } else {
                 final ImmutableQueryResult.Builder builder = ImmutableQueryResult.builder();
 
-                if (mgmtUnitId != GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID) {
-                    builder.mgmtUnit(mgmtUnitId);
+                // We check explicitly for the global mgmt unit id because in the global case
+                // we are aggregating information across multiple management units.
+                if (targetMgmtUnitId != GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID) {
+                    builder.mgmtUnit(targetMgmtUnitId);
                 }
 
                 // In the future if we want to group results by environment type or entity type we will
                 // need to return the full MgmtUnitSubgroup objects as part of the query result.
                 // For now just the ID is sufficient.
-                matchingSubgroups.forEach(subgroup -> builder.addMgmtUnitSubgroups(subgroup.id()));
+                matchingSubgroups.forEach(subgroup -> builder.putMgmtUnitSubgroups(subgroup.id(), subgroup));
 
                 return Optional.of(builder.build());
             }
@@ -238,9 +252,11 @@ public class MgmtUnitSubgroupStore {
         Optional<Long> mgmtUnit();
 
         /**
-         * The set of mgmt unit subgroups targeted by the query. Should be non-empty.
+         * The mgmt unit subgroups targeted by the query, arranged by ID. Should be non-empty.
+         *
+         * @return (subgroup id) -> {@link MgmtUnitSubgroup}).
          */
-        Set<Integer> mgmtUnitSubgroups();
+        Map<Integer, MgmtUnitSubgroup> mgmtUnitSubgroups();
     }
 
     static class Metrics {

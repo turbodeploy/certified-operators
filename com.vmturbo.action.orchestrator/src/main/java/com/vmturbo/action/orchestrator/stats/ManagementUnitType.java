@@ -21,7 +21,13 @@ public enum ManagementUnitType {
     /**
      * The cluster scope. This can be a physical cluster or a storage cluster.
      */
-    CLUSTER(2);
+    CLUSTER(2),
+
+    /**
+     * Business account scope. This is only relevant in the cloud.
+     */
+    BUSINESS_ACCOUNT(3);
+
 
     private final int numericValue;
 
