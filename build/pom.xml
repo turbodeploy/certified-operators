@@ -175,6 +175,20 @@
         </profile>
 
         <profile>
+            <id>baseimage</id>
+            <modules>
+                <module>../com.vmturbo.components.baseimage</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>diags</id>
+            <modules>
+                <module>../diags</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>clustermgr</id>
             <modules>
                 <module>../com.vmturbo.clustermgr</module>

@@ -65,6 +65,10 @@ spec:
         env:
         - name: KAFKA_HEAP_OPTS
           value: {{ .Values.java.options | quote }}
+{{- if .Values.global.javaEnvironmentOptions }}
+        - name: KAFKA_OPTS
+          value: {{ .Values.global.javaEnvironmentOptions | quote }}
+{{- end }}
 {{ toYaml .Values.env | indent 8 }}
         ports:
           - containerPort: 9092
