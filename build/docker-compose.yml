@@ -1258,6 +1258,51 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HORIZON_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_MB}M
 
+  mediation-intersight-hyperflex:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.hyperflex.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_INTERSIGHT_HYPERFLEX_PORT}"
+    - "${MEDIATION_INTERSIGHT_HYPERFLEX_DEBUG_PORT}"
+    environment:
+      component_type: mediation-intersight-hyperflex
+      instance_id: mediation-intersight-hyperflex-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_INTERSIGHT_HYPERFLEX_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_INTERSIGHT_HYPERFLEX_MEM_LIMIT_MB}M
+
+  mediation-intersight-ucs:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.ucs.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_INTERSIGHT_UCS_PORT}"
+    - "${MEDIATION_INTERSIGHT_UCS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-intersight-ucs
+      instance_id: mediation-intersight-ucs-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_INTERSIGHT_UCS_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_INTERSIGHT_UCS_MEM_LIMIT_MB}M
+
+  mediation-intersight-server:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.server.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_INTERSIGHT_SERVER_PORT}"
+    - "${MEDIATION_INTERSIGHT_SERVER_DEBUG_PORT}"
+    environment:
+      component_type: mediation-intersight-server
+      instance_id: mediation-intersight-server-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_INTERSIGHT_SERVER_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_INTERSIGHT_SERVER_MEM_LIMIT_MB}M
+
   mediation:
     extends:
       file: common-services.yml
