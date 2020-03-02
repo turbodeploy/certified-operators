@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
+import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.DbCleanupRule;
@@ -530,7 +531,7 @@ public class SettingStoreTest {
         // might make this test to fail
 
         Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpecs();
-        assertEquals(retrievedSettingSpecs.size(), 4);
+        assertEquals(retrievedSettingSpecs.size(), 5);
     }
 
     @Test
@@ -741,6 +742,7 @@ public class SettingStoreTest {
 
     private static final String NAME = "foo";
     private static final String WRONG_NAME = "bar";
+    private static final String DEFAULT_VALUE = "aaa";
     private static final String STR_VALUE = "bbb";
 
     /**
@@ -750,7 +752,7 @@ public class SettingStoreTest {
      */
     @Test
     public void testGlobalSettings() throws Exception {
-        settingStore.insertGlobalSettings(Lists.newArrayList(settingWithStringValue(NAME, "aaa")));
+        settingStore.insertGlobalSettings(Lists.newArrayList(settingWithStringValue(NAME, DEFAULT_VALUE)));
         assertEquals(1, settingStore.getAllGlobalSettings().size());
 
         // Verify that update works
@@ -765,6 +767,24 @@ public class SettingStoreTest {
         // Update of a missing name should not insert
         settingStore.updateGlobalSetting(settingWithStringValue(WRONG_NAME, STR_VALUE));
         assertFalse(settingStore.getGlobalSetting(WRONG_NAME).isPresent());
+
+        // Reset the global setting that exists
+        settingStore.resetGlobalSetting(Collections.singletonList(NAME));
+        value = settingStore.getGlobalSetting(NAME)
+            .map(Setting::getStringSettingValue)
+            .map(SettingProto.StringSettingValue::getValue)
+            .get();
+        assertEquals(DEFAULT_VALUE, value);
+    }
+
+    /**
+     * Test {@link SettingStore#resetGlobalSetting(Collection)}.
+     *
+     * @throws Exception If any exceptions thrown during test execution.
+     */
+    @Test(expected = SettingNotFoundException.class)
+    public void testGlobalSettingNotFound() throws Exception {
+        settingStore.resetGlobalSetting(Collections.singletonList(WRONG_NAME));
     }
 
     private static Setting settingWithStringValue(String name, String value) {

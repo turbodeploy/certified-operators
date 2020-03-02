@@ -78,7 +78,7 @@ public class DefaultGlobalSettingsCreator implements Runnable {
     }
 
     @Nonnull
-    private static List<Setting> defaultSettingsFromSpecs(
+    static List<Setting> defaultSettingsFromSpecs(
             @Nonnull final Collection<SettingSpec> specs) {
 
         List<Setting> settings = new LinkedList<>();

@@ -135,6 +135,7 @@
         "maxObservationPeriodBusinessUser",
         "maxObservationPeriodVirtualMachine",
         "maxObservationPeriodDesktopPool",
+        "maxVMGrowthObservationPeriod",
         "resizeTargetUtilizationNetThroughput",
         "resizeTargetUtilizationIoThroughput",
         "resizeTargetUtilizationImageCPU",

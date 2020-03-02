@@ -192,8 +192,7 @@ public class SettingsService implements ISettingsService {
                         .setSettingSpecName(name)
                         .build());
         if (spec != null) {
-            UpdateGlobalSettingRequest.Builder updateRequestBuilder = UpdateGlobalSettingRequest.newBuilder()
-                    .setSettingSpecName(name);
+            Setting.Builder settingBuilder = Setting.newBuilder().setSettingSpecName(name);
 
             switch (spec.getSettingValueTypeCase()) {
                 case BOOLEAN_SETTING_VALUE_TYPE:
@@ -205,12 +204,12 @@ public class SettingsService implements ISettingsService {
                                 String.format("Setting %s must have a boolean value. The value '%s' is invalid.",
                                         name, settingValue));
                     }
-                    updateRequestBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                    settingBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
                             .setValue(Boolean.valueOf(settingValue)));
                     break;
                 case NUMERIC_SETTING_VALUE_TYPE:
                     try {
-                        updateRequestBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
+                        settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(Float.parseFloat(settingValue)));
                     } catch (NumberFormatException e) {
                         // Throw an exception with a more meaninful message if value is not a number.
@@ -220,18 +219,19 @@ public class SettingsService implements ISettingsService {
                     }
                     break;
                 case ENUM_SETTING_VALUE_TYPE:
-                    updateRequestBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
+                    settingBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
                             .setValue(settingValue));
                     break;
                 case STRING_SETTING_VALUE_TYPE:
                     // fall through to next case
                 case SETTINGVALUETYPE_NOT_SET:
-                    updateRequestBuilder.setStringSettingValue(StringSettingValue.newBuilder()
+                    settingBuilder.setStringSettingValue(StringSettingValue.newBuilder()
                             .setValue(settingValue));
                     break;
             }
 
-            settingServiceBlockingStub.updateGlobalSetting(updateRequestBuilder.build());
+            settingServiceBlockingStub.updateGlobalSetting(
+                UpdateGlobalSettingRequest.newBuilder().addSetting(settingBuilder).build());
         } else {
             throw new IllegalArgumentException("Setting name is invalid: " + name);
         }

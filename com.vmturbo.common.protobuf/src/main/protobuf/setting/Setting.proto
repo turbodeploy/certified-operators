@@ -482,23 +482,18 @@ message GetMultipleGlobalSettingsRequest {
 }
 
 message UpdateGlobalSettingRequest {
-    // Name of the Setting which needs to be updated.
-    optional string setting_spec_name = 1;
-
-    // The new value for the setting.
-    // There is a gap in the proto tag numbers because
-    // when new fields are added, new value types can be
-    // assigned contigious numbers
-    oneof value {
-        BooleanSettingValue boolean_setting_value = 6;
-        NumericSettingValue numeric_setting_value = 7;
-        StringSettingValue string_setting_value = 8;
-        EnumSettingValue enum_setting_value = 9;
-    }
+    // A list of settings to update.
+    repeated Setting setting = 1;
 }
 
-message UpdateGlobalSettingResponse {
+message UpdateGlobalSettingResponse {}
+
+message ResetGlobalSettingRequest {
+    // The names of the settings to reset.
+    repeated string setting_spec_name = 1;
 }
+
+message ResetGlobalSettingResponse {}
 
 message GetSettingPolicyRequest {
     // Whether to include the SettingSpecs associated with the Setting objects
@@ -747,6 +742,9 @@ service SettingService {
 
     // Update global setting
     rpc UpdateGlobalSetting(UpdateGlobalSettingRequest) returns (UpdateGlobalSettingResponse);
+
+    // Reset global setting
+    rpc ResetGlobalSetting(ResetGlobalSettingRequest) returns (ResetGlobalSettingResponse);
 }
 
 // A request to create a SettingPolicy.

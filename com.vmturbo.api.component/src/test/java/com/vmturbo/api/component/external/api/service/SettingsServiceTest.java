@@ -373,9 +373,9 @@ public class SettingsServiceTest {
                 .setSettingSpecName(settingSpecName)
                 .build());
         verify(settingRpcServiceSpy).updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
-                .setSettingSpecName(settingSpecName)
+            .addSetting(Setting.newBuilder().setSettingSpecName(settingSpecName)
                 .setNumericSettingValue(NumericSettingValue.newBuilder()
-                        .setValue(Float.parseFloat(settingValue)))
+                    .setValue(Float.parseFloat(settingValue))))
                 .build());
     }
 

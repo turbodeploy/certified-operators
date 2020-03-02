@@ -8,10 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
@@ -184,6 +186,13 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     /**
+     * Max observation period for VM growth.
+     */
+    MaxVMGrowthObservationPeriod("maxVMGrowthObservationPeriod",
+        "VM Growth Observation Period (in month)",
+        numeric(1, 24, 1), Collections.emptyList()),
+
+    /**
      * Settings for OS migration.
      */
     SelectedMigrationProfileOption("selectedMigrationProfileOption", "Selected OS Migration Profile Option",
@@ -239,6 +248,11 @@ public enum GlobalSettingSpecs {
             new BooleanSettingDataType(false),
             Collections.emptyList());
 
+    /**
+     * A list of global settings that are visible to the UI.
+     */
+    public static final Set<GlobalSettingSpecs> VISIBLE_TO_UI = ImmutableSet.of(
+        DisableAllActions, MaxVMGrowthObservationPeriod);
 
     /**
      * Setting name to setting enumeration value map for fast access.
