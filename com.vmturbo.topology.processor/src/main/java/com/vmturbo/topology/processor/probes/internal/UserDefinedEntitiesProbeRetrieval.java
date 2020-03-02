@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.probes.internal;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -63,12 +64,12 @@ public class UserDefinedEntitiesProbeRetrieval {
      */
     @Nonnull
     public Collection<TopologyEntityDTO> getMembers(long groupId) {
-        final GetMembersRequest request = GetMembersRequest.newBuilder().setId(groupId).build();
-        final GetMembersResponse membersResponse = groupService.getMembers(request);
-        final List<Long> memberIds = membersResponse.getMembers().getIdsList();
-        final Collection<TopologyEntityDTO> members = entityRetriever
+        final GetMembersRequest request = GetMembersRequest.newBuilder().addId(groupId).build();
+        final Iterator<GetMembersResponse> membersResponseIterator = groupService.getMembers(request);
+        final List<Long> memberIds = new ArrayList<>();
+                membersResponseIterator.forEachRemaining(m -> memberIds.addAll(m.getMemberIdList()));
+        return entityRetriever
                 .retrieveTopologyEntities(memberIds).collect(Collectors.toSet());
-        return members;
     }
 
 }
