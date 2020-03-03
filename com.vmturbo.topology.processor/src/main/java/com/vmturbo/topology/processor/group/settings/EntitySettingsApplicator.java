@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
@@ -93,6 +94,7 @@ public class EntitySettingsApplicator {
                 for (SettingApplicator applicator: buildApplicators(topologyInfo, graphWithSettings)) {
                     applicator.apply(entity, settingsForEntity);
                 }
+
             });
     }
 
@@ -158,6 +160,12 @@ public class EntitySettingsApplicator {
                         CommodityType.VSTORAGE),
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
+                new VMVMemThresholdApplicator(Arrays.asList(EntitySettingSpecs.ResizeVmemMinThreshold,
+                        EntitySettingSpecs.ResizeVmemMaxThreshold),
+                        CommodityType.VMEM),
+                new VMVCPUThresholdApplicator(Arrays.asList(EntitySettingSpecs.ResizeVcpuMinThreshold,
+                        EntitySettingSpecs.ResizeVcpuMaxThreshold),
+                        CommodityType.VCPU, graphWithSettings),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationImageCPU,
                         CommodityType.IMAGE_CPU),
@@ -771,6 +779,99 @@ public class EntitySettingsApplicator {
             if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
                 entity.getAnalysisSettingsBuilder()
                     .setDesiredUtilizationRange(setting.getNumericSettingValue().getValue());
+            }
+        }
+    }
+
+    /**
+     * Applies VCPU min/Max to the virtual machine represented in {@link TopologyEntityDTO.Builder}.
+     */
+    private static class VMVCPUThresholdApplicator extends MultipleSettingsApplicator {
+
+        private final CommodityType commodityType;
+        // We need the graph to fin the core CPU speed of the hosting PM for the unit conversion.
+        private final TopologyGraph<TopologyEntity> graph;
+
+        private VMVCPUThresholdApplicator(@Nonnull final List<EntitySettingSpecs> settings,
+                                          @Nonnull final CommodityType commodityType,
+                                          @Nonnull final GraphWithSettings graphWithSettings) {
+            super(settings);
+            this.commodityType = Objects.requireNonNull(commodityType);
+            this.graph = graphWithSettings.getTopologyGraph();
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                             @Nonnull final Collection<Setting> settings) {
+            if (EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType() &&
+                    EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
+                // Gets the CPU speed of the PM.
+                final Optional<Integer> cpuSpeed = graph.getProviders(entity.getOid())
+                        .filter(provider -> provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                        .filter(provider -> provider.getTypeSpecificInfo().getPhysicalMachine().hasCpuCoreMhz())
+                        .map(pm -> pm.getTypeSpecificInfo().getPhysicalMachine().getCpuCoreMhz())
+                        .findFirst();
+                if (cpuSpeed.isPresent()) {
+                    entity.getCommoditySoldListBuilderList().stream()
+                            .filter(commodity -> commodity.getCommodityType().getType() ==
+                                    commodityType.getNumber()).forEach(commodityBuilder -> {
+                        final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+                        for (Setting setting : settings) {
+                            final float settingValue = setting.getNumericSettingValue().getValue();
+                            if (EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingSpec().getName()
+                                    .equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMin(settingValue * cpuSpeed.get());
+                            } else if (EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingSpec()
+                                    .getName().equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMax(settingValue * cpuSpeed.get());
+                            }
+                        }
+                        commodityBuilder.setThresholds(thresholdsBuilder);
+                    });
+                } else {
+                    logger.error("VCPU threshold applicator couldn't find the CPU speed " +
+                            "of the host (VM: {})", entity.getDisplayName());
+                }
+            }
+        }
+    }
+
+    /**
+     * Applies VMem min/Max to the virtual machine represented in {@link TopologyEntityDTO.Builder}.
+     */
+    private static class VMVMemThresholdApplicator extends MultipleSettingsApplicator {
+
+        //VMem setting value is in MBs. Market expects it in KBs.
+        private final float conversionFactor = 1024.0f;
+        private final CommodityType commodityType;
+
+        private VMVMemThresholdApplicator(@Nonnull final List<EntitySettingSpecs> settings,
+                                          @Nonnull final CommodityType commodityType) {
+            super(settings);
+            this.commodityType = Objects.requireNonNull(commodityType);
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                             @Nonnull final Collection<Setting> settings) {
+            if (EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType() &&
+                    EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
+                entity.getCommoditySoldListBuilderList().stream()
+                        .filter(commodity -> commodity.getCommodityType().getType() ==
+                                commodityType.getNumber()).forEach(commodityBuilder -> {
+                    final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+                    for (Setting setting : settings) {
+                        final float settingValue = setting.getNumericSettingValue().getValue();
+                        if (EntitySettingSpecs.ResizeVmemMinThreshold.getSettingSpec().getName()
+                                .equals(setting.getSettingSpecName())) {
+                            thresholdsBuilder.setMin(settingValue * conversionFactor);
+                        } else if (EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingSpec()
+                                .getName().equals(setting.getSettingSpecName())) {
+                            thresholdsBuilder.setMax(settingValue * conversionFactor);
+                        }
+                    }
+                    commodityBuilder.setThresholds(thresholdsBuilder);
+                });
             }
         }
     }

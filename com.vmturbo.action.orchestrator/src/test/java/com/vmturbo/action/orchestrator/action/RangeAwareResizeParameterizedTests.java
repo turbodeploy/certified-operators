@@ -38,6 +38,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 @RunWith(Parameterized.class)
 public class RangeAwareResizeParameterizedTests {
 
+    /**
+     * The multiplier for changing megabyte to kilobyte.
+     */
+    private static final int MB = 1024;
     private final CommodityAttribute changedAttribute;
     private final int commodityType;
     private final int entityType;
@@ -136,18 +140,19 @@ public class RangeAwareResizeParameterizedTests {
         return Arrays.asList(new Object[][] {
                 // Vmem
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 20000000, ActionMode.DISABLED},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 20_000_000, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 8000000, ActionMode.MANUAL},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 8_000_000, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 8000000, 7000000, ActionMode.RECOMMEND},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 8_000_000, 7_000_000,
+                        ActionMode.RECOMMEND},
                 // Vcpu
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 2, ActionMode.AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 2, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 12, ActionMode.DISABLED},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 12, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 4, 7, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
@@ -163,17 +168,93 @@ public class RangeAwareResizeParameterizedTests {
                         EntityType.VIRTUAL_MACHINE_VALUE, 1, 3, ActionMode.MANUAL},
                 // Limit change
                 {CommodityAttribute.LIMIT, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.MANUAL},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.MANUAL},
                 // Reservation change
                 {CommodityAttribute.RESERVED, CommodityDTO.CommodityType.MEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.RECOMMEND},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.RECOMMEND},
                 // Non-VM resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.CONTAINER_VALUE, 300000, 500000, ActionMode.DISABLED},
+                        EntityType.CONTAINER_VALUE, 300_000, 500_000, ActionMode.DISABLED},
+                /*
+                Adjust resize
+                CPU
+                min = 3 max = 8 cores
+                Modes: Automated - min - up: Manual down: Recommend - max- Disabled
+                Resize Up
+                 */
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 2, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 4, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 8, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 8, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 8, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 10, ActionMode.DISABLED},
+                // Test case resize CPU from below max to above max (max=8 cores)
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 10, ActionMode.RECOMMEND},
+                // Resize Down
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 10, 9, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 7, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 4, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 3, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 3, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 1, ActionMode.AUTOMATIC},
+                // Test case resize CPU from above min to below min (min=3)
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 1, ActionMode.RECOMMEND},
+                /*
+                Mem
+                min = 512MB max = 16GB
+                Modes: Automated - min - up: Manual down: Recommend - max- Disabled
+                Resize Up
+                 */
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 100 * MB, 200 * MB, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 800 * MB, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 16_000 * MB, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 800 * MB, 12_000 * MB, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 12_000 * MB, 16_000 * MB, ActionMode.MANUAL},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 25_000 * MB, ActionMode.DISABLED},
+                // Test case resize Mem from below max to above max (max=16GB)
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1_000 * MB, 1_000_000 * MB, ActionMode.RECOMMEND},
+                // Resize Down
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 25_000 * MB, 19_000 * MB, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 12_000 * MB, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 12_000 * MB, 800 * MB, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 800 * MB, 512 * MB, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 512 * MB, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 100 * MB, ActionMode.AUTOMATIC},
+                // Test case resize Mem from above min to below min (min=512MB)
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 100_000 * MB, 100 * MB, ActionMode.RECOMMEND},
                 // Other commodity resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VSTORAGE_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.RECOMMEND},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.RECOMMEND},
         });
+
     }
 
     @Test

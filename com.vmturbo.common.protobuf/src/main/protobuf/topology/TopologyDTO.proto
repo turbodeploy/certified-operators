@@ -1187,6 +1187,9 @@ message CommoditySoldDTO {
     // Certain probes may send more than one point per discovery request.
     optional UtilizationData utilizationData = 23;
 
+    // The thresholds (Ex. min/Max) for the commodity.
+    optional Thresholds thresholds = 24;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.
@@ -1202,6 +1205,15 @@ message CommoditySoldDTO {
         // whether or not this commodity supports hot remove
         optional bool hot_remove_supported = 3 [default = false];
     }
+
+    // Threshold set for the commodity. The min/Max will be used by market to adjust resize actions.
+    message Thresholds {
+        // The min threshold of the commodity. We keep this to adjust the resize down actions.
+        optional double min = 1;
+        // The Max threshold of the commodity. We keep this to adjust the resize up actions.
+        optional double max = 2;
+    }
+
 }
 
 message IpAddress {

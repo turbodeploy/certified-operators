@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -250,6 +252,38 @@ public class EntitySettingsApplicatorTest {
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(20))
             .build();
 
+    /**
+     * VMem min setting.
+     */
+    private static final Setting VMEM_MIN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1024))
+            .build();
+
+    /**
+     * VMem Max setting.
+     */
+    private static final Setting VMEM_MAX_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10240))
+            .build();
+
+    /**
+     * VCPU min setting.
+     */
+    private static final Setting VCPU_MIN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
+            .build();
+
+    /**
+     * VCPU Max setting.
+     */
+    private static final Setting VCPU_MAX_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100))
+            .build();
+
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
 
@@ -444,6 +478,47 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Tests applying of VMem/VCPU min/Max applicators for a VM.
+     */
+    @Test
+    public void testThresholdApplicatorForVM() {
+        long vmId = 7;
+        long pmId = 77;
+        double mbToKb = 1024;
+        final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder().setCpuCoreMhz(1000)).build();
+        final TopologyEntityDTO.Builder pm =
+                TopologyEntityDTO.newBuilder().setOid(pmId)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setTypeSpecificInfo(typeSpecificInfo);
+        TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder().setOid(vmId)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_VALUE)))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(pmId)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE));
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+                entityId, topologyEntityBuilder(entity),
+                pmId, topologyEntityBuilder(pm)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING,
+                VMEM_MAX_SETTING, VCPU_MIN_SETTING, VCPU_MAX_SETTING);
+        final Thresholds vMemCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
+        final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(1).getThresholds();
+        // VMem min is 1GB
+        Assert.assertEquals(1024 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
+        // VMem Max is 10GB
+        Assert.assertEquals(10240 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
+        // VCPU min is 10 cores X 1000 (host CPU speed)
+        Assert.assertEquals(10_000, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU min is 100 cores X 1000 (host CPU speed)
+        Assert.assertEquals(100_000, vCPUCommoditySoldThresholds.getMax(), DELTA);
     }
 
     /**
