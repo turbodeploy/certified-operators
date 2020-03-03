@@ -584,7 +584,29 @@ public class StatsMapper {
      */
     @Nonnull
     public StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput) {
-        final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder();
+        return newPeriodStatsFilter(statApiInput, false);
+    }
+
+    /**
+     * Convert a {@link StatPeriodApiInputDTO} request from the REST API into a protobuf
+     * {@link StatsFilter} to send via gRPC to the History Service.
+     *
+     * <p>The StatApiInputDTO specifies the details of the /stats request, including a date range,
+     * commodities to query, and one of entity names / scopes / entity-type to query.
+     *
+     * <p>It also specifies filter clauses to use as in SQL 'where' clauses and 'group by' clauses
+     *
+     * @param statApiInput a {@link StatPeriodApiInputDTO} specifying query options for
+     *                     this /stats query.
+     * @param requestProjectedHeadroom request projected headroom or not
+     * @return a new instance of {@link StatsFilter} protobuf with fields set from the
+     *        given statApiInput
+     */
+    @Nonnull
+    private StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput,
+                                             final boolean requestProjectedHeadroom) {
+        final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder()
+            .setRequestProjectedHeadroom(requestProjectedHeadroom);
         if (statApiInput != null) {
 
             final String inputStartDate = statApiInput.getStartDate();
@@ -705,10 +727,26 @@ public class StatsMapper {
     public ClusterStatsRequest toClusterStatsRequest(
             @Nonnull final String uuid,
             @Nullable final StatPeriodApiInputDTO inputDto) {
+        return toClusterStatsRequest(uuid, inputDto, false);
+    }
+
+    /**
+     * Create a ClusterStatsRequest object from a cluster UUID and a StatPeriodApiInputDTO object.
+     *
+     * @param uuid UUID of a cluster
+     * @param inputDto input DTO containing details of the request.
+     * @param requestProjectedHeadroom request projected headroom or not
+     * @return a ClusterStatsRequest object contain details from the input DTO.
+     */
+    @Nonnull
+    public ClusterStatsRequest toClusterStatsRequest(
+        @Nonnull final String uuid,
+        @Nullable final StatPeriodApiInputDTO inputDto,
+        final boolean requestProjectedHeadroom) {
         return ClusterStatsRequest.newBuilder()
-                .setClusterId(Long.parseLong(uuid))
-                .setStats(newPeriodStatsFilter(inputDto))
-                .build();
+            .setClusterId(Long.parseLong(uuid))
+            .setStats(newPeriodStatsFilter(inputDto, requestProjectedHeadroom))
+            .build();
     }
 
     /**
