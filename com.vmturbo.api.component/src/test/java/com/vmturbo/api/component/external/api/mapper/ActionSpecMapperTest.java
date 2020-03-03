@@ -126,6 +126,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -784,8 +785,10 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.VMEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals("2097152.0", actionApiDTO.getCurrentValue());
+        assertEquals("1048576.0", actionApiDTO.getResizeToValue());
+        assertEquals(CommodityTypeUnits.VMEM.getUnits(), actionApiDTO.getValueUnits());
     }
-
 
     @Test
     public void testResizeHeapDetail() throws Exception {
@@ -995,6 +998,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
         assertEquals(1, actionApiDTO.getVirtualDisks().size());
         assertEquals(filePath, actionApiDTO.getVirtualDisks().get(0).getDisplayName());
+        assertEquals("2", actionApiDTO.getCurrentValue());
+        assertEquals("MB", actionApiDTO.getValueUnits());
     }
 
     /**

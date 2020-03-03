@@ -124,6 +124,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -1248,6 +1249,16 @@ public class ActionSpecMapper {
         }
         actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
         actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
+        try {
+            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
+            if (!StringUtils.isEmpty(units)) {
+                actionApiDTO.setValueUnits(units);
+            }
+        } catch (IllegalArgumentException e) {
+            // the Enum is missing, it may be expected if there is no units associated with the
+            // commodity, or unexpected if someone forgot to define units for the commodity
+            logger.warn("No units for commodity {}", commodityType);
+        }
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resize.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1414,7 +1425,9 @@ public class ActionSpecMapper {
         actionApiDTO.setActionType(ActionType.DELETE);
         long deletedSizeinKB = deleteExplanation.getSizeKb();
         if (deletedSizeinKB > 0) {
-            actionApiDTO.setCurrentValue(Math.round(deletedSizeinKB / Units.NUM_OF_KB_IN_MB) + "MB");
+            actionApiDTO.setCurrentValue(String.valueOf(
+                Math.round(deletedSizeinKB / Units.NUM_OF_KB_IN_MB)));
+            actionApiDTO.setValueUnits("MB");
         }
         // set the virtualDisks field on ActionApiDTO, only one VirtualDiskApiDTO should be set,
         // since there is only one file (on-prem) or volume (cloud) associated with DELETE action
