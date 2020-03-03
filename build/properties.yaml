@@ -514,4 +514,4 @@ defaultProperties:
         # and the market should perform analysis on them, or if the Buy RI Impact Analysis should be performed.
         # BUY_RI_IMPACT_ANALYSIS is evaluated to true if either it's OCP with RI Buy only, or it's OCP with RI Buy + Market Optimization,
         # and allowBoughtRiInAnalysis is false.
-        allowBoughtRiInAnalysis: false
+        allowBoughtRiInAnalysis: true
