@@ -472,12 +472,13 @@ public class StatsMapperTest {
 
     private static final StatsFilter STATS_FILTER = StatsFilter.newBuilder()
             .setStartDate(7777)
+            .setRequestProjectedHeadroom(false)
             .build();
 
     @Test
     public void testClusterStatsRequest() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
         assertThat(clusterStatsRequest.getClusterId(), is(planId));
@@ -487,7 +488,7 @@ public class StatsMapperTest {
     @Test
     public void testClusterStatsRequestWithNullPeriod() {
         final StatPeriodApiInputDTO period = null;
-        when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
         assertThat(clusterStatsRequest.getClusterId(), is(planId));

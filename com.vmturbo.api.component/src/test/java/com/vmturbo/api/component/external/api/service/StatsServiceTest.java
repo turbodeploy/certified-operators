@@ -254,7 +254,7 @@ public class StatsServiceTest {
                                                         .setDefinition(clusterInfo).build()));
 
         final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
-        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO))
+        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO, true))
             .thenReturn(clusterStatsRequest);
 
         when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
@@ -267,7 +267,7 @@ public class StatsServiceTest {
 
         verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
-        verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO);
+        verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO, true);
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
