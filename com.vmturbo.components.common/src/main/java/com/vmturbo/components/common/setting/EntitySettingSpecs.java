@@ -368,7 +368,7 @@ public enum EntitySettingSpecs {
             "Image CPU Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Image Mem.
@@ -377,7 +377,7 @@ public enum EntitySettingSpecs {
             "Image Mem Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Image Storage.
@@ -386,7 +386,7 @@ public enum EntitySettingSpecs {
             "Image Storage Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Net Throughput.
