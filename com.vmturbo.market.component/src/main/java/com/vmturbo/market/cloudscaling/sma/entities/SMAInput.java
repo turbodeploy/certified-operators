@@ -52,6 +52,7 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ReservedInstanceKey;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -298,6 +299,11 @@ public class SMAInput {
             return;
         }
         VirtualMachineInfo vmInfo = entity.getTypeSpecificInfo().getVirtualMachine();
+        if (vmInfo.getBillingType() != VMBillingType.ONDEMAND) {
+            logger.debug("processVM: skip VM name={} OID={} billingType={} != ONDEMAND",
+                () -> oid, () -> name, () -> vmInfo.getBillingType().name());
+            return;
+        }
         String tenancyName = vmInfo.getTenancy().name();
         Tenancy tenancy = Tenancy.valueOf(tenancyName);
         String osName = vmInfo.getGuestOsInfo().getGuestOsType().name();
@@ -325,7 +331,7 @@ public class SMAInput {
         OSType osTypeForContext = (csp == SMACSP.AZURE ? OSType.UNKNOWN_OS : osType);
         long businessAccountId = getBusinessAccountId(oid, cloudTopology, "VM");
         long billingFamilyId = getBillingFamilyId(businessAccountId, cloudTopology, "VM");
-         SMAContext context = new SMAContext(csp, osTypeForContext, regionId, billingFamilyId, tenancy);
+        SMAContext context = new SMAContext(csp, osTypeForContext, regionId, billingFamilyId, tenancy);
         logger.debug("processVM: new {}  osType={}  accountId={}", context, osType,
             businessAccountId);
         // Add business account to context.
@@ -336,7 +342,6 @@ public class SMAInput {
         Set<OSType> osTypes = contextToOSTypes.getOrDefault(context, new HashSet<>());
         osTypes.add(osType);
         contextToOSTypes.put(context, osTypes);
-
 
         Optional<String> groupIdOptional = consistentScalingHelper.getScalingGroupId(oid);
         String groupId = SMAUtils.NO_GROUP_ID;

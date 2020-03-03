@@ -450,6 +450,8 @@ public class SMAExternalizeActions {
         projectedReservedInstanceShared = STRING_UNKNOWN;
         projectedReservedInstanceISF = STRING_UNKNOWN;
         projectedReservedInstancePF = STRING_UNKNOWN;
+        virtualMachineName = STRING_UNKNOWN;
+        virtualMachineOid = LONG_UNKNOWN;
     }
 
     /**
