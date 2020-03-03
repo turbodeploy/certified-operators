@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -181,7 +182,10 @@ public class EntitySettingsApplicator {
                                         new VmInstanceStoreCommoditiesCreator(),
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
-                                                   CommodityType.ACTIVE_SESSIONS));
+                                                   CommodityType.ACTIVE_SESSIONS),
+                new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
+                        CommodityType.HEAP),
+                new ScalingPolicyApplicator());
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -788,7 +792,8 @@ public class EntitySettingsApplicator {
             ImmutableSet.of(
                 EntityType.VIRTUAL_MACHINE_VALUE,
                 EntityType.CONTAINER_VALUE,
-                EntityType.STORAGE_VALUE
+                EntityType.STORAGE_VALUE,
+                EntityType.APPLICATION_COMPONENT_VALUE
             );
 
         private final CommodityType commodityType;
@@ -801,7 +806,9 @@ public class EntitySettingsApplicator {
                 //VSTORAGE setting value is in GBs. Market expects it in MBs.
                 CommodityType.VSTORAGE_VALUE, 1024.0f,
                 //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
-                CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f);
+                CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f,
+                //HEAP setting value is in MBs. Market expects it in KBs.
+                CommodityType.HEAP_VALUE, 1024.0f);
 
 
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
@@ -980,4 +987,41 @@ public class EntitySettingsApplicator {
             }
         }
     }
+
+    /**
+     * Applies the "ScalingPolicy" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    private static class ScalingPolicyApplicator extends SingleSettingApplicator {
+
+        private ScalingPolicyApplicator() {
+            super(EntitySettingSpecs.ScalingPolicy);
+        }
+
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
+                final String settingValue = setting.getEnumSettingValue().getValue();
+                boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);
+                boolean provisionScaling = ScalingPolicyEnum.PROVISION.name().equals(settingValue);
+
+                if (!resizeScaling && !provisionScaling) {
+                    logger.error("Entity {} has an invalid scaling policy: {}",
+                            entity.getDisplayName(), settingValue);
+                    return;
+                }
+
+                entity.getAnalysisSettingsBuilder().setCloneable(provisionScaling);
+                entity.getAnalysisSettingsBuilder().setSuspendable(provisionScaling);
+                entity.getCommoditySoldListList().forEach(c -> {
+                });
+                entity.getCommoditySoldListBuilderList().forEach(c -> {
+                    c.setIsResizeable(resizeScaling);
+                });
+                logger.trace("Set scaling policy {} for entity {}",
+                        settingValue, entity.getDisplayName());
+            }
+        }
+    }
+
 }

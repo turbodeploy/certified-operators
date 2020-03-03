@@ -5,9 +5,12 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -758,6 +761,60 @@ public class ActionModeCalculatorTest {
         // settings there is also a EnforceNonDisruptive.
         assertThat(actionModeCalculator.specsApplicableToAction(memReservationAction, settingsForEntity).toArray().length,
             is(2));
+    }
+
+    /**
+     * Test: Memory Resize for application component for different commodities.
+     */
+    @Test
+    public void testSpecsApplicableToActionForAppComponents() {
+        long vmId = 122L;
+        long targetId = 7L;
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+                com.vmturbo.api.enums.ActionMode.DISABLED);
+        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
+
+        // Heap Up for Application Components
+        final ActionDTO.Action heapUpAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.HEAP_VALUE)
+                                        .build())
+                                .setOldCapacity(10.f)
+                                .setNewCapacity(20.f)
+                                .build())
+                        .build()
+        ).build();
+        List<EntitySettingSpecs> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeUpHeap, entitySpecs.get(0));
+
+        // Heap Up for Application Components
+        final ActionDTO.Action heapDownAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.HEAP_VALUE)
+                                        .build())
+                                .setOldCapacity(20.f)
+                                .setNewCapacity(10.f)
+                                .build())
+                        .build()
+        ).build();
+        entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeDownHeap, entitySpecs.get(0));
     }
 
     private Action getResizeDownAction(long vmId) {
