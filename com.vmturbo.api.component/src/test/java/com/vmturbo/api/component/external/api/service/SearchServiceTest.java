@@ -476,7 +476,7 @@ public class SearchServiceTest {
     public void testGetSearchGroup() throws Exception {
         final SearchPaginationResponse paginationResponse =
             Mockito.mock(SearchPaginationResponse.class);
-        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(false))).thenReturn(paginationResponse);
+        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
             "myGroup",
             Lists.newArrayList("Group"),
@@ -491,7 +491,7 @@ public class SearchServiceTest {
             true));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
-        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(false));
+        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true));
         verify(searchService).addNameMatcher(any(), any(), any());
 
     }
