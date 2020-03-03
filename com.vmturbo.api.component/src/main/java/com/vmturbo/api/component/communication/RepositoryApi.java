@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +20,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -209,42 +211,79 @@ public class RepositoryApi {
      */
     @Nonnull
     public RepositoryRequestResult getByIds(@Nonnull Collection<Long> oids,
-            @Nonnull Collection<EntityType> entityTypes, boolean allAccounts)
+            @Nonnull Set<EntityType> entityTypes, boolean allAccounts)
             throws ConversionException, InterruptedException {
         if (oids.isEmpty()) {
             return new RepositoryRequestResult(Collections.emptySet(), Collections.emptySet());
+        }
+        final Collection<ServiceEntityApiDTO> seList = getServiceEntities(oids, entityTypes);
+        final Collection<BusinessUnitApiDTO> buList;
+        if (entityTypes.isEmpty() || entityTypes.contains(EntityType.BUSINESS_ACCOUNT)) {
+            final Collection<Long> buOids = new LinkedList<>(oids);
+            buOids.removeAll(Collections2.transform(seList, se -> Long.parseLong(se.getUuid())));
+            buList = getBusinessUnits(buOids, allAccounts);
+        } else {
+            buList = Collections.emptyList();
+        }
+        severityPopulator.populate(realtimeTopologyContextId, seList);
+        return new RepositoryRequestResult(buList, seList);
+    }
+
+    @Nonnull
+    private Collection<ServiceEntityApiDTO> getServiceEntities(@Nonnull Collection<Long> oids,
+            @Nonnull Set<EntityType> entityTypes) {
+        if (entityTypes.equals(Collections.singleton(EntityType.BUSINESS_ACCOUNT)) || oids.isEmpty()) {
+            return Collections.emptyList();
         }
         final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(oids)
                 .setTopologyContextId(realtimeTopologyContextId)
                 .setTopologyType(TopologyType.SOURCE)
-                .addAllEntityType(
-                        entityTypes.stream().map(EntityType::getNumber).collect(Collectors.toSet()))
+                .addAllEntityType(entityTypes.stream()
+                        .filter(entityType -> entityType != EntityType.BUSINESS_ACCOUNT)
+                        .map(EntityType::getNumber)
+                        .collect(Collectors.toSet()))
+                .setReturnType(Type.API)
+                .build();
+        final Iterator<PartialEntityBatch> iterator =
+                repositoryService.retrieveTopologyEntities(request);
+        final Collection<ApiPartialEntity> serviceEntitiesTE = new ArrayList<>();
+        while (iterator.hasNext()) {
+            final PartialEntityBatch batch = iterator.next();
+            for (PartialEntity partialEntity : batch.getEntitiesList()) {
+                final ApiPartialEntity entity = partialEntity.getApi();
+                serviceEntitiesTE.add(entity);
+            }
+        }
+        return serviceEntitiesTE.stream()
+                .map(serviceEntityMapper::toServiceEntityApiDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Nonnull
+    private Collection<BusinessUnitApiDTO> getBusinessUnits(@Nonnull Collection<Long> oids,
+            boolean allAccounts) {
+        if (oids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(oids)
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setTopologyType(TopologyType.SOURCE)
+                .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setReturnType(Type.FULL)
                 .build();
         final Iterator<PartialEntityBatch> iterator =
                 repositoryService.retrieveTopologyEntities(request);
         final List<TopologyEntityDTO> businessAccountsTE = new ArrayList<>();
-        final Collection<TopologyEntityDTO> serviceEntitiesTE = new ArrayList<>();
         while (iterator.hasNext()) {
             final PartialEntityBatch batch = iterator.next();
             for (PartialEntity partialEntity : batch.getEntitiesList()) {
                 final TopologyEntityDTO entity = partialEntity.getFullEntity();
-                if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                     businessAccountsTE.add(entity);
-                } else {
-                    serviceEntitiesTE.add(entity);
-                }
             }
         }
-
-        final Collection<ServiceEntityApiDTO> seList = serviceEntitiesTE.stream()
-                .map(serviceEntityMapper::toServiceEntityApiDTO)
-                .collect(Collectors.toList());
-        final Collection<BusinessUnitApiDTO> buList =
-                businessAccountMapper.convert(businessAccountsTE, allAccounts);
-        severityPopulator.populate(realtimeTopologyContextId, seList);
-        return new RepositoryRequestResult(buList, seList);
+        return businessAccountMapper.convert(businessAccountsTE, allAccounts);
     }
 
     /**
