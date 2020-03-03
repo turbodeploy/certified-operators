@@ -342,8 +342,6 @@ public class ServiceEntityMapper {
             .build();
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
             .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
-                    .addAllCostCategory(TEMPLATE_PRICE_CATEGORIES))
                 .setEntityFilter(entityFilter))
             .build();
         final GetCloudCostStatsResponse response =
