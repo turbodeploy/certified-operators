@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
@@ -495,6 +496,7 @@ public class EntitySettingsApplicatorTest {
                         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                         .setTypeSpecificInfo(typeSpecificInfo);
         TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder().setOid(vmId)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_VALUE)))
