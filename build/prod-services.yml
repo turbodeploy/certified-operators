@@ -344,6 +344,17 @@ services:
       instance_id: mediation-netapp-1
     restart: always
 
+  mediation-nutanix-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.nutanix.component
+    environment:
+      consul_host: consul
+      component_type: mediation-nutanix
+      instance_id: mediation-nutanix-1
+    restart: always
+
   mediation-ucs-prod:
     extends:
       file: common-services.yml
