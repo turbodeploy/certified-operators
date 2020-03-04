@@ -252,7 +252,6 @@ public class RICostDataUploader {
 
                     // create an RI spec based on the details of the entity
                     ReservedInstanceData riData = riStitchingEntity.getEntityBuilder().getReservedInstanceData();
-                    double riDuration = (double)riData.getDuration() / MILLIS_PER_YEAR;
                     // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years
                     if (isRIDurationStandard(riData)) {
                     ReservedInstanceSpecInfo.Builder riSpecInfoBuilder = ReservedInstanceSpecInfo.newBuilder()
@@ -335,6 +334,10 @@ public class RICostDataUploader {
                     if (riStitchingEntity.getEntityBuilder().hasDisplayName()) {
                         riBought.getReservedInstanceBoughtInfoBuilder().setDisplayName(
                             riStitchingEntity.getDisplayName());
+                    }
+
+                    if (riData.hasEndTime()) {
+                        riBought.getReservedInstanceBoughtInfoBuilder().setEndTime(riData.getEndTime());
                     }
 
                     // Set reservation order ID is it is provided in EntityDTO
