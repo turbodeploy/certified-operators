@@ -157,6 +157,8 @@ netflow:
   enabled: false
 newrelic:
   enabled: false
+nutanix:
+  enabled: false
 oneview:
   enabled: false
 openstack:
