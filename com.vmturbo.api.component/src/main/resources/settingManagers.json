@@ -40,7 +40,10 @@
         "resizeVmemAboveMaxThreshold",
         "resizeVmemBelowMinThreshold",
         "enforceNonDisruptive",
-        "disableAllActions"
+        "disableAllActions",
+        "resizeUpHeap",
+        "resizeDownHeap",
+        "scalingPolicy"
       ],
       // Automation settings are pretty specific in the API/UI,
       // and the design is not finalized. So we put them in
@@ -154,7 +157,8 @@
         "poolMemoryUtilizationThreshold",
         "poolStorageUtilizationThreshold",
         "viewPodActiveSessionCapacity",
-        "dailyObservationWindowDesktopPool"
+        "dailyObservationWindowDesktopPool",
+        "appHeapScalingIncrement"
       ]
     },
     "storagesettingsmanager": {
