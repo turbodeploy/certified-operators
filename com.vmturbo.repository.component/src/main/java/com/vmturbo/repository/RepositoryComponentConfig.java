@@ -98,6 +98,9 @@ public class RepositoryComponentConfig {
     @Value("${numberOfExpectedRealtimeProjectedDB}")
     private int numberOfExpectedRealtimeProjectedDB;
 
+    @Value("${collectionReplicaCount:1}")
+    private int collectionReplicaCount;
+
     @Autowired
     private RepositoryProperties repositoryProperties;
 
@@ -170,11 +173,14 @@ public class RepositoryComponentConfig {
      */
     @Bean
     public TopologyLifecycleManager topologyManager() {
+        if (collectionReplicaCount != 1) {
+            logger.info("Using collection replica count of {} instead of default (1).", collectionReplicaCount);
+        }
         return new TopologyLifecycleManager(graphDatabaseDriverBuilder(), graphDefinition(),
                 topologyProtobufsManager(), realtimeTopologyContextId,
                 new ScheduledThreadPoolExecutor(1), liveTopologyStore(),
                 repositoryRealtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
-                numberOfExpectedRealtimeProjectedDB, globalSupplyChainManager(),
+                numberOfExpectedRealtimeProjectedDB, collectionReplicaCount, globalSupplyChainManager(),
                 arangoDBExecutor());
     }
 

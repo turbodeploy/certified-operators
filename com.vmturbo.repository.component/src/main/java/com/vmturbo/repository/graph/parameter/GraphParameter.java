@@ -11,10 +11,13 @@ public class GraphParameter {
 
     private List<EdgeDefParameter> edgeDefs;
 
+    private int replicaCount;
+
     private GraphParameter(Builder b) {
         name = b.name;
         waitForSync = b.waitForSync;
         edgeDefs = b.edgeDefs;
+        replicaCount = b.replicaCount;
     }
 
     public String getName() {
@@ -29,12 +32,16 @@ public class GraphParameter {
         return edgeDefs;
     }
 
+    public int getReplicaCount() { return replicaCount; }
+
     public static class Builder {
         private String name;
 
         private boolean waitForSync = false;
 
         private List<EdgeDefParameter> edgeDefs = new ArrayList<>();
+
+        private int replicaCount = 1;
 
         public Builder(String name) {
             this.name = name;
@@ -47,6 +54,11 @@ public class GraphParameter {
 
         public Builder addEdgeDef(EdgeDefParameter ed) {
             edgeDefs.add(ed);
+            return this;
+        }
+
+        public Builder replicaCount(int newReplicaCount) {
+            replicaCount = newReplicaCount;
             return this;
         }
 
