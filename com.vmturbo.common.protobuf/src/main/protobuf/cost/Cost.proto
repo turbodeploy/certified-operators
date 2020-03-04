@@ -105,6 +105,9 @@ message ReservedInstanceBought {
 
         optional ReservedInstanceDerivedCost reserved_instance_derived_cost = 12;
 
+        // The end milliseconds since epoch for RI bought.
+        optional int64 end_time = 13;
+
         message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;
