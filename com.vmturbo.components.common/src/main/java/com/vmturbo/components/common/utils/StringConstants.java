@@ -227,7 +227,7 @@ public class StringConstants {
     public static final String NUM_LOADBALANCERS = "numLoadBalancers";
     public static final String NUM_DCS = "numDCs";
     public static final String NUM_APPS = "numApps";
-    public static final String NUM_VAPPS = "numVApps";
+    public static final String NUM_SERVICES = "numServices";
     public static final String NUM_NETWORKS = "numNetworks";
     public static final String NUM_TARGETS = "numTargets";
     public static final String NUM_CLUSTERS = "numClusters";

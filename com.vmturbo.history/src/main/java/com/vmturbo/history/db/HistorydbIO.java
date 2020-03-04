@@ -1447,7 +1447,7 @@ public class HistorydbIO extends BasedbIO {
             HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE.entrySet()
                 .stream()
                 .filter(entry -> (entry.getKey() != EntityDTO.EntityType.DATACENTER
-                    && entry.getKey() != EntityDTO.EntityType.VIRTUAL_APPLICATION))
+                    && entry.getKey() != EntityDTO.EntityType.SERVICE))
                 .collect(Collectors.toMap(
                     entry -> entry.getValue(),
                     entry -> entry.getKey()));

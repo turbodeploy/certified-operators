@@ -148,10 +148,6 @@
         ]
     },
 
-    "VirtualApplication" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vappsByName"}]
-    },
-
     "DataCenter": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "datacentersByName"},
@@ -267,12 +263,6 @@
     "AvailabilityZone" : {
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "zonsByName"}
-      ]
-    },
-
-    "LoadBalancer" : {
-      "criteria" : [
-        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "lbsByName"}
       ]
     }
 }

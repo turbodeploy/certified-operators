@@ -91,7 +91,7 @@ public class TopologyConversionUtils {
                                         .anyMatch(type -> MarketAnalysisUtils.GUARANTEED_SELLER_TYPES
                                                         .contains(type))
                         || entityType == EntityType.DPOD_VALUE
-                        || entityType == EntityType.VIRTUAL_APPLICATION_VALUE;
+                        || entityType == EntityType.SERVICE_VALUE;
     }
 
     @VisibleForTesting

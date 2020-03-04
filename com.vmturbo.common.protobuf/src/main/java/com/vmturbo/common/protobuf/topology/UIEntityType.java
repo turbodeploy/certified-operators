@@ -52,7 +52,6 @@ public enum UIEntityType {
     SWITCH("Switch", EntityType.SWITCH),
     UNKNOWN("Unknown", EntityType.UNKNOWN),
     VIEW_POD("ViewPod", EntityType.VIEW_POD),
-    VIRTUAL_APPLICATION("VirtualApplication", EntityType.VIRTUAL_APPLICATION),
     VIRTUAL_DATACENTER("VirtualDataCenter", EntityType.VIRTUAL_DATACENTER),
     VIRTUAL_MACHINE("VirtualMachine", EntityType.VIRTUAL_MACHINE),
     VIRTUAL_VOLUME("VirtualVolume", EntityType.VIRTUAL_VOLUME),

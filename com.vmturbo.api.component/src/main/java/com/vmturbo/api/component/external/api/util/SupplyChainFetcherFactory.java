@@ -115,15 +115,14 @@ public class SupplyChainFetcherFactory {
         UIEntityType.DATABASE_SERVER_TIER,
         UIEntityType.DATABASE_TIER,
         UIEntityType.LOAD_BALANCER,
+        UIEntityType.SERVICE,
         UIEntityType.STORAGE,
-        UIEntityType.VIRTUAL_APPLICATION,
         UIEntityType.VIRTUAL_MACHINE,
         UIEntityType.VIRTUAL_VOLUME);
 
     private static final Set<UIEntityType> SCOPE_EXPANSION_TYPES_FOR_RISK = ImmutableSet.of(
         UIEntityType.SERVICE,
         UIEntityType.APPLICATION,
-        UIEntityType.VIRTUAL_APPLICATION,
         UIEntityType.APPLICATION_SERVER,
         UIEntityType.APPLICATION_COMPONENT,
         UIEntityType.DATABASE,
@@ -135,6 +134,7 @@ public class SupplyChainFetcherFactory {
         UIEntityType.VIRTUAL_MACHINE,
         UIEntityType.VIRTUAL_VOLUME,
         UIEntityType.PHYSICAL_MACHINE,
+        UIEntityType.SERVICE,
         UIEntityType.STORAGE
     );
 

@@ -24,7 +24,7 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.ServiceConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -51,7 +51,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
         converters.put(EntityType.APPLICATION, new ApplicationConverter());
-        converters.put(EntityType.VIRTUAL_APPLICATION, new VirtualApplicationConverter());
+        converters.put(EntityType.SERVICE, new ServiceConverter());
         converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AWS_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }

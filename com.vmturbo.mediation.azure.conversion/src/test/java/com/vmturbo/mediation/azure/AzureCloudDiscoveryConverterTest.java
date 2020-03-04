@@ -30,8 +30,8 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.ServiceConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -393,7 +393,7 @@ public class AzureCloudDiscoveryConverterTest {
 
     @Test
     public void testApplicationConverter() {
-        IEntityConverter converter = new VirtualApplicationConverter();
+        IEntityConverter converter = new ServiceConverter();
         rawEntitiesByType.get(EntityType.APPLICATION).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO oldEntity = azureConverter.getRawEntityDTO(entityId);

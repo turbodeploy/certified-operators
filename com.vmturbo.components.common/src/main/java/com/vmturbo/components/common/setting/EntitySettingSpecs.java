@@ -791,10 +791,9 @@ public enum EntitySettingSpecs {
     ResponseTimeCapacity("responseTimeCapacity", "Response Time SLO [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_APPLICATION,
-            EntityType.BUSINESS_APPLICATION,
-            EntityType.DATABASE_SERVER, EntityType.SERVICE,
-            EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
+            EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
+                    EntityType.DATABASE_SERVER,  EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -814,12 +813,12 @@ public enum EntitySettingSpecs {
             true),
 
     /**
-     * SLA Capacity used by Application and Database.
+     * SLA Capacity used by Service and Database.
      */
     SLACapacity("slaCapacity", "SLA Capacity",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_APPLICATION,
+            EnumSet.of(EntityType.SERVICE,
             EntityType.BUSINESS_APPLICATION,
             EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
@@ -831,8 +830,8 @@ public enum EntitySettingSpecs {
     TransactionsCapacity("transactionsCapacity", "Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_APPLICATION, EntityType.BUSINESS_APPLICATION,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.SERVICE,
+            EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
+                    EntityType.DATABASE_SERVER, EntityType.DATABASE,
                     EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
             true),
@@ -846,9 +845,9 @@ public enum EntitySettingSpecs {
     AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Transaction (auto scaled range)",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_APPLICATION, EntityType.BUSINESS_APPLICATION,
-                    EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.APPLICATION_COMPONENT),
+            EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
+                    EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
+                    EntityType.DATABASE, EntityType.APPLICATION_COMPONENT),
             new BooleanSettingDataType(true),
             true),
 

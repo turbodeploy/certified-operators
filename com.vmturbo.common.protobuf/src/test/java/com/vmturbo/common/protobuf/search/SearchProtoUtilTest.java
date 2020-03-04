@@ -33,7 +33,7 @@ public class SearchProtoUtilTest {
     public void testSearchAllTypes() {
         ImmutableList<String> expectedTypes = ImmutableList.of(
                 "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray", "DataCenter", "VirtualDataCenter",
-                "BusinessApplication", "ApplicationServer", "Application", "ApplicationComponent", "VirtualApplication",
+                "BusinessApplication", "ApplicationServer", "Application", "ApplicationComponent",
                 "Container", "ContainerPod", "VPod", "DPod", "StorageController", "IOModule", "Switch", "Chassis",
                 "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
                 "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",

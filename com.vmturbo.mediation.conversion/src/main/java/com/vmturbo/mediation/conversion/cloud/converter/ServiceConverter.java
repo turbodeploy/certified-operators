@@ -7,9 +7,9 @@ import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
- * CloudDiscoveryConverter for VirtualApplication. It adds vApp to be owned by BusinessAccount.
+ * CloudDiscoveryConverter for Service. It adds service to be owned by BusinessAccount.
  */
-public class VirtualApplicationConverter implements IEntityConverter {
+public class ServiceConverter implements IEntityConverter {
 
     @Override
     public boolean convert(@Nonnull EntityDTO.Builder entity, @Nonnull CloudDiscoveryConverter converter) {

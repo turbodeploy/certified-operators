@@ -120,6 +120,10 @@ public class SdkToTopologyEntityConverter {
         Sets.newHashSet(CommodityDTO.CommodityType.CPU, CommodityDTO.CommodityType.MEM,
                         CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM);
 
+    private static final Set<EntityType> suspendableEntityTypes = Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
+            EntityType.APPLICATION_SERVER, EntityType.APPLICATION, EntityType.APPLICATION_COMPONENT,
+            EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.SERVICE);
+
     private static final Logger logger = LogManager.getLogger();
 
     // TODO: this string constant should change, because the feature of entity tags is not VC-specific
@@ -901,15 +905,7 @@ public class SdkToTopologyEntityConverter {
     @VisibleForTesting
     static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
             @Nonnull final TopologyStitchingEntity entity) {
-        if (entity.getEntityType() == EntityType.BUSINESS_APPLICATION ||
-                entity.getEntityType() == EntityType.VIRTUAL_APPLICATION ||
-                entity.getEntityType() == EntityType.APPLICATION_SERVER ||
-                entity.getEntityType() == EntityType.APPLICATION ||
-                entity.getEntityType() == EntityType.APPLICATION_COMPONENT ||
-                entity.getEntityType() == EntityType.DATABASE_SERVER ||
-                entity.getEntityType() == EntityType.DATABASE ||
-                entity.getEntityType() == EntityType.SERVICE
-        ) {
+        if  (suspendableEntityTypes.contains(entity.getEntityType()))  {
             return Optional.of(checkAppSuspendability(entity));
         }
         return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
@@ -920,14 +916,14 @@ public class SdkToTopologyEntityConverter {
 
     /**
      * An application is considered suspendable only if it was a discovered entity and
-     * its consumer is a vApp with multiple providers and with any level of measured utilization.
+     * its consumer is a service with multiple providers and with any level of measured utilization.
      * @param entity is Application.
      * @return true if can be suspended.
      */
     private static boolean checkAppSuspendability(TopologyStitchingEntity entity) {
         return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
                 entity.getConsumers().stream()
-                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.VIRTUAL_APPLICATION &&
+                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.SERVICE &&
                         consumer.getProviders().size() > 1) &&
                 entity.getCommoditiesSold()
                         .anyMatch(commodity -> ((commodity.getCommodityType() == CommodityDTO.CommodityType.TRANSACTION ||

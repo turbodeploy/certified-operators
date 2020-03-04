@@ -37,7 +37,7 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConver
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.ServiceConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -532,15 +532,15 @@ public class AwsCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testVirtualApplicationConverter() {
+    public void testApplicationConverter() {
         IEntityConverter converter = new ApplicationConverter();
-        rawEntitiesByType.get(EntityType.VIRTUAL_APPLICATION).forEach(entity ->
+        rawEntitiesByType.get(EntityType.SERVICE).forEach(entity ->
                 convertAndVerifyEntityUnmodified(converter, entity.getId()));
     }
 
     @Test
-    public void testApplicationConverter() {
-        IEntityConverter converter = new VirtualApplicationConverter();
+    public void testServiceConverter() {
+        IEntityConverter converter = new ServiceConverter();
         rawEntitiesByType.get(EntityType.APPLICATION).forEach(entity ->
                 convertAndVerifyEntityUnmodified(converter, entity.getId()));
     }
