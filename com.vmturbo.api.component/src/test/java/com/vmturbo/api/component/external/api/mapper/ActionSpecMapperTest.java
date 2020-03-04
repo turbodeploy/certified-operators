@@ -823,6 +823,48 @@ public class ActionSpecMapperTest {
     }
 
     /**
+     * Test that large capacities values in resize actions are formatted in a consistent way.
+     *
+     * @throws Exception when a problem occurs during mapping
+     */
+    @Test
+    public void testResizeLargeCapacities() throws Exception {
+        final long targetId = 1;
+        final float oldCapacity = 1024f * 1024 * 1024 * 2;
+        final float newCapacity = 1024f * 1024 * 1024 * 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                .setOldCapacity(oldCapacity)
+                .setNewCapacity(newCapacity)
+                .setCommodityType(HEAP.getCommodityType()))
+            .build();
+        Explanation resize = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setStartUtilization(0.2f)
+                .setEndUtilization(0.4f).build())
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+            .thenReturn(req);
+
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
+
+        // Verify that we set the context ID on the request.
+        verify(req).contextId(CONTEXT_ID);
+
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertEquals(CommodityDTO.CommodityType.HEAP.name(),
+            actionApiDTO.getRisk().getReasonCommodity());
+        // Check that the resize values are formatted in a consistent, API backwards-compatible way.
+        assertEquals(String.format("%.1f", oldCapacity), actionApiDTO.getCurrentValue());
+        assertEquals(String.format("%.1f", newCapacity), actionApiDTO.getResizeToValue());
+    }
+
+    /**
      * Test a limit resize.
      *
      * @throws Exception from mapper.mapActionSpecToActionApiDTO(), but shouldn't
@@ -998,7 +1040,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
         assertEquals(1, actionApiDTO.getVirtualDisks().size());
         assertEquals(filePath, actionApiDTO.getVirtualDisks().get(0).getDisplayName());
-        assertEquals("2", actionApiDTO.getCurrentValue());
+        assertEquals("2.0", actionApiDTO.getCurrentValue());
         assertEquals("MB", actionApiDTO.getValueUnits());
     }
 
