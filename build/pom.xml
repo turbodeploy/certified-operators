@@ -367,6 +367,7 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
@@ -495,6 +496,13 @@
             <id>mediation-netapp</id>
             <modules>
                 <module>../com.vmturbo.mediation.netapp.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-nutanix</id>
+            <modules>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
             </modules>
         </profile>
 
@@ -1089,6 +1097,7 @@
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
