@@ -151,9 +151,9 @@ public class DelegatingProbe implements IDiscoveryProbe<DelegatingProbeAccount>,
         logger.info("Get supply chain");
         SupplyChainBuilder scb = new SupplyChainBuilder();
 
-        // APP
-        SupplyChainNodeBuilder appNode = new SupplyChainNodeBuilder()
-                .entity(EntityType.APPLICATION)
+        // APP COMPONENT
+        SupplyChainNodeBuilder appComponentNode = new SupplyChainNodeBuilder()
+                .entity(EntityType.APPLICATION_COMPONENT)
                 .selling(CommodityType.TRANSACTION);
 
         // VM
@@ -187,9 +187,9 @@ public class DelegatingProbe implements IDiscoveryProbe<DelegatingProbeAccount>,
                 .selling(CommodityType.POWER)
                 .selling(CommodityType.COOLING);
 
-        // Link from APP to VM
-        final SupplyChainLink app2vmLink = new SupplyChainLinkBuilder()
-                .link(EntityType.APPLICATION, EntityType.VIRTUAL_MACHINE,
+        // Link from APP COMP to VM
+        final SupplyChainLink appComp2vmLink = new SupplyChainLinkBuilder()
+                .link(EntityType.APPLICATION_COMPONENT, EntityType.VIRTUAL_MACHINE,
                         ProviderType.HOSTING)
                 .commodity(CommodityType.VCPU).commodity(CommodityType.VMEM)
                 .build();
@@ -228,9 +228,9 @@ public class DelegatingProbe implements IDiscoveryProbe<DelegatingProbeAccount>,
                 .commodity(CommodityType.SPACE)
                 .build();
 
-        return scb.top(appNode)
+        return scb.top(appComponentNode)
                 // Next Node - Connect APP to VM
-                .entity(appNode).connectsTo(vmNode, app2vmLink)
+                .entity(appComponentNode).connectsTo(vmNode, appComp2vmLink)
                 // Next Node - Connect VM to PM and ST
                 .entity(vmNode).connectsTo(pmNode, vm2pmLink).connectsTo(stNode, vm2stLink)
                 // Next Node - Connect PM to DC
