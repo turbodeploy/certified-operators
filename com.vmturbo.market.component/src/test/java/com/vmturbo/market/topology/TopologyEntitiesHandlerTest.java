@@ -47,7 +47,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -70,9 +69,9 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
+import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
-import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -598,6 +597,7 @@ public class TopologyEntitiesHandlerTest {
         // mark VM as movable
         Analysis analysis = mock(Analysis.class);
         mockCommsToAdjustForOverhead(analysis, converter);
+        when(analysis.getReplayActions()).thenReturn(new ReplayActions());
 
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
@@ -707,6 +707,7 @@ public class TopologyEntitiesHandlerTest {
                             .collect(Collectors.toList()).get(0);
             Analysis analysis = mock(Analysis.class);
             mockCommsToAdjustForOverhead(analysis, converter);
+            when(analysis.getReplayActions()).thenReturn(new ReplayActions());
 
             final AnalysisConfig analysisConfig = AnalysisConfig
                             .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
