@@ -622,6 +622,8 @@ public class ActionSpecMapper {
             AspectName.CLOUD, cloudAspect));
         context.getVMAspect(targetEntityId).map(vmAspect -> aspects.put(
             AspectName.VIRTUAL_MACHINE, vmAspect));
+        context.getDBAspect(targetEntityId).map(dbAspect -> aspects.put(
+            AspectName.DATABASE, dbAspect));
         targetEntity.setAspectsByName(aspects);
 
         // add more info for cloud actions

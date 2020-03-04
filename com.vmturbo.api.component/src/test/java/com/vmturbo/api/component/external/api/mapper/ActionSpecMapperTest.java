@@ -1453,7 +1453,7 @@ public class ActionSpecMapperTest {
         entitiesMap.put(1L, entity);
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), serviceEntityMapper, false);
         context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
