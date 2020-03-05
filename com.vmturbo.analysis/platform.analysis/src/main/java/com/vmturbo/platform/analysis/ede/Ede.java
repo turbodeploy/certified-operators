@@ -446,10 +446,18 @@ public final class Ede {
     }
 
     /**
-     * save the {@link ReplayActions} associated with this {@link Ede}
+     * Sets the value of the <b>replay actions</b> field.
+     *
+     * <p>Has no observable side-effects except setting the above field.</p>
+     *
+     * <p>The {@link ReplayActions} object encapsulates a list of actions together with any
+     * additional information needed to take them on a new economy.</p>
+     *
+     * @param actions the new value for the field.
+     * @return {@code this}
      */
-    public Ede setReplayActions(@NonNull ReplayActions state) {
-        replayActions_ = state;
+    public Ede setReplayActions(@NonNull ReplayActions actions) {
+        replayActions_ = actions;
         return this;
     }
 
