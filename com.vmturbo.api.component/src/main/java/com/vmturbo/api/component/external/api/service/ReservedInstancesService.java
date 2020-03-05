@@ -85,6 +85,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final UserSessionContext userSessionContext;
 
+    private final Long realtimeTopologyContextId;
+
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
@@ -96,7 +98,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nonnull final PlanServiceBlockingStub planRpcService,
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
             @Nonnull final UuidMapper uuidMapper,
-            @Nonnull final UserSessionContext userSessionContext) {
+            @Nonnull final UserSessionContext userSessionContext,
+            @Nonnull final Long realtimeTopologyContextId) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
@@ -108,12 +111,15 @@ public class ReservedInstancesService implements IReservedInstancesService {
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.realtimeTopologyContextId = Objects.requireNonNull(realtimeTopologyContextId);
     }
 
     @Override
-    public List<ReservedInstanceApiDTO> getReservedInstances(@Nullable String scopeUuid) throws Exception {
+    public List<ReservedInstanceApiDTO> getReservedInstances(
+            @Nullable String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
-        final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(scope);
+        final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
+                scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable);
         final Set<Long> reservedInstanceSpecIds = reservedInstancesBought.stream()
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
@@ -165,10 +171,12 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * Get a list of {@link ReservedInstanceBought} which belong to the input scope.
      *
      * @param scope The scope could be global market, a group, a region, a availability zone or a account.
+     * @param includeAllUsable Whether to include all potentially usable RIs given {@param scope}
      * @return a list of {@link ReservedInstanceBought}.
      * @throws UnknownObjectException if the input scope type is not supported.
      */
-    private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nonnull ApiId scope)
+    private Collection<ReservedInstanceBought> getReservedInstancesBought(
+            @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable)
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
         final Optional<Grouping> groupOptional = groupExpander.getGroup(String.valueOf(scopeUuid));
@@ -196,6 +204,17 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 .build();
                 return planReservedInstanceService.getPlanReservedInstanceBought(request).getReservedInstanceBoughtsList();
             } else { // this is real-time or plans for which the call passes in the entity/group scope uuid rather than the plan id
+                // get all RIs that are usable within the given region/zone, and billing family
+                if (includeAllUsable) {
+                    return reservedInstanceService.getReservedInstanceBoughtByTopology(
+                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
+                            .setTopologyType(TopologyType.PLAN)
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .addAllScopeSeedOids(scope.getScopeOids())
+                            .build()
+                    ).getReservedInstanceBoughtList();
+                }
+
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
 

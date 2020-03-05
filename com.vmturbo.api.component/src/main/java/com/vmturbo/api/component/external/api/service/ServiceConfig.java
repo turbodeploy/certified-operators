@@ -407,7 +407,8 @@ public class ServiceConfig {
             communicationConfig.planRpcService(),
             statsQueryExecutor(),
             mapperConfig.uuidMapper(),
-            userSessionContext());
+            userSessionContext(),
+            communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean
