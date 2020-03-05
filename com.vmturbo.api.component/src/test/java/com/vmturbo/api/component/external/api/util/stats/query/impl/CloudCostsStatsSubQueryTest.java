@@ -274,6 +274,10 @@ public class CloudCostsStatsSubQueryTest {
         when(apiId.getScopeTypes()).thenReturn(Optional.empty());
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
 
         GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
                 .addCloudStatRecord(CloudCostStatRecord.newBuilder()
@@ -343,6 +347,10 @@ public class CloudCostsStatsSubQueryTest {
         when(apiId.getScopeTypes()).thenReturn(Optional.empty());
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
 
         GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
                 .addCloudStatRecord(CloudCostStatRecord.newBuilder()
@@ -506,6 +514,10 @@ public class CloudCostsStatsSubQueryTest {
 
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
         when(apiId.getScopeTypes()).thenReturn(Optional.empty());
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
@@ -934,6 +946,9 @@ public class CloudCostsStatsSubQueryTest {
                 .thenReturn(Collections.emptySet());
         when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
         when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
 
         // Behaviors associated to costRpcService
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
