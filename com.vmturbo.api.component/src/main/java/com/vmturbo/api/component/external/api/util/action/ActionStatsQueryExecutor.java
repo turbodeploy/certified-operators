@@ -140,6 +140,13 @@ public class ActionStatsQueryExecutor {
             throws OperationFailedException {
         final EntityAccessScope userScope = userSessionContext.getUserAccessScope();
         final Map<ApiId, List<StatSnapshotApiDTO>> retStats = new HashMap<>(query.scopes().size());
+
+        // We issue a historical OR a current query. Combining historical and current results can
+        // lead to confusion. There are delays between when actions disappear from "current" results
+        // (as they're cleared when processing action plans from the market)
+        // and when they appear in the historical data. If we co-display historical and current
+        // results it can be confusing to the user, because actions will seem to disappear
+        // entirely during those delays.
         if (query.isHistorical(clock)) {
             if (!userScope.containsAll()) {
                 logger.warn("Scoped user (scope: {}) requested historical action stats." +
@@ -166,41 +173,40 @@ public class ActionStatsQueryExecutor {
                         singleResponse.getActionStats(), query));
                 });
             }
-        }
-
-        // Now get the current stats.
-
-        final Map<ApiId, CurrentActionStatsQuery> curQueries = currentQueryMapper.mapToCurrentQueries(query);
-        final GetCurrentActionStatsRequest.Builder curReqBldr = GetCurrentActionStatsRequest.newBuilder();
-        curQueries.forEach((scopeId, scopeQuery) -> curReqBldr.addQueries(
-            GetCurrentActionStatsRequest.SingleQuery.newBuilder()
-                .setQueryId(scopeId.oid())
-                .setQuery(scopeQuery)
-                .build()));
-        final GetCurrentActionStatsResponse curResponse =
-            actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
-        final Map<Long, MinimalEntity> entityLookup;
-        // If the request was to group by templates, then we group by target id. For these
-        // requests, we need to get the names of the target ids from the search service
-        if (query.actionInput().getGroupBy() != null &&
-                query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
-            Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
-                .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
-                .filter(stat -> stat.getStatGroup().hasTargetEntityId())
-                .map(stat -> stat.getStatGroup().getTargetEntityId())
-                .collect(Collectors.toSet());
-            entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
-                .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
         } else {
-            entityLookup = Collections.emptyMap();
+            // Not a historical query, so we get the "current" action stats.
+            final Map<ApiId, CurrentActionStatsQuery> curQueries = currentQueryMapper.mapToCurrentQueries(query);
+            final GetCurrentActionStatsRequest.Builder curReqBldr = GetCurrentActionStatsRequest.newBuilder();
+            curQueries.forEach((scopeId, scopeQuery) -> curReqBldr.addQueries(
+                GetCurrentActionStatsRequest.SingleQuery.newBuilder()
+                    .setQueryId(scopeId.oid())
+                    .setQuery(scopeQuery)
+                    .build()));
+            final GetCurrentActionStatsResponse curResponse =
+                actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
+            final Map<Long, MinimalEntity> entityLookup;
+            // If the request was to group by templates, then we group by target id. For these
+            // requests, we need to get the names of the target ids from the search service
+            if (query.actionInput().getGroupBy() != null &&
+                query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+                Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
+                    .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
+                    .filter(stat -> stat.getStatGroup().hasTargetEntityId())
+                    .map(stat -> stat.getStatGroup().getTargetEntityId())
+                    .collect(Collectors.toSet());
+                entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
+                    .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+            } else {
+                entityLookup = Collections.emptyMap();
+            }
+            curResponse.getResponsesList().forEach(singleResponse -> {
+                final List<StatSnapshotApiDTO> snapshots = retStats.computeIfAbsent(
+                    uuidMapper.fromOid(singleResponse.getQueryId()),
+                    k -> new ArrayList<>(1));
+                snapshots.add(actionStatsMapper.currentActionStatsToApiSnapshot(
+                    singleResponse.getActionStatsList(), query, entityLookup));
+            });
         }
-        curResponse.getResponsesList().forEach(singleResponse -> {
-            final List<StatSnapshotApiDTO> snapshots = retStats.computeIfAbsent(
-                uuidMapper.fromOid(singleResponse.getQueryId()),
-                k -> new ArrayList<>(1));
-            snapshots.add(actionStatsMapper.currentActionStatsToApiSnapshot(
-                singleResponse.getActionStatsList(), query, entityLookup));
-        });
         return retStats;
     }
 
