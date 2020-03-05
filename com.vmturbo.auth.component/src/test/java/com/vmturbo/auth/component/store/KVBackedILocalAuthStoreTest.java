@@ -8,6 +8,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -46,7 +47,10 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.UserPolicy;
+import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
+import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -171,7 +175,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAdd() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -195,7 +199,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAddSharedUserValidGroups() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         // group 1 will be valid, but group 2 will not
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -248,7 +252,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = IllegalArgumentException.class)
     public void testAddSharedUserInvalidGroups() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         // group of PM's should not be allowed for shared user scope
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -297,23 +301,7 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthenticateWithIpAddress() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
-
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertFalse(result.isEmpty());
-
-        Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
-                + "/USER1");
-        Assert.assertTrue(jsonData.isPresent());
-
-        AuthProvider.UserInfo
-                info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
-
-        Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
-        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
-
-        Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));
+        verifyAuthentication(keyValueStore, store, PROVIDER.LOCAL);
     }
 
     // Happy path
@@ -435,7 +423,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -460,7 +448,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRolesInvalidScopeGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         // group 1 will be valid, but group 2 will not
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -675,7 +663,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testDeleteSecurityGroupAndTransferWidgetsets() throws AuthorizationException {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore);
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore, null);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
                 "DedicatedCustomer",
                 "administrator");
@@ -706,5 +694,55 @@ public class KVBackedILocalAuthStoreTest {
         // verify that widgets owned by users in AD group are transferred
         verify(widgetsetDbStore).transferOwnership((Collection<Long>)argThat(containsInAnyOrder(
                 Long.valueOf(userInfo1.uuid), Long.valueOf(userInfo2.uuid))), eq(9527L));
+    }
+
+    /**
+     * Verify when login policy is LoginPolicy.AD_ONLY, only AD user can login.
+     * @throws Exception  if something wrong.
+     */
+    @Test(expected = SecurityException.class)
+    public void testAuthenticateWithADOnlyUserPolicyNegative() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY));
+        verifyAuthentication(keyValueStore, store, PROVIDER.LOCAL);
+    }
+
+    /**
+     * Verify when login policy is LoginPolicy.AD_ONLY, only AD user can login.
+     * @throws Exception if something wrong.
+     */
+    @Test
+    public void testAuthenticateWithADOnlyUserPolicyPositive() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY));
+        try {
+            verifyAuthentication(keyValueStore, store, PROVIDER.LDAP);
+            fail();
+        } catch (AuthenticationException e) {
+            // It's trying to authenticate with AD, because exception the exception is AD is not setup.
+           assertTrue(e.getMessage().contains(SsoUtil.AD_NOT_SETUP));
+        }
+    }
+
+    private void verifyAuthentication(KeyValueStore keyValueStore, AuthProvider store, PROVIDER provider)
+            throws AuthenticationException {
+        String result = store.add(provider, "user1", "password0",
+                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        Assert.assertFalse(result.isEmpty());
+
+        Optional<String> jsonData = keyValueStore.get(PREFIX + provider.name()
+                + "/USER1");
+        Assert.assertTrue(jsonData.isPresent());
+
+        UserInfo info = GSON.fromJson(jsonData.get(), UserInfo.class);
+
+        // Only local user has hash
+        if (provider == PROVIDER.LOCAL) {
+            Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
+        }
+        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
+
+        Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));
     }
 }
