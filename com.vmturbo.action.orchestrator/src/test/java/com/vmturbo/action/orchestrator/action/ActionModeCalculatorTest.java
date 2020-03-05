@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -770,8 +771,7 @@ public class ActionModeCalculatorTest {
     public void testSpecsApplicableToActionForAppComponents() {
         long vmId = 122L;
         long targetId = 7L;
-        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
-                com.vmturbo.api.enums.ActionMode.DISABLED);
+        final Map<String, Setting> settingsForEntity = Collections.emptyMap();
         when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
 
         // Heap Up for Application Components
@@ -815,6 +815,57 @@ public class ActionModeCalculatorTest {
         entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
         Assert.assertEquals(EntitySettingSpecs.ResizeDownHeap, entitySpecs.get(0));
+    }
+
+    /**
+     * Test: Memory Resize for database server for different commodities.
+     */
+    @Test
+    public void testSpecsApplicableToActionForDBServers() {
+        long targetId = 7L;
+        final Map<String, Setting> settingsForEntity = Collections.emptyMap();
+
+        final ActionDTO.Action resizeUpDbMemAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.DATABASE_SERVER_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.DB_MEM_VALUE)
+                                        .build())
+                                .setOldCapacity(10.f)
+                                .setNewCapacity(20.f)
+                                .build())
+                        .build()
+        ).build();
+        final ActionDTO.Action resizeDownDbMemAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.DATABASE_SERVER_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.DB_MEM_VALUE)
+                                        .build())
+                                .setOldCapacity(20.f)
+                                .setNewCapacity(10.f)
+                                .build())
+                        .build()
+        ).build();
+
+        // Resize DBMem Up/Down for Database Server
+        List<EntitySettingSpecs> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeUpDBMem, entitySpecs.get(0));
+
+        entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeDownDBMem, entitySpecs.get(0));
     }
 
     private Action getResizeDownAction(long vmId) {

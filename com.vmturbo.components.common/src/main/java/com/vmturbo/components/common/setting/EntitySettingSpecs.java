@@ -64,8 +64,7 @@ public enum EntitySettingSpecs {
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
-                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                            EntityType.DATABASE_SERVER),
+                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
             actionExecutionModeSetToManual(), true),
 
     /**
@@ -79,6 +78,18 @@ public enum EntitySettingSpecs {
      */
     ResizeDownHeap("resizeDownHeap", "Resize Down Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize Up DBMem automation mode.
+     */
+    ResizeUpDBMem("resizeUpDBMem", "Resize Up DBMem", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize Down DBMem automation mode.
+     */
+    ResizeDownDBMem("resizeDownDBMem", "Resize Down DBMem", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
     /**
      * Resize action automation mode for vcpu resize ups where the target capacity is between
@@ -836,6 +847,14 @@ public enum EntitySettingSpecs {
             numeric(20f, 100f, 80f), true),
 
     /**
+     * DBMem utilization threshold.
+     */
+    DBMemUtilization("dbmemUtilization", "DBMem Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(20f, 100f, 80f), true),
+
+    /**
      * Collection time utilization threshold.
      */
     CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
@@ -1010,7 +1029,15 @@ public enum EntitySettingSpecs {
     ApplicationHeapScalingIncrement("appHeapScalingIncrement", "Heap Scaling Increment [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
-            numeric(0.0f, 1000000.0f, 128.0f), true);
+            numeric(0.0f, 1000000.0f, 128.0f), true),
+
+    /**
+     * DBMem Scaling increment.
+     */
+    DBMemScalingIncrement("dbMemScalingIncrement", "DBMem Scaling Increment [MB]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(0.0f/*min*/, 1000000.0f/*max*/, 128.0f/*default*/), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(
@@ -1033,7 +1060,9 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.EnforceNonDisruptive.name,
             EntitySettingSpecs.ResizeUpHeap.name,
             EntitySettingSpecs.ResizeDownHeap.name,
-            EntitySettingSpecs.ScalingPolicy.name);
+            EntitySettingSpecs.ScalingPolicy.name,
+            EntitySettingSpecs.ResizeUpDBMem.name,
+            EntitySettingSpecs.ResizeDownDBMem.name);
 
     /**
      * Default value for a String-type SettingDataStructure = empty String.

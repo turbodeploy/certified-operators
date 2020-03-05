@@ -504,6 +504,10 @@ public class ActionModeCalculator {
                     EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
                             ? EntitySettingSpecs.ResizeUpHeap : EntitySettingSpecs.ResizeDownHeap;
                     return Stream.of(spec);
+                } else if (isDatabaseServerDBMemCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpDBMem : EntitySettingSpecs.ResizeDownDBMem;
+                    return Stream.of(spec);
                 }
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
                         .getSpecForRangeAwareCommResize(resize, settingsForTargetEntity);
@@ -561,6 +565,16 @@ public class ActionModeCalculator {
     private boolean isApplicationComponentHeapCommodity(Resize resize) {
         return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE &&
                 resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Database Server and DBMem commodity.
+     * @param resize The {@link Resize} action
+     * @return Returns {@code true} if the action has Database Server as a target and DBMem commodity
+     * */
+    private boolean isDatabaseServerDBMemCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE &&
+                resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
     }
 
     /**

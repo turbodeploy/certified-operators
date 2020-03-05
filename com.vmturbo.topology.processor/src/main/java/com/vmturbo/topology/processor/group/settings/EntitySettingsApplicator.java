@@ -144,6 +144,8 @@ public class EntitySettingsApplicator {
                         CommodityType.POOL_MEM),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolStorageUtilizationThreshold,
                         CommodityType.POOL_STORAGE),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.DBMemUtilization,
+                        CommodityType.DB_MEM),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
@@ -185,7 +187,9 @@ public class EntitySettingsApplicator {
                                                    CommodityType.ACTIVE_SESSIONS),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
-                new ScalingPolicyApplicator());
+                new ScalingPolicyApplicator(),
+                new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
+                        CommodityType.DB_MEM));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -793,7 +797,8 @@ public class EntitySettingsApplicator {
                 EntityType.VIRTUAL_MACHINE_VALUE,
                 EntityType.CONTAINER_VALUE,
                 EntityType.STORAGE_VALUE,
-                EntityType.APPLICATION_COMPONENT_VALUE
+                EntityType.APPLICATION_COMPONENT_VALUE,
+                EntityType.DATABASE_SERVER_VALUE
             );
 
         private final CommodityType commodityType;
@@ -808,7 +813,9 @@ public class EntitySettingsApplicator {
                 //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
                 CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f,
                 //HEAP setting value is in MBs. Market expects it in KBs.
-                CommodityType.HEAP_VALUE, 1024.0f);
+                CommodityType.HEAP_VALUE, 1024.0f,
+                //DB_MEM setting value is in MBs. Market expects it in KBs.
+                CommodityType.DB_MEM_VALUE, 1024.0f);
 
 
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
