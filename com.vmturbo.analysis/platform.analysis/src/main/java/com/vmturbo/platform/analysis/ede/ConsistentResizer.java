@@ -83,6 +83,7 @@ public class ConsistentResizer {
         // availableHeadroom maps keeps a running total of the available headroom.
         private Map<CommoditySold, Integer> counts = new HashMap<>();
         private Map<CommoditySold, Double> availableHeadroom = new HashMap<>();
+        private double capacityIncrement = 0L;
 
         public ResizingGroup() {
         }
@@ -101,6 +102,12 @@ public class ConsistentResizer {
                        final Pair<CommoditySold, Trader> p) {
             PartialResize pr = new PartialResize(resize, engage, p);
             CommoditySold commSold = pr.getRawMaterial();
+            // Since all scaling group members share the same settings, we can get the capacity
+            // increment out of the first resize in the group that has a valid one.
+            if (capacityIncrement == 0L) {
+                capacityIncrement = resize.getResizedCommodity()
+                    .getSettings().getCapacityIncrement();
+            }
             final double newCapacity = resize.getNewCapacity();
             final double oldCapacity = resize.getOldCapacity();
             maxCapacity = Math.max(maxCapacity, newCapacity);
@@ -205,8 +212,10 @@ public class ConsistentResizer {
             final double finalNewCapacity = newCapacity;
             resizes.stream()
                 .map(PartialResize::getResize)
-                // Drop Resize if no change to capacity
-                .filter(resize -> resize.getOldCapacity() != finalNewCapacity)
+                // Drop Resize if the capacity difference is less than the configured
+                // capacity increment
+                .filter(resize ->
+                    Math.abs(resize.getOldCapacity() - finalNewCapacity) >= capacityIncrement)
                 // Do not override resize ups if the new capacity is less than the existing capacity
                 .filter(resize -> !(resize.getOldCapacity() < resize.getNewCapacity()
                     && resize.getOldCapacity() > finalNewCapacity))
