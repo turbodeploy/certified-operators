@@ -20,7 +20,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -31,14 +30,12 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -57,7 +54,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
@@ -90,10 +86,8 @@ import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
@@ -104,7 +98,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.ingesters.live.writers.SystemLoadWriter;
@@ -610,7 +603,7 @@ public class StatsHistoryRpcServiceTest {
                 .build();
 
         when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any()))
-                .thenReturn(getMockStatRecords(clusterId, dates, commodityNames, 20));
+                .thenReturn(getMockStatRecords(clusterId, dates, commodityNames));
 
         final List<StatSnapshot> snapshots = new ArrayList<>();
         clientStub.getClusterStats(request).forEachRemaining(snapshots::add);
@@ -651,7 +644,7 @@ public class StatsHistoryRpcServiceTest {
                 .build();
 
         when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any()))
-                .thenReturn(getMockStatRecords(clusterId, dates, commodityNames, 20));
+                .thenReturn(getMockStatRecords(clusterId, dates, commodityNames));
 
         final List<StatSnapshot> snapshots = new ArrayList<>();
         clientStub.getClusterStats(request).forEachRemaining(snapshots::add);
@@ -748,13 +741,11 @@ public class StatsHistoryRpcServiceTest {
      * @param clusterId cluster ID
      * @param dates an array of dates for the generated records
      * @param commodityNames commodity names (e.g. headroomVMs)
-     * @param value value of the record
      * @return a new ClusterStatsByDayRecord
      */
     private List<ClusterStatsByDayRecord> getMockStatRecords(String clusterId,
                                                              String[] dates,
-                                                             String[] commodityNames,
-                                                             int value) {
+                                                             String[] commodityNames) {
         List<ClusterStatsByDayRecord> results = Lists.newArrayList();
 
         for (String date : dates) {
@@ -764,7 +755,7 @@ public class StatsHistoryRpcServiceTest {
                 record.setInternalName(clusterId);
                 record.setPropertyType(commodityName);
                 record.setPropertySubtype(commodityName);
-                record.setValue(BigDecimal.valueOf(value));
+                record.setValue(BigDecimal.valueOf(20));
                 results.add(record);
             }
         }
@@ -1054,51 +1045,5 @@ public class StatsHistoryRpcServiceTest {
         }
     }
 
-    /**
-     * Test {@link StatsHistoryRpcService#createProjectedHeadroomStats(StreamObserver, long, long, long, long, Collection)}.
-     *
-     * @throws Exception if there's any
-     */
-    @Test
-    public void testCreateProjectedHeadroomStats() throws Exception {
-        final long latestRecordDate = System.currentTimeMillis();
-        final long startDate = latestRecordDate - TimeUnit.DAYS.toMillis(1);
-        final long endDate = latestRecordDate + TimeUnit.DAYS.toMillis(1) * 2 + 1;
-        final long clusterId = 1L;
-        when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any())).thenReturn(
-            getMockStatRecords(String.valueOf(clusterId), new String[] {new Date(latestRecordDate).toString()},
-                new String[] {StringConstants.VM_GROWTH}, 30));
 
-        float value = 10f;
-        float capacity = 30f;
-        final StatRecord statRecord = StatRecord.newBuilder()
-            .setName(StringConstants.CPU_HEADROOM)
-            .setUsed(StatValue.newBuilder().setAvg(value))
-            .setCapacity(StatValue.newBuilder().setAvg(capacity)).build();
-
-        final StreamObserver<StatSnapshot> responseStreamObserver = Mockito.mock(StreamObserver.class);
-        final ArgumentCaptor<StatSnapshot> statSnapshotCaptor = ArgumentCaptor.forClass(StatSnapshot.class);
-
-        statsHistoryRpcService.createProjectedHeadroomStats(responseStreamObserver, clusterId, startDate,
-            endDate, latestRecordDate, Collections.singletonList(statRecord));
-
-        Mockito.verify(responseStreamObserver, times(4)).onNext(statSnapshotCaptor.capture());
-
-        final List<StatSnapshot> projectedSnapshots = statSnapshotCaptor.getAllValues();
-        assertThat(projectedSnapshots.size(), is(4));
-
-        final StatSnapshot currentSnapshot = projectedSnapshots.get(0);
-        assertThat(currentSnapshot.getStatEpoch(), is(StatEpoch.CURRENT));
-        assertThat(currentSnapshot.getStatRecordsCount(), is(1));
-        assertThat(currentSnapshot.getStatRecords(0), is(statRecord));
-
-        for (int day = 1; day < projectedSnapshots.size(); day++) {
-            final StatSnapshot projectedSnapshot = projectedSnapshots.get(day);
-            assertThat(projectedSnapshot.getSnapshotDate(),
-                is(Math.min(latestRecordDate + day * TimeUnit.DAYS.toMillis(1), endDate)));
-            assertThat(projectedSnapshot.getStatEpoch(), is(StatEpoch.PROJECTED));
-            assertThat(projectedSnapshot.getStatRecordsCount(), is(1));
-            assertThat(projectedSnapshot.getStatRecords(0).getUsed().getAvg(), is(value - day));
-        }
-    }
 }

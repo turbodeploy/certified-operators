@@ -425,7 +425,7 @@ public class StatsService implements IStatsService {
 
                 // Call Stats service to retrieve cluster related stats.
                 final ClusterStatsRequest clusterStatsRequest =
-                        statsMapper.toClusterStatsRequest(uuid, inputDto.getPeriod(), true);
+                        statsMapper.toClusterStatsRequest(uuid, inputDto.getPeriod());
                 final Iterator<StatSnapshot> statSnapshotIterator =
                         statsServiceRpc.getClusterStats(clusterStatsRequest);
                 while (statSnapshotIterator.hasNext()) {
