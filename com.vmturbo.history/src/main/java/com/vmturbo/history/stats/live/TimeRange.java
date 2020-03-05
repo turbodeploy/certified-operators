@@ -185,8 +185,8 @@ public class TimeRange {
                     // different "most recent "timestamps and we might not get data for some of them
 
                     final Optional<Timestamp> mostRecentDbTimestamp = historydbIO
-                            .getClosestTimestampBefore(statsFilter, entityTypeOpt, entityOidForQuery,
-                                    Optional.empty(), paginationParams);
+                            .getClosestTimestampBefore(statsFilter,
+                                    Optional.empty());
 
                     if (!mostRecentDbTimestamp.isPresent()) {
                         // no data persisted yet; just return an empty answer
@@ -217,8 +217,7 @@ public class TimeRange {
                                 timeFrame.equals(TimeFrame.LATEST)) {
                             // resolve the most recent time stamp with regard to the start date
                             Optional<Timestamp> closestTimestamp = historydbIO
-                                    .getClosestTimestampBefore(statsFilter, entityTypeOpt, entityOidForQuery,
-                                            Optional.of(statsFilter.getStartDate()), paginationParams);
+                                    .getClosestTimestampBefore(statsFilter, Optional.of(statsFilter.getStartDate()));
                             if (closestTimestamp.isPresent()) {
                                 resolvedEndTime = statsFilter.getStartDate();
                                 resolvedStartTime = closestTimestamp.get().getTime();

@@ -397,7 +397,7 @@ public class StatsHistoryRpcServiceTest {
         when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
         ScenariosRecord scenariosRecord = new ScenariosRecord();
         when(historyDbio.getScenariosRecord(PLAN_OID)).thenReturn(Optional.of(scenariosRecord));
-        when(historyDbio.getClosestTimestampBefore(any(StatsFilter.class), any(), any(), any(), any()))
+        when(historyDbio.getClosestTimestampBefore(any(StatsFilter.class), any()))
             .thenReturn(Optional.of(new Timestamp(123L)));
 
         long startDate = System.currentTimeMillis();

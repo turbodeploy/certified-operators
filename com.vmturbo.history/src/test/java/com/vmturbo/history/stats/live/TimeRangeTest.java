@@ -74,8 +74,7 @@ public class TimeRangeTest {
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
 
         final Timestamp timestamp = new Timestamp(1L);
-        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty()))
+        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty()))
                 .thenReturn(Optional.of(timestamp));
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(1L);
 
@@ -92,8 +91,8 @@ public class TimeRangeTest {
     @Test
     public void testFactoryDefaultTimeRangeNoRecentTimestamp() throws VmtDbException {
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
-        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty())).thenReturn(Optional.empty());
+        when(historydbIO.getClosestTimestampBefore(statsFilter,
+                Optional.empty())).thenReturn(Optional.empty());
         final Optional<TimeRange> timeRangeOpt =
                 timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
                         Optional.empty());
@@ -110,7 +109,7 @@ public class TimeRangeTest {
                 .build();
         // Window expansion should only apply when time frame is latest.
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startAndEndTime);
-        when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any(), any(), any(), any()))
+        when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any()))
                 .thenReturn(Optional.of(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
@@ -205,9 +204,7 @@ public class TimeRangeTest {
     public void testResolveTimeWithMixedCommInStatsFilter() throws VmtDbException {
         final long startTime = 10L;
         final long endTime = 10L;
-        final Timestamp piTimestamp = new Timestamp(8L);
         final Timestamp cpuTimestamp = new Timestamp(9L);
-        final EntityStatsPaginationParams paginationParam = mock(EntityStatsPaginationParams.class);
         StatsFilter filterWithMixedComm = StatsFilter.newBuilder().setStartDate(startTime)
                         .setEndDate(endTime).addCommodityRequests(CommodityRequest.newBuilder()
                                 .setCommodityName(StringConstants.PRICE_INDEX))
@@ -215,20 +212,13 @@ public class TimeRangeTest {
                                 .setCommodityName(StringConstants.CPU))
                         .build();
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
-        when(historydbIO.getClosestTimestampBefore(filterWithMixedComm, Optional.empty(), Optional.empty(),
-                Optional.of(startTime), Optional.empty())).thenReturn(Optional.of(cpuTimestamp));
-        when(historydbIO.getClosestTimestampBefore(filterWithMixedComm, Optional.empty(), Optional.empty(),
-                Optional.of(startTime), Optional.of(paginationParam))).thenReturn(Optional.of(piTimestamp));
-        when(paginationParam.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
+        when(historydbIO.getClosestTimestampBefore(filterWithMixedComm,
+            Optional.of(startTime))).thenReturn(Optional.of(cpuTimestamp));
 
         final Optional<TimeRange> timeRangeOpt1 = timeRangeFactory.resolveTimeRange(filterWithMixedComm,
                 Optional.empty(), Optional.empty(), Optional.empty());
         assertTrue(timeRangeOpt1.isPresent());
         assertTrue(timeRangeOpt1.get().getMostRecentSnapshotTime().getTime() == cpuTimestamp.getTime());
-        final Optional<TimeRange> timeRangeOpt2 = timeRangeFactory.resolveTimeRange(filterWithMixedComm,
-                Optional.empty(), Optional.empty(), Optional.of(paginationParam));
-        assertTrue(timeRangeOpt2.isPresent());
-        assertTrue(timeRangeOpt2.get().getMostRecentSnapshotTime().getTime() == piTimestamp.getTime());
     }
 
     /**
@@ -268,64 +258,4 @@ public class TimeRangeTest {
         Assert.assertThat(timeRange.getTimeFrame(), is(TimeFrame.MONTH));
         Assert.assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));
     }
-
-    @Test
-    public void testResolveTimeRangeSpecificEntityType() throws VmtDbException {
-
-        final String specificEntityOid = "1";
-        final EntityType vmType = EntityType.VIRTUAL_MACHINE;
-        final Timestamp vmTimestamp = new Timestamp(9L);
-        final EntityType pmType = EntityType.PHYSICAL_MACHINE;
-        final Timestamp pmTimestamp = new Timestamp(12L);
-
-        when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);
-
-        // when there is no start/end date
-        final StatsFilter statsFilterNoDate = StatsFilter.newBuilder().build();
-
-        when(historydbIO.getClosestTimestampBefore(statsFilterNoDate,
-                Optional.of(EntityType.VIRTUAL_MACHINE), Optional.of(specificEntityOid),
-                Optional.empty(), Optional.empty())).thenReturn(Optional.of(vmTimestamp));
-
-        when(historydbIO.getClosestTimestampBefore(statsFilterNoDate,
-                Optional.of(EntityType.PHYSICAL_MACHINE), Optional.of(specificEntityOid),
-                Optional.empty(), Optional.empty())).thenReturn(Optional.of(pmTimestamp));
-
-        Optional<TimeRange> vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterNoDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty());
-
-        Optional<TimeRange> pmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterNoDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(pmType), Optional.empty());
-
-
-        assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
-        assertThat(pmTimeRange.get().getMostRecentSnapshotTime(), is(pmTimestamp));
-
-
-        // when we have start/end date
-        final long start = 5L;
-        final long end = 10L;
-        final StatsFilter statsFilterWithDate = StatsFilter.newBuilder()
-            .setStartDate(start)
-            .setEndDate(end)
-            .build();
-
-        when(historydbIO.getTimestampsInRange(TimeFrame.LATEST, start, end, Optional.of(vmType), Optional.of(specificEntityOid)))
-            .thenReturn(ImmutableList.of(vmTimestamp));
-
-        when(historydbIO.getTimestampsInRange(TimeFrame.LATEST, start, end, Optional.of(pmType), Optional.of(specificEntityOid)))
-            .thenReturn(ImmutableList.of(pmTimestamp));
-
-        vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterWithDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty());
-
-        pmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterWithDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(pmType), Optional.empty());
-
-
-        assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
-        assertThat(pmTimeRange.get().getMostRecentSnapshotTime(), is(pmTimestamp));
-
-    }
-
 }
