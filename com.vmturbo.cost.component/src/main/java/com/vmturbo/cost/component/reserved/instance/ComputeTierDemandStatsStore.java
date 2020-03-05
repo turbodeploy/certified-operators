@@ -1,22 +1,23 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
-import static com.vmturbo.cost.component.db.Tables.LAST_UPDATED;
 
-import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
@@ -25,7 +26,6 @@ import org.jooq.impl.DSL;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
-import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceZonalContext;
 
@@ -84,26 +84,20 @@ public class ComputeTierDemandStatsStore {
     }
 
     public void persistComputeTierDemandStats(
-            @Nonnull Collection<ComputeTierTypeHourlyByWeekRecord> demandStats,
-            boolean isProjectedTopology)
+            @Nonnull Collection<ComputeTierTypeHourlyByWeekRecord> demandStats)
             throws DataAccessException {
 
-        List<Query> batchQueries = new ArrayList<>();
         logger.debug("Storing stats. NumRecords = {} ", demandStats.size());
         // Each batch is run in a separate transaction. If some of the batch inserts fail,
         // it's ok as the stats are independent. Better to have some of the stats than no
         // stats at all.
-
-        batchQueries.add(updateLastUpdatedTime(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.getName(),
-                        isProjectedTopology ?
-                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_SOURCE_TOPOLOGY.getName() :
-                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_PROJECTED_TOPOLOGY.getName()));
-
         for (List<ComputeTierTypeHourlyByWeekRecord> statsBatch :
                 Iterables.partition(demandStats, statsRecordsCommitBatchSize)) {
+
             dslContext.transaction(configuration -> {
                 try {
                     DSLContext localDslContext = DSL.using(configuration);
+                    List<Query> batchQueries = new ArrayList<>();
                     // TODO : karthikt. Check the difference in speed between multiple
                     // insert statements(createStatement) vs single stateement with multiple
                     // bind values(prepareStatement). Using createStatement here for syntax simplicity.
@@ -120,58 +114,6 @@ public class ComputeTierDemandStatsStore {
                 }
             });
         }
-    }
-
-    /**
-     * Updates/Inserts the Table.LAST_UPDATED with the current timestamp for the passed in table name
-     * and column name.
-     *
-     * @param tableName The table name.
-     * @param columnName The column name in the table.
-     * @return a Query.
-     */
-    private Query updateLastUpdatedTime(String tableName, String columnName) {
-        java.sql.Timestamp date = new java.sql.Timestamp(new java.util.Date().getTime());
-        return dslContext.insertInto(Tables.LAST_UPDATED, LAST_UPDATED.TABLE_NAME,
-                    LAST_UPDATED.COLUMN_NAME,
-                    LAST_UPDATED.LAST_UPDATE)
-                    .values(tableName,
-                            columnName,
-                            date)
-                    .onDuplicateKeyUpdate()
-                    .set(LAST_UPDATED.LAST_UPDATE, date);
-    }
-
-    /**
-     * Checks whether an update has been performed in the current hour for the tableName and columnName.
-     *
-     * @param tableName the table name.
-     * @param columnName the column name.
-     * @return whether an update has been performed in the current hour for the tableName and columnName.
-     */
-    public boolean isUpdatedInLastHour(String tableName, String columnName) {
-        java.sql.Timestamp date = new java.sql.Timestamp(new java.util.Date().getTime());
-
-        Calendar start = Calendar.getInstance();
-        start.setTime(date);
-        start.set(Calendar.MINUTE, 0);
-        start.set(Calendar.SECOND, 0);
-        start.set(Calendar.MILLISECOND, 0);
-        Timestamp startTimestamp = new Timestamp(start.getTimeInMillis());
-
-        Calendar end = Calendar.getInstance();
-        end.setTime(date);
-        end.set(Calendar.MINUTE, 59);
-        end.set(Calendar.SECOND, 59);
-        start.set(Calendar.MILLISECOND, 999);
-        Timestamp endTimestamp = new Timestamp(end.getTimeInMillis());
-
-        final List<Condition> conditions = new ArrayList<>(3);
-        conditions.add(LAST_UPDATED.TABLE_NAME.eq(tableName));
-        conditions.add(LAST_UPDATED.COLUMN_NAME.eq(columnName));
-        conditions.add(LAST_UPDATED.LAST_UPDATE.between(startTimestamp, endTimestamp));
-
-        return dslContext.fetchExists(dslContext.selectFrom(LAST_UPDATED).where(conditions));
     }
 
     /**

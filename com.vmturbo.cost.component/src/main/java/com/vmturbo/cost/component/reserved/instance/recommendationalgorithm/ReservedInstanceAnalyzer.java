@@ -55,7 +55,6 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
-import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
@@ -114,8 +113,6 @@ public class ReservedInstanceAnalyzer {
     /*
      * Stores needed for rates and RIs.
      */
-    // Plan Reserved Instance Store (RIs included in plan from existing inventory).
-    private final PlanReservedInstanceStore planRiStore;
     private final ReservedInstanceBoughtStore riBoughtStore;
     private final ReservedInstanceSpecStore riSpecStore;
     private final PriceTableStore priceTableStore;
@@ -148,9 +145,7 @@ public class ReservedInstanceAnalyzer {
      *
      * @param settingsServiceClient Setting Services client for fetching settings.
      * @param repositoryClient Repository Service client for fetching topology.
-     * @param riBoughtStore Provide current RI bought (existing inventory) information.
-     * @param planRiStore Provide plan RI bought (RIs included in plan from existing inventory)
-     * information.
+     * @param riBoughtStore Provide current RI bought information.
      * @param riSpecStore Provides details of RI Specs.
      * @param priceTableStore Provides price information for RIs and on-demand instances.
      * @param computeTierDemandStatsStore historical demand data store for instances.
@@ -165,7 +160,6 @@ public class ReservedInstanceAnalyzer {
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
                                     @Nonnull ReservedInstanceBoughtStore riBoughtStore,
-                                    @Nonnull PlanReservedInstanceStore planRiStore,
                                     @Nonnull ReservedInstanceSpecStore riSpecStore,
                                     @Nonnull PriceTableStore priceTableStore,
                                     @Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
@@ -195,7 +189,6 @@ public class ReservedInstanceAnalyzer {
          * Access to RI and rates stores.
          */
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
-        this.planRiStore = Objects.requireNonNull(planRiStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.preferredCurrentWeight = preferredCurrentWeight;
@@ -213,7 +206,6 @@ public class ReservedInstanceAnalyzer {
         this.realtimeTopologyContextId = 1L;
         this.historicalDemandDataReader = null;
         this.riBoughtStore = null;
-        this.planRiStore = null;
         this.riSpecStore = null;
         this.priceTableStore = null;
         this.preferredCurrentWeight = 0.6f;
@@ -325,12 +317,7 @@ public class ReservedInstanceAnalyzer {
                  * Must be constructed here to ensure accurate RI and rating information.
                  */
                 ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider =
-                                 new ReservedInstanceAnalyzerRateAndRIs(priceTableStore,
-                                                                        riSpecStore,
-                                                                        riBoughtStore,
-                                                                        planRiStore,
-                                                                        topologyContextId,
-                                                                        realtimeTopologyContextId);
+                    new ReservedInstanceAnalyzerRateAndRIs(priceTableStore, riSpecStore, riBoughtStore);
 
                 // A count of the number of separate contexts that were analyzed -- separate
                 // combinations of region, tenancy, platform, and instance type or family

@@ -16,7 +16,6 @@ import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
-import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
@@ -83,7 +82,6 @@ public class ReservedInstanceAnalysisConfig {
                 settingServiceClient(),
                 repositoryServiceClient(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
-                planReservedInstanceStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 pricingConfig.priceTableStore(),
                 computeTierDemandStatsConfig.riDemandStatsStore(),
@@ -95,22 +93,8 @@ public class ReservedInstanceAnalysisConfig {
                 riMinimumDataPoints);
     }
 
-    /**
-     * Get the real-time reserved instance store (existing inventory).
-     *
-     * @return The real-time reserved instance store.
-     */
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return reservedInstanceConfig.reservedInstanceBoughtStore();
-    }
-
-    /**
-     * Get the plan reserved instance store.
-     *
-     * @return The plan reserved instance store.
-     */
-    public PlanReservedInstanceStore planReservedInstanceStore() {
-        return reservedInstanceConfig.planReservedInstanceStore();
     }
 
     @Bean

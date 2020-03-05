@@ -33,7 +33,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
-import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
@@ -72,11 +71,8 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     // The Reserved Instance specification store.
     private final ReservedInstanceSpecStore riSpecStore;
 
-    // The store containing the inventory of RIs that have already been purchased.
+    // The inventory of RIs that have already been purchased.
     private final ReservedInstanceBoughtStore riBoughtStore;
-
-    // The store containing the RIs included in plan from the inventory of RIs that have already been purchased.
-    private final PlanReservedInstanceStore planRiStore;
 
     /*
      * Internal data structures populated at construction time to represent the data in
@@ -103,32 +99,19 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      * @param priceTableStore price table store.
      * @param riSpecStore reserved instance specification store.
      * @param riBoughtStore reserved instance bought store (exiting RIs).
-     * @param planRiStore plan reserved instance bought store (exiting RIs included in plan).
-     * @param topologyContextId the topology context id.
-     * @param realtimeContextId the real-time topology context id which is the same as topologyContextId
-     * in real-time.
      */
     public ReservedInstanceAnalyzerRateAndRIs(@Nonnull PriceTableStore priceTableStore,
                                               @Nonnull ReservedInstanceSpecStore riSpecStore,
-                                              @Nonnull ReservedInstanceBoughtStore riBoughtStore,
-                                              @Nonnull PlanReservedInstanceStore planRiStore,
-                                              final long topologyContextId,
-                                              final long realtimeContextId) {
+                                              @Nonnull ReservedInstanceBoughtStore riBoughtStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
-        this.planRiStore = Objects.requireNonNull(planRiStore);
 
         // compute internal data structures
         populateOnDemandRateMap(priceTableStore);
         populateReservedInstanceSpecIdMap(riSpecStore);
         populateReservedInstanceSpecKeyMap(riSpecStore);
-        //real-time
-        if (topologyContextId == realtimeContextId) {
-            populateReservedInstanceBoughtInfoTable(riBoughtStore);
-        } else { // plans
-            populatePlanReservedInstanceBoughtInfoTable(planRiStore, topologyContextId);
-        }
+        populateReservedInstanceBoughtInfoTable(riBoughtStore);
         populateReservedInstanceRateMap(priceTableStore);
     }
 
@@ -140,7 +123,6 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         this.priceTableStore = null;
         this.riSpecStore = null;
         this.riBoughtStore = null;
-        this.planRiStore = null;
     }
     /*
      * Methods for accessing locally stored data.
@@ -510,35 +492,6 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             });
         reservedInstanceBoughtInfoTable = ImmutableTable.copyOf(table);
         logger.debug("populateReservedInstanceBoughtInfoTable() size={}",
-            reservedInstanceBoughtInfoTable.size());
-    }
-
-    /**
-     * Populate the reservedInstanceBoughtInfoTable with the plan reserved instance bought from the planRiStore.
-     *
-     * @param store the Reserved Instance bought store.  Pass in to ease JUnit testing.
-     * @param topologyContextId the Plan's topology context id.
-     */
-    @VisibleForTesting
-    void populatePlanReservedInstanceBoughtInfoTable(@Nonnull PlanReservedInstanceStore store,
-                                                     final long topologyContextId) {
-        // Table: business account OID X availability zone OID -> ReservedInstanceBoughtInfo
-        Table<Long, Long, List<ReservedInstanceBoughtInfo>> table = HashBasedTable.create();
-        store.getReservedInstanceBoughtByPlanId(topologyContextId)
-            .stream()
-            .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
-            .forEach(riBought -> {
-                List<ReservedInstanceBoughtInfo> existingValue =
-                    table.get(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId());
-                if (existingValue == null) {
-                    existingValue = new ArrayList<>();
-                }
-                existingValue.add(riBought);
-                table.put(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId(),
-                    existingValue);
-            });
-        reservedInstanceBoughtInfoTable = ImmutableTable.copyOf(table);
-        logger.debug("populatePlanReservedInstanceBoughtInfoTable() size={}",
             reservedInstanceBoughtInfoTable.size());
     }
 
