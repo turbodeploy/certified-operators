@@ -1489,6 +1489,10 @@ public class Stages {
             final String statusSummary =
                 "Total movables set to true are: " + editorSummary.getMovableToTrueCounter() +
                 "\nTotal movables set to false are: " + editorSummary.getMovableToFalseCounter() +
+                        "\nTotal resizeables set to true are: " + editorSummary.getResizeableToTrueCounter() +
+                        "\nTotal resizeables set to false are: " + editorSummary.getResizeableToFalseCounter() +
+                        "\nTotal scalables set to true are: " + editorSummary.getScalableToTrueCounter() +
+                        "\nTotal scalables set to false are: " + editorSummary.getScalableToFalseCounter() +
                 "\nTotal cloneable set to true are: " + editorSummary.getCloneableToTrueCounter() +
                 "\nTotal cloneable set to false are: " + editorSummary.getCloneableToFalseCounter() +
                 "\nTotal suspendable set to true are: " + editorSummary.getSuspendableToTrueCounter() +
