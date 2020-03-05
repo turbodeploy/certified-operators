@@ -327,7 +327,7 @@ public class UserServiceTest {
         when(restTemplate.exchange("http://:0/users/remove/testUser", HttpMethod.DELETE, entity, AuthUserDTO.class))
             .thenReturn(responseEntity);
         usersService.deleteUser(TEST_USER);
-        verify(widgetSetsService).transferWidgetsets(TEST_USER);
+        verify(widgetSetsService).transferWidgetsets(TEST_USER, "");
         verify(sessionRegistry).getAllPrincipals();
         verify(sessionRegistry).getAllSessions(TEST_USER, false);
         verify(sessionInformation).expireNow();
