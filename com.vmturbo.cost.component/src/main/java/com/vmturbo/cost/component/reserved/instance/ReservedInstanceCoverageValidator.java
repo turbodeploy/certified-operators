@@ -265,16 +265,13 @@ public class ReservedInstanceCoverageValidator {
         return extractRISpecInfo(reservedInstance).map(riSpecInfo -> {
 
             final ReservedInstanceBoughtInfo riInfo = reservedInstance.getReservedInstanceBoughtInfo();
-            final Instant reservedInstanceExpirationInstant;
-            if (riInfo.hasEndTime()) {
-                reservedInstanceExpirationInstant = Instant.ofEpochMilli(riInfo.getEndTime());
-            } else {
-                reservedInstanceExpirationInstant = Instant
-                        .ofEpochMilli(riInfo.getStartTime())
-                        // AWS definition of a year: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-reserved-instances.html
-                        // Azure documentation is lacking. Therefore, we default to AWS definition
-                        .plus(riSpecInfo.getType().getTermYears() * 365L, ChronoUnit.DAYS);
-            }
+
+            final Instant reservedInstanceExpirationInstant = Instant
+                    .ofEpochMilli(riInfo.getStartTime())
+                    // AWS definition of a year: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-reserved-instances.html
+                    // Azure documentation is lacking. Therefore, we default to AWS definition
+                    .plus(riSpecInfo.getType().getTermYears() * 365L, ChronoUnit.DAYS);
+
             return Instant.now().isAfter(reservedInstanceExpirationInstant);
         }).orElse(false);
     }

@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
 
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -152,28 +151,6 @@ public class ReservedInstanceMapperTest {
     @Test
     public void testMapToReservedInstanceApiDTOForAzureEA() throws Exception {
         testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType.AZURE_EA);
-    }
-
-    @Test
-    public void testMapToReservedInstanceWithExplicitEndDate() throws Exception {
-        // Arrange
-        final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
-        final TargetApiDTO target = new TargetApiDTO();
-        target.setType(SDKProbeType.AWS.getProbeType());
-        businessAccount.setDiscoveredBy(target);
-        businessAccount.setDisplayName("Main Account");
-        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
-                .of(ACCOUNT_1_ID, businessAccount);
-
-        Instant endTime = Instant.ofEpochMilli(1L);
-        ReservedInstanceBoughtInfo reservedInstanceBoughtInfo = riBought.getReservedInstanceBoughtInfo()
-                .toBuilder().setEndTime(endTime.toEpochMilli()).build();
-        ReservedInstanceBought reservedInstanceBought = riBought.toBuilder().setReservedInstanceBoughtInfo(reservedInstanceBoughtInfo)
-                .build();
-        // Act
-        final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
-                .mapToReservedInstanceApiDTO(reservedInstanceBought, riSpec, serviceEntityApiDTOMap);
-        assertEquals(reservedInstanceApiDTO.getExpDateEpochTime(), new Long(1L));
     }
 
     private void testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType probeType)

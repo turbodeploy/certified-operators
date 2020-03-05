@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
-import static java.util.stream.Collectors.toSet;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,7 +13,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Sets;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -113,7 +110,6 @@ public class StatsQueryScopeExpander {
          */
         @Nonnull
         Set<Long> getScopeOids();
-
     }
 
     /**
@@ -132,44 +128,25 @@ public class StatsQueryScopeExpander {
         private final Set<UIEntityType> relatedTypes;
 
         StatQueryScopeLazyLoader(@Nonnull final StatsQueryScopeExpander expander,
-                                 @Nonnull final ApiId scope,
-                                 @Nullable final GlobalScope globalScope,
-                                 @Nullable final Set<Long> scopeOids,
-                                 @Nonnull final Set<UIEntityType> relatedTypes,
-                                 @Nonnull final UserSessionContext userSessionContext) {
+                                        @Nonnull final ApiId scope,
+                                        @Nullable final GlobalScope globalScope,
+                                        @Nullable final Set<Long> scopeOids,
+                                        @Nonnull final Set<UIEntityType> relatedTypes) {
             this.expander = expander;
             this.scope = scope;
             this.relatedTypes = relatedTypes;
             this.globalScope = globalScope;
             if (globalScope != null || CollectionUtils.isEmpty(scopeOids)) {
-                this.scopeOids = fetchScopedOids(userSessionContext, Collections.emptySet());
-                this.expandedOids = fetchExpandedOids(userSessionContext, relatedTypes);
+                this.scopeOids = Collections.emptySet();
+                this.expandedOids = Collections.emptySet();
             } else {
-                Set<Long> oids = fetchScopedOids(userSessionContext, scopeOids);
-                oids.retainAll(scopeOids);
-                this.scopeOids = oids;
+                this.scopeOids = scopeOids;
                 if (scope.isRealtimeMarket()) {
-                    this.expandedOids = this.scopeOids;
+                    this.expandedOids = scopeOids;
                 }
             }
         }
 
-        private static Set<Long> fetchExpandedOids(
-                @Nonnull final UserSessionContext userSessionContext,
-                @Nonnull final Set<UIEntityType> relatedTypes) {
-            return (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) ?
-                    userSessionContext.getUserAccessScope().getAccessibleOidsByEntityTypes(
-                            relatedTypes.stream().map(UIEntityType::apiStr).collect(toSet())).toSet() :
-                    Collections.emptySet();
-        }
-
-        private static Set<Long> fetchScopedOids(
-                @Nonnull final UserSessionContext userSessionContext,
-                @Nonnull final Set<Long> scopeOids) {
-            return (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) ?
-                    userSessionContext.getUserAccessScope().accessibleOids().toSet() :
-                    scopeOids;
-        }
 
         @Override
         public Optional<GlobalScope> getGlobalScope() {
@@ -294,12 +271,6 @@ public class StatsQueryScopeExpander {
         if (!scope.isPlan()) {
             UserScopeUtils.checkAccess(userSessionContext, expandedOidsInScope);
         }
-
-        if (userSessionContext.isUserScoped() && userSessionContext.isUserObserver()) {
-            Set<Long> userScopedOids = StatQueryScopeLazyLoader.fetchExpandedOids(userSessionContext, relatedTypes);
-            expandedOidsInScope.retainAll(userScopedOids);
-        }
-
         return expandedOidsInScope;
     }
 
@@ -327,9 +298,8 @@ public class StatsQueryScopeExpander {
         } else {
             scopeOids = null;
         }
-        return new StatQueryScopeLazyLoader(
-                this, scope, globalScope,
-                scopeOids, relatedTypes, userSessionContext);
+
+        return new StatQueryScopeLazyLoader(this, scope, globalScope, scopeOids, relatedTypes);
     }
 
     private Set<Long> findConnectedVmOids(@Nonnull final Set<Long> volumeOids) {

@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -24,11 +23,9 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Sub-query responsible for getting the counts of entities for a scoped user.
@@ -55,19 +52,7 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
 
     @Override
     public SubQuerySupportedStats getHandledStats(@Nonnull final StatsQueryContext context) {
-        Set<StatApiInputDTO> supportedStatsType = context.getRequestedStats();
-
-        Predicate<StatApiInputDTO> onPremOnly = dto -> dto.getFilters() != null && dto.getFilters().stream()
-                .anyMatch(statFilterApiDto -> statFilterApiDto.getType().equals(StringConstants.ENVIRONMENT_TYPE) &&
-                        statFilterApiDto.getValue().equals(EnvironmentType.ON_PREM.name()));
-
-        Set<StatApiInputDTO> supportedStats = supportedStatsType.stream()
-                .filter(onPremOnly)
-                .filter(statApiInputDTO ->
-                        StatsUtils.COUNT_ENTITY_METRIC_NAMES.containsKey(statApiInputDTO.getName()))
-                .collect(Collectors.toSet());
-
-        return SubQuerySupportedStats.some(supportedStats);
+        return SubQuerySupportedStats.some(context.findStats(StatsUtils.COUNT_ENTITY_METRIC_NAMES.keySet()));
     }
 
     @Nonnull

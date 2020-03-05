@@ -2,7 +2,6 @@ package com.vmturbo.auth.api.authorization.scoping;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,7 +11,6 @@ import javax.annotation.Nullable;
 import com.vmturbo.components.common.identity.OidFilter;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
-import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 
 /**
  * EntityAccessScope models an access restriction list based on an "entity scope". The "access scope"
@@ -128,25 +126,6 @@ public class EntityAccessScope implements OidFilter {
         }
 
         return accessibleOidsByEntityType.getOrDefault(entityType, OidSet.EMPTY_OID_SET);
-    }
-
-    /**
-     * Get an OidSet of the accessible oids for the specified collection of entityTypes. This set is only relevant
-     * if EntityAccessScope.containsAll() is false -- if the scope contains "all" entities then this
-     * method will just return an {@link AllOidsSet} that is not iterable.
-     *
-     * @param entityTypes The string entity type to look for
-     * @return an {@link OidSet} of entity oids of the requested type in the accessible set.
-     */
-    public OidSet getAccessibleOidsByEntityTypes(Collection<String> entityTypes) {
-        // special case for "all oids".
-        if (accessFilter.containsAll()) {
-            return AllOidsSet.ALL_OIDS_SET;
-        }
-        Set<Long> oids = new HashSet<>();
-        entityTypes.stream().filter(accessibleOidsByEntityType::containsKey).forEach(entityType ->
-                oids.addAll(accessibleOidsByEntityType.get(entityType).toSet()));
-        return new RoaringBitmapOidSet(oids);
     }
 
     public String toString() {

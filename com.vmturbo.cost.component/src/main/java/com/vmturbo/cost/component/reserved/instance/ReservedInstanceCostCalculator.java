@@ -109,24 +109,18 @@ public class ReservedInstanceCostCalculator {
                 @Nonnull final Map<Long, Integer> riSpecToTermMap) {
         final Map<String, Long> probeRIIDToExpiryDateInMillis = new HashMap<>();
         for (ReservedInstanceBoughtInfo reservedInstanceBoughtInfo : reservedInstanceBoughtInfos) {
-            final long reservedInstanceExpirationMillis;
-            //if endTime is available use that instead of startTime + Duration.
-            if (reservedInstanceBoughtInfo.hasEndTime()) {
-                reservedInstanceExpirationMillis = reservedInstanceBoughtInfo.getEndTime();
-            } else {
-                if (!riSpecToTermMap.containsKey(reservedInstanceBoughtInfo.getReservedInstanceSpec())) {
-                    logger.error("The term years for RI Spec with Id {} is not provided.",
-                            reservedInstanceBoughtInfo.getReservedInstanceSpec());
-                    continue;
-                }
-                // Get the time that RI expires
-                reservedInstanceExpirationMillis = Instant
-                        .ofEpochMilli(reservedInstanceBoughtInfo.getStartTime())
-                        .plus(riSpecToTermMap.get(reservedInstanceBoughtInfo.getReservedInstanceSpec()) * 365L,
-                                ChronoUnit.DAYS).toEpochMilli();
+            if (!riSpecToTermMap.containsKey(reservedInstanceBoughtInfo.getReservedInstanceSpec())) {
+                logger.error("The term years for RI Spec with Id {} is not provided.",
+                    reservedInstanceBoughtInfo.getReservedInstanceSpec());
+                continue;
             }
+            // Get the time that RI expires
+            final long reservedInstanceExpirationMillis = Instant
+                .ofEpochMilli(reservedInstanceBoughtInfo.getStartTime())
+                .plus(riSpecToTermMap.get(reservedInstanceBoughtInfo.getReservedInstanceSpec()) * 365L,
+                    ChronoUnit.DAYS).toEpochMilli();
             probeRIIDToExpiryDateInMillis.put(reservedInstanceBoughtInfo.getProbeReservedInstanceId(),
-                    reservedInstanceExpirationMillis);
+                reservedInstanceExpirationMillis);
         }
         return probeRIIDToExpiryDateInMillis;
     }

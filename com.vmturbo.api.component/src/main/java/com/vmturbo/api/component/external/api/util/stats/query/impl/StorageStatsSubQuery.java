@@ -13,14 +13,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
@@ -32,7 +33,6 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -83,18 +83,8 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
     private final RepositoryApi repositoryApi;
 
-    private final UserSessionContext userSessionContext;
-
-    /**
-     * Constructor.
-     *
-     * @param repositoryApi      the {@link RepositoryApi}
-     * @param userSessionContext the {@link UserSessionContext}
-     */
-    public StorageStatsSubQuery(@Nonnull final RepositoryApi repositoryApi,
-                                @Nonnull final UserSessionContext userSessionContext) {
+    public StorageStatsSubQuery(@Nonnull final RepositoryApi repositoryApi) {
         this.repositoryApi = repositoryApi;
-        this.userSessionContext = userSessionContext;
     }
 
     @Override
@@ -147,7 +137,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
 
-                final SearchParameters searchVvInScope = getSearchScopeBuilder(context, requestedStat, userSessionContext)
+                final SearchParameters searchVvInScope = getSearchScopeBuilder(context, requestedStat)
                     .addSearchFilter(
                         SearchFilter.newBuilder()
                             .setPropertyFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME))
@@ -198,7 +188,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 // Get all the storage tier in the scope
                 // Storage tier is for Cloud only
 
-                final SearchParameters vvInScopeSearchParams = getSearchScopeBuilder(context, requestedStat, userSessionContext)
+                final SearchParameters vvInScopeSearchParams = getSearchScopeBuilder(context, requestedStat)
                     .addSearchFilter(SearchFilter.newBuilder()
                         .setPropertyFilter(
                             SearchProtoUtil.environmentTypeFilter(EnvironmentType.CLOUD))
@@ -256,7 +246,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
             } else {
                 final SearchParameters searchParameters =
-                    getSearchScopeBuilder(context, requestedStat, userSessionContext).build();
+                    getSearchScopeBuilder(context, requestedStat).build();
                 final long total = repositoryApi.newSearchRequest(searchParameters).count();
                 results.add(makeCountStatDto(requestedStat, total));
             }
@@ -275,21 +265,12 @@ public class StorageStatsSubQuery implements StatsSubQuery {
      *
      * @param context {@link StatsQueryContext}
      * @param requestStat {@link StatApiInputDTO}
-     * @param userSessionContext {@link UserSessionContext}
      * @return {@link SearchParameters.Builder}
      */
     @Nonnull
     private static SearchParameters.Builder getSearchScopeBuilder(@Nonnull final StatsQueryContext context,
-                                                                  @Nonnull final StatApiInputDTO requestStat,
-                                                                  @Nonnull UserSessionContext userSessionContext) {
-        if (userSessionContext.isUserScoped() && userSessionContext.isUserObserver()) {
-            return SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(context.getQueryScope().getScopeOids()))
-                    .addSearchFilter(
-                            SearchFilter.newBuilder()
-                                    .setPropertyFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME))
-                                    .build());
-        } else if (context.isGlobalScope()) {
+                                                                  @Nonnull final StatApiInputDTO requestStat) {
+        if (context.isGlobalScope()) {
             SearchParameters.Builder builder = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(
                 context.getQueryScope().getGlobalScope().get().entityTypes().stream()
                     .map(et -> et.apiStr())

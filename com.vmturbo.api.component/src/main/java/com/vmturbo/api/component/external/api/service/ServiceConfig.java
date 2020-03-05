@@ -686,7 +686,7 @@ public class ServiceConfig {
     @Bean
     public StorageStatsSubQuery storageStatsSubQuery() {
         final StorageStatsSubQuery storageStatsSubQuery =
-            new StorageStatsSubQuery(communicationConfig.repositoryApi(), userSessionContext());
+            new StorageStatsSubQuery(communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(storageStatsSubQuery);
         return storageStatsSubQuery;
     }

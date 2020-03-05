@@ -145,13 +145,9 @@ public class ReservedInstanceMapper {
         reservedInstanceApiDTO.setTerm(createStatApiDTO(YEAR, Optional.empty(),
                 reservedInstanceSpec
                         .getReservedInstanceSpecInfo().getType().getTermYears()));
-        //if endTime is available use that instead of startTime + termYears.
-        final long endTime =
-                reservedInstanceBought.getReservedInstanceBoughtInfo().hasEndTime() ?
-                        reservedInstanceBought.getReservedInstanceBoughtInfo().getEndTime() :
-                        (reservedInstanceBought.getReservedInstanceBoughtInfo().getStartTime() +
-                                reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getTermYears()
-                                        * NUM_OF_MILLISECONDS_OF_YEAR);
+        final long endTime = reservedInstanceBought.getReservedInstanceBoughtInfo().getStartTime() +
+                reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getTermYears()
+                        * NUM_OF_MILLISECONDS_OF_YEAR;
         reservedInstanceApiDTO.setExpDateEpochTime(endTime);
         reservedInstanceApiDTO.setExpDate(DateTimeUtil.toString(endTime));
         reservedInstanceApiDTO.setCloudType(retrieveCloudType(reservedInstanceBoughtInfo,
