@@ -68,7 +68,7 @@ public class TopologyLifecycleManagerTest {
     public void setup() {
         topologyLifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
             graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler,
-            liveTopologyStore, 0, 2, 2,
+            liveTopologyStore, 0, 2, 2, 1,
             globalSupplyChainManager, graphDBExecutor,false);
         when(graphDBExecutor.getArangoDatabaseName()).thenReturn(DATABASE_NAME);
     }

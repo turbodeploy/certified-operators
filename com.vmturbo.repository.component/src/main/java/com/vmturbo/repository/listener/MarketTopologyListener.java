@@ -156,9 +156,9 @@ public class MarketTopologyListener implements
                 .setData((double) numberOfEntities);
             topologyCreator.complete();
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.PROCESSED_LABEL).increment();
-            logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
             notificationSender.onProjectedTopologyAvailable(projectedTopologyId, topologyContextId);
-            timer.observe();
+            double timeTaken = timer.observe();
+            logger.info("Finished updating topology {} with {} entities in {} s", tid, numberOfEntities, timeTaken);
         } catch (InterruptedException e) {
             logger.error("Thread interrupted receiving topology " + projectedTopologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();

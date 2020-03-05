@@ -75,10 +75,10 @@ public class TopologyEntitiesUtil {
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE
                     .labels(SharedMetrics.SOURCE_LABEL)
                     .setData((double)numberOfEntities);
-            logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
             notificationSender.onSourceTopologyAvailable(topologyId, topologyContextId);
 
-            timer.observe();
+            double timeTaken = timer.observe();
+            logger.info("Finished updating topology {} with {} entities in {} s", tid, numberOfEntities, timeTaken);
         } catch (GraphDatabaseException | CommunicationException |
                 TopologyEntitiesException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId, e);

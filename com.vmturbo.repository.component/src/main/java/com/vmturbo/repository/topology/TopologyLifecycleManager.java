@@ -106,6 +106,9 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     // how many expected real time "Projected" DB to be kept with full clean up?
     private final int numberOfExpectedRealtimeProjectedDB;
 
+    // the number of replicas of each collection to request from the graph database.
+    private final int collectionReplicaCount;
+
     private final LiveTopologyStore liveTopologyStore;
 
     private final GlobalSupplyChainManager globalSupplyChainManager;
@@ -127,11 +130,13 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                                     final long realtimeTopologyDropDelaySecs,
                                     final int numberOfExpectedRealtimeSourceDB,
                                     final int numberOfExpectedRealtimeProjectedDB,
+                                    final int collectionReplicaCount,
                                     @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
                                     @Nonnull final GraphDBExecutor graphDBExecutor) {
         this(graphDatabaseDriverBuilder, graphDefinition, topologyProtobufsManager, realtimeTopologyContextId,
             scheduler, liveTopologyStore, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
-            numberOfExpectedRealtimeProjectedDB, globalSupplyChainManager, graphDBExecutor, true);
+            numberOfExpectedRealtimeProjectedDB, collectionReplicaCount, globalSupplyChainManager,
+                graphDBExecutor, true);
     }
 
     @VisibleForTesting
@@ -144,6 +149,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             final long realtimeTopologyDropDelaySecs,
             final int numberOfExpectedRealtimeSourceDB,
             final int numberOfExpectedRealtimeProjectedDB,
+            final int collectionReplicaCount,
             @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
             @Nonnull final GraphDBExecutor graphDbExecutor,
             final boolean loadExisting) {
@@ -156,6 +162,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
         this.realtimeTopologyDropDelaySecs = realtimeTopologyDropDelaySecs;
         this.numberOfExpectedRealtimeSourceDB = numberOfExpectedRealtimeSourceDB;
         this.numberOfExpectedRealtimeProjectedDB = numberOfExpectedRealtimeProjectedDB;
+        this.collectionReplicaCount = collectionReplicaCount;
         this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.graphDbExecutor = Objects.requireNonNull(graphDbExecutor);
 
@@ -370,7 +377,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 this::registerTopology,
-                graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
+                graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition, collectionReplicaCount),
                 TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs,
                 globalSupplyChainManager,
                 graphDbExecutor,
@@ -391,7 +398,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 this::registerTopology,
-                graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
+                graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition, collectionReplicaCount),
                 TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs,
                 globalSupplyChainManager,
                 graphDbExecutor,

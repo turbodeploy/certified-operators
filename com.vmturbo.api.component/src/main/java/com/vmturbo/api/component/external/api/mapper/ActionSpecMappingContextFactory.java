@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,6 +22,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -198,6 +200,7 @@ public class ActionSpecMappingContextFactory {
                                                             .getEntities()
                                                             .collect(Collectors.toList());
 
+        //TODO: This seems excessive to make repository request for each entity in scope
         final Map<Long, ApiPartialEntity> entityIdToRegion = new HashMap<>();
         for (long entityId : entitiesById.keySet()) {
             final ApiPartialEntity region =
@@ -222,45 +225,33 @@ public class ActionSpecMappingContextFactory {
                 .forEach(zoneId -> entitiesById.put(zoneId, region));
         }
 
-        final Map<Long, EntityAspect> cloudAspects = new HashMap<>();
-        for (ApiPartialEntity entity : entitiesById.values()) {
-            final EntityAspect cloudAspect =
-                    entityAspectMapper.getAspectByEntity(entity, AspectName.CLOUD);
-            if (cloudAspect != null) {
-                cloudAspects.put(entity.getOid(), cloudAspect);
-            }
-        }
+        // fetch all cloud aspects
+        final Map<Long, EntityAspect> cloudAspects = getEntityToAspectMapping(entitiesById.values(),
+            Collections.emptySet(), Sets.newHashSet(EnvironmentType.CLOUD), AspectName.CLOUD);
 
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
-                Collections.emptyMap(), cloudAspects, Collections.emptyMap(),
+                Collections.emptyMap(), cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
                 buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false);
         }
 
         // fetch more info for plan actions
         // fetch all volume aspects together first rather than fetch one by one to improve performance
         Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByVM = fetchVolumeAspects(actions, topologyContextId);
-        // fetch cloud aspects and vm aspects
-        final Map<Long, EntityAspect> vmAspects = new HashMap<>();
 
-        final Set<Long> cloudVmIds = entitiesById.values().stream()
-            .filter(e -> e.getEntityType() == UIEntityType.VIRTUAL_MACHINE.typeNumber())
-            .filter(e -> e.getEnvironmentType() == EnvironmentType.CLOUD)
-            .map(ApiPartialEntity::getOid)
-            .collect(Collectors.toSet());
+        // fetch all vm aspects
+        final Map<Long, EntityAspect> vmAspects = getEntityToAspectMapping(entitiesById.values(),
+            Sets.newHashSet(UIEntityType.VIRTUAL_MACHINE), Sets.newHashSet(EnvironmentType.CLOUD),
+            AspectName.VIRTUAL_MACHINE);
 
-        final Iterator<TopologyEntityDTO> iterator =
-                repositoryApi.entitiesRequest(cloudVmIds).getFullEntities().iterator();
-        while (iterator.hasNext()) {
-            final TopologyEntityDTO cloudVmFullEntity = iterator.next();
-            final EntityAspect vmAspect =
-                    entityAspectMapper.getAspectByEntity(cloudVmFullEntity,
-                            AspectName.VIRTUAL_MACHINE);
-            vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
-        }
+        // fetch all db aspects
+        final Map<Long, EntityAspect> dbAspects = getEntityToAspectMapping(entitiesById.values(),
+            Sets.newHashSet(UIEntityType.DATABASE, UIEntityType.DATABASE_SERVER),
+            Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
+
         return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
-                volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, datacenterById,
-            serviceEntityMapper, true);
+                volumesAspectsByVM, cloudAspects, vmAspects, dbAspects,
+            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true);
     }
 
     /**
@@ -272,6 +263,71 @@ public class ActionSpecMappingContextFactory {
      */
     private boolean isProjected(long entityId) {
         return entityId < 0;
+    }
+
+    /**
+     * Create a Map of OID -> Aspect for a given collection of entities and the aspect desired.
+     * This will make a request to repository API for some aspects as they will not be contained
+     * on the {@link ApiPartialEntity}.
+     *
+     * @param entities the entities to get the aspects for.
+     * @param entityTypes the entity types to filter by.
+     * @param envTypes the environment types to filter by.
+     * @param aspectName the aspect name for the aspect desired.
+     * @return a map of OID -> Aspect for the requested aspect.
+     * @throws InterruptedException if execution is interrupted.
+     * @throws ConversionException if aspect conversion is unsuccessful.
+     */
+    @Nonnull
+    private Map<Long, EntityAspect> getEntityToAspectMapping(
+            @Nonnull Collection<ApiPartialEntity> entities,
+            @Nonnull Set<UIEntityType> entityTypes,
+            @Nonnull Set<EnvironmentType> envTypes,
+            @Nonnull AspectName aspectName)
+            throws InterruptedException, ConversionException {
+
+        final Map<Long, EntityAspect> oidToAspectMap = new HashMap<>();
+        boolean allEntityTypes = entityTypes.isEmpty();
+
+        // For Cloud Aspect, we can get certain information from the ApiPartialEntity
+        // at this time, we don't need the full Api DTO
+        if (aspectName == AspectName.CLOUD) {
+            for (ApiPartialEntity entity : entities) {
+                if (entity.getEnvironmentType() == EnvironmentType.ON_PREM ||
+                    (allEntityTypes && entityTypes.contains(UIEntityType.fromType(entity.getEntityType())))) {
+                    continue;
+                }
+                final EntityAspect cloudAspect =
+                    entityAspectMapper.getAspectByEntity(entity, AspectName.CLOUD);
+                if (cloudAspect != null) {
+                    oidToAspectMap.put(entity.getOid(), cloudAspect);
+                }
+            }
+
+            return oidToAspectMap;
+        }
+
+        // For other Aspect types, we need to get the full API DTO so that it can be extracted.
+        // Get the OIDs of the partial entities we need full entities of
+        final Set<Long> entityIds = entities.stream()
+            .filter(e -> allEntityTypes || entityTypes.contains(UIEntityType.fromType(e.getEntityType())))
+            .filter(e -> envTypes.contains(e.getEnvironmentType()))
+            .map(ApiPartialEntity::getOid)
+            .collect(Collectors.toSet());
+
+        // Iterate over full entities, extract aspects, and build a mapping
+        final Iterator<TopologyEntityDTO> iterator =
+            repositoryApi.entitiesRequest(entityIds).getFullEntities().iterator();
+        while (iterator.hasNext()) {
+            final TopologyEntityDTO fullEntity = iterator.next();
+
+            final EntityAspect aspect =
+                entityAspectMapper.getAspectByEntity(fullEntity,
+                    aspectName);
+            oidToAspectMap.put(fullEntity.getOid(), aspect);
+        }
+
+        return oidToAspectMap;
     }
 
     /**
@@ -490,6 +546,8 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, EntityAspect> vmAspects;
 
+        private final Map<Long, EntityAspect> dbAspects;
+
         private final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec;
 
         private final Map<Long, ApiPartialEntity> oidToDatacenter;
@@ -502,6 +560,7 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVM,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
+                                 @Nonnull Map<Long, EntityAspect> dbAspects,
                                  @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                                          buyRIIdToRIBoughtandRISpec,
                                  @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
@@ -515,6 +574,7 @@ public class ActionSpecMappingContextFactory {
             this.volumeAspectsByVM = Objects.requireNonNull(volumeAspectsByVM);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
             this.vmAspects = Objects.requireNonNull(vmAspects);
+            this.dbAspects = Objects.requireNonNull(dbAspects);
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
             this.oidToDatacenter = oidToDatacenter;
             this.isPlan = isPlan;
@@ -554,6 +614,10 @@ public class ActionSpecMappingContextFactory {
 
         Optional<EntityAspect> getVMAspect(@Nonnull Long entityId) {
             return Optional.ofNullable(vmAspects.get(entityId));
+        }
+
+        Optional<EntityAspect> getDBAspect(@Nonnull Long entityId) {
+            return Optional.ofNullable(dbAspects.get(entityId));
         }
 
         public Pair<ReservedInstanceBought, ReservedInstanceSpec> getRIBoughtandRISpec(Long id) {
