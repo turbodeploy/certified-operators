@@ -19,13 +19,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -189,16 +189,8 @@ public class EntitySettingsApplicator {
                                         new VmInstanceStoreCommoditiesCreator(),
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
-                                                   CommodityType.ACTIVE_SESSIONS));
-    }
-
-    private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
-            TopologyEntityDTO.Builder entity, CommodityType commodityType) {
-        return entity.getCommoditySoldListBuilderList()
-                .stream()
-                .filter(commodity -> commodity.getCommodityType().getType() ==
-                        commodityType.getNumber())
-                .collect(Collectors.toList());
+                        CommodityType.ACTIVE_SESSIONS),
+                new VsanStorageApplicator());
     }
 
     /**
@@ -274,21 +266,6 @@ public class EntitySettingsApplicator {
                     }
                 });
         }
-    }
-
-    /**
-     * Settings applicator, that requires multiple settings to be processed.
-     */
-    @FunctionalInterface
-    private interface SettingApplicator {
-        /**
-         * Applies settings to the specified entity.
-         *
-         * @param entity entity to apply settings to
-         * @param settings settings to apply
-         */
-        void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                @Nonnull Map<EntitySettingSpecs, Setting> settings);
     }
 
     /**
@@ -661,7 +638,8 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
             }
         }
@@ -713,7 +691,8 @@ public class EntitySettingsApplicator {
             // We only want to do this for cluster headroom calculations.
             Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanProjectType() ==
                     PlanProjectType.CLUSTER_HEADROOM);
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 // We want to factor the max desired utilization into the effective capacity
                 // of the sold commodity. For cluster headroom calculations, the desired state has
                 // no effect because provisions/moves are disabled in the market analysis. However,
@@ -734,7 +713,8 @@ public class EntitySettingsApplicator {
         private void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
                                              @Nonnull CommodityType commodityType,
                                              @Nullable Setting setting) {
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 if (setting != null) {
                     commodity.setEffectiveCapacityPercentage(
                             setting.getNumericSettingValue().getValue());
@@ -1076,7 +1056,8 @@ public class EntitySettingsApplicator {
             if (settingValue == null) {
                 return;
             }
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 commodity.setCapacity(settingValue);
             }
         }
