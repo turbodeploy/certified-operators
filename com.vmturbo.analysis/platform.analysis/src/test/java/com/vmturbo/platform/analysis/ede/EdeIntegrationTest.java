@@ -76,7 +76,7 @@ public class EdeIntegrationTest {
         pm2.getCommoditySold(TestUtils.CPU).setCapacity(100).setQuantity(10);
         pm3.getCommoditySold(TestUtils.CPU).setCapacity(11).setQuantity(0);
         // to test resize of VCPU on VM1
-        vm1.getCommoditySold(TestUtils.VCPU).setCapacity(100).setQuantity(80)
+        vm1.getCommoditySold(TestUtils.VCPU).setCapacity(70).setQuantity(65)
                 .getSettings().setCapacityIncrement(1);
 
         pm1.getSettings().setMaxDesiredUtil(0.7).setMinDesiredUtil(0.6).setCanAcceptNewCustomers(true)

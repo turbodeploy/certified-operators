@@ -121,6 +121,38 @@ public class ResizerTest {
     }
 
     /**
+     * Tests that a VM doesn't scale up its commodity capacity greater than the capacity that
+     * its provider has.
+     */
+    @Test
+    public void testNoResizeUpGreaterThanProviderCapacity() {
+        Economy economy = testEconomy.getEconomy();
+        Trader vm = testEconomy.getVm();
+        Trader[] pms = testEconomy.getPms();
+        Trader pm1 = pms[0];
+
+        ShoppingList[] shoppingLists = economy.getMarketsAsBuyer(vm)
+                                            .keySet().toArray(new ShoppingList[1]);
+        ShoppingList sl = shoppingLists[0];
+        sl.setQuantity(0, 90).setPeakQuantity(0, 90);
+
+        pm1.getCommoditySold(TestCommon.CPU).setCapacity(100).setQuantity(40).setPeakQuantity(40);
+
+        shoppingLists[0].move(pm1);
+
+        economy.getSettings().setRightSizeLower(0.3).setRightSizeUpper(0.7);
+        economy.getCommodityBought(sl, TestCommon.CPU).setQuantity(40).setPeakQuantity(40);
+
+        vm.getCommoditySold(TestCommon.VCPU).setCapacity(100).setQuantity(90).setPeakQuantity(90);
+        vm.getCommoditySold(TestCommon.VCPU).getSettings().setCapacityIncrement(1);
+        vm.getSettings().setMinDesiredUtil(0.6).setMaxDesiredUtil(0.7);
+
+        Ledger ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+        assertEquals(0, actions.size());
+    }
+
+    /**
      * In this scenario, the used value of VMem (90) sold by the VM is less than capacity (100).
      * The max utilization is configured to 80. The VM is expected to resize to the used value.
      * Resize decision depends solely on the commodity sold however topology has to be setup for
@@ -1006,7 +1038,7 @@ public class ResizerTest {
          */
 
         //APP buys DBMEM
-        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(150, 150,
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.65, 0.8,
@@ -1016,7 +1048,7 @@ public class ResizerTest {
         assertEquals(0, actual.size());
 
         //APP buys HEAP
-        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(150, 150,
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.65, 0.8,
@@ -1299,7 +1331,7 @@ public class ResizerTest {
     @Test
     public void testResizeUpAmount() {
         double E = 0.00001;
-        Economy economy = setupTopologyForResizeTest(100, 100,
+        Economy economy = setupTopologyForResizeTest(150, 150,
                 100, 100, 70, 70, 95, 95, 0.65, 0.8,
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
