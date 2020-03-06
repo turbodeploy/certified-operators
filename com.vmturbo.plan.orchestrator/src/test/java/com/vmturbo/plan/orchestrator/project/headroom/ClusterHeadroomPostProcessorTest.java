@@ -13,11 +13,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Rule;
@@ -43,10 +45,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -92,8 +90,6 @@ public class ClusterHeadroomPostProcessorTest {
 
     private GroupServiceMole groupRpcServiceMole = spy(new GroupServiceMole());
 
-    private SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
-
     private PlanDao planDao = mock(PlanDao.class);
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
@@ -101,7 +97,7 @@ public class ClusterHeadroomPostProcessorTest {
     @Rule
     public GrpcTestServer grpcTestServer =
             GrpcTestServer.newServer(repositoryServiceMole, historyServiceMole,
-                    supplyChainServiceMole, groupRpcServiceMole, settingServiceMole);
+                    supplyChainServiceMole, groupRpcServiceMole);
 
     @Test
     public void testProjectedTopologyWithHeadroomValues() {
@@ -216,10 +212,6 @@ public class ClusterHeadroomPostProcessorTest {
     private void prepareForHeadroomCalculation(boolean setValidValues, boolean setHostActive) {
         when(groupRpcServiceMole.getGroups(any()))
             .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(CLUSTER_ID).build()));
-
-        when(settingServiceMole.getGlobalSetting(any()))
-            .thenReturn(GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
-                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))).build());
 
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
@@ -361,7 +353,10 @@ public class ClusterHeadroomPostProcessorTest {
     @Test
     public void testGetVMDailyGrowth() {
         float delta = 0.01f;
-        final Set<Long> entityOidsByClusterAndType = Collections.singleton(1L);
+        final Map<Long, Map<Integer, List<HeadroomPlanPartialEntity>>> entityOidsByClusterAndType =
+            Collections.singletonMap(1L, ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE,
+                LongStream.range(0, 15).mapToObj(i -> HeadroomPlanPartialEntity.getDefaultInstance())
+                    .collect(Collectors.toList())));
 
         final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
@@ -369,7 +364,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         long mostRecentHistoricalDate = System.currentTimeMillis();
         Map<Long, Long> vmsByDate = getVMsByDate(getVMCountData(10, 5), mostRecentHistoricalDate);
-        when(historyServiceMole.getClusterStatsForHeadroomPlan(any())).thenReturn(getStatsSnapshots(vmsByDate));
+        when(historyServiceMole.getClusterStats(any())).thenReturn(getStatsSnapshots(vmsByDate));
 
         Map<Long, Float> growthPerCluster = processor.getVMDailyGrowth(entityOidsByClusterAndType);
 
@@ -377,17 +372,17 @@ public class ClusterHeadroomPostProcessorTest {
         // but less than peak look back days. Also, make sure we divide by this value instead of
         // peak look back days value.
         assertEquals(growthPerCluster.get(1L),
-            (float)(10L - 6L) / ((vmsByDate.get(10L) - vmsByDate.get(6L)) / DAY_MILLI_SECS), 0.01f);
+            (float) (15L - 6L)/((mostRecentHistoricalDate - vmsByDate.get(6L))/DAY_MILLI_SECS), 0.01f);
 
         // No records, growth should be 0.
-        when(historyServiceMole.getClusterStatsForHeadroomPlan(any())).thenReturn(new ArrayList<>());
+        when(historyServiceMole.getClusterStats(any())).thenReturn(new ArrayList<>());
         growthPerCluster = processor.getVMDailyGrowth(entityOidsByClusterAndType);
         assertEquals(growthPerCluster.get(1L), 0.0f, delta);
 
         // Negative growth, should override to 0. all values in history are greater than current VM values.
         mostRecentHistoricalDate = System.currentTimeMillis();
-        vmsByDate = getVMsByDate(new long[] {1, 2, 3}, mostRecentHistoricalDate);
-        when(historyServiceMole.getClusterStatsForHeadroomPlan(any())).thenReturn(getStatsSnapshots(vmsByDate));
+        vmsByDate = getVMsByDate(getVMCountData(100, 5), mostRecentHistoricalDate);
+        when(historyServiceMole.getClusterStats(any())).thenReturn(getStatsSnapshots(vmsByDate));
         growthPerCluster = processor.getVMDailyGrowth(entityOidsByClusterAndType);
         assertEquals(growthPerCluster.get(1L), 0, delta);
     }

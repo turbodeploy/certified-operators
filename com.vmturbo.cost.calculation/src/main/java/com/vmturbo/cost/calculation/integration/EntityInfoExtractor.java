@@ -298,14 +298,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     class VirtualVolumeConfig {
         private final float accesCapacityMillionIops;
         private final float amountCapacityMb;
-        private final boolean isEphemeral;
 
-        public VirtualVolumeConfig(final float accesCapacityMillionIops,
-                                   final float amountCapacityMb,
-                                   final boolean isEphemeral) {
+        public VirtualVolumeConfig(final float accesCapacityMillionIops, final float amountCapacityMb) {
             this.accesCapacityMillionIops = accesCapacityMillionIops;
             this.amountCapacityMb = amountCapacityMb;
-            this.isEphemeral = isEphemeral;
         }
 
         public float getAccessCapacityMillionIops() {
@@ -314,10 +310,6 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public float getAmountCapacityGb() {
             return amountCapacityMb / 1024;
-        }
-
-        public boolean isEphemeral() {
-            return isEphemeral;
         }
     }
 }

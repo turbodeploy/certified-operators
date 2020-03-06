@@ -242,11 +242,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final Optional<VirtualVolumeConfig> volumeConfigOpt = entityInfoExtractor.getVolumeConfig(entity);
         if (volumeConfigOpt.isPresent()) {
             final VirtualVolumeConfig volumeConfig = volumeConfigOpt.get();
-            // Ephemeral volumes are directly attached to the EC2 instance, so there's no need to calculate the cost.
-            if (volumeConfig.isEphemeral()) {
-                logger.debug("Skipping Volume cost calculation, {} is Ephemeral", entityId);
-                return;
-            }
             final Optional<ENTITY_CLASS> storageTierOpt = cloudTopology.getStorageTier(entityId);
             if (storageTierOpt.isPresent()) {
                 final ENTITY_CLASS storageTier = storageTierOpt.get();

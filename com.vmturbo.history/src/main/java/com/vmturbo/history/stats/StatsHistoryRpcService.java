@@ -101,7 +101,6 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
@@ -573,178 +572,133 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getClusterStats(@Nonnull Stats.ClusterStatsRequest request,
                                 @Nonnull StreamObserver<StatSnapshot> responseObserver) {
-        getClusterStats(request, responseObserver, (clusterId, startDate, endDate, commodityNames) -> {
-            final Stream<ClusterStatsRecordReader> statDBRecords;
-            if (isUseMonthlyData(startDate, endDate)) {
-                statDBRecords = clusterStatsReader
-                    .getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames)
-                    .stream().map(ClusterStatsByMonthRecordReader::new);
-            } else {
-                statDBRecords = clusterStatsReader
-                    .getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames)
-                    .stream().map(ClusterStatsByDayRecordReader::new);
-            }
-            return statDBRecords;
-        });
-    }
-
-    /**
-     * Get cluster stats for headroom plan, e.g. number of VMs.
-     * We first query the monthly table. If there's not enough data (less than 2 rows) in the monthly
-     * table between start date and end date, then we query the daily table.
-     *
-     * @param request a request to get cluster stats
-     * @param responseObserver a stream observer on which to write cluster stats
-     */
-    @Override
-    public void getClusterStatsForHeadroomPlan(@Nonnull Stats.ClusterStatsRequest request,
-                                               @Nonnull StreamObserver<StatSnapshot> responseObserver) {
-        getClusterStats(request, responseObserver, (clusterId, startDate, endDate, commodityNames) -> {
-            final Stream<ClusterStatsRecordReader> statDBRecords;
-            // The recorded date in the cluster_stats_by_month table is the first day of the month.
-            final List<ClusterStatsByMonthRecord> recordsByMonth = clusterStatsReader
-                .getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames);
-            if (recordsByMonth.size() > 1) {
-                statDBRecords = recordsByMonth.stream().map(ClusterStatsByMonthRecordReader::new);
-            } else {
-                statDBRecords = clusterStatsReader
-                    .getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames)
-                    .stream().map(ClusterStatsByDayRecordReader::new);
-            }
-            return statDBRecords;
-        });
-    }
-
-    /**
-     * Get cluster stats.
-     *
-     * @param request a request to get cluster stats
-     * @param responseObserver a stream observer on which to write cluster stats
-     * @param clusterStatsRecordFunction a function to get cluster stats records from db
-     */
-    private void getClusterStats(@Nonnull final Stats.ClusterStatsRequest request,
-                                 @Nonnull final StreamObserver<StatSnapshot> responseObserver,
-                                 @Nonnull final ClusterStatsRecordFunction clusterStatsRecordFunction) {
         final long clusterId = request.getClusterId();
         final StatsFilter filter = request.getStats();
 
         long now = System.currentTimeMillis();
         long startDate = (filter.hasStartDate()) ? filter.getStartDate() : now;
-        long endDate = filter.hasEndDate() ? filter.getEndDate() : now;
+        long endDate = filter.hasEndDate()? filter.getEndDate() : now;
         if (startDate > endDate) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Invalid date range for retrieving cluster statistics.")
-                .asException());
+                    .withDescription("Invalid date range for retrieving cluster statistics.")
+                    .asException());
             return;
         }
         final Set<String> commodityNames = collectCommodityNames(filter);
 
-        final Stream<ClusterStatsRecordReader> statDBRecords;
         try {
-            statDBRecords = clusterStatsRecordFunction
-                .getClusterStatsRecord(clusterId, startDate, endDate, commodityNames);
-        } catch (VmtDbException e) {
-            responseObserver.onError(Status.INTERNAL
-                .withDescription("DB Error fetching stats for cluster " + clusterId)
-                .withCause(e)
-                .asException());
-            return;
-        }
+            Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();
 
-        Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();
+            final Stream<ClusterStatsRecordReader> statDBRecords;
+            if (isUseMonthlyData(startDate, endDate)) {
+                statDBRecords = clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames)
+                        .stream()
+                            .map(ClusterStatsByMonthRecordReader::new);
 
-        // group related records by property type and date. We will be creating a single
-        // StatRecord per PropertyType, and we'll need to merge these related records together.
-        Map<Pair<Date, String>, List<ClusterStatsRecordReader>> recordsByPropertyType =
-            statDBRecords.collect(
-                Collectors.groupingBy(r -> Pair.of(r.getRecordedOn(), r.getPropertyType())));
-
-        // a map that may contain counts of unexpected records by property type + subtype. For
-        // error tracking
-        final Map<String, AtomicInteger> unexpectedRecordCounts = new HashMap();
-
-        // consolidate each db record list into a single stat record.
-        recordsByPropertyType.forEach((key, records) -> {
-            final Date recordedOn = key.getLeft();
-            final String propertyType = key.getRight();
-
-            // we'll fill these in as we iterate through the records. They're nullable.
-            String propertySubtype = null;
-            Float value = null;
-            Float capacity = null;
-
-            // the record collection will generally be either 1 or 2 records long.
-            if (records.size() == 1) {
-                // the stats with one record are single-value stats, so we are going to set the
-                // value and property sub-type.
-                ClusterStatsRecordReader record = records.get(0);
-                propertySubtype = record.getPropertySubType();
-                value = record.getValue();
             } else {
-                // stats with multiiple records are expected to be usage-related, with one
-                // record containing the "used" value and another containing "capacity". We will
-                // know which record is which based on the property sub-type.
-                for (ClusterStatsRecordReader record : records) {
-                    switch (record.getPropertySubType()) {
-                        case StringConstants.USED:
-                            value = record.getValue();
-                            break;
-                        case StringConstants.CAPACITY:
-                            capacity = record.getValue();
-                            break;
-                        default:
-                            // we don't expect to be here, but we also don't want to spam the log.
-                            // let's count it in the warning map.
-                            unexpectedRecordCounts.computeIfAbsent(
-                                propertyType + ":" + record.getPropertySubType(),
-                                k -> new AtomicInteger()).incrementAndGet();
-                    }
-                }
+                statDBRecords = clusterStatsReader.getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames)
+                        .stream()
+                        .map(ClusterStatsByDayRecordReader::new);
             }
 
-            resultMap.put(recordedOn, statRecordBuilder.buildStatRecord(
-                propertyType,
-                propertySubtype,
-                capacity, null,
-                null,
-                null,
-                value != null ? StatsAccumulator.singleStatValue(value) : null,
-                null,
-                null));
+            // group related records by property type and date. We will be creating a single
+            // StatRecord per PropertyType, and we'll need to merge these related records together.
+            Map<Pair<Date, String>, List<ClusterStatsRecordReader>> recordsByPropertyType =
+                    statDBRecords.collect(
+                            Collectors.groupingBy(r -> Pair.of(r.getRecordedOn(), r.getPropertyType())));
 
-        });
+            // a map that may contain counts of unexpected records by property type + subtype. For
+            // error tracking
+            final Map<String, AtomicInteger> unexpectedRecordCounts = new HashMap();
 
-        // Sort stats data by date.
-        List<java.sql.Date> sortedStatsDates = Lists.newArrayList(resultMap.keySet());
-        Collections.sort(sortedStatsDates);
+            // consolidate each db record list into a single stat record.
+            recordsByPropertyType.forEach((key, records) -> {
+                final Date recordedOn = key.getLeft();
+                final String propertyType = key.getRight();
 
-        // A StatSnapshot will be created for each date.
-        // Each snapshot may have several record types (e.g. "headroomVMs", "numVMs")
-        for (java.sql.Date recordDate : sortedStatsDates) {
-            StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
-            resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
-            statSnapshotResponseBuilder.setSnapshotDate(recordDate.getTime());
-            // Currently, all cluster stats are historical
-            statSnapshotResponseBuilder.setStatEpoch(StatEpoch.HISTORICAL);
-            responseObserver.onNext(statSnapshotResponseBuilder.build());
-        }
+                // we'll fill these in as we iterate through the records. They're nullable.
+                String propertySubtype = null;
+                Float value = null;
+                Float capacity = null;
 
-        if (filter.getRequestProjectedHeadroom() && !sortedStatsDates.isEmpty()) {
-            final Date latestRecordDate = sortedStatsDates.get(sortedStatsDates.size() - 1);
-            createProjectedHeadroomStats(responseObserver, clusterId, startDate,
-                endDate, latestRecordDate.getTime(), resultMap.get(latestRecordDate));
-        }
+                // the record collection will generally be either 1 or 2 records long.
+                if (records.size() == 1) {
+                    // the stats with one record are single-value stats, so we are going to set the
+                    // value and property sub-type.
+                    ClusterStatsRecordReader record = records.get(0);
+                    propertySubtype = record.getPropertySubType();
+                    value = record.getValue();
+                } else {
+                    // stats with multiiple records are expected to be usage-related, with one
+                    // record containing the "used" value and another containing "capacity". We will
+                    // know which record is which based on the property sub-type.
+                    for (ClusterStatsRecordReader record : records) {
+                        switch (record.getPropertySubType()) {
+                            case StringConstants.USED:
+                                value = record.getValue();
+                                break;
+                            case StringConstants.CAPACITY:
+                                capacity = record.getValue();
+                                break;
+                            default:
+                                // we don't expect to be here, but we also don't want to spam the log.
+                                // let's count it in the warning map.
+                                unexpectedRecordCounts.computeIfAbsent(
+                                        propertyType + ":" + record.getPropertySubType(),
+                                        k -> new AtomicInteger()).incrementAndGet();
+                        }
+                    }
+                }
 
-        // if we encountered any unexpected records, log them.
-        if (!CollectionUtils.isEmpty(unexpectedRecordCounts)) {
-            StringBuilder sb = new StringBuilder("Unexpected cluster stat records: ");
-            unexpectedRecordCounts.forEach((recordKey, count) -> {
-                sb.append(recordKey).append("(").append(count).append(") ");
+                resultMap.put(recordedOn, statRecordBuilder.buildStatRecord(
+                        propertyType,
+                        propertySubtype,
+                        capacity, null,
+                        null,
+                        null,
+                        value != null ? StatsAccumulator.singleStatValue(value) : null,
+                        null,
+                        null));
+
             });
-            logger.warn(sb.toString());
-        }
 
-        responseObserver.onCompleted();
+            // Sort stats data by date.
+            List<java.sql.Date> sortedStatsDates = Lists.newArrayList(resultMap.keySet());
+            Collections.sort(sortedStatsDates);
+
+            // A StatSnapshot will be created for each date.
+            // Each snapshot may have several record types (e.g. "headroomVMs", "numVMs")
+            for (java.sql.Date recordDate : sortedStatsDates) {
+                StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
+                resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
+                statSnapshotResponseBuilder.setSnapshotDate(recordDate.getTime());
+                // Currently, all cluster stats are historical
+                statSnapshotResponseBuilder.setStatEpoch(StatEpoch.HISTORICAL);
+                responseObserver.onNext(statSnapshotResponseBuilder.build());
+            }
+
+            if (filter.getRequestProjectedHeadroom() && !sortedStatsDates.isEmpty()) {
+                final Date latestRecordDate = sortedStatsDates.get(sortedStatsDates.size() - 1);
+                createProjectedHeadroomStats(responseObserver, clusterId, startDate,
+                    endDate, latestRecordDate.getTime(), resultMap.get(latestRecordDate));
+            }
+
+            // if we encountered any unexpected records, log them.
+            if (!CollectionUtils.isEmpty(unexpectedRecordCounts)) {
+                StringBuilder sb = new StringBuilder("Unexpected cluster stat records: ");
+                unexpectedRecordCounts.forEach((recordKey, count) -> {
+                    sb.append(recordKey).append("(").append(count).append(") ");
+                });
+                logger.warn(sb.toString());
+            }
+
+            responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB Error fetching stats for cluster " + clusterId)
+                    .withCause(e)
+                    .asException());
+        }
     }
 
     /**
@@ -1378,25 +1332,5 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 () -> returnObject);
         responseObserver.onNext(returnObject);
         responseObserver.onCompleted();
-    }
-
-    /**
-     * A functional interface that is used to get cluster stats records.
-     */
-    @FunctionalInterface
-    private interface ClusterStatsRecordFunction {
-
-        /**
-         * Query the database to get cluster stats records.
-         *
-         * @param clusterId cluster id
-         * @param startDate the start date of the request
-         * @param endDate the end date of the request
-         * @param commodityNames the commodity names to query
-         * @return a {@link Stream} of {@link ClusterStatsRecordReader}
-         * @throws VmtDbException if there is an error interacting with the database
-         */
-        Stream<ClusterStatsRecordReader> getClusterStatsRecord(
-            long clusterId, long startDate, long endDate, Set<String> commodityNames) throws VmtDbException;
     }
 }

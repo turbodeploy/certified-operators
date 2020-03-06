@@ -5,10 +5,10 @@ import static com.vmturbo.common.protobuf.PlanDTOUtil.MEM_HEADROOM_COMMODITIES;
 import static com.vmturbo.common.protobuf.PlanDTOUtil.STORAGE_HEADROOM_COMMODITIES;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -42,25 +42,20 @@ import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.HeadroomPlanPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -108,15 +103,18 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private final SupplyChainServiceBlockingStub supplyChainRpcService;
 
-    private final GroupServiceBlockingStub groupRpcService;
-
-    private final SettingServiceBlockingStub settingService;
+    private final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
 
     private PlanDao planDao;
 
     private TemplatesDao templatesDao;
 
     private Consumer<ProjectPlanPostProcessor> onCompleteHandler;
+
+    /**
+     * Number of days to look back for vm growth from now.
+     */
+    private static final int PEAK_LOOK_BACK_DAYS = 7;
 
     /**
      * A constant holding a big number of days when exhaustion days is infinite
@@ -169,7 +167,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 SupplyChainServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
         this.groupRpcService =
                 GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-        this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.clusters = new ArrayList<>(clusterIds.size());
@@ -208,7 +205,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
                 // Get vmDailyGrowth of each cluster.
                 final Map<Long, Float> clusterIdToVMDailyGrowth =
-                    getVMDailyGrowth(entityOidsByClusterAndType.keySet());
+                    getVMDailyGrowth(entityOidsByClusterAndType);
 
                 // Calculate headroom for each cluster.
                 for (Grouping cluster : clusters) {
@@ -346,102 +343,79 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * Get the averaged number of daily added VMs of each cluster since past lookBackDays (if applicable).
      * Fetch VM count from past lookBackDays to calculate growth compared to current VMs.
      *
-     * @param clusterIds a set of clusterIds
+     * @param entitiesByClusterAndType a mapping from clusterId to entity type to entities oids
      * @return vmDailyGrowth of each cluster
      */
     @VisibleForTesting
-    Map<Long, Float> getVMDailyGrowth(@Nonnull final Set<Long> clusterIds) {
-        final GetGlobalSettingResponse response = settingService.getGlobalSetting(
-            GetSingleGlobalSettingRequest.newBuilder()
-                .setSettingSpecName(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName())
-                .build());
-        // Number of months to look back to calculate VM growth.
-        final int lookBackMonths;
-        if (response.hasSetting()) {
-            lookBackMonths = (int)response.getSetting().getNumericSettingValue().getValue();
-        } else {
-            lookBackMonths = (int)GlobalSettingSpecs.MaxVMGrowthObservationPeriod.createSettingSpec()
-                .getNumericSettingValueType().getDefault();
-        }
-        logger.info("Use past {} months' data for VM growth calculation.", lookBackMonths);
-
-        final Calendar calendar = Calendar.getInstance();
-        final long currentTime = calendar.getTimeInMillis();
-        calendar.add(Calendar.MONTH, -lookBackMonths);
-
-        final Map<Long, Float> dailyVMGrowthPerCluster = new HashMap<>(clusterIds.size());
-        for (final long clusterId : clusterIds) {
-            final ClusterStatsRequest vmCountRequest = ClusterStatsRequest.newBuilder()
+    Map<Long, Float> getVMDailyGrowth(
+            @Nonnull final Map<Long, Map<Integer, List<HeadroomPlanPartialEntity>>> entitiesByClusterAndType) {
+        final long currentTime = System.currentTimeMillis();
+        final long lookbackDaysInMillis = currentTime - PEAK_LOOK_BACK_DAYS * DAY_MILLI_SECS;
+        final Map<Long, Float> dailyVMGrowthPerCluster = new HashMap<>(entitiesByClusterAndType.size());
+        entitiesByClusterAndType.forEach((clusterId, entitiesByType) -> {
+            ClusterStatsRequest vmCountRequest = ClusterStatsRequest.newBuilder()
                 .setClusterId(clusterId)
                 .setStats(StatsFilter.newBuilder()
-                    .setStartDate(calendar.getTimeInMillis())
+                    .setStartDate(lookbackDaysInMillis)
                     .setEndDate(currentTime)
                     .addCommodityRequests(CommodityRequest.newBuilder()
                         .setCommodityName(StringConstants.VM_NUM_VMS)))
                 .build();
-            final Iterator<StatSnapshot> snapshotIterator = statsHistoryService
-                .getClusterStatsForHeadroomPlan(vmCountRequest);
 
-            Optional<StatSnapshot> earliestSnapshot = Optional.empty();
-            Optional<StatSnapshot> latestSnapshot = Optional.empty();
-            while (snapshotIterator.hasNext()) {
-                final StatSnapshot currentSnapshot = snapshotIterator.next();
-                if (currentSnapshot.getSnapshotDate() <
-                        earliestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MAX_VALUE)) {
-                    earliestSnapshot = Optional.of(currentSnapshot);
-                }
-                if (currentSnapshot.getSnapshotDate() >
-                        latestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MIN_VALUE)) {
-                    latestSnapshot = Optional.of(currentSnapshot);
+            final Iterator<StatSnapshot> statSnapshotIterator = statsHistoryService.getClusterStats(vmCountRequest);
+            Optional<StatSnapshot> earliestStatSnapshot = Optional.empty();
+            while (statSnapshotIterator.hasNext()) {
+                StatSnapshot currentSnapshot = statSnapshotIterator.next();
+                if (earliestStatSnapshot.isPresent()) {
+                    if(earliestStatSnapshot.get().getSnapshotDate() > currentSnapshot.getSnapshotDate()) {
+                        earliestStatSnapshot = Optional.of(currentSnapshot);
+                    }
+                } else {
+                    earliestStatSnapshot = Optional.of(currentSnapshot);
                 }
             }
 
-            if (!earliestSnapshot.isPresent() || !latestSnapshot.isPresent()) {
+            if (!earliestStatSnapshot.isPresent()) {
                 logger.info("No relevant VM stat snapshots available for cluster {}. Setting 0 growth.", clusterId);
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
-                continue;
+                return;
             }
 
-            final Optional<Float> earliestVMCount = earliestSnapshot.get().getStatRecordsList().stream()
+            Optional<StatRecord> vmCountRecord = earliestStatSnapshot.get().getStatRecordsList().stream()
                 .filter(statRecord -> statRecord.getName().equals(StringConstants.VM_NUM_VMS))
-                .map(statRecord -> statRecord.getValues().getAvg())
-                .findFirst();
-            final Optional<Float> latestVMCount = latestSnapshot.get().getStatRecordsList().stream()
-                .filter(statRecord -> statRecord.getName().equals(StringConstants.VM_NUM_VMS))
-                .map(statRecord -> statRecord.getValues().getAvg())
                 .findFirst();
 
-            if (!earliestVMCount.isPresent() || !latestVMCount.isPresent()) {
+            if (!vmCountRecord.isPresent()) {
                 logger.info("No relevant VM count records found in history for cluster : {}." +
                     " Setting 0 growth.", clusterId);
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
-                continue;
+                return;
             }
 
-            final long earliestDate = earliestSnapshot.get().getSnapshotDate();
-            final long latestDate = latestSnapshot.get().getSnapshotDate();
-            logger.debug("Use data from {} to {} to calculate VMGrowth.", earliestDate, latestDate);
-
-            if (earliestVMCount.get() > latestVMCount.get()) {
-                logger.info("Negative VM growth for cluster {} : latest VM count is {}" +
-                    " and earliest VM count is {}. Setting 0 growth.",
-                    clusterId, earliestVMCount.get(), latestVMCount.get());
+            long vmCountTime = earliestStatSnapshot.get().getSnapshotDate();
+            Date vmCountDate = new Date(vmCountTime);
+            float oldVMs = vmCountRecord.get().getValues().getAvg();
+            final long currentVMs = entitiesByType
+                .getOrDefault(EntityType.VIRTUAL_MACHINE_VALUE, Collections.emptyList()).size();
+            if (oldVMs > currentVMs) {
+                logger.info("Negative VM growth for cluster {} : current VM count is {}" +
+                    " and old VM count is {} recorded on {}. Setting 0 growth.", clusterId, currentVMs, oldVMs, vmCountDate);
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
-                continue;
+                return;
             }
 
-            final long daysDifference = (latestDate - earliestDate) / DAY_MILLI_SECS;
+            long daysDifference = (currentTime - vmCountTime)/DAY_MILLI_SECS;
             if (daysDifference == 0) {
                 logger.info("No older VM count data available for cluster {}. Setting 0 growth.", clusterId);
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
-                continue;
+                return;
             }
 
-            float dailyGrowth =  (latestVMCount.get() - earliestVMCount.get()) / daysDifference;
-            logger.debug("Daily VM growth for cluster {} is {}. New VM count {} and old VM count is {}",
-                clusterId, dailyGrowth, latestVMCount.get(), earliestVMCount.get());
+            float dailyGrowth =  (currentVMs - oldVMs)/daysDifference;
+            logger.debug("Daily VM growth for cluster {} is {}. New VM count {} and old VM count is {} recorded on {}",
+                    clusterId, dailyGrowth, currentVMs, oldVMs, vmCountDate);
             dailyVMGrowthPerCluster.put(clusterId, dailyGrowth);
-        }
+        });
 
         return dailyVMGrowthPerCluster;
     }
