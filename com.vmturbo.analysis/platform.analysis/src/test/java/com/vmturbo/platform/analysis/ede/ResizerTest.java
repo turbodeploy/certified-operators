@@ -528,6 +528,115 @@ public class ResizerTest {
     }
 
     /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's VCPU and VMEM have capacities of 150 each, which exceeds PM's capacity.
+     * VM's CPU and MEM have capacity lower bound of 90.
+     * The capacity increment is 1.
+     * The desired capacity is 25.92 - result of calling calculateDesiredCapacity.
+     * That capacity will be bumped to 90 because of the capacity lower bound value.
+     * */
+    @Test
+    public void testResizeDownRespectsCapacityLowerBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            150, 150, 70, 70, 20, 20, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityLowerBound(90));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(90, resize1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(90, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's VCPU and VMEM have capacities of 80 each.
+     * VM's CPU and MEM have lower bound of 90.
+     * The capacity increment is 1.
+     * If the current capacities is already below the lower bound, then lower bound is not a
+     * restricting factor in the resize down actions.
+     * */
+    @Test
+    public void testResizeDownCurrentCapacityBelowCapacityLowerBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 20, 20, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityLowerBound(90));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
+     * VM's VCPU and VMEM have capacities of 80 each.
+     * The capacity increment is 1.
+     * The desired capacity is 90.72 - result of calling calculateDesiredCapacity.
+     * That capacity increase will be limited to 85 because of the capacity upper bound value.
+     * */
+    @Test
+    public void testResizeUpRespectsCapacityUpperBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 70, 70, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityUpperBound(85));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(85, resize1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(85, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
+     * VM's VCPU and VMEM have capacities of 80 each.
+     * The capacity increment is 1.
+     * That capacity upper bound value is 75. If the current capacity is already above
+     * the upper bound, then the upper bound does not matter. And we will allow the generation
+     * of actions.
+     * */
+    @Test
+    public void testResizeUpWhenCapacityGreaterThanUpperBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 70, 70, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityUpperBound(75));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+    }
+
+    /**
      * Resize down when the currentCapacity is above rawMaterial capacity.
      *
      * <p>Setup economy with one PM, one VM and one application.
