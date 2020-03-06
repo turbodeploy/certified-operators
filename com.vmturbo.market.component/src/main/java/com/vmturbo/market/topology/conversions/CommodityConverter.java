@@ -193,7 +193,7 @@ public class CommodityConverter {
                                 // is not set to false for idle entities, they can get resized
                                 // because of hitorical utilization.
                                 && dto.getEntityState() == EntityState.POWERED_ON)
-                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
+                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement() * scalingFactor)
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
@@ -231,6 +231,7 @@ public class CommodityConverter {
                 maxQuantityFloat = 0;
             }
         }
+        maxQuantityFloat *= scalingFactor;
         // if entry not present, initialize to 0
         int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
                 topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
@@ -238,6 +239,7 @@ public class CommodityConverter {
                                   topologyCommSold.hasHistoricalPeak()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
+        peak *= scalingFactor;
         if (peak < used) {
             peak = used;
         }

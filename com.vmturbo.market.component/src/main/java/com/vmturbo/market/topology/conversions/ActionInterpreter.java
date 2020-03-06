@@ -72,6 +72,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -96,13 +97,15 @@ public class ActionInterpreter {
     private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
+    private final CommodityIndex commodityIndex;
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
                       @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
                       @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage,
-                      @Nonnull final TierExcluder tierExcluder) {
+                      @Nonnull final TierExcluder tierExcluder,
+                      @Nonnull final CommodityIndex commodityIndex) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -111,6 +114,7 @@ public class ActionInterpreter {
         this.cert = cert;
         this.projectedRiCoverage = projectedRiCoverage;
         this.tierExcluder = tierExcluder;
+        this.commodityIndex = commodityIndex;
     }
 
     /**
@@ -530,11 +534,12 @@ public class ActionInterpreter {
     private ActionDTO.Resize interpretResize(@Nonnull final ResizeTO resizeTO,
                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = resizeTO.getSellingTrader();
+        final CommoditySpecificationTO cs = resizeTO.getSpecification();
         final CommodityType topologyCommodityType =
-                commodityConverter.marketToTopologyCommodity(resizeTO.getSpecification())
+                commodityConverter.marketToTopologyCommodity(cs)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Resize commodity can't be converted to topology commodity format! "
-                                        + resizeTO.getSpecification()));
+                                        + cs));
         // Determine if this is a remove limit or a regular resize.
         final TopologyEntityDTO projectedEntity = projectedTopology.get(entityId).getEntity();
 
@@ -543,6 +548,14 @@ public class ActionInterpreter {
             projectedEntity.getCommoditySoldListList().stream()
                 .filter(commSold -> commSold.getCommodityType().equals(topologyCommodityType))
                 .findFirst();
+        Optional<CommoditySoldDTO> originalCommoditySold =
+                commodityIndex.getCommSold(projectedEntity.getOid(), topologyCommodityType);
+        ResizeTO adjustedResizeTO = resizeTO.toBuilder()
+                .setOldCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setNewCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .build();
         if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
             // If this is a VM and has a restricted capacity, we are going to assume it's a limit
             // removal. This logic seems like it could be fragile, in that limit may not be the
@@ -551,7 +564,7 @@ public class ActionInterpreter {
             TraderTO traderTO = oidToProjectedTraderTOMap.get(entityId);
             // find the commodity on the trader and see if there is a limit?
             for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
-                if (commoditySold.getSpecification().equals(resizeTO.getSpecification())) {
+                if (commoditySold.getSpecification().equals(cs)) {
                     // We found the commodity sold.  If it has a utilization upper bound < 1.0,
                     // then the commodity is restricted, and according to our VM-rule, we will
                     // treat this as a limit removal.
@@ -592,8 +605,8 @@ public class ActionInterpreter {
         }
         ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
                 .setTarget(createActionEntity(entityId, projectedTopology))
-                .setNewCapacity(resizeTO.getNewCapacity())
-                .setOldCapacity(resizeTO.getOldCapacity())
+                .setNewCapacity(adjustedResizeTO.getNewCapacity())
+                .setOldCapacity(adjustedResizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodityType);
         setHotAddRemove(resizeBuilder, resizeCommSold);
         if (resizeTO.hasScalingGroupId()) {

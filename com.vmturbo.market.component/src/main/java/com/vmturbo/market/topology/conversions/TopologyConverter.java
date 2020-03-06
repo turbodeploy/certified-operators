@@ -223,7 +223,7 @@ public class TopologyConverter {
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
             cert,
-            projectedReservedInstanceCoverage, tierExcluder);
+            projectedReservedInstanceCoverage, tierExcluder, commodityIndex);
     }
 
     /**
@@ -380,7 +380,7 @@ public class TopologyConverter {
                 unmodifiableEntityOidToDtoMap,
                 oidToProjectedTraderTOMap,
                 cert,
-                projectedReservedInstanceCoverage, tierExcluder);
+                projectedReservedInstanceCoverage, tierExcluder, commodityIndex);
     }
 
 
@@ -443,7 +443,7 @@ public class TopologyConverter {
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
             cert,
-            projectedReservedInstanceCoverage, tierExcluder);
+            projectedReservedInstanceCoverage, tierExcluder, commodityIndex);
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
     }
@@ -1737,7 +1737,8 @@ public class TopologyConverter {
                                     CommodityBoughtDTO::getScalingFactor))
                     .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
-                    .setPeak(peakQuantity);
+                    .setPeak(reverseScaleComm(peakQuantity, originalCommodityBoughtDTO,
+                            CommodityBoughtDTO::getScalingFactor));
                     if (originalCommodityBoughtDTO.isPresent()
                             && originalCommodityBoughtDTO.get().hasHistoricalUsed()
                             && originalCommodityBoughtDTO.get().getHistoricalUsed().hasPercentile()) {
@@ -2645,6 +2646,7 @@ public class TopologyConverter {
             }
             usedQuantity *= topologyCommBought.getScalingFactor();
             float peakQuantity = getQuantity(index, peakQuantities, topologyCommBought, "peak");
+            peakQuantity *= topologyCommBought.getScalingFactor();
             newQuantityList.add(new Pair(Float.valueOf(usedQuantity),
                     Float.valueOf(peakQuantity)));
         }
@@ -2756,20 +2758,29 @@ public class TopologyConverter {
         // find original sold commodity of same type from original entity
         Optional<CommoditySoldDTO> originalCommoditySold =
                 commodityIndex.getCommSold(traderOid, commType);
-        float usage = commSoldTO.getQuantity();
-        float capacity = getCapacityForCommodity(commSoldTO, marketTier, commType, traderOid);
-        double newCapacity = reverseScaleComm(capacity, originalCommoditySold, CommoditySoldDTO::getScalingFactor);
+        CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
+                .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setCapacity((float)reverseScaleComm(commSoldTO.getCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setPeakQuantity((float)reverseScaleComm(peak,
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setMaxQuantity((float)reverseScaleComm(commSoldTO.getMaxQuantity(),
+                        originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .build();
+        double capacity = getCapacityForCommodity(adjustedCommSoldTO, marketTier, commType, traderOid);
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
-            .setCapacity(newCapacity)
-            .setUsed(reverseScaleComm(usage, originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-            .setPeak(peak)
+            .setCapacity(capacity)
+            .setUsed(adjustedCommSoldTO.getQuantity())
+            .setPeak(adjustedCommSoldTO.getPeakQuantity())
             .setIsResizeable(commSoldTO.getSettings().getResizable())
             .setEffectiveCapacityPercentage(
                 commSoldTO.getSettings().getUtilizationUpperBound() * 100)
             .setCommodityType(commType)
             .setIsThin(commSoldTO.getThin())
-            .setCapacityIncrement(
-                commSoldTO.getSettings().getCapacityIncrement());
+            .setCapacityIncrement((float)reverseScaleComm(
+                    commSoldTO.getSettings().getCapacityIncrement(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor));
 
         // set hot add / hot remove, if present
         originalCommoditySold
@@ -2782,7 +2793,7 @@ public class TopologyConverter {
             float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
                                         .getPercentile();
             double existingCapacity = originalCommoditySold.get().getCapacity();
-            float projectedPercentile = (float)(existingCapacity / newCapacity) * existingPercentile;
+            float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
             commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
                     .setPercentile(projectedPercentile)
                     .build());
@@ -2929,7 +2940,7 @@ public class TopologyConverter {
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    private <T> double reverseScaleComm(final double valueToReverseScale,
+    static <T> double reverseScaleComm(final double valueToReverseScale,
                     @Nonnull final Optional<T> commodity,
                     @Nonnull Function<T, Double> scalingFactorExtractor) {
         return commodity.map(scalingFactorExtractor).filter(sf -> {

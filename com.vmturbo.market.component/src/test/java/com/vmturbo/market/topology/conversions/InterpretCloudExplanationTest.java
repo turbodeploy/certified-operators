@@ -112,7 +112,8 @@ public class InterpretCloudExplanationTest {
         // We create action interpreter as a spy because we want to mock the interpretation of the
         // move action, but we want to test the explanation.
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
-            cloudTc, originalTopology, oidToTraderTOMap, cert, projectedRiCoverage, tierExcluder));
+            cloudTc, originalTopology, oidToTraderTOMap, cert, projectedRiCoverage, tierExcluder,
+            CommodityIndex.newFactory().newIndex()));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
             .putCouponsCoveredByRi(1L, 4)
