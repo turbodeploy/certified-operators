@@ -763,7 +763,7 @@ public class CostRpcService extends CostServiceImplBase {
     public void deletePlanEntityCosts(DeletePlanEntityCostsRequest request, StreamObserver<DeletePlanEntityCostsResponse> responseObserver) {
         final long planId = request.getPlanId();
         try {
-            final int rowsDeleted = planProjectedEntityCostStore.deletePlanProjectedEntityCost(planId);
+            final int rowsDeleted = planProjectedEntityCostStore.deletePlanProjectedCosts(planId);
             final DeletePlanEntityCostsResponse response =
                             DeletePlanEntityCostsResponse.newBuilder().setDeleted(rowsDeleted > 0).build();
             responseObserver.onNext(response);
