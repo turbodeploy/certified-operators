@@ -181,6 +181,17 @@
         "ignoreFiles"
       ]
     },
+    "hcisettingsmanager": {
+      "displayName": "Hypercongerged Infrastructure Settings",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "hciCompressionRatio",
+        "hciUseCompression",
+        "hciSlackSpacePercentage",
+        "hciHostCapacityReservation",
+        "hciHostIopsCapacity"
+      ]
+    },
     "persistencemanager" : {
       "displayName": "Data Retention Settings",
       "settings": [

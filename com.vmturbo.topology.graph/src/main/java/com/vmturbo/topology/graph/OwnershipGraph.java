@@ -36,6 +36,15 @@ public class OwnershipGraph<T> {
     }
 
     /**
+     *  Get the size of the graph. Mainly for logging and debugging purposes.
+     *
+     * @return The number of ownership connections in the graph.
+     */
+    public int size() {
+        return ownedToOwner.size();
+    }
+
+    /**
      * Return the owners of an entity.
      *
      * @param entity The entity to get the owner for.

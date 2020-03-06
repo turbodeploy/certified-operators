@@ -1,16 +1,12 @@
 package com.vmturbo.mediation.azure;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.Sets;
 
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -20,13 +16,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 
 public class AzureConversionProbeTest extends AzureConversionProbe {
 
     private AzureAccount azureAccount = Mockito.mock(AzureAccount.class);
     private DiscoveryContextDTO discoveryContext = null;
-    private static final AzureProbe AZURE_PROBE = new AzureProbe();
 
     private static final String AZURE_ENGINEERING_FILE_PATH = AzureConversionProbeTest.class
         .getClassLoader().getResource("data/azure_engineering.management.core.windows.net.txt")
@@ -35,16 +29,6 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
     private static final String AZURE_PRODUCTMGMT_FILE_PATH = AzureConversionProbeTest.class
         .getClassLoader().getResource("data/azure_productmgmt.management.core.windows.net.txt")
         .getPath();
-
-    private static final Set<TemplateDTO> AZURE_PROBE_SUPPLY_CHAIN =
-            AZURE_PROBE.getSupplyChainDefinition();
-
-    // List of cloud entity types, which don't exist in original Azure probe discovery response,
-    // including original Azure probe entity types.
-    private static final Set<EntityType> AZURE_CONVERSION_PROBE_ENTITY_TYPES =
-            TestUtils.getCloudEntityTypes(
-                AZURE_PROBE_SUPPLY_CHAIN, NEW_ENTITY_TYPES
-    );
 
     @Test
     public void testEngineering() throws Exception {
@@ -120,16 +104,5 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(oldResponse.getNonMarketEntityDTOList(), newResponse.getNonMarketEntityDTOList());
         assertEquals(oldResponse.getCostDTOList(), newResponse.getCostDTOList());
         assertEquals(oldResponse.getDiscoveryContext(), newResponse.getDiscoveryContext());
-    }
-
-    @Test
-    public void testGetSupplyChainDefinition() {
-        AzureConversionProbe probe = new AzureConversionProbe();
-
-        Set<TemplateDTO> entitiesInSupplyChain = probe.getSupplyChainDefinition();
-
-        assertTrue(
-            TestUtils.verifyEntityTypes(entitiesInSupplyChain, AZURE_CONVERSION_PROBE_ENTITY_TYPES)
-        );
     }
 }

@@ -1,4 +1,64 @@
 entityDTO {
+  entityType: REGION
+  id: "azure::northcentralus::DC::northcentralus"
+  displayName: "northcentralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westcentralus::DC::westcentralus"
+  displayName: "westcentralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::japanwest::DC::japanwest"
+  displayName: "japanwest"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westus2::DC::westus2"
+  displayName: "westus2"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westus::DC::westus"
+  displayName: "westus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::eastus2::DC::eastus2"
+  displayName: "eastus2"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::eastus::DC::eastus"
+  displayName: "eastus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::southcentralus::DC::southcentralus"
+  displayName: "southcentralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::canadacentral::DC::canadacentral"
+  displayName: "canadacentral"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::centralus::DC::centralus"
+  displayName: "centralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westeurope::DC::westeurope"
+  displayName: "westeurope"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::northeurope::DC::northeurope"
+  displayName: "northeurope"
+}
+entityDTO {
   entityType: STORAGE
   id: "engineering.management.core.windows.net[ASB]-azure::ST::nort6B78C980192D2B6F695"
   displayName: "azure-northeurope-Unmanaged Standard"

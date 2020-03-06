@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util.action;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -38,23 +39,33 @@ class HistoricalQueryMapper {
 
     private final ActionSpecMapper actionSpecMapper;
     private final BuyRiScopeHandler buyRiScopeHandler;
+    private final Clock clock;
 
     HistoricalQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper,
-                          @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
+                          @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
+                          @Nonnull final Clock clock) {
         this.actionSpecMapper = actionSpecMapper;
         this.buyRiScopeHandler = buyRiScopeHandler;
+        this.clock = clock;
     }
 
     @Nonnull
     Map<ApiId, HistoricalActionStatsQuery> mapToHistoricalQueries(@Nonnull final ActionStatsQuery query) {
-        // A historical query must have a start and end time.
-        // If a start and end time is not set, we should be looking at live stats.
+        // A historical query must have a start time.
         Preconditions.checkArgument(query.actionInput().getStartTime() != null);
-        Preconditions.checkArgument(query.actionInput().getEndTime() != null);
+
+        final long startTime = DateTimeUtil.parseTime(query.actionInput().getStartTime());
+        final long endTime;
+        if (query.actionInput().getEndTime() != null) {
+            endTime = DateTimeUtil.parseTime(query.actionInput().getEndTime());
+        } else {
+            // If the end time is unset, we will check for stats from the start time until now.
+            endTime = clock.millis();
+        }
 
         final TimeRange timeRange = TimeRange.newBuilder()
-            .setStartTime(DateTimeUtil.parseTime(query.actionInput().getStartTime()))
-            .setEndTime(DateTimeUtil.parseTime(query.actionInput().getEndTime()))
+            .setStartTime(startTime)
+            .setEndTime(endTime)
             .build();
         final Optional<GroupBy> groupByOps = extractGroupByCriteria(query);
         final Map<ApiId, MgmtUnitSubgroupFilter> filtersByScope =
@@ -89,6 +100,8 @@ class HistoricalQueryMapper {
                     return Optional.of(GroupBy.ACTION_CATEGORY);
                 case StringConstants.ACTION_STATES:
                     return Optional.of(GroupBy.ACTION_STATE);
+                case StringConstants.BUSINESS_UNIT:
+                    return Optional.of(GroupBy.BUSINESS_ACCOUNT_ID);
                 default:
                     logger.error("Unhandled action stats group-by criteria: {}", groupBy);
                     return Optional.empty();

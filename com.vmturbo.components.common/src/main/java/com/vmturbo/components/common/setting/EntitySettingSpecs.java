@@ -402,7 +402,7 @@ public enum EntitySettingSpecs {
             "Image CPU Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Image Mem.
@@ -411,7 +411,7 @@ public enum EntitySettingSpecs {
             "Image Mem Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Image Storage.
@@ -420,7 +420,7 @@ public enum EntitySettingSpecs {
             "Image Storage Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Net Throughput.
@@ -1037,7 +1037,79 @@ public enum EntitySettingSpecs {
     DBMemScalingIncrement("dbMemScalingIncrement", "DBMem Scaling Increment [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(0.0f/*min*/, 1000000.0f/*max*/, 128.0f/*default*/), true);
+            numeric(0.0f/*min*/, 1000000.0f/*max*/, 128.0f/*default*/), true),
+    /**
+     * Hyperconverged Infrastructure setting. Give the value of the uncompressed
+     * amount divided by the compressed amount. A setting of 1 means no
+     * compression, and a setting of 2 means compression of 50% – compressing 2
+     * MB to 1 MB is a ratio of 2:1, which equals 2.
+     */
+    HciCompressionRatio(
+            "hciCompressionRatio",
+            "Compression Ratio",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            numeric(0, 1000, 1),
+            true),
+    /**
+     * Hyperconverged Infrastructure setting. Turn this on if you want
+     * Turbonomic to consider the compression ratio when calculating storage
+     * utilization and capacity. Whether this is on or off, Turbonomic always
+     * considers compression when calculating utilization of StorageProvisioned.
+     */
+    HciUseCompression(
+            "hciUseCompression",
+            "Usable Space Includes Compression",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            new BooleanSettingDataType(false),
+            true),
+    /**
+     * Hyperconverged Infrastructure setting. The percentage of vSAN capacity
+     * that you want to reserve for overhead.
+     */
+    HciSlackSpacePercentage(
+            "hciSlackSpacePercentage",
+            "Slack Space Percentage",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            numeric(0, 100, 25),
+            true),
+    /**
+     * Hyperconverged Infrastructure setting. The amount of space to reserve to
+     * the array can support hosts going offline. For example, a value of 2
+     * reserves enough space to support two hosts going offline at the same
+     * time. With that setting you could put two hosts in maintenance mode
+     * without impacting the vSAN array.
+     *
+     * <p>This is not the same as redundancy – It does not specify how the array
+     * distributes data to maintain integrity.
+     */
+    HciHostCapacityReservation(
+            "hciHostCapacityReservation",
+            "Host Capacity Reservation",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            numeric(0, 1000, 1),
+            true),
+    /**
+     * Hyperconverged Infrastructure setting. The effective IOPS for an
+     * individual host in a vSAN cluster. Note that Turbonomic calculates the
+     * effective IOPS for the entire vSAN entity as the sum of the IOPS for each
+     * host in the cluster.
+     */
+    HciHostIopsCapacity(
+            "hciHostIopsCapacity",
+            "Host IOPS Capacity",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            numeric(0, Float.POSITIVE_INFINITY, 50000),
+            true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(

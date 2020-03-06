@@ -35,10 +35,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.G
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
+/**
+ * Unit tests for {@link HistoricalQueryMapper}.
+ */
 public class HistoricalQueryMapperTest {
+
+    private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
     @Test
     public void testMapToHistoricalQuery() {
@@ -90,7 +96,7 @@ public class HistoricalQueryMapperTest {
 
         // Act
         final Map<ApiId, HistoricalActionStatsQuery> grpcQueries =
-            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler)
+            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, clock)
                     .mapToHistoricalQueries(query);
 
         // Assert
@@ -128,7 +134,7 @@ public class HistoricalQueryMapperTest {
             .actionInput(new ActionApiInputDTO())
             .build();
         final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
-                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class))
+                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), clock)
             .extractMgmtUnitSubgroupFilter(query);
         assertTrue(filters.get(mktScope).getMarket());
         assertThat(filters.get(mktScope).getEntityTypeList(),
@@ -153,7 +159,7 @@ public class HistoricalQueryMapperTest {
             .actionInput(new ActionApiInputDTO())
             .build();
         final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
-                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class))
+                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), clock)
             .extractMgmtUnitSubgroupFilter(query);
         assertTrue(filters.get(mktScope).getMarket());
 

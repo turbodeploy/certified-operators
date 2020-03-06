@@ -3,11 +3,9 @@ package com.vmturbo.mediation.aws;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,29 +19,17 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 
 public class AwsConversionProbeTest extends AwsConversionProbe {
 
     private AwsAccount awsAccount = Mockito.mock(AwsAccount.class);
     private DiscoveryContextDTO discoveryContext = null;
-    private static final AwsProbe AWS_PROBE = new AwsProbe();
 
     private static final String AWS_ENGINEERING_FILE_PATH = AwsConversionProbeTest.class
         .getClassLoader().getResource("data/aws_engineering.aws.amazon.com.txt").getPath();
 
     private static final String AWS_ADVENG_FILE_PATH = AwsConversionProbeTest.class
         .getClassLoader().getResource("data/aws_adveng.aws.amazon.com.txt").getPath();
-
-    private static final Set<TemplateDTO> AWS_PROBE_SUPPLY_CHAIN =
-            AWS_PROBE.getSupplyChainDefinition();
-
-    // List of cloud entity types, which don't exist in original AWS probe discovery response,
-    // including original AWS probe entity types.
-    private static final Set<EntityType> AWS_CONVERSION_PROBE_ENTITY_TYPES =
-            TestUtils.getCloudEntityTypes(
-                    AWS_PROBE_SUPPLY_CHAIN, NEW_ENTITY_TYPES
-    );
 
     @Test
     public void testEngineering() throws Exception {
@@ -69,14 +55,14 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(43, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
         assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(45, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
-        assertEquals(15, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
         assertEquals(24, entitiesByType.get(EntityType.LOAD_BALANCER).size());
         assertEquals(28, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
         assertEquals(187, entitiesByType.get(EntityType.APPLICATION).size());
         assertEquals(27, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
+        assertEquals(15, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(45, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
@@ -106,7 +92,6 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(43, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
         assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(43, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
         assertEquals(15, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
@@ -114,6 +99,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(3, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
         assertEquals(20, entitiesByType.get(EntityType.APPLICATION).size());
         assertEquals(1, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
+        assertEquals(43, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
@@ -133,15 +119,5 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         assertEquals(oldResponse.getNonMarketEntityDTOList(), newResponse.getNonMarketEntityDTOList());
         assertEquals(oldResponse.getCostDTOList(), newResponse.getCostDTOList());
         assertEquals(oldResponse.getDiscoveryContext(), newResponse.getDiscoveryContext());
-    }
-
-    @Test
-    public void testGetSupplyChainDefinition() {
-        AwsConversionProbe probe = new AwsConversionProbe();
-
-        Set<TemplateDTO> entitiesInSupplyChain = probe.getSupplyChainDefinition();
-
-        assertTrue(
-            TestUtils.verifyEntityTypes(entitiesInSupplyChain, AWS_CONVERSION_PROBE_ENTITY_TYPES));
     }
 }

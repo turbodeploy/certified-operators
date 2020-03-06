@@ -12,7 +12,10 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
+import com.vmturbo.auth.component.policy.UserPolicy;
+import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -33,6 +36,12 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
     private String keyDir;
+
+    /**
+     * See {@link UserPolicy.LoginPolicy} for details. Default is to allow all.
+     */
+    @Value("${loginPolicy:ALL}")
+    private String loginPolicy;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -136,7 +145,23 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public AuthProvider targetStore() {
         return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir,
-                widgetsetConfig.widgetsetDbStore());
+                widgetsetConfig.widgetsetDbStore(), userPolicy());
+    }
+
+    /**
+     * System wide user policy.
+     *
+     * @return user policy.
+     */
+    @Bean
+    public UserPolicy userPolicy() {
+        final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
+        final UserPolicy userPolicy = new UserPolicy(policy);
+        AuditLog.newEntry(userPolicy.getAuditAction(),
+                "User login policy is set to " + loginPolicy, true)
+                .targetName("Login Policy")
+                .audit();
+        return userPolicy;
     }
 
     @Bean

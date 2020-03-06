@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -25,7 +24,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
@@ -47,11 +45,9 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.GCP));
-        converters.put(EntityType.AVAILABILITY_ZONE, new AvailabilityZoneConverter(SDKProbeType.GCP));
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
-        converters.put(EntityType.REGION, new RegionConverter(SDKProbeType.GCP));
         converters.put(EntityType.STORAGE, new StorageConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.GCP));

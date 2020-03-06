@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -88,6 +89,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
@@ -166,6 +168,13 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     StringConstants.NUM_SOCKETS,
                     StringConstants.NUM_CPUS,
                     StringConstants.HOST);
+
+    // Cluster commodities for which to create projected headroom.
+    private static final Set<String> CLUSTER_COMMODITY_STATS = ImmutableSet.of(
+        StringConstants.CPU_HEADROOM,
+        StringConstants.MEM_HEADROOM,
+        StringConstants.STORAGE_HEADROOM,
+        StringConstants.TOTAL_HEADROOM);
 
     // all cluster stats
     protected static final Set<String> CLUSTER_STATS = Sets.union(HEADROOM_STATS, CLUSTER_ROLLUP_STATS);
@@ -668,6 +677,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 responseObserver.onNext(statSnapshotResponseBuilder.build());
             }
 
+            if (filter.getRequestProjectedHeadroom() && !sortedStatsDates.isEmpty()) {
+                final Date latestRecordDate = sortedStatsDates.get(sortedStatsDates.size() - 1);
+                createProjectedHeadroomStats(responseObserver, clusterId, startDate,
+                    endDate, latestRecordDate.getTime(), resultMap.get(latestRecordDate));
+            }
+
             // if we encountered any unexpected records, log them.
             if (!CollectionUtils.isEmpty(unexpectedRecordCounts)) {
                 StringBuilder sb = new StringBuilder("Unexpected cluster stat records: ");
@@ -700,6 +715,102 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             return numberOfDaysInDateRange > 40;
         }
         return false;
+    }
+
+    /**
+     * Create projected headroom stats for each day between snapshotDate and endDate
+     * based on the latest headroom stats.
+     *
+     * <p>Suppose the daily VM growth is 1 and available CPU headroom is 10.
+     * Available CPU headrooms for the next 3 days are 9, 8, 7 respectively.
+     * Also, available headroom is always a non-negative integer.
+     *
+     * @param responseObserver a stream observer on which to write cluster stats
+     * @param clusterId cluster id
+     * @param startDate the start date of the request
+     * @param endDate the end date of the request
+     * @param latestRecordDate the date of the latest records
+     * @param latestStatRecords the latest records
+     */
+    @VisibleForTesting
+    void createProjectedHeadroomStats(
+            @Nonnull final StreamObserver<StatSnapshot> responseObserver, final long clusterId,
+            final long startDate, final long endDate, final long latestRecordDate,
+            @Nonnull final Collection<StatRecord> latestStatRecords) {
+        if (latestStatRecords.isEmpty() || latestRecordDate >= endDate) {
+            return;
+        }
+
+        // Get latest headroom stats.
+        final List<StatRecord> headroomCommodityRecords = latestStatRecords.stream().filter(record ->
+            CLUSTER_COMMODITY_STATS.contains(record.getName())).collect(Collectors.toList());
+        if (!headroomCommodityRecords.isEmpty()) {
+            // Copy snapshot as current snapshot.
+            responseObserver.onNext(StatSnapshot.newBuilder()
+                .setSnapshotDate(System.currentTimeMillis())
+                .setStatEpoch(StatEpoch.CURRENT)
+                .addAllStatRecords(headroomCommodityRecords)
+                .build());
+
+            // Get monthly vm growth.
+            Stream<ClusterStatsRecordReader> statDBRecords = Stream.empty();
+            try {
+                if (isUseMonthlyData(startDate, endDate)) {
+                    statDBRecords = clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate,
+                            endDate, Collections.singleton(StringConstants.VM_GROWTH))
+                        .stream().map(ClusterStatsByMonthRecordReader::new);
+
+                } else {
+                    statDBRecords = clusterStatsReader.getStatsRecordsByDay(clusterId, startDate,
+                            endDate, Collections.singleton(StringConstants.VM_GROWTH))
+                        .stream().map(ClusterStatsByDayRecordReader::new);
+                }
+            } catch (VmtDbException e) {
+                responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB Error fetching stats for cluster " + clusterId)
+                    .withCause(e)
+                    .asException());
+            }
+
+            final Optional<ClusterStatsRecordReader> vmGrowthRecord = statDBRecords.max(
+                Comparator.comparingLong(record -> record.getRecordedOn().getTime()));
+            if (vmGrowthRecord.isPresent()) {
+                final int daysPerMonth = 30;
+                final int dailyVMGrowth = (int)Math.ceil(vmGrowthRecord.get().getValue() / daysPerMonth);
+                final long millisPerDay = TimeUnit.DAYS.toMillis(1);
+                final long daysDifference = (endDate - latestRecordDate) / millisPerDay + 1;
+                logger.info("Daily VM growth: {}. Days difference: {}.", dailyVMGrowth, daysDifference);
+
+                // Create projected headroom stats for each day.
+                for (int day = 1; day <= daysDifference; day++) {
+                    StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder();
+                    statSnapshotBuilder.setStatEpoch(StatEpoch.PROJECTED);
+                    statSnapshotBuilder.setSnapshotDate(
+                        Math.min(endDate, latestRecordDate + day * millisPerDay));
+
+                    // Create projected headroom stats for each commodity.
+                    final List<StatRecord> projectedStatRecords = new ArrayList<>(headroomCommodityRecords.size());
+                    for (StatRecord statRecord : headroomCommodityRecords) {
+                        final StatRecord.Builder projectedStatRecord = statRecord.toBuilder();
+                        final float projectedHeadroom = Math.max(0,
+                            statRecord.getUsed().getAvg() - dailyVMGrowth * day);
+                        projectedStatRecord.setUsed(StatValue.newBuilder().setAvg(projectedHeadroom)
+                            .setMin(projectedHeadroom).setMax(projectedHeadroom).setTotal(projectedHeadroom));
+                        projectedStatRecord.clearCurrentValue();
+                        projectedStatRecord.clearValues();
+                        projectedStatRecord.clearPeak();
+                        projectedStatRecords.add(projectedStatRecord.build());
+                    }
+
+                    statSnapshotBuilder.addAllStatRecords(projectedStatRecords);
+                    responseObserver.onNext(statSnapshotBuilder.build());
+                }
+            } else {
+                logger.warn("No VM growth record found between start date {} and end data {}" +
+                        "in cluster {} table.", startDate, endDate,
+                    isUseMonthlyData(startDate, endDate) ? "monthly" : "daily");
+            }
+        }
     }
 
     /**

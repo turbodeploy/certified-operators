@@ -532,19 +532,71 @@ public class ActionModeCalculator {
         return Stream.empty();
     }
 
+    /**
+     * It keeps the settings of the range-aware resize.
+     */
     @Value.Immutable
     public interface RangeAwareResizeSettings {
+        /**
+         * Gets the above max automation level.
+         *
+         * @return The above max automation level
+         */
         EntitySettingSpecs aboveMaxThreshold();
-        EntitySettingSpecs belowMinThrewshold();
+
+        /**
+         * Gets the below min automation level.
+         *
+         * @return The below min automation level
+         */
+        EntitySettingSpecs belowMinThreshold();
+
+        /**
+         * Gets the in-range automation level for resize up.
+         *
+         * @return The in-range automation level for the resize up
+         */
         EntitySettingSpecs upInBetweenThresholds();
+
+        /**
+         * Gets the in-range automation level for the resize down.
+         *
+         * @return The in-range automation level for the resize down
+         */
         EntitySettingSpecs downInBetweenThresholds();
+
+        /**
+         * Gets the min threshold of the commodity.
+         *
+         * @return The min threshold of the commodity
+         */
         EntitySettingSpecs minThreshold();
+
+        /**
+         * Gets the max threshold of the commodity.
+         *
+         * @return The max threshold of the commodity
+         */
         EntitySettingSpecs maxThreshold();
     }
 
+    /**
+     * Resize capacity keeps the old and new capacities of a resize action.
+     */
     @Value.Immutable
     interface ResizeCapacity {
+        /**
+         * Gets the existing capacity.
+         *
+         * @return The existing capacity
+         */
         float oldCapacity();
+
+        /**
+         * Gets the new capacity.
+         *
+         * @return The new capacity
+         */
         float newCapacity();
     }
 
@@ -583,6 +635,7 @@ public class ActionModeCalculator {
      * For ex. vmem / vcpu resize of an on-prem VM.
      */
     private class RangeAwareSpecCalculator {
+        private static final double CAPACITY_COMPARISON_DELTA = 0.001;
         // This map holds the resizeSettings by commodity type per entity type
         private final Map<Integer, Map<Integer, RangeAwareResizeSettings>> resizeSettingsByEntityType =
                 ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM());
@@ -636,22 +689,39 @@ public class ActionModeCalculator {
                         ResizeCapacity resizeCapacity = getCapacityForModeCalculation(resize);
                         float oldCapacity = resizeCapacity.oldCapacity();
                         float newCapacity = resizeCapacity.newCapacity();
-                        // The new capacity is greater than the maxThreshold
-                        if (newCapacity > maxThreshold) {
-                            applicableSpec = Optional.of(resizeSettings.aboveMaxThreshold());
-                        } else if (newCapacity < minThreshold) {
-                            // The new capacity is lesser than the minThreshold
-                            applicableSpec = Optional.of(resizeSettings.belowMinThrewshold());
-                        } else {
-                            if (newCapacity > oldCapacity) {
+                        // Recognize if this is a resize up or down
+                        if (Math.abs(newCapacity - oldCapacity) <= CAPACITY_COMPARISON_DELTA) {
+                            // -Delta <= new capacity - old capacity <= +Delta
+                            logger.error("{}  has a resize action on commodity {}  with same " +
+                                            "old and new capacity -> {}", resize.getTarget().getId(), commType,
+                                    resize.getNewCapacity());
+                        } else if (newCapacity > oldCapacity) {
+                            // A resize up action
+                            if (oldCapacity < maxThreshold && newCapacity <= maxThreshold) {
                                 applicableSpec = Optional.of(resizeSettings.upInBetweenThresholds());
-                            } else if (newCapacity < oldCapacity) {
-                                applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
+                            } else if (oldCapacity > maxThreshold && newCapacity > maxThreshold) {
+                                applicableSpec = Optional.of(resizeSettings.aboveMaxThreshold());
                             } else {
-                                // new capacity == old capacity
-                                logger.error("{}  has a resize action on commodity {}  with same " +
-                                                "old and new capacity -> {}", resize.getTarget().getId(), commType,
-                                        resize.getNewCapacity());
+                                // Wrong resize up action
+                                logger.error("{} has a resize action from {} to {} on " +
+                                                "commodity {} (min {} Max {})with wrong settings.",
+                                        resize.getTarget().getId(), resize.getOldCapacity(),
+                                        resize.getNewCapacity(), commType,
+                                        minThreshold, maxThreshold);
+                            }
+                        } else {
+                            // A resize down action
+                            if (oldCapacity > minThreshold && newCapacity >= minThreshold) {
+                                applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
+                            } else if (oldCapacity < minThreshold && newCapacity < minThreshold) {
+                                applicableSpec = Optional.of(resizeSettings.belowMinThreshold());
+                            } else {
+                                // Wrong resize down action
+                                logger.error("{} has a resize action from {} to {} on " +
+                                                "commodity {} (min {} Max {}) with wrong settings.",
+                                        resize.getTarget().getId(), resize.getOldCapacity(),
+                                        resize.getNewCapacity(), commType,
+                                        minThreshold, maxThreshold);
                             }
                         }
                     }
@@ -719,14 +789,14 @@ public class ActionModeCalculator {
         private Map<Integer, RangeAwareResizeSettings> populateResizeSettingsByCommodityForVM() {
             RangeAwareResizeSettings vCpuSettings = ImmutableRangeAwareResizeSettings.builder()
                     .aboveMaxThreshold(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold)
-                    .belowMinThrewshold(EntitySettingSpecs.ResizeVcpuBelowMinThreshold)
+                    .belowMinThreshold(EntitySettingSpecs.ResizeVcpuBelowMinThreshold)
                     .upInBetweenThresholds(ResizeVcpuUpInBetweenThresholds)
                     .downInBetweenThresholds(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds)
                     .maxThreshold(EntitySettingSpecs.ResizeVcpuMaxThreshold)
                     .minThreshold(EntitySettingSpecs.ResizeVcpuMinThreshold).build();
             RangeAwareResizeSettings vMemSettings = ImmutableRangeAwareResizeSettings.builder()
                     .aboveMaxThreshold(EntitySettingSpecs.ResizeVmemAboveMaxThreshold)
-                    .belowMinThrewshold(EntitySettingSpecs.ResizeVmemBelowMinThreshold)
+                    .belowMinThreshold(EntitySettingSpecs.ResizeVmemBelowMinThreshold)
                     .upInBetweenThresholds(ResizeVmemUpInBetweenThresholds)
                     .downInBetweenThresholds(ResizeVmemDownInBetweenThresholds)
                     .maxThreshold(EntitySettingSpecs.ResizeVmemMaxThreshold)

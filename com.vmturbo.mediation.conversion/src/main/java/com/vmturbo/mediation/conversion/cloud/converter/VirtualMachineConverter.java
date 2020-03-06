@@ -92,7 +92,16 @@ public class VirtualMachineConverter implements IEntityConverter {
         Optional<String> azId = converter.getRawEntityDTO(entity.getId())
                 .getCommoditiesBoughtList().stream()
                 .map(CommodityBought::getProviderId)
-                .filter(id -> converter.getRawEntityDTO(id).getEntityType() == EntityType.PHYSICAL_MACHINE)
+                .filter(id -> {
+                    EntityDTO provider = converter.getRawEntityDTO(id);
+                    if (provider == null) {
+                        provider = converter.getRawEntityDTO(converter.getRegionIdFromAzId(id));
+                    }
+                    final EntityType providerType = provider.getEntityType();
+                    return providerType == EntityType.PHYSICAL_MACHINE ||
+                        providerType == EntityType.AVAILABILITY_ZONE ||
+                        providerType == EntityType.REGION;
+                })
                 .findAny();
 
         // new list of CommodityBought bought by this VM
@@ -122,10 +131,15 @@ public class VirtualMachineConverter implements IEntityConverter {
             // change provider
             String providerId = commodityBought.getProviderId();
             EntityDTO provider = converter.getRawEntityDTO(providerId);
+            if (provider == null) {
+                provider = converter.getRawEntityDTO(converter.getRegionIdFromAzId(providerId));
+            }
             EntityType providerEntityType = provider.getEntityType();
 
             // check entity type of original provider defined in unmodified EntityDTO
-            if (providerEntityType == EntityType.PHYSICAL_MACHINE) {
+            if (providerEntityType == EntityType.PHYSICAL_MACHINE ||
+                    providerEntityType == EntityType.AVAILABILITY_ZONE ||
+                    providerEntityType == EntityType.REGION) {
                 if (probeType == SDKProbeType.AWS || probeType == SDKProbeType.GCP) {
                     // connect to AZ
                     entity.addLayeredOver(providerId);

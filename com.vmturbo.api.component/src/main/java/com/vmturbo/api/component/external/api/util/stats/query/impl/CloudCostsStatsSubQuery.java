@@ -48,6 +48,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -224,6 +225,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     @Override
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
                                                       @Nonnull final StatsQueryContext context) throws OperationFailedException {
+        final Optional<GlobalScope> globalScope = context.getQueryScope().getGlobalScope();
         final Set<String> requestGroupBySet = requestedStats.stream()
             .filter(dto -> dto.getGroupBy() != null)
             .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
@@ -273,7 +275,17 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             if (shouldQueryUsingFilter(inputScope) || isResourceGroup(inputScope)) {
                 cloudEntityOids = context.getQueryScope().getScopeOids();
             } else {
-                cloudEntityOids = context.getQueryScope().getExpandedOids();
+                Set<Long> expandedOids = context.getQueryScope().getExpandedOids();
+                if (!globalScope.isPresent() && expandedOids.isEmpty()) {
+                    // Do not fetch costs without entityFilter if it is not global scoped and
+                    // there are no expanded Oids as this leads to querying for all entities;
+                    // which is incorrect if user is scoped.
+                    logger.debug("Query not for global scope and no oids found in expanded scope." +
+                            "Can not fetch cost stats.");
+                    cloudEntityOids = null;
+                } else {
+                    cloudEntityOids = expandedOids;
+                }
             }
             /*
              * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
@@ -325,14 +337,19 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             }
             statsResponse = mergeStatSnapshotApiDTOWithDate(statSnapshots);
             // add numWorkloads, numVMs, numDBs, numDBSs if requested
-            final List<StatApiDTO> numWorkloadStats =
-                    getNumWorkloadStatSnapshot(requestedStats, context);
+            final List<StatApiDTO> numWorkloadStats = getNumWorkloadStatSnapshot(requestedStats, context);
             if (!numWorkloadStats.isEmpty()) {
                 // add the numWorkloads to the same timestamp it it exists.
                 if (statSnapshots.isEmpty()) {
-                    StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                    context.getTimeWindow()
-                            .ifPresent(window -> statSnapshotApiDTO.setDate(DateTimeUtil.toString(window.endTime())));
+                    final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                    final long statsTime;
+                    if (context.getTimeWindow().isPresent()) {
+                        TimeWindow window = context.getTimeWindow().get();
+                        statsTime = window.endTime();
+                    } else {
+                        statsTime = context.getCurTime();
+                    }
+                    statSnapshotApiDTO.setDate(DateTimeUtil.toString(statsTime));
                     statSnapshotApiDTO.setStatistics(numWorkloadStats);
                     statsResponse.add(statSnapshotApiDTO);
                 } else {
@@ -682,10 +699,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     private List<CloudCostStatRecord> getCloudStatRecordList(@Nonnull final Set<StatApiInputDTO> stats,
-                                                             @Nonnull final Set<Long> entityStatOids,
+                                                             @Nullable final Set<Long> entityStatOids,
                                                              @Nonnull final StatsQueryContext context,
-                                                             @Nonnull final boolean isGenericGroupBy) {
-        if (stats.isEmpty()) {
+                                                             final boolean isGenericGroupBy) {
+        if (stats.isEmpty() || entityStatOids == null) {
             return Collections.emptyList();
         }
         Set<CloudCostStatsQuery> cloudCostStatsQueries = Sets.newHashSet();
@@ -741,11 +758,35 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         .build());
             }
             context.getPlanInstance().ifPresent(plan -> cloudCostStatsQuery.setTopologyContextId(plan.getPlanId()));
-            cloudCostStatsQueries.add(cloudCostStatsQuery.build());
+            Optional<Builder> cloudCostStatsQueryOptional =
+                    updateQueriesByUserScope(context, cloudCostStatsQuery);
+            cloudCostStatsQueryOptional.ifPresent(updatedCloudCostQuery ->
+                    cloudCostStatsQueries.add(updatedCloudCostQuery.build()));
         });
-        GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
-                .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
-        return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+        if (cloudCostStatsQueries.isEmpty()) {
+            return Collections.emptyList();
+        } else {
+            GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                    .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
+            return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+        }
+    }
+
+    private Optional<Builder> updateQueriesByUserScope(
+            @Nonnull final StatsQueryContext context,
+            @Nonnull final Builder cloudCostStatsQuery) {
+        Set<Long> expandedOids = context.getQueryScope().getExpandedOids();
+        if (context.getInputScope().getScopeTypes().isPresent() &&
+                shouldQueryUsingFilter(context.getInputScope()) &&
+                userSessionContext.isUserObserver()
+                && userSessionContext.isUserScoped()) {
+            if (expandedOids.isEmpty()) {
+                return Optional.empty();
+            } else {
+                cloudCostStatsQuery.getEntityFilterBuilder().addAllEntityId(expandedOids);
+            }
+        }
+        return Optional.of(cloudCostStatsQuery);
     }
 
     private void addCloudCostStatsQueryFilter(@Nonnull final Builder cloudCostStatsQuery,

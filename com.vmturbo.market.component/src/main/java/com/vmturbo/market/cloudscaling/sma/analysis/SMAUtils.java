@@ -103,4 +103,14 @@ public class SMAUtils {
      */
     public static final Pair<Long, Float> NO_COMPUTE_RI_COVERAGE = new Pair(SMAUtils.NO_CURRENT_RI, SMAUtils.NO_RI_COVERAGE);
 
+
+    /**
+     * Ensures there are only 4 significant decimal places.
+     * @param value float value
+     * @return float value with at most 4 significant decimal places.
+     */
+    public static float formatDigits(float value) {
+        return ((int)(value * 10000)) / (float)10000.0f;
+    }
+
 }

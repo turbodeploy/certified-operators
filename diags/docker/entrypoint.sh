@@ -29,13 +29,10 @@ function find_memory_limit
 # If JAVA_OPTS is NOT defined in the environment (the default case), then we'll assemble it from
 # a few constituent parts based on other environment variables, as follows:
 #
-#  JAVA_OPTS = JAVA_DEBUG_OPTS (if JAVA_DEBUG is set) JAVA_MAX_RAM_PCT JAVA_COMPONENT_OPTS JAVA_MAX_RAM_PCT JAVA_BASE_OPTS
+#  JAVA_OPTS = JAVA_BASE_OPTS JAVA_MAX_RAM_PCT JAVA_DEBUG_OPTS (if JAVA_DEBUG is set) JAVA_ENV_OPTS JAVA_COMPONENT_OPTS
 #
 # JAVA_BASE_OPTS: These represent the common java runtime options we will pass to all of our java
 # services. If not defined by the environment, a default set of options will be provided.
-#
-# JAVA_COMPONENT_OPTS: Optional component-specific java options. If this is specified, these will be
-# included in the startup command as well.
 #
 # JAVA_MAX_RAM_PCT: If set to a numeric value (whole number or decimal), this value will be used to
 # set the -XX:MaxRAMPercentage option, which specifies the percentage of available container memory
@@ -54,6 +51,12 @@ function find_memory_limit
 # remote debugging port and enabling spring boot logging. If JAVA_DEBUG is set, then JAVA_DEBUG_OPTS
 # will be appended to the command-line. Specifying JAVA_DEBUG_OPTS is optional, and a default set of
 # debugging options will be added if not specified.
+#
+# JAVA_ENV_OPTS: Optional JVM runtime options that should be set for all JVMs (including kafka and
+# zookeeper) in running in the environment.
+#
+# JAVA_COMPONENT_OPTS: Optional component-specific java options. If this is specified, these will be
+# included in the startup command as well.
 #
 
 if [[ -z ${JAVA_OPTS} ]]; then
@@ -79,16 +82,11 @@ if [[ -z ${JAVA_OPTS} ]]; then
     shopt -s extglob
     if [[ $JAVA_MAX_RAM_PCT == +([0-9])?(.+([0-9])) ]]; then
       # this is a numeric value -- use it to set the max ram pct directly
-      JAVA_OPTS="-XX:MaxRAMPercentage=$JAVA_MAX_RAM_PCT $JAVA_OPTS"
+      JAVA_OPTS="$JAVA_OPTS -XX:MaxRAMPercentage=$JAVA_MAX_RAM_PCT"
     else
       # there was a non-numeric value specified, we'll assume this means we should exclude the setting.
       echo "Excluding MaxRAMPercentage option since JAVA_MAX_RAM_PCT is set to $JAVA_MAX_RAM_PCT" 2>&1 | ${LOGGER_COMMAND}
     fi
-  fi
-
-  # optional component-specific options
-  if [[ -n ${JAVA_COMPONENT_OPTS} ]]; then
-    JAVA_OPTS="$JAVA_OPTS $JAVA_COMPONENT_OPTS"
   fi
 
   # java dev options
@@ -97,7 +95,17 @@ if [[ -z ${JAVA_OPTS} ]]; then
       JAVA_DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n
                -Djdk.attach.allowAttachSelf"
     fi
-    JAVA_OPTS="$JAVA_DEBUG_OPTS $JAVA_OPTS"
+    JAVA_OPTS="$JAVA_OPTS $JAVA_DEBUG_OPTS"
+  fi
+
+  # optional environment-specific options
+  if [[ -n ${JAVA_ENV_OPTS} ]]; then
+    JAVA_OPTS="$JAVA_OPTS $JAVA_ENV_OPTS"
+  fi
+
+  # optional component-specific options
+  if [[ -n ${JAVA_COMPONENT_OPTS} ]]; then
+    JAVA_OPTS="$JAVA_OPTS $JAVA_COMPONENT_OPTS"
   fi
 fi
 

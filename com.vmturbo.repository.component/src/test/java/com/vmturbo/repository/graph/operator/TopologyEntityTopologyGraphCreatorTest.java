@@ -32,7 +32,8 @@ public class TopologyEntityTopologyGraphCreatorTest {
 
         topologyGraphCreatorTest = new TopologyGraphCreator(
                 graphDatabaseBuilder,
-                graphDefinition);
+                graphDefinition,
+                1);
     }
 
     @Test

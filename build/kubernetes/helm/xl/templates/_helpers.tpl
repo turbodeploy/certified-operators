@@ -39,6 +39,7 @@ Create chart name and version as used by the chart label.
   * .Values.javaDebugOptions or .Values.global.javaDebugOptions will be passed as JAVA_DEBUG_OPTS
   * .Values.javaMaxRAMPercentage or .Values.global.javaMaxRAMPercentage will be passed as JAVA_MAX_RAM_PCT
   * .Values.javaComponentOptions will be passed as JAVA_COMPONENT_OPTS
+  * .Values.javaEnvironmentOptions will be passed as JAVA_ENV_OPTS
   * .Values.javaOptions will be passed as JAVA_OPTS. This will completely override the default set of JVM
   runtime options.
 */}}
@@ -58,6 +59,10 @@ Create chart name and version as used by the chart label.
     {{- if .Values.javaComponentOptions }}
         - name: JAVA_COMPONENT_OPTS
           value: {{ .Values.javaComponentOptions }}
+    {{- end }}
+    {{- if .Values.global.javaEnvironmentOptions }}
+        - name: JAVA_ENV_OPTS
+          value: {{ .Values.global.javaEnvironmentOptions }}
     {{- end }}
     {{- if or .Values.global.javaBaseOptions .Values.javaBaseOptions }}
         - name: JAVA_BASE_OPTS

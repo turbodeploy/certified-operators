@@ -20,7 +20,9 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -232,6 +234,51 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
             CommoditiesBoughtFromProvider::getMovable);
     }
 
+    @Test
+    public void testEditScalableDisabledForCloudVMs() {
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE,
+                    ActionType.SCALE, ActionCapability.NOT_SUPPORTED, "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntityWithCommBought(2L,  EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.VCPU.getNumber(), true, true,
+                Collections.singleton(DEFAULT_TARGET_ID)));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary resizeableEditSummary = editor.applyPropertiesEdits(graph);
+
+        validateCommodityScalable(graph,
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                provider -> !provider.getScalable());
+        validateSpecificCommodityScalable(graph,
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                EntityType.PHYSICAL_MACHINE,
+                provider -> !provider.getScalable());
+
+        assertEquals(1, resizeableEditSummary.getScalableToFalseCounter());
+    }
+
+    @Test
+    public void testEditResizeableDisabledForCloudNativeVMs() {
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE,
+                ActionType.RIGHT_SIZE, ActionCapability.NOT_SUPPORTED, "Kubernetes"));
+        boolean defaultEntityLevelResizeable = true;
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntityWithCommSold(2L,  EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.VCPU.getNumber(), defaultEntityLevelResizeable,
+                Collections.singleton(DEFAULT_TARGET_ID)));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary resizeableEditSummary = editor.applyPropertiesEdits(graph);
+
+        validateCommodityResizeable(graph,
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                builder -> builder.hasIsResizeable() && !builder.getIsResizeable());
+
+        assertEquals(1, resizeableEditSummary.getResizeableToFalseCounter());
+    }
+
     /**
      * Verify not executable action capabilities are treated as enabled for analysis.
      *
@@ -431,23 +478,9 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         });
     }
 
-//    private void verifyUnsetAnalysisSetting(final TopologyGraph<TopologyEntity> graph, final int entityTypeValue,
-//                                               final Predicate<AnalysisSettings> hasCloneablePredicate,
-//                                               final Predicate<AnalysisSettings> hasSuspendablePredicate) {
-//        graph.entities().filter(getTopologyEntityPredicate(entityTypeValue)).forEach(entity -> {
-//            final AnalysisSettings settings = entity
-//                    .getTopologyEntityDtoBuilder()
-//                    .getAnalysisSettings();
-//
-//
-//            assertTrue(!hasCloneablePredicate.test(settings));
-//            assertTrue(!hasSuspendablePredicate.test(settings));
-//        });
-//    }
-
     private void validateCommodityMovable(final TopologyGraph<TopologyEntity> graph,
-                                          final Predicate<TopologyEntity> predicate,
-                                          final Predicate<CommoditiesBoughtFromProvider> movable) {
+                                            final Predicate<TopologyEntity> predicate,
+                                            final Predicate<CommoditiesBoughtFromProvider> movable) {
         assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
                 assertTrue(entity
@@ -457,17 +490,46 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         .allMatch(movable)));
     }
 
-//    private void validateCommodityNotMovable(final TopologyGraph<TopologyEntity> graph,
-//                                          final Predicate<TopologyEntity> predicate,
-//                                          final Predicate<CommoditiesBoughtFromProvider> hasMovable) {
-//        assertTrue(graph.entities().anyMatch(predicate));
-//        graph.entities().filter(predicate).forEach(entity ->
-//                assertTrue(entity
-//                        .getTopologyEntityDtoBuilder()
-//                        .getCommoditiesBoughtFromProvidersList()
-//                        .stream()
-//                        .noneMatch(hasMovable)));
-//    }
+    private void validateCommodityScalable(final TopologyGraph<TopologyEntity> graph,
+                                          final Predicate<TopologyEntity> predicate,
+                                          final Predicate<CommoditiesBoughtFromProvider> scalable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .allMatch(scalable)));
+    }
+
+    private void validateCommodityResizeable(final TopologyGraph<TopologyEntity> graph,
+                                           final Predicate<TopologyEntity> predicate,
+                                           final Predicate<TopologyDTO.CommoditySoldDTO> resizeable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditySoldListList()
+                        .stream()
+                        .allMatch(resizeable)));
+    }
+
+    private void validateSpecificCommodityScalable(final TopologyGraph<TopologyEntity> graph,
+                                                  final Predicate<TopologyEntity> predicate,
+                                                  final EntityType providerEntityType,
+                                                  final Predicate<CommoditiesBoughtFromProvider> commoditiesScalable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                        .filter(provider -> provider.getProviderEntityType() == providerEntityType.getNumber())
+                        .allMatch(commoditiesScalable)
+                )
+        );
+    }
 
     private void validateSpecificCommodityMovable(final TopologyGraph<TopologyEntity> graph,
                                                   final Predicate<TopologyEntity> predicate,
@@ -590,6 +652,50 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                                                 ).setActive(true)
                                 )
                 ));
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildTopologyEntityWithCommSold(long oid, int entityType, int commType,
+                                                                   boolean isResizeable,
+                                                        final Collection<Long> targetIds) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
+                PerTargetEntityInformation.getDefaultInstance()));
+        return TopologyEntityUtils.topologyEntityBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                        .setEntityType(entityType)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(origin)
+                                .build())
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                                CommodityType.newBuilder().setType(commType).setKey("").build()
+                        ).setIsResizeable(isResizeable))
+                );
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int entityType, int commType,
+                                                                   boolean isMovable, boolean isScalable,
+                                                                   final Collection<Long> targetIds) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
+                PerTargetEntityInformation.getDefaultInstance()));
+        return TopologyEntityUtils.topologyEntityBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                        .setEntityType(entityType)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(origin)
+                                .build())
+                        .setOid(oid).addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                                .addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(commType).setKey("").build())
+                                ).setMovable(isMovable).setScalable(isScalable)
+                )
+        );
     }
 
     private ProbeInfo getProbeInfo(final EntityType entityType,

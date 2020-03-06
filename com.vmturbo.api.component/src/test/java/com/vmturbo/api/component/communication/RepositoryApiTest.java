@@ -12,23 +12,29 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 
 import io.grpc.ManagedChannel;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -52,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class RepositoryApiTest {
 
@@ -735,5 +742,159 @@ public class RepositoryApiTest {
 
         verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
         verify(severityPopulator).populate(realtimeContextId, Collections.singleton(se));
+    }
+
+    /**
+     * Tests returning only business accounts by OIDs.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetByIdsOnlyBusinessAccounts() throws Exception {
+        final TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
+                .setOid(1L)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+        Mockito.when(repoBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyType(TopologyType.SOURCE)
+                        .setReturnType(Type.FULL)
+                        .addEntityOids(1L)
+                        .setTopologyContextId(realtimeContextId)
+                        .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .build()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setFullEntity(businessAccount))
+                        .build()));
+        final BusinessUnitApiDTO buDto = new BusinessUnitApiDTO();
+        buDto.setUuid("1");
+        Mockito.when(
+                businessAccountMapper.convert(Collections.singletonList(businessAccount), false))
+                .thenReturn(Collections.singletonList(buDto));
+        final RepositoryRequestResult repositoryResult =
+                repositoryApi.getByIds(Collections.singleton(1L),
+                        Collections.singleton(EntityType.BUSINESS_ACCOUNT), false);
+        Mockito.verify(repoBackend).retrieveTopologyEntities(Mockito.any());
+        Assert.assertEquals(Collections.emptySet(),
+                new HashSet<>(repositoryResult.getServiceEntities()));
+        Assert.assertEquals(1, repositoryResult.getBusinessAccounts().size());
+        Assert.assertEquals(0, repositoryResult.getServiceEntities().size());
+        final BusinessUnitApiDTO buReturned =
+                repositoryResult.getBusinessAccounts().iterator().next();
+        Assert.assertEquals("1", buReturned.getUuid());
+    }
+
+    /**
+     * Tests retrieving business accounts and service entities by OIDs.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetBusinessAccountsAndServiecEntities() throws Exception {
+        final TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
+                .setOid(1L)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+        final ApiPartialEntity vm = ApiPartialEntity.newBuilder()
+                .setOid(2L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        Mockito.when(repoBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyType(TopologyType.SOURCE)
+                        .setReturnType(Type.FULL)
+                        .addEntityOids(1L)
+                        .setTopologyContextId(realtimeContextId)
+                        .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .build()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setFullEntity(businessAccount))
+                        .build()));
+        Mockito.when(repoBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyType(TopologyType.SOURCE)
+                        .setReturnType(Type.API)
+                        .addEntityOids(1L)
+                        .addEntityOids(2L)
+                        .setTopologyContextId(realtimeContextId)
+                        .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .build()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setApi(vm))
+                        .build()));
+        final BusinessUnitApiDTO buDto = new BusinessUnitApiDTO();
+        buDto.setUuid("1");
+        final ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();
+        vmDto.setUuid("2");
+        Mockito.when(
+                businessAccountMapper.convert(Collections.singletonList(businessAccount), false))
+                .thenReturn(Collections.singletonList(buDto));
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(vm)).thenReturn(vmDto);
+        final RepositoryRequestResult repositoryResult =
+                repositoryApi.getByIds(Arrays.asList(1L, 2L),
+                        EnumSet.of(EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE), false);
+        Mockito.verify(repoBackend, Mockito.times(2)).retrieveTopologyEntities(Mockito.any());
+        Assert.assertEquals(1, repositoryResult.getBusinessAccounts().size());
+        Assert.assertEquals(1, repositoryResult.getServiceEntities().size());
+        final BusinessUnitApiDTO buReturned =
+                repositoryResult.getBusinessAccounts().iterator().next();
+        Assert.assertEquals("1", buReturned.getUuid());
+        final ServiceEntityApiDTO vmReturned =
+                repositoryResult.getServiceEntities().iterator().next();
+        Assert.assertEquals("2", vmReturned.getUuid());
+    }
+
+    /**
+     * Tests retrieving only service entities by OIDs.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetByIdsServiceEntities() throws Exception {
+        final ApiPartialEntity vm = ApiPartialEntity.newBuilder()
+                .setOid(2L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        Mockito.when(repoBackend.retrieveTopologyEntities(Mockito.any()))
+                .thenReturn(Collections.emptyList());
+        Mockito.when(repoBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyType(TopologyType.SOURCE)
+                        .setReturnType(Type.API)
+                        .addEntityOids(1L)
+                        .addEntityOids(2L)
+                        .setTopologyContextId(realtimeContextId)
+                        .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .build()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setApi(vm))
+                        .build()));
+        final ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();
+        vmDto.setUuid("2");
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(vm)).thenReturn(vmDto);
+        final RepositoryRequestResult repositoryResult =
+                repositoryApi.getByIds(Arrays.asList(1L, 2L),
+                        EnumSet.of(EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE), false);
+        Mockito.verify(repoBackend, Mockito.times(2)).retrieveTopologyEntities(Mockito.any());
+        Assert.assertEquals(0, repositoryResult.getBusinessAccounts().size());
+        Assert.assertEquals(1, repositoryResult.getServiceEntities().size());
+        final ServiceEntityApiDTO vmReturned =
+                repositoryResult.getServiceEntities().iterator().next();
+        Assert.assertEquals("2", vmReturned.getUuid());
+    }
+
+    /**
+     * Tests retrieving for empty collection of OIDs.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetByIdEmptyOidsRequest() throws Exception {
+        final RepositoryRequestResult result =
+                repositoryApi.getByIds(Collections.emptySet(), EnumSet.allOf(EntityType.class),
+                        false);
+        Assert.assertEquals(Collections.emptySet(), new HashSet<>(result.getServiceEntities()));
+        Assert.assertEquals(Collections.emptySet(), new HashSet<>(result.getBusinessAccounts()));
+        Mockito.verifyZeroInteractions(repoBackend);
     }
 }

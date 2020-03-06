@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
@@ -27,8 +29,6 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.base.Preconditions;
 
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;

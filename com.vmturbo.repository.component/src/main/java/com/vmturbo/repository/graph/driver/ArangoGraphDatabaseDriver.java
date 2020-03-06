@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoDB;
@@ -20,12 +21,16 @@ import com.arangodb.entity.CollectionType;
 import com.arangodb.entity.EdgeDefinition;
 import com.arangodb.entity.IndexType;
 import com.arangodb.model.CollectionCreateOptions;
+import com.arangodb.model.GraphCreateOptions;
 import com.arangodb.model.SkiplistIndexOptions;
 import com.arangodb.velocypack.VPackBuilder;
 import com.arangodb.velocypack.VPackSlice;
 import com.arangodb.velocypack.ValueType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.CollectionOperationException;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.EdgeOperationException;
@@ -49,6 +54,7 @@ import com.vmturbo.repository.graph.parameter.VertexParameter;
  * Similarly, parameters for vertices, edges and collections can be used for their creation.
  */
 public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
+    private final Logger logger = LoggerFactory.getLogger(ArangoGraphDatabaseDriver.class);
 
     /**
      * The driver.
@@ -207,6 +213,8 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
         final CollectionCreateOptions collectionOptions = new CollectionCreateOptions();
         collectionOptions.journalSize((long)p.getJournalSize());
         collectionOptions.numberOfShards(p.getNumberOfShards());
+        collectionOptions.replicationFactor(p.getReplicaCount());
+        logger.debug("Creating collection with {} shards and {} replicas.", p.getNumberOfShards(), p.getReplicaCount());
         if (p.isEdge()) {
             collectionOptions.type(CollectionType.EDGES);
         } else {
@@ -246,10 +254,35 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
             throws GraphOperationException {
         try {
             arangoDatabase.createGraph(fullCollectionName(p.getName()), p.getEdgeDefs().stream().map(edp -> createEdgeDef(edp))
-                               .collect(Collectors.toList()));
+                               .collect(Collectors.toList()), extractGraphCreateOptions(p));
         } catch (ArangoDBException e) {
             throw new GraphOperationException(e.getMessage(), e);
         }
+    }
+
+    /**
+     * Given a {@link GraphParameter} object, possibly create and return a {@link GraphCreateOptions}
+     * based on any custom graph creation attibutes set in the GraphParameter object instance.
+     *
+     * If there are no custom parameters found, this may return a null object (which is allowed
+     * by the arangdb driver methods)
+     *
+     * @param p the GraphParameter object to inspect.
+     * @return a GraphCreateOptions instance based on the input parameters. May be null if no graph
+     * creation option values are found in the GraphParameter instance.
+     */
+    @Nullable
+    protected GraphCreateOptions extractGraphCreateOptions(final GraphParameter p) {
+        if (null == p) { return null; }
+
+        // handle non-default values. We're only concerned about replica count for now. But waitForSync
+        // may be another important parameter to respect as well if we become concerned about
+        // transactionality of the creation process.
+        if (p.getReplicaCount() > 1) {
+            logger.debug("Setting graph create options to {} replicas", p.getReplicaCount());
+            return new GraphCreateOptions().replicationFactor(p.getReplicaCount());
+        }
+        return null;
     }
 
     /**

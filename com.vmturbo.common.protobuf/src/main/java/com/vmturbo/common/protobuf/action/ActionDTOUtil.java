@@ -74,6 +74,10 @@ public class ActionDTOUtil {
     // express those relations
     public static final String COMMODITY_KEY_SEPARATOR = "::";
 
+    // Some port channel commodities have keys with this prefix. If they do have this as a prefix,
+    // we need to remove it before displaying it in the UI.
+    private static final String PORT_CHANNEL_KEY_PREFIX = "PortChannelFI-IO:";
+
     // this prefix designates that the rest of the string needs to pass through a translation phase
     // This "translation" mechanism is specific to the action explanation and is meant to be resolved
     // in the ActionSpecMapper. We are doing this to save a round of entity service lookups when
@@ -764,11 +768,19 @@ public class ActionDTOUtil {
             String commKeyPrefix = commKey.substring(0, commKeyPrefixExpected.length()).toLowerCase();
             // and check if the key has the prefix, and remove it.
             if (commKeyPrefix.startsWith(commKeyPrefixExpected)) {
-                commKey = commKey.substring(commKeyPrefixExpected.length(), commKey.length());
+                commKey = commKey.substring(commKeyPrefixExpected.length());
             }
 
             // append the modified key to the display name.
             // This will show the specific network name in it.
+            commodityDisplayName += " " + commKey;
+        } else if (commodity == UICommodityType.PORT_CHANEL) {
+            // If the commodity type is port channel, we need to append the name of the port channel.
+            // The name of the portChannel is stored in the key currently. So we append the key.
+            String commKey = commType.getKey();
+            if (commKey.startsWith(PORT_CHANNEL_KEY_PREFIX)) {
+                commKey = commKey.substring(PORT_CHANNEL_KEY_PREFIX.length());
+            }
             commodityDisplayName += " " + commKey;
         }
 

@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.cost.CostDebug.EnableCostRecordingRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.EnableCostRecordingRequest.CountFilter;
 import com.vmturbo.common.protobuf.cost.CostDebug.EnableCostRecordingRequest.EntityFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class CostJournalRecorderTest {

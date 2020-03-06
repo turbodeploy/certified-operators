@@ -14,7 +14,7 @@
         <swagger.basepath>/</swagger.basepath>
         <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
-        <amazon.s3>1.11.131</amazon.s3>
+        <amazon.s3>1.11.647</amazon.s3>
     </properties>
 
     <build>

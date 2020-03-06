@@ -397,7 +397,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                                         .from(table)
                                         .where(table.field(PLAN_ID, Long.class).eq(planId))
                                         .fetch();
-        return records.stream()
+        return records.stream().filter(r -> r.getValue(0) != null)
                         .map(ReservedInstanceUtil::convertPlanRIUtilizationCoverageRecordToRIStatsRecord)
                         .collect(Collectors.toList());
     }

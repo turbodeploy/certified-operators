@@ -1,25 +1,24 @@
-package com.vmturbo.cost.calculation.journalentry;
-
-import static com.vmturbo.trax.Trax.trax;
-
-import javax.annotation.Nonnull;
+package com.vmturbo.cost.calculation.journal.entry;
 
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
-import com.vmturbo.cost.calculation.CostJournal.RateExtractor;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
+import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
 
 /**
  * A {@link QualifiedJournalEntry} for RI discounted rates.
  *
- * @param <ENTITY_CLASS_> See {@link QualifiedJournalEntry}
+ * @param <E> see {@link QualifiedJournalEntry}
  */
-public class RIDiscountJournalEntry<ENTITY_CLASS_> implements QualifiedJournalEntry<ENTITY_CLASS_> {
+public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
     /**
      * The data about the reserved instance.
      */
@@ -29,8 +28,6 @@ public class RIDiscountJournalEntry<ENTITY_CLASS_> implements QualifiedJournalEn
      * The number of coupons covered by this RI.
      */
     private final TraxNumber riBoughtPercentage;
-
-    private TraxNumber onDemandRate = trax(0);
 
     private final CostCategory targetCostCategory;
 
@@ -47,11 +44,12 @@ public class RIDiscountJournalEntry<ENTITY_CLASS_> implements QualifiedJournalEn
      * @param costSource The cost source
      * @param isBuyRI true if the the discount is coming from a buy RI action.
      */
-    public RIDiscountJournalEntry(@Nonnull final ReservedInstanceData riData,
-                           final TraxNumber riBoughtPercentage,
-                           @Nonnull final CostCategory targetCostCategory,
-                           @Nonnull final CostSource costSource,
-                           boolean isBuyRI) {
+    public RIDiscountJournalEntry(
+            @Nonnull final ReservedInstanceData riData,
+            @Nonnull final TraxNumber riBoughtPercentage,
+            @Nonnull final CostCategory targetCostCategory,
+            @Nonnull final CostSource costSource,
+            final boolean isBuyRI) {
         this.riData = riData;
         this.riBoughtPercentage = riBoughtPercentage;
         this.targetCostCategory = targetCostCategory;
@@ -60,33 +58,49 @@ public class RIDiscountJournalEntry<ENTITY_CLASS_> implements QualifiedJournalEn
     }
 
     @Override
-    public TraxNumber calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor, @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator, @Nonnull final RateExtractor rateExtractor) {
+    public TraxNumber calculateHourlyCost(
+            @Nonnull final EntityInfoExtractor<E> infoExtractor,
+            @Nonnull final DiscountApplicator<E> discountApplicator,
+            @Nonnull final RateExtractor rateExtractor) {
         final long providerId =
                 riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId();
         final TraxNumber discountPercentage = discountApplicator.getDiscountPercentage(providerId);
-        final TraxNumber fullPricePercentage = trax(1.0, "100%")
-                .minus(discountPercentage)
-                .compute("full price portion");
-        onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory, costSource1 -> costSource1.equals(CostSource.ON_DEMAND_RATE));
-        onDemandRate = trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
-                .times(onDemandRate).compute();
-
+        final TraxNumber fullPricePercentage =
+                Trax.trax(1.0, "100%").minus(discountPercentage).compute("full price portion");
+        TraxNumber onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory,
+                cs -> cs == CostSource.ON_DEMAND_RATE);
+        onDemandRate = Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
+                .times(onDemandRate)
+                .compute();
         return onDemandRate.times(fullPricePercentage)
                 .compute(String.format("RI discounted %s cost (BuyRI=%s)",
-                        targetCostCategory.getDescriptorForType().getFullName(),
-                        isBuyRI));
+                        targetCostCategory.getDescriptorForType().getFullName(), isBuyRI));
     }
 
     @Nonnull
     @Override
     public Optional<CostSource> getCostSource() {
-        return Optional.ofNullable(costSource);
+        return Optional.of(costSource);
     }
 
     @Nonnull
     @Override
     public CostCategory getCostCategory() {
         return targetCostCategory;
+    }
+
+    @Nonnull
+    public ReservedInstanceData getRiData() {
+        return riData;
+    }
+
+    @Nonnull
+    public TraxNumber getRiBoughtPercentage() {
+        return riBoughtPercentage;
+    }
+
+    public boolean isBuyRI() {
+        return isBuyRI;
     }
 
     @Override

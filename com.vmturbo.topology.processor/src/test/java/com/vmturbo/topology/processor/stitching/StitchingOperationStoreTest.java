@@ -205,4 +205,60 @@ public class StitchingOperationStoreTest {
         assertEquals(EntityType.DISK_ARRAY, stitchingOperations.get(1).getInternalEntityType());
     }
 
+    /**
+     * tests the combination of data driven and custom stitching operations for a probe where
+     * there is no overlap of entity types between the two.
+     * @throws Exception exceptions thrown by the stitching library
+     */
+    @Test
+    public void testDataAndCustomOperationsWithNoOverlap() throws Exception {
+
+        final long probeId = 2468L;
+        final String customOp = "custom";
+        // set up custom operation
+        when(library.stitchingOperationsFor(eq("some-hypervisor-probe"), eq(ProbeCategory.STORAGE)))
+                .thenReturn(Collections.singletonList(firstOperation));
+        when(firstOperation.getOperationName()).thenReturn(customOp);
+        when(firstOperation.getInternalEntityType()).thenReturn(EntityType.BUSINESS_ACCOUNT);
+        when(firstOperation.getExternalEntityType()).thenReturn(Optional.of(EntityType.BUSINESS_ACCOUNT));
+
+        // set up data driven operation
+        final MediationMessage.ProbeInfo probe1Info = createProbeInfo("some-hypervisor-probe",
+                createTemplateDTO(ReturnType.LIST_STRING, ReturnType.LIST_STRING,
+                        EntityType.SERVICE_PROVIDER));
+        store.setOperationsForProbe(probeId, probe1Info, Sets.newHashSet());
+        assertEquals(2, store.getOperationsForProbe(probeId).get().size());
+        String opName1 = store.getOperationsForProbe((probeId)).get().get(0).getOperationName();
+        String opName2 = store.getOperationsForProbe((probeId)).get().get(1).getOperationName();
+        assertEquals("ListStringToListStringDataDrivenStitchingOperation", opName1);
+        assertEquals(customOp, opName2);
+
+    }
+
+    /**
+     * tests the combination of data driven and custom stitching operations for a probe where
+     * there is overlap of entity types between the two.
+     * @throws Exception exceptions thrown by the stitching library
+     */
+    @Test
+    public void testDataAndCustomOperationsWithOverlap() throws Exception {
+
+        final long probeId = 2468L;
+        // set up custom operation
+        when(library.stitchingOperationsFor(eq("some-hypervisor-probe"), eq(ProbeCategory.STORAGE)))
+                .thenReturn(Collections.singletonList(firstOperation));
+        when(firstOperation.getInternalEntityType()).thenReturn(EntityType.BUSINESS_ACCOUNT);
+        when(firstOperation.getExternalEntityType()).thenReturn(Optional.of(EntityType.BUSINESS_ACCOUNT));
+
+        // set up data driven operation
+        final MediationMessage.ProbeInfo probe1Info = createProbeInfo("some-hypervisor-probe",
+                createTemplateDTO(ReturnType.LIST_STRING, ReturnType.LIST_STRING,
+                        EntityType.BUSINESS_ACCOUNT));
+        store.setOperationsForProbe(probeId, probe1Info, Sets.newHashSet());
+        assertEquals(1, store.getOperationsForProbe(probeId).get().size());
+        String opName = store.getOperationsForProbe((probeId)).get().get(0).getOperationName();
+        assertEquals("ListStringToListStringDataDrivenStitchingOperation", opName);
+
+    }
+
 }

@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
+import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
@@ -23,6 +24,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -74,6 +76,22 @@ public class ActionStatsConfig {
         return new ClusterActionAggregatorFactory(groupClientConfig.groupChannel(), repositoryClientConfig.repositoryChannel());
     }
 
+    /**
+     * Factory for business account aggregators.
+     *
+     * @return The {@link BusinessAccountActionAggregatorFactory}.
+     */
+    @Bean
+    public BusinessAccountActionAggregatorFactory businessAccountActionAggregatorFactory() {
+        return new BusinessAccountActionAggregatorFactory(
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+    }
+
+    /**
+     * Factory for global aggregators.
+     *
+     * @return The {@link GlobalAggregatorFactory}.
+     */
     @Bean
     public GlobalAggregatorFactory globalAggregatorFactory() {
         return new GlobalAggregatorFactory();
@@ -128,7 +146,7 @@ public class ActionStatsConfig {
                 actionGroupStore(),
                 mgmtUnitSubgroupStore(),
                 snapshotFactory(),
-                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory()),
+                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(), businessAccountActionAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());

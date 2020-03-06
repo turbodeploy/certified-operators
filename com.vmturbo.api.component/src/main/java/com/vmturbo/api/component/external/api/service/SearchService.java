@@ -345,10 +345,11 @@ public class SearchService implements ISearchService {
         // TODO most of the cases below only handle one type of scope.  We need to generalize scope
         // handling to handle target, market, entity, or group for all use cases.
         if (StringUtils.isNotEmpty(groupType)) {
-            // if 'groupType' is specified, this MUST be a search over GROUPs
+            // Get all groups containing elements of type 'groupType' including any type of group
+            // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, groupType, environmentType, scopes, false);
+                paginationRequest, groupType, environmentType, scopes, true);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.

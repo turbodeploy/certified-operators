@@ -308,6 +308,24 @@ public class GroupDaoTest {
     }
 
     /**
+     * Tests creating  a group with a property filter of a different type compared to the one we
+     * are expecting.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void createUserGroupWithInvalidTypeOfProperty() throws Exception {
+        final GroupDefinition groupDefinition = createGroupDefinitionWithInvalidId();
+        final Origin origin = createUserOrigin();
+        final Set<MemberType> memberTypes = new HashSet<>(
+            Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
+                MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build()));
+        expectedException.expect(IllegalArgumentException.class);
+        groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, false);
+
+    }
+
+    /**
      * Tests creating of a group with property filter for the property that is not supported.
      * Runtime exception is expected.
      *
@@ -869,6 +887,21 @@ public class GroupDaoTest {
                 .filter(group -> group.getId() == oid)
                 .findFirst();
         return grouping.orElseThrow(() -> new AssertionError("Group not found by id " + oid));
+    }
+
+    private GroupDefinition createGroupDefinitionWithInvalidId() {
+        return GroupDefinition.newBuilder()
+            .setType(GroupType.REGULAR)
+            .setDisplayName("GroupName")
+            .setGroupFilters(GroupFilters.newBuilder().addGroupFilter(
+                GroupFilter.newBuilder()
+                    .addAllPropertyFilters(Arrays.asList(PropertyFilter.newBuilder().setPropertyName("oid").setStringFilter(StringFilter.newBuilder()
+                        .addAllOptions(Arrays.asList("12345abcd"))
+                        .setCaseSensitive(true)
+                        .setPositiveMatch(true)
+                        .build()).build()))
+                    .build())
+                .build()).build();
     }
 
     /**

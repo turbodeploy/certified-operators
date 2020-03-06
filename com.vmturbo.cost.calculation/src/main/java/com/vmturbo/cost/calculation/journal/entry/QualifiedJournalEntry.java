@@ -1,15 +1,15 @@
-package com.vmturbo.cost.calculation.journalentry;
-
-import javax.annotation.Nonnull;
+package com.vmturbo.cost.calculation.journal.entry;
 
 import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.CostJournal.RateExtractor;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.trax.TraxNumber;
 
 /**

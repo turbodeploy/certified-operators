@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Scop
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 
 /**
  * Responsible for creating a {@link QueryInfo} from a {@link SingleQuery}
@@ -76,16 +77,16 @@ public class QueryInfoFactory {
                 entityPredicate = actionEntity -> desiredEntityIds.contains(actionEntity.getId());
                 break;
             case GLOBAL:
-                final Predicate<ActionEntity> envTypePredicate =
-                    scopeFilter.getGlobal().hasEnvironmentType() ?
-                        entity -> {
-                            // In the case of unknown environment type we default to on-prem.
-                            final EnvironmentType entityEnv =
-                                entity.getEnvironmentType() == EnvironmentType.CLOUD ?
-                                    EnvironmentType.CLOUD : EnvironmentType.ON_PREM;
-                            return entityEnv == scopeFilter.getGlobal().getEnvironmentType();
-                        }: entity -> true;
-
+                final Predicate<ActionEntity> envTypePredicate;
+                if (!scopeFilter.getGlobal().hasEnvironmentType()) {
+                    envTypePredicate = entity -> true;
+                } else {
+                    // use standard environment matching for entities
+                    // as implemented in EnvironmentTypeUtil
+                    final EnvironmentType envTypeQuery = scopeFilter.getGlobal().getEnvironmentType();
+                    envTypePredicate = entity -> EnvironmentTypeUtil.matchingPredicate(envTypeQuery)
+                                                        .test(entity.getEnvironmentType());
+                }
                 final Set<Integer> desiredEntityTypes =
                     Sets.newHashSet(scopeFilter.getGlobal().getEntityTypeList());
 

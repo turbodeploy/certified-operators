@@ -124,6 +124,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -134,6 +135,14 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
  * returned from the API.
  */
 public class ActionSpecMapper {
+
+    /**
+     * Define the String format with which to encode floating point (double) values in actions.
+     *
+     * <p>We use this particular format for backwards-compatibility with API v2.</p>
+     */
+    private static final String FORMAT_FOR_ACTION_VALUES = "%.1f";
+
     // Currencies by numeric code map will is a map of numeric code to the Currency.
     // TODO: But the numeric code is not unique. As of writing this, there are a few currencies
     // which share numeric code. They are:
@@ -613,6 +622,8 @@ public class ActionSpecMapper {
             AspectName.CLOUD, cloudAspect));
         context.getVMAspect(targetEntityId).map(vmAspect -> aspects.put(
             AspectName.VIRTUAL_MACHINE, vmAspect));
+        context.getDBAspect(targetEntityId).map(dbAspect -> aspects.put(
+            AspectName.DATABASE, dbAspect));
         targetEntity.setAspectsByName(aspects);
 
         // add more info for cloud actions
@@ -1246,8 +1257,18 @@ public class ActionSpecMapper {
         if (resize.hasCommodityAttribute()) {
             actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
         }
-        actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
-        actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
+        actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
+        actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
+        try {
+            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
+            if (!StringUtils.isEmpty(units)) {
+                actionApiDTO.setValueUnits(units);
+            }
+        } catch (IllegalArgumentException e) {
+            // the Enum is missing, it may be expected if there is no units associated with the
+            // commodity, or unexpected if someone forgot to define units for the commodity
+            logger.warn("No units for commodity {}", commodityType);
+        }
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resize.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1414,7 +1435,9 @@ public class ActionSpecMapper {
         actionApiDTO.setActionType(ActionType.DELETE);
         long deletedSizeinKB = deleteExplanation.getSizeKb();
         if (deletedSizeinKB > 0) {
-            actionApiDTO.setCurrentValue(Math.round(deletedSizeinKB / Units.NUM_OF_KB_IN_MB) + "MB");
+            final double deletedSizeInMB = deletedSizeinKB / (double)Units.NUM_OF_KB_IN_MB;
+            actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, deletedSizeInMB));
+            actionApiDTO.setValueUnits("MB");
         }
         // set the virtualDisks field on ActionApiDTO, only one VirtualDiskApiDTO should be set,
         // since there is only one file (on-prem) or volume (cloud) associated with DELETE action

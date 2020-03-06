@@ -366,6 +366,8 @@ defaultProperties:
         # If true, calculate headroom for all clusters in one plan instance.
         # If false, calculate headroom for restricted number of clusters in multiple plan instances.
         headroomCalculationForAllClusters: true
+        # Number of analysis threads to start
+        numPlanAnalysisThreads: 5
     reporting:
         dbSchemaName: vmtdb
         identityGeneratorPrefix: 8
@@ -512,4 +514,4 @@ defaultProperties:
         # and the market should perform analysis on them, or if the Buy RI Impact Analysis should be performed.
         # BUY_RI_IMPACT_ANALYSIS is evaluated to true if either it's OCP with RI Buy only, or it's OCP with RI Buy + Market Optimization,
         # and allowBoughtRiInAnalysis is false.
-        allowBoughtRiInAnalysis: false
+        allowBoughtRiInAnalysis: true

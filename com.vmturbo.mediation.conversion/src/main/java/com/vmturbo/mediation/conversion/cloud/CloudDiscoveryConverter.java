@@ -119,11 +119,7 @@ public class CloudDiscoveryConverter {
         EntityDTO.Builder entityBuilder = entityDTO.toBuilder();
         EntityType entityType = entityBuilder.getEntityType();
 
-        if (entityType == EntityType.PHYSICAL_MACHINE) {
-            entityBuilder.setEntityType(EntityType.AVAILABILITY_ZONE);
-        } else if (entityType == EntityType.DATACENTER) {
-            entityBuilder.setEntityType(EntityType.REGION);
-        } else if (entityType == EntityType.STORAGE) {
+        if (entityType == EntityType.STORAGE) {
             createStorageTier(entityDTO);
             createVolumeFromStorageDTO(entityDTO);
         } else if (entityType == EntityType.BUSINESS_ACCOUNT) {

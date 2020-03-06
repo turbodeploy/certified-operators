@@ -29,7 +29,6 @@ import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.AvailabilityZoneConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -38,7 +37,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConver
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
@@ -141,7 +139,8 @@ public class AwsCloudDiscoveryConverterTest {
             // check providers changed (vm may consumes multiple storages, convert each to new type)
             verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
                     EntityType.STORAGE, EntityType.STORAGE_TIER,
-                    EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER
+                    EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER,
+                    EntityType.AVAILABILITY_ZONE, EntityType.COMPUTE_TIER
             ), ImmutableList.of(EntityType.AVAILABILITY_ZONE));
 
             // check old connected
@@ -452,7 +451,7 @@ public class AwsCloudDiscoveryConverterTest {
 
     @Test
     public void testAvailabilityZoneConverter() {
-        IEntityConverter converter = new AvailabilityZoneConverter(SDKProbeType.AWS);
+        IEntityConverter converter = new DefaultConverter();
         newEntitiesByType.get(EntityType.AVAILABILITY_ZONE).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
@@ -480,7 +479,7 @@ public class AwsCloudDiscoveryConverterTest {
 
     @Test
     public void testRegionConverter() {
-        IEntityConverter converter = new RegionConverter(SDKProbeType.AWS);
+        IEntityConverter converter = new DefaultConverter();
         newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);

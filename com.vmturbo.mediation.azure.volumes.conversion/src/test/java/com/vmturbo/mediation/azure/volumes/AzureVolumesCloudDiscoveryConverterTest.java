@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
@@ -29,7 +30,7 @@ public class AzureVolumesCloudDiscoveryConverterTest {
         .class.getClassLoader().getResource(
             "data/azure_wasted_volumes_engineering.management.core.windows.net.txt").getPath();
 
-    private static AzureVolumesCloudDiscoveryConverter azureVolumesConverter;
+    private static CloudDiscoveryConverter azureVolumesConverter;
 
     private static AzureVolumesConversionContext azureVolumesConversionContext;
 
@@ -41,7 +42,7 @@ public class AzureVolumesCloudDiscoveryConverterTest {
     public static void setup() {
         DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(AZURE_ENGINEERING_FILE_PATH);
         azureVolumesConversionContext = new AzureVolumesConversionContext();
-        azureVolumesConverter = new AzureVolumesCloudDiscoveryConverter(discoveryResponse,
+        azureVolumesConverter = new CloudDiscoveryConverter(discoveryResponse,
             azureVolumesConversionContext);
         azureVolumesConverter.preProcess();
 

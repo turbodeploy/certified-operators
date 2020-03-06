@@ -523,7 +523,7 @@ public class GroupsServiceTest {
         member2Dto.setUuid(Long.toString(member2Id));
 
         Mockito.when(
-                repositoryApi.getByIds(Collections.singleton(member2Id), Collections.emptyList(),
+                repositoryApi.getByIds(Collections.singleton(member2Id), Collections.emptySet(),
                         false))
                 .thenReturn(new RepositoryRequestResult(Collections.emptySet(),
                         Collections.singleton(member2Dto)));
@@ -582,7 +582,7 @@ public class GroupsServiceTest {
         final GroupAndMembers groupAndMembers = groupAndMembers(group, membersSet);
         Mockito.when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.of(groupAndMembers));
         Mockito.when(repositoryApi.getByIds(Sets.newHashSet(member1Id, member2Id),
-                Collections.emptyList(), false))
+                Collections.emptySet(), false))
                 .thenReturn(new RepositoryRequestResult(Arrays.asList(member1Dto, member2Dto),
                         Collections.emptySet()));
         final GroupMembersPaginationRequest request =
@@ -667,7 +667,7 @@ public class GroupsServiceTest {
         final GroupAndMembers groupAndMembers = groupAndMembers(group, membersSet);
         Mockito.when(groupExpander.getGroupWithMembers("1")).thenReturn(Optional.of(groupAndMembers));
         final ArgumentCaptor<Collection<Long>> collectionCaptor = ArgumentCaptor.forClass((Class)Collection.class);
-        Mockito.when(repositoryApi.getByIds(collectionCaptor.capture(), eq(Collections.emptyList()), eq(false)))
+        Mockito.when(repositoryApi.getByIds(collectionCaptor.capture(), eq(Collections.emptySet()), eq(false)))
             .thenReturn(new RepositoryRequestResult(
                 Collections.emptyList(),
                 // We assume that we were asked for 20, return 20, and check to make sure we asked

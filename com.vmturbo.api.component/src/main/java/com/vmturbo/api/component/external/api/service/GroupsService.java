@@ -991,7 +991,7 @@ public class GroupsService implements IGroupsService {
                         .limit(request.getLimit())
                         .collect(Collectors.toSet());
                     final RepositoryRequestResult entities =
-                            repositoryApi.getByIds(nextPageIds, Collections.emptyList(), false);
+                            repositoryApi.getByIds(nextPageIds, Collections.emptySet(), false);
                     final Collection<BaseApiDTO> results = new ArrayList<>(
                             entities.getBusinessAccounts().size() +
                                     entities.getServiceEntities().size());

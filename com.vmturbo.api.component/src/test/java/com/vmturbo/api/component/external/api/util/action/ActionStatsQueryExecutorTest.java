@@ -6,7 +6,9 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -14,13 +16,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
+import org.junit.Rule;
+import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -34,20 +34,17 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 
 public class ActionStatsQueryExecutorTest {
 
@@ -59,13 +56,14 @@ public class ActionStatsQueryExecutorTest {
     private CurrentQueryMapper currentQueryMapper = mock(CurrentQueryMapper.class);
     private ActionStatsMapper actionStatsMapper = mock(ActionStatsMapper.class);
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+    private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceMole);
 
     @Test
     public void testExecuteHistoricalQuery() throws OperationFailedException {
-        final ActionStatsQueryExecutor executor = new ActionStatsQueryExecutor(
+        final ActionStatsQueryExecutor executor = new ActionStatsQueryExecutor(clock,
             ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             userSessionContext,
             uuidMapper,
@@ -77,7 +75,7 @@ public class ActionStatsQueryExecutorTest {
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setGroupBy(new ArrayList<>());
         when(actionStatsQuery.actionInput()).thenReturn(inputDTO);
-        when(actionStatsQuery.isHistorical()).thenReturn(true);
+        when(actionStatsQuery.isHistorical(clock)).thenReturn(true);
         EntityAccessScope userScope = mock(EntityAccessScope.class);
         when(userScope.containsAll()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
@@ -111,11 +109,12 @@ public class ActionStatsQueryExecutorTest {
 
         assertThat(retStats.keySet(), contains(apiId));
         assertThat(retStats.get(apiId), is(expectedRetStats));
+        verify(currentQueryMapper, never()).mapToCurrentQueries(any());
     }
 
     @Test
     public void testExecuteCurrentQueryOnly() throws OperationFailedException {
-        final ActionStatsQueryExecutor executor = new ActionStatsQueryExecutor(
+        final ActionStatsQueryExecutor executor = new ActionStatsQueryExecutor(clock,
             ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             userSessionContext,
             uuidMapper,
@@ -124,7 +123,7 @@ public class ActionStatsQueryExecutorTest {
             actionStatsMapper,
             repositoryApi);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
-        when(actionStatsQuery.isHistorical()).thenReturn(false);
+        when(actionStatsQuery.isHistorical(clock)).thenReturn(false);
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setGroupBy(new ArrayList<>());
         when(actionStatsQuery.actionInput()).thenReturn(inputDTO);
@@ -158,5 +157,6 @@ public class ActionStatsQueryExecutorTest {
 
         assertThat(snapshots.keySet(), contains(scopeId));
         assertThat(snapshots.get(scopeId), contains(translatedLiveStat));
+        verify(historicalQueryMapper, never()).mapToHistoricalQueries(any());
     }
 }

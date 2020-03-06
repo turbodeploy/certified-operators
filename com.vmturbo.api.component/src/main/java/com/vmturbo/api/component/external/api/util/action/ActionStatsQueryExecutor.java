@@ -36,6 +36,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.CompositeEntityTypesSpec;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
@@ -72,6 +73,21 @@ public class ActionStatsQueryExecutor {
 
     private final RepositoryApi repositoryApi;
 
+    private final Clock clock;
+
+    /**
+     * Constructor for the executor.
+     *
+     * @param clock {@link Clock} used to determine the current time.
+     * @param actionsServiceBlockingStub Stub to the action orchestrator's actions service.
+     * @param actionSpecMapper {@link ActionSpecMapper}.
+     * @param uuidMapper {@link UuidMapper} to map UI string IDs to IDs in the platform.
+     * @param groupExpander {@link GroupExpander} to help expand group members.
+     * @param supplyChainFetcherFactory {@link SupplyChainFetcherFactory} to expand supply chain.
+     * @param userSessionContext {@link UserSessionContext} to enforce user scope.
+     * @param repositoryApi {@link RepositoryApi} for repository access.
+     * @param buyRiScopeHandler {@link BuyRiScopeHandler}.
+     */
     public ActionStatsQueryExecutor(@Nonnull final Clock clock,
                                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                                     @Nonnull final ActionSpecMapper actionSpecMapper,
@@ -81,27 +97,26 @@ public class ActionStatsQueryExecutor {
                                     @Nonnull final UserSessionContext userSessionContext,
                                     @Nonnull final RepositoryApi repositoryApi,
                                     @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
-        this(actionsServiceBlockingStub,
+        this(clock, actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
-            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler),
+            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, clock),
             new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory,
                     userSessionContext, repositoryApi, buyRiScopeHandler),
             new ActionStatsMapper(clock, actionSpecMapper),
             repositoryApi);
     }
 
-    /**
-     * Constructor for unit testing purposes.
-     */
     @VisibleForTesting
-    ActionStatsQueryExecutor(@Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
+    ActionStatsQueryExecutor(@Nonnull final Clock clock,
+                             @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                              @Nonnull final UserSessionContext userSessionContext,
                              @Nonnull final UuidMapper uuidMapper,
                              @Nonnull final HistoricalQueryMapper historicalQueryMapper,
                              @Nonnull final CurrentQueryMapper currentQueryMapper,
                              @Nonnull final ActionStatsMapper actionStatsMapper,
                              @Nonnull final RepositoryApi repositoryApi) {
+        this.clock = clock;
         this.actionsServiceBlockingStub = Objects.requireNonNull(actionsServiceBlockingStub);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -125,7 +140,14 @@ public class ActionStatsQueryExecutor {
             throws OperationFailedException {
         final EntityAccessScope userScope = userSessionContext.getUserAccessScope();
         final Map<ApiId, List<StatSnapshotApiDTO>> retStats = new HashMap<>(query.scopes().size());
-        if (query.isHistorical()) {
+
+        // We issue a historical OR a current query. Combining historical and current results can
+        // lead to confusion. There are delays between when actions disappear from "current" results
+        // (as they're cleared when processing action plans from the market)
+        // and when they appear in the historical data. If we co-display historical and current
+        // results it can be confusing to the user, because actions will seem to disappear
+        // entirely during those delays.
+        if (query.isHistorical(clock)) {
             if (!userScope.containsAll()) {
                 logger.warn("Scoped user (scope: {}) requested historical action stats." +
                     "Will not return any.", userScope.toString());
@@ -151,41 +173,40 @@ public class ActionStatsQueryExecutor {
                         singleResponse.getActionStats(), query));
                 });
             }
-        }
-
-        // Now get the current stats.
-
-        final Map<ApiId, CurrentActionStatsQuery> curQueries = currentQueryMapper.mapToCurrentQueries(query);
-        final GetCurrentActionStatsRequest.Builder curReqBldr = GetCurrentActionStatsRequest.newBuilder();
-        curQueries.forEach((scopeId, scopeQuery) -> curReqBldr.addQueries(
-            GetCurrentActionStatsRequest.SingleQuery.newBuilder()
-                .setQueryId(scopeId.oid())
-                .setQuery(scopeQuery)
-                .build()));
-        final GetCurrentActionStatsResponse curResponse =
-            actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
-        final Map<Long, MinimalEntity> entityLookup;
-        // If the request was to group by templates, then we group by target id. For these
-        // requests, we need to get the names of the target ids from the search service
-        if (query.actionInput().getGroupBy() != null &&
-                query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
-            Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
-                .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
-                .filter(stat -> stat.getStatGroup().hasTargetEntityId())
-                .map(stat -> stat.getStatGroup().getTargetEntityId())
-                .collect(Collectors.toSet());
-            entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
-                .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
         } else {
-            entityLookup = Collections.emptyMap();
+            // Not a historical query, so we get the "current" action stats.
+            final Map<ApiId, CurrentActionStatsQuery> curQueries = currentQueryMapper.mapToCurrentQueries(query);
+            final GetCurrentActionStatsRequest.Builder curReqBldr = GetCurrentActionStatsRequest.newBuilder();
+            curQueries.forEach((scopeId, scopeQuery) -> curReqBldr.addQueries(
+                GetCurrentActionStatsRequest.SingleQuery.newBuilder()
+                    .setQueryId(scopeId.oid())
+                    .setQuery(scopeQuery)
+                    .build()));
+            final GetCurrentActionStatsResponse curResponse =
+                actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
+            final Map<Long, MinimalEntity> entityLookup;
+            // If the request was to group by templates, then we group by target id. For these
+            // requests, we need to get the names of the target ids from the search service
+            if (query.actionInput().getGroupBy() != null &&
+                query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+                Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
+                    .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
+                    .filter(stat -> stat.getStatGroup().hasTargetEntityId())
+                    .map(stat -> stat.getStatGroup().getTargetEntityId())
+                    .collect(Collectors.toSet());
+                entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
+                    .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+            } else {
+                entityLookup = Collections.emptyMap();
+            }
+            curResponse.getResponsesList().forEach(singleResponse -> {
+                final List<StatSnapshotApiDTO> snapshots = retStats.computeIfAbsent(
+                    uuidMapper.fromOid(singleResponse.getQueryId()),
+                    k -> new ArrayList<>(1));
+                snapshots.add(actionStatsMapper.currentActionStatsToApiSnapshot(
+                    singleResponse.getActionStatsList(), query, entityLookup));
+            });
         }
-        curResponse.getResponsesList().forEach(singleResponse -> {
-            final List<StatSnapshotApiDTO> snapshots = retStats.computeIfAbsent(
-                uuidMapper.fromOid(singleResponse.getQueryId()),
-                k -> new ArrayList<>(1));
-            snapshots.add(actionStatsMapper.currentActionStatsToApiSnapshot(
-                singleResponse.getActionStatsList(), query, entityLookup));
-        });
         return retStats;
     }
 
@@ -200,6 +221,8 @@ public class ActionStatsQueryExecutor {
          * action stats are only available for certain types of objects (e.g. global environment,
          * clusters). Querying for "invalid" types of objects (e.g. individual entities) will
          * return no results.
+         *
+         * @return The scopes.
          */
         Set<ApiId> scopes();
 
@@ -209,24 +232,43 @@ public class ActionStatsQueryExecutor {
          * ({@link ActionApiInputDTO#getRelatedEntityTypes()}) but some REST API calls accept
          * a separate entity type, so we add it here instead of forcing them to change the
          * input DTO.
+         *
+         * @return The entity type, if any.
          */
         Optional<Integer> entityType();
 
         /**
          * The {@link ActionApiInputDTO} that specifies the kinds of stats to retrieve.
          * Note that we don't support all the possible options and groupings.
+         *
+         * @return The {@link ActionApiInputDTO} input from the API.
          */
         ActionApiInputDTO actionInput();
 
         /**
          * The time stamp when the query was constructed.
+         *
+         * @return The time of the query.
          */
         Optional<String> currentTimeStamp();
 
-        default boolean isHistorical() {
-            return actionInput().getStartTime() != null && actionInput().getEndTime() != null;
+        /**
+         * Return whether or not the query should be considered historical.
+         *
+         * @param clock The clock to use to determine current time.
+         * @return True if the query is a historical query.
+         */
+        default boolean isHistorical(@Nonnull final Clock clock) {
+            // A query is historical if it has a start time in the past.
+            return actionInput().getStartTime() != null &&
+                DateTimeUtil.parseTime(actionInput().getStartTime()) < clock.millis();
         }
 
+        /**
+         * Get the related entity types specified in the {@link ActionApiInputDTO}.
+         *
+         * @return The set of related entity types extracted from the API input.
+         */
         @Nonnull
         default Set<Integer> getRelatedEntityTypes() {
             final Set<Integer> types = new HashSet<>();

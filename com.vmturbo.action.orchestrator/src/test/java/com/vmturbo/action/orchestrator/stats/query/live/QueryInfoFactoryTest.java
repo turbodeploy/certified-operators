@@ -149,11 +149,10 @@ public class QueryInfoFactoryTest {
         final ActionEntity unsetEnvVm = ActionEntity.newBuilder()
             .setId(123)
             .setType(VM)
-            // No env type. Should get treated as on-prem
             .build();
         assertTrue(queryInfo.entityPredicate().test(ON_PREM_VM));
         assertFalse(queryInfo.entityPredicate().test(CLOUD_VM));
-        assertTrue(queryInfo.entityPredicate().test(unsetEnvVm));
+        assertFalse(queryInfo.entityPredicate().test(unsetEnvVm));
     }
 
     @Test
