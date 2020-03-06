@@ -22,7 +22,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
@@ -206,18 +205,11 @@ public class CloudDiscoveryConverter {
             int numInstanceStores = entityDTO.getVirtualMachineData().getNumEphemeralStorages();
             final EntityProfileDTO profileDTO = profileDTOsById.get(entityDTO.getProfileId());
             if (profileDTO != null && profileDTO.hasVmProfileDTO()) {
-                final String zoneId = entityDTO.getCommoditiesBoughtList().stream()
-                        .filter(c -> c.getProviderType() == EntityType.PHYSICAL_MACHINE)
-                        .map(CommodityBought::getProviderId)
-                        .findAny().orElse(null);
-                if (zoneId == null) {
-                    return;
-                }
                 final String diskType = profileDTO.getVmProfileDTO().getInstanceDiskType().toString();
                 final int diskSizeInGB = profileDTO.getVmProfileDTO().getInstanceDiskSize();
                 final String entityId = entityDTO.getId();
                 for (int index = 0; index < numInstanceStores; index++) {
-                    final String id = createEphemeralVolumeId(entityId, index, zoneId, diskType);
+                    final String id = createEphemeralVolumeId(entityId, index, diskType);
                     newEntityBuildersById.computeIfAbsent(id, k -> EntityDTO.newBuilder()
                             .setEntityType(EntityType.VIRTUAL_VOLUME)
                             .setId(id)
@@ -553,16 +545,14 @@ public class CloudDiscoveryConverter {
     /**
      * Constructs the volume id for ephemeral volumes.
      * @param entityOid - the oid of the entity the instance store is on.
-     * @param i - the volume index
-     * @param zone - the availability zone for the VM that the volume is attached to.
+     * @param i - the volume indexNull region name fo
      * @param diskType - the disk type.
      * @return - volume id
      */
     public String createEphemeralVolumeId(final String entityOid,
-                                          final int i, final String zone, final String diskType) {
+                                          final int i, final String diskType) {
         final String volumePath =
                 String.join( "_", ImmutableList.of(entityOid, diskType, (EPHEMERAL + i)));
-        // the VM id contains the zone info, and, hence does not need to be included.
-        return getVolumeId(null, volumePath).orElse(volumePath);
+        return volumePath;
     }
 }
