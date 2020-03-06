@@ -128,35 +128,6 @@ public class TopologyDTOUtilTest {
             EntityType.STORAGE_TIER_VALUE));
     }
 
-    /**
-     * Test that the volume key is truncated to 79 characters, if the volume key exceeds 80
-     * characters.
-     */
-    @Test
-    public void testCreateVolumeKeyMoreThanMaxKeyLength() {
-        final String volumeName = new String(new char[90]).replace('\0', 'v');
-        final TopologyEntityDTO volume = TopologyEntityDTO.newBuilder()
-                .setOid(111111L)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setDisplayName(volumeName)
-                .build();
-        Assert.assertEquals(79, TopologyDTOUtil.createVolumeKey(volume).length());
-    }
-
-    /**
-     * Test that the volume key is *not* truncated, if the volume key is equal to 80 characters.
-     */
-    @Test
-    public void testCreateVolumeKeyEqualToMaxKeyLength() {
-        final String volumeName = new String(new char[80]).replace('\0', 'v');
-        final TopologyEntityDTO volume = TopologyEntityDTO.newBuilder()
-                .setOid(111111L)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setDisplayName(volumeName)
-                .build();
-        Assert.assertEquals(80, TopologyDTOUtil.createVolumeKey(volume).length());
-    }
-
     @Nonnull
     private TopologyEntityDTO.Builder newEntity() {
         return TopologyEntityDTO.newBuilder()

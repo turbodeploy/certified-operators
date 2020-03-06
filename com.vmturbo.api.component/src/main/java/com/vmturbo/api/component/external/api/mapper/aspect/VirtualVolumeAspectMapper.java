@@ -826,7 +826,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final GetMostRecentStatRequest request = GetMostRecentStatRequest.newBuilder()
                 .setCommodityName(StringConstants.STORAGE_AMOUNT)
                 .setEntityType(StringConstants.VIRTUAL_MACHINE)
-                .setCommodityKey(TopologyDTOUtil.createVolumeKey(volume))
+                .setCommodityKey(Long.toString(volume.getOid()))
                 .build();
         final GetMostRecentStatResponse response = historyRpcService.getMostRecentStat(request);
         logger.debug("Unattached volume history for volume: {}, request: {}, response: {}",
