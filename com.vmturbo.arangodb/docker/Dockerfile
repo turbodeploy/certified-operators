@@ -49,8 +49,8 @@ ADD rsyslog.conf /etc
 VOLUME ["/var/lib/arangodb3", "/var/lib/arangodb3-apps", "/home/arangodb/arangodb-dump"]
 
 # Copy scripts to dump/restore data during upgrades
-COPY mmfiles-dump.sh mmfiles-restore.sh /
-RUN chmod +x /mmfiles-dump.sh /mmfiles-restore.sh
+COPY mmfiles-dump.sh mmfiles-restore.sh wait-during-start.sh /
+RUN chmod +x /mmfiles-dump.sh /mmfiles-restore.sh /wait-during-start.sh
 
 COPY docker-entrypoint.sh /entrypoint.sh
 COPY arango_dump_restore.py /
