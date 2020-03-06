@@ -12,7 +12,9 @@ import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -46,6 +48,8 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 )
 @TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanProjectedEntityCostStoreTest {
+    @Rule
+    public TestName name = new TestName();
     private static final long PLAN_ID = 1L;
     private static final double DELTA = 0.01;
 
@@ -79,8 +83,11 @@ public class PlanProjectedEntityCostStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
-        store = new PlanProjectedEntityCostStore(dsl, chunkSize);
-        updateCostsTable();
+        // Tests whose names begin with "testChunked" skip this initialization and do it themselves.
+        if (!name.getMethodName().startsWith("testChunked")) {
+            store = new PlanProjectedEntityCostStore(dsl, chunkSize);
+            updateCostsTable();
+        }
     }
 
     @After
@@ -90,6 +97,19 @@ public class PlanProjectedEntityCostStoreTest {
 
     @Test
     public void testUpdateProjectedEntityCostsTable() {
+        commonUpdateProjectedEntityCostsTableVerification();
+    }
+
+    @Test
+    public void testChunkedUpdateProjectedEntityCostsTable() {
+        // This is a chunk test, so need to complete test setup. Use a chunk size of 1 to force
+        // processing in multiple chunks.
+        store = new PlanProjectedEntityCostStore(dsl, 1);
+        updateCostsTable();
+        commonUpdateProjectedEntityCostsTableVerification();
+    }
+
+    private void commonUpdateProjectedEntityCostsTableVerification() {
         final List<PlanProjectedEntityCostRecord> records = dsl
                 .selectFrom(Tables.PLAN_PROJECTED_ENTITY_COST).fetch();
         assertEquals(2, records.size());

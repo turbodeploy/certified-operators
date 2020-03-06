@@ -62,7 +62,7 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
                                                   Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID,
                                                   Tables.PLAN_PROJECTED_ENTITY_COST.ASSOCIATED_ENTITY_ID,
                                                   Tables.PLAN_PROJECTED_ENTITY_COST.ENTITY_COST);
-                for (EntityCost cost : entityCosts) {
+                for (EntityCost cost : e) {
                     step = step.values(topoInfo.getTopologyContextId(),
                                        cost.getAssociatedEntityId(),
                                        cost);
