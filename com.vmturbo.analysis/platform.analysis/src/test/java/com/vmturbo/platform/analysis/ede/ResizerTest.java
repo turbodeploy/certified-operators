@@ -399,12 +399,49 @@ public class ResizerTest {
         assertEquals(ActionType.RESIZE, actions.get(0).getType());
         Resize resize1 = (Resize)actions.get(0);
         assertEquals(resize1.getActionTarget(), vm);
-        assertEquals(resize1.getNewCapacity(), resize1.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals("new capacity (" + resize1.getNewCapacity() + ") cannot resize below max quantity of 90",
+            resize1.getNewCapacity(), resize1.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
         assertEquals(ActionType.RESIZE, actions.get(1).getType());
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
-        assertEquals(resize2.getNewCapacity(),  resize2.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals("new capacity (" + resize1.getNewCapacity() + ") cannot resize below max quantity of 90",
+            resize2.getNewCapacity(),  resize2.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
 
+    }
+
+    /**
+     * When historical and max quantity or both set, resize should go below max quantity, but not
+     * below historical quantity.
+     */
+    @Test
+    public void testResizeDownLowerThanMaxQuantityAndHistoricalUsage() {
+        final float maxQuantity = 90;
+        final float historicalQuantity = 25;
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            100, 100, 1, 1, 1, 1, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(maxQuantity));
+        vm.getCommoditiesSold().stream().forEach(c -> c.setHistoricalQuantity(historicalQuantity));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(resize1.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
+            resize1.getNewCapacity() < 90);
+        assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
+            resize1.getNewCapacity() >= 25);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(resize2.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
+            resize2.getNewCapacity() < 90);
+        assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
+            resize1.getNewCapacity() >= 25);
     }
 
     /**

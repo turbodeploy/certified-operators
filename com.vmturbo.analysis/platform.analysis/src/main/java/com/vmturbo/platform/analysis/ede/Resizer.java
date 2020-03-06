@@ -436,7 +436,9 @@ public class Resizer {
      * In addition, the following limits are placed on the resize amount:
      *
      * <ul>
-     * <li>The capacity is not allowed to drop below the commodity's maxQuantity or peakQuantity.</li>
+     * <li>The capacity is not allowed to drop below the commodity's historical percentile commodity
+     *     if available. If not available, then the capacity is not allowed to drop below the max
+     *     quantity. In both cases, it cannot drop below the peakQuantity.</li>
      * <li>The capacity is not allowed to change if there is no current or historical use data.</li>
      * <li>The capacity is not allowed to drop below a single capacity increment amount.</li>
      * </ul>
@@ -458,11 +460,28 @@ public class Resizer {
                                                     double capacityIncrement,
                                                     double rateOfRightSize) {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
-        double maxQuantity = resizeCommodity.getMaxQuantity();
+        if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+            logger.info("calculateResizeDownAmount for trader {}"
+                + " with isHistoricalQuantitySet={},"
+                + " historicalOrElseCurrentQuantity={}"
+                + " maxQuantity={}",
+                () -> seller.getDebugInfoNeverUseInCode(),
+                () -> resizeCommodity.isHistoricalQuantitySet(),
+                () -> resizeCommodity.getHistoricalOrElseCurrentQuantity(),
+                () -> resizeCommodity.getMaxQuantity());
+        }
+        final double historicalOrMaxQuantity;
+        if (resizeCommodity.isHistoricalQuantitySet()) {
+            historicalOrMaxQuantity = resizeCommodity.getHistoricalOrElseCurrentQuantity();
+        } else {
+            // On some commodities we do not track the historical percentile. As a result, we fall
+            // back to max quantity to ensure we do not resize outside of the customer's expectation.
+            historicalOrMaxQuantity = resizeCommodity.getMaxQuantity();
+        }
         double peakQuantity = resizeCommodity.getPeakQuantity();
 
         // don't permit downward resize if there's no usage data
-        if (resizeCommodity.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
+        if (resizeCommodity.getQuantity() == 0 && historicalOrMaxQuantity == 0 && peakQuantity == 0) {
             return 0.0;
         }
         // If the current capacity is already lesser than or equal to the capacity lower bound,
@@ -470,11 +489,11 @@ public class Resizer {
         double capacityLowerBound = currentCapacity <= resizeCommodity.getSettings().getCapacityLowerBound()
             ? 0 : resizeCommodity.getSettings().getCapacityLowerBound();
         // don't permit resize below historical max/peak or below capacity lower bound
-        double maxAmount = currentCapacity - Math.max(Math.max(maxQuantity, peakQuantity), capacityLowerBound);
+        double maxAmount = currentCapacity - Math.max(Math.max(historicalOrMaxQuantity, peakQuantity), capacityLowerBound);
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
             logger.info("The max amount we can resize down {}/{} is {}. This is derived from currentCapcity {}, max {}, peak {}, capcityLowerBound {}",
                 seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
-                maxAmount, currentCapacity, maxQuantity, peakQuantity, capacityLowerBound);
+                maxAmount, currentCapacity, historicalOrMaxQuantity, peakQuantity, capacityLowerBound);
         }
         if (maxAmount < 0) {
             return 0.0;
