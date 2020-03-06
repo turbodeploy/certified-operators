@@ -16,14 +16,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -78,6 +78,8 @@ public class HistoricalEditor {
     public static final float E = 0.00001f; // to compare floats for equality
 
     private static final String EMPTY_JSON = "{}";
+
+    private boolean isPlan;
 
     /**
      * A metric that tracks the time taken to load the historical used and peak values.
@@ -156,12 +158,14 @@ public class HistoricalEditor {
      * This method calculates the used and peak values for all the commodities
      * considering the values read from mediation and the historical values from
      * the previous cycle.
+     * (Note : This method is synchronized because HistoricalEditor class object is currently
+     * being shared by plan and realtime topology pipeline)
      *
      * @param graph The topology graph which contains all the SEs
      * @param changes to iterate over and find relevant changes (e.g baseline change)
      * @param topologyInfo to identify if it is a cluster headroom plan
      */
-    public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
+    public synchronized void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                     @Nonnull final List<ScenarioChange> changes,
                                     @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         // Don't allow historical editor to update commodities for headroom or historicalBaseline plan.
@@ -170,90 +174,98 @@ public class HistoricalEditor {
             return;
         }
 
-        Stream<TopologyEntity> entities = graph.entities();
-        Iterable<TopologyEntity> entitiesIterable = entities::iterator;
-        this.commodityTypesAlreadyLoggedAsMissingHistory = new HashSet<>();
+        isPlan = TopologyDTOUtil.isPlan(topologyInfo);
 
-        // Clean historical utilization data structure
-        // Construct the set of all oids existing from previous iterations
-        Set<Long> histOids = new HashSet<Long>(historicalInfo.keySet());
-        // Remove the set of oids existing in this iteration.
-        // The oids not existing any more remaining
-        for (TopologyEntity entity : entitiesIterable) {
-            histOids.remove(entity.getOid());
-        }
+        if (isPlan) {
+            graph.entities().forEach(entity -> {
+                processCommoditySoldList(entity);
+                processCommodityBoughtList(entity);
+            });
+            copyHistoricalValuesToClonedEntities(graph, changes);
+        } else {
+            Stream<TopologyEntity> entities = graph.entities();
+            Iterable<TopologyEntity> entitiesIterable = entities::iterator;
+            this.commodityTypesAlreadyLoggedAsMissingHistory = new HashSet<>();
 
-        // Remove the oids not existing any more.
-        for (Long oid : histOids) {
-            historicalInfo.remove(oid);
-        }
-
-        entities = graph.entities();
-        entitiesIterable = entities::iterator;
-
-        for (TopologyEntity entity : entitiesIterable) {
-            if (!historicalInfo.containsKey(entity.getOid())) {
-                HistoricalServiceEntityInfo histSeInfo = new HistoricalServiceEntityInfo();
-                histSeInfo.setSeOid(entity.getOid());
-                histSeInfo.setUsedHistoryWeight(globalUsedHistoryWeight);
-                histSeInfo.setPeakHistoryWeight(globalPeakHistoryWeight);
-                historicalInfo.put(entity.getOid(), histSeInfo);
+            // Clean historical utilization data structure
+            // Construct the set of all oids existing from previous iterations
+            Set<Long> histOids = new HashSet<Long>(historicalInfo.keySet());
+            // Remove the set of oids existing in this iteration.
+            // The oids not existing any more remaining
+            for (TopologyEntity entity : entitiesIterable) {
+                histOids.remove(entity.getOid());
             }
 
-            processCommoditySoldList(entity);
-
-            processCommodityBoughtList(entity);
-
-            // Clean historical data for commodities not existing any more (e.g. storage)
-            HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(entity.getOid());
-            if (histSeInfo != null) {
-                // Examine sold commodities
-                List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
-                Iterator<HistoricalCommodityInfo> iterSold = histSoldInfoList.iterator();
-                while (iterSold.hasNext()) {
-                    HistoricalCommodityInfo histSoldInfo = iterSold.next();
-                    if (!histSoldInfo.getExisting()) {
-                        iterSold.remove();
-                    }
-                }
-
-                // Examine bought commodities
-                List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
-                Iterator<HistoricalCommodityInfo> iterBought = histBoughtInfoList.iterator();
-                while (iterBought.hasNext()) {
-                    HistoricalCommodityInfo histBoughtInfo = iterBought.next();
-                    if (!histBoughtInfo.getExisting()) {
-                        iterBought.remove();
-                    }
-                }
-
-                // Set all matched and existing values to false to prepare for next market cycle
-                // It is a kind of initialization to have all the commodities unmatched by commodities
-                // of the next cycle and considering that they possibly not exist in the next cycle
-                for (int i = 0; i < histSoldInfoList.size(); i++) {
-                    HistoricalCommodityInfo histCommSold = histSoldInfoList.get(i);
-                    histCommSold.setMatched(false);
-                    histCommSold.setExisting(false);
-                    histSoldInfoList.set(i, histCommSold);
-                }
-
-                for (int i = 0; i < histBoughtInfoList.size(); i++) {
-                    HistoricalCommodityInfo histCommBought = histBoughtInfoList.get(i);
-                    histCommBought.setMatched(false);
-                    histCommBought.setExisting(false);
-                    histBoughtInfoList.set(i, histCommBought);
-                }
-
-                histSeInfo.setHistoricalCommoditySold(histSoldInfoList);
-                histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
+            // Remove the oids not existing any more.
+            for (Long oid : histOids) {
+                historicalInfo.remove(oid);
             }
 
+            entities = graph.entities();
+            entitiesIterable = entities::iterator;
+
+            for (TopologyEntity entity : entitiesIterable) {
+                if (!historicalInfo.containsKey(entity.getOid())) {
+                    HistoricalServiceEntityInfo histSeInfo = new HistoricalServiceEntityInfo();
+                    histSeInfo.setSeOid(entity.getOid());
+                    histSeInfo.setUsedHistoryWeight(globalUsedHistoryWeight);
+                    histSeInfo.setPeakHistoryWeight(globalPeakHistoryWeight);
+                    historicalInfo.put(entity.getOid(), histSeInfo);
+                }
+
+                processCommoditySoldList(entity);
+
+                processCommodityBoughtList(entity);
+
+                // Clean historical data for commodities not existing any more (e.g. storage)
+                HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(entity.getOid());
+                if (histSeInfo != null) {
+                    // Examine sold commodities
+                    List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
+                    Iterator<HistoricalCommodityInfo> iterSold = histSoldInfoList.iterator();
+                    while (iterSold.hasNext()) {
+                        HistoricalCommodityInfo histSoldInfo = iterSold.next();
+                        if (!histSoldInfo.getExisting()) {
+                            iterSold.remove();
+                        }
+                    }
+
+                    // Examine bought commodities
+                    List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
+                    Iterator<HistoricalCommodityInfo> iterBought = histBoughtInfoList.iterator();
+                    while (iterBought.hasNext()) {
+                        HistoricalCommodityInfo histBoughtInfo = iterBought.next();
+                        if (!histBoughtInfo.getExisting()) {
+                            iterBought.remove();
+                        }
+                    }
+
+                    // Set all matched and existing values to false to prepare for next market cycle
+                    // It is a kind of initialization to have all the commodities unmatched by commodities
+                    // of the next cycle and considering that they possibly not exist in the next cycle
+                    for (int i = 0; i < histSoldInfoList.size(); i++) {
+                        HistoricalCommodityInfo histCommSold = histSoldInfoList.get(i);
+                        histCommSold.setMatched(false);
+                        histCommSold.setExisting(false);
+                        histSoldInfoList.set(i, histCommSold);
+                    }
+
+                    for (int i = 0; i < histBoughtInfoList.size(); i++) {
+                        HistoricalCommodityInfo histCommBought = histBoughtInfoList.get(i);
+                        histCommBought.setMatched(false);
+                        histCommBought.setExisting(false);
+                        histBoughtInfoList.set(i, histCommBought);
+                    }
+
+                    histSeInfo.setHistoricalCommoditySold(histSoldInfoList);
+                    histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
+                }
+
+            }
+            this.commodityTypesAlreadyLoggedAsMissingHistory = null;
+
+            executorService.submit(() -> historicalUtilizationDatabase.saveInfo(historicalInfo));
         }
-        this.commodityTypesAlreadyLoggedAsMissingHistory = null;
-
-        executorService.submit(() -> historicalUtilizationDatabase.saveInfo(historicalInfo));
-
-        copyHistoricalValuesToClonedEntities(graph, changes);
     }
 
     private boolean useHistoricalValues(int commodityType) {
@@ -272,6 +284,9 @@ public class HistoricalEditor {
         // If not, add it. Otherwise, add new commodities and match the existing ones.
         HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
         if (histSeInfo == null) {
+            if (isPlan) {
+                return;
+            }
             logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
         } else if (histSeInfo.getHistoricalCommoditySold().size() == 0) {
             // Add all the sold commodities info
@@ -341,6 +356,9 @@ public class HistoricalEditor {
         if (useHistoricalValues(commodityType.getType())) {
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
+                if (isPlan) {
+                    return;
+                }
                 logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
             } else {
                 boolean commSoldFound = false;
@@ -363,12 +381,16 @@ public class HistoricalEditor {
                             logger.trace("Entity={}, Sold commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
                                     topoCommSold.getCommodityType().getType(), used, peak);
                         }
-                        histSoldInfo.setHistoricalUsed(used);
-                        histSoldInfo.setHistoricalPeak(peak);
-                        histSoldInfo.setExisting(true);
-                        histSoldInfoList.set(i, histSoldInfo);
-                        histSeInfo.setHistoricalCommoditySold(histSoldInfoList);
-                        historicalInfo.replace(topoEntity.getOid(), histSeInfo);
+
+                        if (!isPlan) {
+                            histSoldInfo.setHistoricalUsed(used);
+                            histSoldInfo.setHistoricalPeak(peak);
+                            histSoldInfo.setExisting(true);
+                            histSoldInfoList.set(i, histSoldInfo);
+                            histSeInfo.setHistoricalCommoditySold(histSoldInfoList);
+                            historicalInfo.replace(topoEntity.getOid(), histSeInfo);
+                        }
+
                         topoCommSold.getHistoricalUsedBuilder().setHistUtilization(used);
                         topoCommSold.getHistoricalPeakBuilder().setHistUtilization(peak);
                         break;
@@ -398,6 +420,9 @@ public class HistoricalEditor {
         // If not, add it. Otherwise, add new commodities and match the existing ones.
         HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
         if (histSeInfo == null) {
+            if (isPlan) {
+                return;
+            }
             logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
         } else if (histSeInfo.getHistoricalCommodityBought().size() == 0) {
             // Add all the bought commodities info
@@ -488,6 +513,9 @@ public class HistoricalEditor {
             // Using historical values in calculation of used and peak
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
+                if (isPlan) {
+                    return;
+                }
                 logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
             } else {
                 boolean commBoughtFound = false;
@@ -510,12 +538,15 @@ public class HistoricalEditor {
                                 topoCommBought.getCommodityType().getType(), histBoughtInfo.getHistoricalUsed(), histBoughtInfo.getHistoricalPeak());
                         logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
                                 topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
-                        histBoughtInfo.setHistoricalUsed(usedQuantity);
-                        histBoughtInfo.setHistoricalPeak(peakQuantity);
-                        histBoughtInfo.setExisting(true);
-                        histBoughtInfoList.set(i, histBoughtInfo);
-                        histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
-                        historicalInfo.replace(topoEntity.getOid(), histSeInfo);
+
+                        if (!isPlan) {
+                            histBoughtInfo.setHistoricalUsed(usedQuantity);
+                            histBoughtInfo.setHistoricalPeak(peakQuantity);
+                            histBoughtInfo.setExisting(true);
+                            histBoughtInfoList.set(i, histBoughtInfo);
+                            histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
+                            historicalInfo.replace(topoEntity.getOid(), histSeInfo);
+                        }
                         break;
                     }
                 }
