@@ -783,7 +783,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             @Nonnull final StreamObserver<StatSnapshot> responseObserver, final long clusterId,
             final long startDate, final long endDate, final long latestRecordDate,
             @Nonnull final Collection<StatRecord> latestStatRecords) {
-        if (latestStatRecords.isEmpty() || latestRecordDate >= endDate) {
+        if (latestStatRecords.isEmpty() || startDate >= endDate || latestRecordDate >= endDate) {
             return;
         }
 
