@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -73,16 +74,37 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     }
 
     /**
-     * Delete records from PlanProjectedEntityCostsTable for the specified plan.
+     * Delete records from following plan cost related tables when a plan is deleted:
+     *      plan_projected_entity_cost
+     *      plan_projected_entity_to_reserved_instance_mapping
+     *      plan_projected_reserved_instance_coverage
+     *      plan_projected_reserved_instance_utilization
      *
-     * @param planId plan ID.
-     * @return count of deleted rows.
+     * @param planId Plan ID.
+     * @return Count of total deleted rows.
      */
-    public int deletePlanProjectedEntityCost(final long planId) {
-        getLogger().info("Deleting data from plan projected entity cost planId : " + planId);
-        final int rowsDeleted = dslContext.deleteFrom(Tables.PLAN_PROJECTED_ENTITY_COST)
-                        .where(Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID.eq(planId)).execute();
-        return rowsDeleted;
+    public int deletePlanProjectedCosts(final long planId) {
+       int[] rowsDeleted = dslContext.batch(
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_ENTITY_COST)
+                       .where(Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID.eq(planId)),
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                       .where(Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING.PLAN_ID
+                               .eq(planId)),
+
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE)
+                       .where(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE.PLAN_ID.eq(planId)),
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION)
+                       .where(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION.PLAN_ID.eq(planId))
+       ).execute();
+
+        int totalDeleted = Arrays.stream(rowsDeleted).sum();
+        getLogger().info("Deleted {} rows (total: {}) from plan {} projected cost tables.",
+                Arrays.toString(rowsDeleted), totalDeleted, planId);
+        return totalDeleted;
     }
 
     /**

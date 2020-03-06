@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.entity.cost;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -33,6 +34,9 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityCostRecord;
+import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
+import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
+import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -133,6 +137,41 @@ public class PlanProjectedEntityCostStoreTest {
                 .build();
         List<EntityCost> cost = Arrays.asList(VM_COST, VOLUME_COST);
         store.updatePlanProjectedEntityCostsTableForPlan(topoInfo, cost);
+
+        // Insert 1 row into plan_projected_entity_to_reserved_instance_mapping.
+        List<PlanProjectedEntityToReservedInstanceMappingRecord> entityToRiMappingRecords =
+                new ArrayList<>();
+        long entityId = 73320835644009L;
+        long reservedInstanceId = 706683383732672L;
+        double usedCoupons = 4d;
+        entityToRiMappingRecords.add(dsl.newRecord(
+                Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING,
+                new PlanProjectedEntityToReservedInstanceMappingRecord(entityId,
+                        topoInfo.getTopologyContextId(),  reservedInstanceId, usedCoupons)));
+        dsl.batchInsert(entityToRiMappingRecords).execute();
+
+        // Insert 1 row into plan_projected_reserved_instance_coverage.
+        List<PlanProjectedReservedInstanceCoverageRecord> riCoverageRecords = new ArrayList<>();
+        long regionId = 73320835643877L;
+        long zoneId = 73320835643820L;
+        long accountId = 73320835644295L;
+        double totalCoupons = 4d;
+        riCoverageRecords.add(dsl.newRecord(
+                Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
+                new PlanProjectedReservedInstanceCoverageRecord(entityId,
+                        topoInfo.getTopologyContextId(), regionId, zoneId, accountId, totalCoupons,
+                        usedCoupons)));
+        dsl.batchInsert(riCoverageRecords).execute();
+
+        // Insert 1 row into plan_projected_reserved_instance_utilization.
+        List<PlanProjectedReservedInstanceUtilizationRecord> riUtilizationRecords =
+                new ArrayList<>();
+        riUtilizationRecords.add(dsl.newRecord(
+                Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION,
+                new PlanProjectedReservedInstanceUtilizationRecord(reservedInstanceId,
+                        topoInfo.getTopologyContextId(), regionId, zoneId,
+                        accountId, totalCoupons, usedCoupons)));
+        dsl.batchInsert(riUtilizationRecords).execute();
     }
 
     /**
@@ -140,8 +179,12 @@ public class PlanProjectedEntityCostStoreTest {
      */
     @Test
     public void testDeletePlanProjectedEntityCosts() {
-        int rows = store.deletePlanProjectedEntityCost(PLAN_ID);
-        assertEquals(2, rows);
+        int rows = store.deletePlanProjectedCosts(PLAN_ID);
+        // 2 rows in plan_projected_entity_cost, 1 each in
+        // plan_projected_entity_to_reserved_instance_mapping,
+        // plan_projected_reserved_instance_coverage,
+        // plan_projected_reserved_instance_utilization
+        assertEquals(5, rows);
     }
 
     /**
