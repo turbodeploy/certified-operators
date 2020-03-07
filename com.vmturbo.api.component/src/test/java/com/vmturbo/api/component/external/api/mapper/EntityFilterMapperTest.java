@@ -552,7 +552,7 @@ public class EntityFilterMapperTest {
     @Test
     public void testByTagSearch() {
         final MapFilter tagFilter =
-                        testByTagSearchGoodExpVal(EntityFilterMapper.NOT_EQUAL, "k=v1|k=v2");
+                        checkAndReturnMapFilter(EntityFilterMapper.NOT_EQUAL, "k=v1|k=v2");
         assertEquals("k", tagFilter.getKey());
         assertEquals(2, tagFilter.getValuesCount());
         assertEquals("v1", tagFilter.getValues(0));
@@ -567,7 +567,7 @@ public class EntityFilterMapperTest {
     @Test
     public void testByTagSearchRegex() {
         final MapFilter tagFilter =
-                        testByTagSearchGoodExpVal(EntityFilterMapper.REGEX_MATCH, "k=.*a.*");
+                        checkAndReturnMapFilter(EntityFilterMapper.REGEX_MATCH, "k=.*a.*");
         assertEquals(0, tagFilter.getValuesCount());
         assertTrue(tagFilter.getPositiveMatch());
         assertEquals("^k=.*a.*$", tagFilter.getRegex());
@@ -579,7 +579,7 @@ public class EntityFilterMapperTest {
      */
     @Test
     public void testMapFilter() {
-        final MapFilter filter1 = testByTagSearchGoodExpVal(EntityFilterMapper.EQUAL, "AA=B");
+        final MapFilter filter1 = checkAndReturnMapFilter(EntityFilterMapper.EQUAL, "AA=B");
         assertEquals("AA", filter1.getKey());
         assertEquals(1, filter1.getValuesCount());
         assertEquals("B", filter1.getValues(0));
@@ -587,7 +587,7 @@ public class EntityFilterMapperTest {
         assertFalse(filter1.hasRegex());
 
         final MapFilter filter2 =
-                        testByTagSearchGoodExpVal(EntityFilterMapper.NOT_EQUAL, "AA=BB|AA=CC");
+                        checkAndReturnMapFilter(EntityFilterMapper.NOT_EQUAL, "AA=BB|AA=CC");
         assertEquals("AA", filter2.getKey());
         assertEquals(2, filter2.getValuesCount());
         assertTrue(filter2.getValuesList().contains("BB"));
@@ -596,12 +596,12 @@ public class EntityFilterMapperTest {
         assertFalse(filter2.hasRegex());
 
         final MapFilter filter4 =
-                        testByTagSearchGoodExpVal(EntityFilterMapper.REGEX_NO_MATCH, "k=.*");
+                        checkAndReturnMapFilter(EntityFilterMapper.REGEX_NO_MATCH, "k=.*");
         assertEquals(0, filter4.getValuesCount());
         assertEquals("^k=.*$", filter4.getRegex());
         assertFalse(filter4.getPositiveMatch());
 
-        final MapFilter filter5 = testByTagSearchGoodExpVal(EntityFilterMapper.REGEX_MATCH, "k=.*");
+        final MapFilter filter5 = checkAndReturnMapFilter(EntityFilterMapper.REGEX_MATCH, "k=.*");
         assertEquals(0, filter5.getValuesCount());
         assertEquals("^k=.*$", filter5.getRegex());
         assertTrue(filter5.getPositiveMatch());
@@ -609,7 +609,8 @@ public class EntityFilterMapperTest {
 
     /**
      * The expression value that comes from the UI during the creation of a map filter
-     * should be well-formed. Otherwise no filter will be created.
+     * should be well-formed. Otherwise an all-rejecting (or all-accepting) filter
+     * will be created.
      */
     @Test
     public void testBadMapFilter1() {
@@ -631,7 +632,7 @@ public class EntityFilterMapperTest {
      */
     @Test
     public void testBadMapFilter3() {
-        testByTagSearchBadExpVal(EntityFilterMapper.NOT_EQUAL, "=B|foo=DD");
+        testByTagSearchBadExpVal(EntityFilterMapper.EQUAL, "=B|foo=DD");
     }
 
     /**
@@ -640,7 +641,7 @@ public class EntityFilterMapperTest {
      */
     @Test
     public void testMapFilterSpecialCharacters() {
-        final MapFilter filter1 = testByTagSearchGoodExpVal(EntityFilterMapper.EQUAL,
+        final MapFilter filter1 = checkAndReturnMapFilter(EntityFilterMapper.EQUAL,
                         "AA\\==B|AA\\==\\=C\\|D");
         assertEquals("AA=", filter1.getKey());
         assertEquals(2, filter1.getValuesCount());
@@ -650,7 +651,7 @@ public class EntityFilterMapperTest {
         assertFalse(filter1.hasRegex());
 
         final MapFilter filter2 =
-                        testByTagSearchGoodExpVal(EntityFilterMapper.EQUAL, "AA\\=\\\\B=C");
+                        checkAndReturnMapFilter(EntityFilterMapper.EQUAL, "AA\\=\\\\B=C");
         assertEquals("AA=\\B", filter2.getKey());
         assertEquals(1, filter2.getValuesCount());
         assertEquals("C", filter2.getValues(0));
@@ -658,31 +659,27 @@ public class EntityFilterMapperTest {
         assertFalse(filter2.hasRegex());
     }
 
-    private MapFilter testByTagSearchGoodExpVal(@Nonnull String operator, @Nonnull String expVal) {
+    private PropertyFilter checkAndReturnOnePropertyFilter(@Nonnull String operator, @Nonnull String expVal) {
         final GroupApiDTO inputDTO = new GroupApiDTO();
         inputDTO.setCriteriaList(
-                        Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
+                Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
         inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
         final SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
-        return byName.getSearchFilter(0).getPropertyFilter().getMapFilter();
+        return byName.getSearchFilter(0).getPropertyFilter();
+    }
+
+    private MapFilter checkAndReturnMapFilter(@Nonnull String operator, @Nonnull String expVal) {
+        return checkAndReturnOnePropertyFilter(operator, expVal).getMapFilter();
     }
 
     private void testByTagSearchBadExpVal(@Nonnull String operator, @Nonnull String expVal) {
-        final GroupApiDTO inputDTO = new GroupApiDTO();
-        inputDTO.setCriteriaList(
-                        Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
-        inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
-        assertEquals(1, parameters.size());
-        final SearchParameters byName = parameters.get(0);
-        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
-        assertEquals(0, byName.getSearchFilterCount());
+        assertEquals(EntityFilterMapper.REJECT_ALL_PROPERTY_FILTER,
+                     checkAndReturnOnePropertyFilter(operator, expVal));
     }
 
     /**
