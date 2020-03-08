@@ -289,10 +289,6 @@ dependencies:
     repository: file://../probes/mediation-newrelic
     version: 0.1.0
     condition: newrelic.enabled
-  - name: mediation-nutanix
-    repository: file://../probes/mediation-nutanix
-    version: 0.1.0
-    condition: nutanix.enabled
   - name: mediation-mssql
     repository: file://../probes/mediation-mssql
     version: 0.1.0
