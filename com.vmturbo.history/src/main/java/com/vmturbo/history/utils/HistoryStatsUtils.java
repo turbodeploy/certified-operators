@@ -2,19 +2,6 @@ package com.vmturbo.history.utils;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.vmturbo.components.common.utils.StringConstants.CONTAINER;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_STORAGES;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VDCS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.components.common.utils.StringConstants.STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.db.EntityType.APPLICATION;
 import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
 import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
@@ -31,7 +18,6 @@ import static com.vmturbo.history.db.EntityType.VIEW_POD;
 import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -49,25 +35,23 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.stats.live.ConfiguredPropertyType;
+import com.vmturbo.history.stats.live.PropertyType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class HistoryStatsUtils {
-
     private static final Logger logger = LogManager.getLogger();
+
+    private HistoryStatsUtils() {
+    }
 
     /**
      * The default price index value.
@@ -85,62 +69,20 @@ public class HistoryStatsUtils {
      * If any of these metrics are requested, we need to post-process the response and tally
      * up counts.
      */
-    public static final Set<String> countPerSEsMetrics = ImmutableSet.<String>builder()
-            .add(NUM_VMS_PER_HOST)
-            .add(NUM_VMS_PER_STORAGE)
-            .add(NUM_CNT_PER_HOST)
-            .add(NUM_CNT_PER_STORAGE)
-            .build();
-
-    /**
-     * The names of the count metrics involved in "ratio" stats.
-     */
-    public static final Map<String, Set<String>> METRICS_FOR_RATIOS = ImmutableMap.of(
-        NUM_VMS_PER_HOST, ImmutableSet.of(NUM_VMS, NUM_HOSTS),
-        NUM_VMS_PER_STORAGE, ImmutableSet.of(NUM_VMS, NUM_STORAGES),
-        NUM_CNT_PER_HOST, ImmutableSet.of(NUM_CONTAINERS, NUM_HOSTS),
-        NUM_CNT_PER_STORAGE, ImmutableSet.of(NUM_CONTAINERS, NUM_STORAGES));
+    public static final Set<String> countPerSEsMetrics =
+            ConfiguredPropertyType.getComputedPropertyTypes().stream()
+                    .map(PropertyType::getName)
+                    .collect(ImmutableSet.toImmutableSet());
 
     /**
      * Map to link any of the post-processed count metrics requested to the corresponding
      * entity types.
      */
     public static final ImmutableBiMap<String, String> countSEsMetrics =
-            ImmutableBiMap.<String, String>builder()
-                    .put(PHYSICAL_MACHINE, NUM_HOSTS)
-                    .put(VIRTUAL_MACHINE, NUM_VMS)
-                    .put(STORAGE, NUM_STORAGES)
-                    .put(CONTAINER, NUM_CONTAINERS)
-                    .put(StringConstants.VDC, NUM_VDCS)
-                    .build();
-
-    /**
-     * Map from Database EntityType String name to SDK EntityType Enum numeric value for
-     * Entity Types to be counted.
-     */
-    public static final ImmutableMap<String, Integer>
-            SDK_ENTITY_TYPES_TO_COUNT = new ImmutableMap.Builder<String, Integer>()
-                    .put(EntityType.VIRTUAL_MACHINE.getClsName(),
-                            CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber())
-                    .put(EntityType.PHYSICAL_MACHINE.getClsName(),
-                            CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber())
-                    .put(EntityType.STORAGE.getClsName(),
-                            CommonDTO.EntityDTO.EntityType.STORAGE.getNumber())
-                    .put(EntityType.CONTAINER.getClsName(),
-                            CommonDTO.EntityDTO.EntityType.CONTAINER.getNumber())
-                    .build();
-
-    /**
-     * Map from Database EntityType String name to SDK EntityType Enum numeric value for
-     * Entity Types to be counted.
-     */
-    public static final ImmutableMap<String, String>
-            ENTITY_TYPE_COUNT_STAT_NAME = new ImmutableMap.Builder<String, String>()
-                    .put(EntityType.VIRTUAL_MACHINE.getClsName(), NUM_VMS)
-                    .put(EntityType.PHYSICAL_MACHINE.getClsName(), NUM_HOSTS)
-                    .put(EntityType.STORAGE.getClsName(), NUM_STORAGES)
-                    .put(EntityType.CONTAINER.getClsName(), NUM_CONTAINERS)
-                    .build();
+            ConfiguredPropertyType.getMetricPropertyTypes().stream()
+                    .collect(ImmutableBiMap.toImmutableBiMap(
+                            prop -> prop.getCountedEntityType().getClsName(),
+                            PropertyType::getName));
 
 
     /**
@@ -212,14 +154,6 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
                     .put(CommonDTO.EntityDTO.EntityType.DATABASE, EntityType.DATABASE)
                     .build();
-
-    public static final Set<Integer> SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES =
-        ImmutableSet.<Integer>builder()
-            .add(CommonDTO.EntityDTO.EntityType.NETWORK.getNumber())
-            .add(CommonDTO.EntityDTO.EntityType.INTERNET.getNumber())
-            .add(CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME.getNumber())
-            .add(CommonDTO.EntityDTO.EntityType.HYPERVISOR_SERVER.getNumber())
-            .build();
 
     /**
      * Convert an int commodityType value, as defined by the SDK, into a mixed-case name.

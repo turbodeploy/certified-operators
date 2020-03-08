@@ -27,6 +27,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_BY_HOUR;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.row;
 
@@ -64,6 +65,7 @@ import org.apache.logging.log4j.util.Strings;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetStep;
+import org.jooq.Queries;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
@@ -105,6 +107,7 @@ import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.Scenarios;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
@@ -123,6 +126,18 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
 public class HistorydbIO extends BasedbIO {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Use this to get stats table fields by name when working with a dynamically typed table.
+     *
+     * <p>For example, suppose you have a variable of type <code>Table&lt;?&gt;</code>, and you know
+     * it's one of the various entity stats tables, and you want to access its fields. You can
+     * use something like <code>table.get(GENERIC_STATS.AVG_VALUE, Double.class)</code>.</p>
+     *
+     * <p>An hourly table is used because it has all the fields that appear in any table (all the
+     * *_key fields, samples, etc.)</p>
+     */
+    public static final VmStatsByHour GENERIC_STATS_TABLE = VM_STATS_BY_HOUR.VM_STATS_BY_HOUR;
 
     // length restriction on the  COMMODITY_KEY column; all stats tables have same column length
     private static final int COMMODITY_KEY_MAX_LENGTH = VmStatsLatest.VM_STATS_LATEST.COMMODITY_KEY
@@ -619,14 +634,11 @@ public class HistorydbIO extends BasedbIO {
         final Query query;
         if (specificEntityType.isPresent() && specificEntityOid.isPresent()) {
             query = new AvailableEntityTimestampsQuery(
-                    timeFrame, specificEntityType.get(), specificEntityOid.get(), 1,
-                    new Timestamp(startTime), new Timestamp(endTime), false
-            ).getQuery();
+                    timeFrame, specificEntityType.get(), specificEntityOid.get(), 0,
+                    new Timestamp(startTime), new Timestamp(endTime), false).getQuery();
         } else {
-            query = new AvailableTimestampsQuery(
-                    timeFrame, HistoryVariety.ENTITY_STATS, 0,
-                    new Timestamp(startTime), new Timestamp(endTime)
-            ).getQuery();
+            query = new AvailableTimestampsQuery(timeFrame, HistoryVariety.ENTITY_STATS, 0,
+                    new Timestamp(startTime), new Timestamp(endTime)).getQuery();
         }
         return (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
     }
@@ -640,11 +652,13 @@ public class HistorydbIO extends BasedbIO {
      * @param statsFilter          stats filter which contains commodity requests.
      * @param timepPointOpt        time point to specify end time. If not present, the result is
      *                             the most recent time stamp.
+     * @param timeFrameOpt         required timeframe, or LATEST if not specified
      * @return a {@link Timestamp} for the snapshot recorded in the xxx_stats_latest table having
      *                             closest time to a given time point.
+     * @throws IllegalArgumentException
      */
     public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-            @Nonnull final Optional<Long> timepPointOpt)
+            @Nonnull final Optional<Long> timepPointOpt, @Nonnull final Optional<TimeFrame> timeFrameOpt)
             throws IllegalArgumentException {
         try {
             Timestamp exclusiveUpperTimeBound =
@@ -657,8 +671,8 @@ public class HistorydbIO extends BasedbIO {
             final HistoryVariety historyVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
                 ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
-            final Query query = new AvailableTimestampsQuery(
-                TimeFrame.LATEST, historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
+            final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
+                    historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
             final List<Timestamp> snapshotTimeRecords
                     = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
 

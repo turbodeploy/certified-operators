@@ -187,16 +187,16 @@ public abstract class QueryBase {
      *
      * @param field         the field to be constrained
      * @param fromInclusive inclusive lower bound on field value, or null for none
-     * @param toExclusive   exclusive upper bound on field value, or null for none
+     * @param toInclusive   inclusive upper bound on field value, or null for none
      * @param <T>           field type
      */
-    protected <T> void addFieldRangeCondition(Field<T> field, T fromInclusive, T toExclusive) {
-        if (fromInclusive != null && toExclusive != null) {
-            conditions.add(field.between(fromInclusive, toExclusive));
+    protected <T> void addFieldRangeCondition(Field<T> field, T fromInclusive, T toInclusive) {
+        if (fromInclusive != null && toInclusive != null) {
+            conditions.add(field.between(fromInclusive, toInclusive));
         } else if (fromInclusive != null) {
             conditions.add(field.ge(fromInclusive));
-        } else if (toExclusive != null) {
-            conditions.add(field.lt(toExclusive));
+        } else if (toInclusive != null) {
+            conditions.add(field.le(toInclusive));
         }
     }
 

@@ -348,16 +348,6 @@ message ProjectedStatsResponse {
     optional StatSnapshot snapshot = 1;
 }
 
-// Request sent to the Stats Service when it is time to compute roll-up stats for clusters.
-message ClusterRollupRequest {
-    // The list of clusters for which stats roll-up should be calculated.
-    repeated .group.Grouping clustersToRollup = 1;
-}
-
-message ClusterRollupResponse {
-    // nothing to return
-}
-
 message DeletePlanStatsRequest{
     // TODO - karthikt : Maybe should be a list to support bulk deletes
     optional int64 topology_context_id = 1;
@@ -600,10 +590,6 @@ service StatsHistoryService {
     // Will return a response for each entity with no data if the stats service
     // doesn't have any projected stats.
     rpc GetProjectedEntityStats(ProjectedEntityStatsRequest) returns (ProjectedEntityStatsResponse);
-
-    // Trigger a cluster-rollup computation for the given clusters.
-    // Will return no significant data.
-    rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);
 
     // Save values computed by the headroom plan in the cluster statistics table, where it can
     // be retrieved alongside other stats.

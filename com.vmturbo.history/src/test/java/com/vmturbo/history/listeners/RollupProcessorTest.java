@@ -1,12 +1,12 @@
 package com.vmturbo.history.listeners;
 
+import static com.vmturbo.commons.TimeFrame.DAY;
+import static com.vmturbo.commons.TimeFrame.HOUR;
+import static com.vmturbo.commons.TimeFrame.MONTH;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.schema.TimeFrame.DAY;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static com.vmturbo.history.schema.TimeFrame.MONTH;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.Assert.assertEquals;
@@ -44,6 +44,7 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -54,7 +55,6 @@ import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.listeners.RollupProcessor.RollupType;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;

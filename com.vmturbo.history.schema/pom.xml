@@ -278,6 +278,10 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.commons</artifactId>
+        </dependency>
     </dependencies>
 
 

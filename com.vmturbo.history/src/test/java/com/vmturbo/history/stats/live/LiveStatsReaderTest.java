@@ -59,7 +59,7 @@ import com.vmturbo.history.schema.abstraction.tables.PmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.INonPaginatingStatsReader;
-import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
+import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ComputedPropertiesProcessorFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.readers.HistUtilizationReader;
@@ -74,18 +74,18 @@ public class LiveStatsReaderTest {
 
     private StatsQueryFactory statsQueryFactory = mock(StatsQueryFactory.class);
 
-    private RatioRecordFactory ratioRecordFactory = mock(RatioRecordFactory.class);
+    private ComputedPropertiesProcessor computedPropertiesProcessor =
+        mock(ComputedPropertiesProcessor.class);
     private INonPaginatingStatsReader<HistUtilizationRecord> histUtilizationReader =
-                    mock(HistUtilizationReader.class);
+            mock(HistUtilizationReader.class);
 
-    private FullMarketRatioProcessorFactory fullMarketRatioProcessor =
-        mock(FullMarketRatioProcessorFactory.class);
+    private ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory =
+            mock(ComputedPropertiesProcessorFactory.class);
 
     private LiveStatsReader liveStatsReader =
             new LiveStatsReader(mockHistorydbIO, timeRangeFactory,
-                statsQueryFactory,
-                fullMarketRatioProcessor,
-                ratioRecordFactory, histUtilizationReader, 5000);
+                statsQueryFactory, computedPropertiesProcessorFactory,
+                    histUtilizationReader, 5000);
 
     private static final Timestamp TIMESTAMP = new Timestamp(0);
 
@@ -116,9 +116,9 @@ public class LiveStatsReaderTest {
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
         when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.empty())).thenReturn(Optional.of(timeRange));
+                Optional.of(entityType), Optional.empty(), Optional.empty())).thenReturn(Optional.of(timeRange));
         when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
+                Optional.of(entityType), Optional.of(paginationParams), Optional.empty())).thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         when(nextPageInfo.getEntityOids()).thenReturn(Lists.newArrayList(entityIds));
@@ -145,9 +145,9 @@ public class LiveStatsReaderTest {
                 liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
         verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.empty());
+                Optional.of(entityType), Optional.empty(), Optional.empty());
         verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.of(paginationParams));
+                Optional.of(entityType), Optional.of(paginationParams), Optional.empty());
         verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams, entityType);
         verify(statsQueryFactory).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
 
@@ -176,7 +176,7 @@ public class LiveStatsReaderTest {
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
         when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.of(entityType),
-                 Optional.of(paginationParams))).thenReturn(Optional.of(timeRange));
+                 Optional.of(paginationParams), Optional.empty())).thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         // entity OIDs are empty
@@ -189,7 +189,8 @@ public class LiveStatsReaderTest {
         final StatRecordPage result =
                 liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
-        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.of(entityType), Optional.of(paginationParams));
+        verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.of(entityType), Optional.of(paginationParams), Optional.empty());
         verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams, entityType);
         // verify early return
         verify(statsQueryFactory, never()).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
@@ -229,13 +230,14 @@ public class LiveStatsReaderTest {
         when(piTimeRange.getMostRecentSnapshotTime()).thenReturn(piTimestamp);
         when(piTimeRange.getTimeFrame()).thenReturn(TIME_FRAME);
         when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.of(paginationParams))).thenReturn(Optional.of(piTimeRange));
+                Optional.of(entityType), Optional.of(paginationParams), Optional.empty()))
+                .thenReturn(Optional.of(piTimeRange));
         final TimeRange cpuTimeRange = mock(TimeRange.class);
         Timestamp cpuTimestamp = new Timestamp(1);
         when(cpuTimeRange.getMostRecentSnapshotTime()).thenReturn(cpuTimestamp);
         when(cpuTimeRange.getTimeFrame()).thenReturn(TIME_FRAME);
         when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
-                 Optional.of(entityType), Optional.empty())).thenReturn(Optional.of(cpuTimeRange));
+                 Optional.of(entityType), Optional.empty(), Optional.empty())).thenReturn(Optional.of(cpuTimeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
         long oid = 111l;
@@ -265,9 +267,9 @@ public class LiveStatsReaderTest {
                 liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
         verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.of(paginationParams));
+                Optional.of(entityType), Optional.of(paginationParams), Optional.empty());
         verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(),
-                Optional.of(entityType), Optional.empty());
+                Optional.of(entityType), Optional.empty(), Optional.empty());
         verify(mockHistorydbIO).getNextPage(scope, piTimestamp, TIME_FRAME, paginationParams, entityType);
         // verify early return
         verify(statsQueryFactory).createStatsQuery(nextPageInfo.getEntityOids(),
@@ -288,10 +290,11 @@ public class LiveStatsReaderTest {
         final TimeRange timeRange = mock(TimeRange.class);
         when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
         when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
-        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(), Optional.empty()))
+        when(timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty()))
                 .thenReturn(Optional.of(timeRange));
 
-        final FullMarketRatioProcessor ratioProcessor = mock(FullMarketRatioProcessor.class);
+
         final StatsFilter statsFilterWithCounts = StatsFilter.newBuilder()
             .setStartDate(123L)
             // Something to distinguish it from the regular stats filter.
@@ -300,8 +303,9 @@ public class LiveStatsReaderTest {
                     .setCommodityName("foo")
                     .setRelatedEntityType(StringConstants.VIRTUAL_MACHINE))
             .build();
-        when(ratioProcessor.getFilterWithCounts()).thenReturn(statsFilterWithCounts);
-        when(fullMarketRatioProcessor.newProcessor(statsFilter)).thenReturn(ratioProcessor);
+        when(computedPropertiesProcessorFactory.getProcessor(any(), any()))
+                .thenReturn(computedPropertiesProcessor);
+        when(computedPropertiesProcessor.getAugmentedFilter()).thenReturn(statsFilterWithCounts);
 
         final Condition condition = mock(Condition.class);
         when(statsQueryFactory.createCommodityRequestsCond(any(), any()))
@@ -313,7 +317,7 @@ public class LiveStatsReaderTest {
         when(mockHistorydbIO.execute(eq(Style.FORCED), isA(Query.class))).thenReturn(result);
 
         final Record processedRecord = mock(Record.class);
-        when(ratioProcessor.processResults(result, TIMESTAMP))
+        when(computedPropertiesProcessor.processResults(result, TIMESTAMP))
             .thenReturn(Collections.singletonList(processedRecord));
 
         final DSLContext jooqBuilderSpy = spy(DSL.using(SQLDialect.MARIADB));
@@ -330,16 +334,15 @@ public class LiveStatsReaderTest {
         // Verify the individual steps - this should help track down what failed if the final
         // assertion does not pass.
         verify(timeRangeFactory).resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
-                Optional.empty());
-        verify(fullMarketRatioProcessor).newProcessor(statsFilter);
-        verify(ratioProcessor).getFilterWithCounts();
+                Optional.empty(), Optional.empty());
+        verify(computedPropertiesProcessor).getAugmentedFilter();
         verify(statsQueryFactory)
             .createCommodityRequestsCond(statsFilterWithCounts.getCommodityRequestsList(),
                 Tables.MARKET_STATS_LATEST);
         verify(statsQueryFactory).environmentTypeCond(EnvironmentType.CLOUD, Tables.MARKET_STATS_LATEST);
         verify(statsQueryFactory).entityTypeCond(Sets.newHashSet(StringConstants.PHYSICAL_MACHINE), Tables.MARKET_STATS_LATEST);
         verify(mockHistorydbIO).execute(eq(Style.FORCED), isA(Query.class));
-        verify(ratioProcessor).processResults(result, TIMESTAMP);
+        verify(computedPropertiesProcessor).processResults(result, TIMESTAMP);
 
         // The returned record should be the one coming out of the ratio processor.
         assertThat(records, contains(processedRecord));

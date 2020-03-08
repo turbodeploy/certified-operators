@@ -26,6 +26,7 @@ import com.vmturbo.history.ingesters.common.ImmutableTopologyIngesterConfig;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
 import com.vmturbo.history.ingesters.live.LiveTopologyIngester;
 import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
+import com.vmturbo.history.ingesters.live.writers.ClusterStatsWriter;
 import com.vmturbo.history.ingesters.live.writers.EntitiesWriter;
 import com.vmturbo.history.ingesters.live.writers.EntityStatsWriter;
 import com.vmturbo.history.ingesters.live.writers.PriceIndexWriter;
@@ -185,6 +186,10 @@ public class IngestersConfig {
                         ),
                         new EntitiesWriter.Factory(
                                 historyDbConfig.historyDbIO()
+                        ),
+                        new ClusterStatsWriter.Factory(
+                                historyDbConfig.historyDbIO(),
+                                groupServiceBlockingStub()
                         )
                 ),
                 ingesterThreadPool(),
