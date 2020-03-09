@@ -53,9 +53,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -750,32 +750,29 @@ public class ActionInterpreter {
                     destAzOrRegion.getOid(), null, projectedTopology));
             }
             // Note that we also generate accounting actions for complete loss of RI coverage.
+            final boolean generateTierAction;
             final boolean isAccountingAction = destinationRegion == sourceRegion
                     && destTier == sourceTier
                     && (move.hasCouponDiscount() && move.hasCouponId() ||
                         sourceMarketTier instanceof RiDiscountedMarketTier);
-
             if (isAccountingAction) {
                 // We need to check if the original projected RI coverage of the target are the same.
                 // If they are the same, we should drop the action.
-                Optional<EntityReservedInstanceCoverage> originalRICoverage = cloudTc.getRiCoverageForEntity(targetOid);
-                float originialRICoverageValue = 0f;
-                if (originalRICoverage.isPresent()) {
-                    originialRICoverageValue = (float) originalRICoverage.get().getCouponsCoveredByRiMap()
-                            .values().stream().mapToDouble(Double::new).sum();
+                final double originalRICoverage = getTotalRiCoverage(
+                        cloudTc.getRiCoverageForEntity(targetOid).orElse(null));
+                final double projectedRICoverage = getTotalRiCoverage(
+                        projectedRiCoverage.get(targetOid));
+                generateTierAction = !areEqual(originalRICoverage, projectedRICoverage);
+                if (generateTierAction) {
+                    logger.debug("Accounting action for {} (OID: {}). " +
+                            "Original RI coverage: {}, projected RI coverage: {}.",
+                            target.getDisplayName(), target.getOid(),
+                            originalRICoverage, projectedRICoverage);
                 }
-                float projectedRICoverageValue = 0f;
-                Optional<EntityReservedInstanceCoverage> projectedRICoverage = Optional.ofNullable(projectedRiCoverage.get(targetOid));
-                if (projectedRICoverage.isPresent()) {
-                    projectedRICoverageValue = (float)projectedRICoverage.get().getCouponsCoveredByRiMap()
-                            .values().stream().mapToDouble(Double::new).sum();
-                }
-                if (originialRICoverageValue != projectedRICoverageValue) {
-                    // Tier change provider
-                    changeProviders.add(createChangeProvider(sourceTier.getOid(),
-                            destTier.getOid(), resourceId, projectedTopology));
-                }
-            } else if (destTier != sourceTier) {
+            } else {
+                generateTierAction = destTier != sourceTier;
+            }
+            if (generateTierAction) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
                         destTier.getOid(), resourceId, projectedTopology));
@@ -799,6 +796,19 @@ public class ActionInterpreter {
                     move.getDestination(), resourceId, projectedTopology));
         }
         return changeProviders;
+    }
+
+    private static double getTotalRiCoverage(
+            @Nullable final EntityReservedInstanceCoverage entityReservedInstanceCoverage) {
+        if (entityReservedInstanceCoverage == null) {
+            return 0D;
+        }
+        return entityReservedInstanceCoverage.getCouponsCoveredByRiMap().values().stream()
+                .mapToDouble(Double::doubleValue).sum();
+    }
+
+    private static boolean areEqual(final double d1, final double d2) {
+        return Math.abs(d1 - d2) <= 0.0001;
     }
 
     @Nonnull
