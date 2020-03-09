@@ -24,6 +24,7 @@ import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
 import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -154,8 +155,8 @@ public class ReservedInstanceMapper {
                                         * NUM_OF_MILLISECONDS_OF_YEAR);
         reservedInstanceApiDTO.setExpDateEpochTime(endTime);
         reservedInstanceApiDTO.setExpDate(DateTimeUtil.toString(endTime));
-        reservedInstanceApiDTO.setCloudType(retrieveCloudType(reservedInstanceBoughtInfo,
-            serviceEntityApiDTOMap));
+        reservedInstanceApiDTO.setCloudType(retrieveCloudType(reservedInstanceSpec,
+                serviceEntityApiDTOMap));
 
         // The following properties are used for Azure
         reservedInstanceApiDTO.setTrueID(reservedInstanceBoughtInfo.getProbeReservedInstanceId());
@@ -301,32 +302,32 @@ public class ReservedInstanceMapper {
     }
 
     /**
-     * Retrieve reserved instance Cloud type from its parent business account.
+     * Retrieve reserved instance Cloud type from the RI spec Region.
      *
-     * @param reservedInstanceBoughtInfo Reserved instance info API object.
+     * @param reservedInstanceSpec Reserved instance specification object.
      * @param serviceEntityApiDTOMap Map which key is entity id, value is {@link ServiceEntityApiDTO}.
      * @return {@link CloudType} instance for the given reserved instance.
      */
     @Nonnull
     private CloudType retrieveCloudType(
-            @Nonnull final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo,
+            @Nonnull final Cost.ReservedInstanceSpec reservedInstanceSpec,
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
             throws NotFoundCloudTypeException {
-        if (!reservedInstanceBoughtInfo.hasBusinessAccountId()) {
-            throw new NotFoundCloudTypeException("No Business Account in RI: " +
-                reservedInstanceBoughtInfo.getProbeReservedInstanceId());
+        Cost.ReservedInstanceSpecInfo reservedInstanceSpecInfo = reservedInstanceSpec.getReservedInstanceSpecInfo();
+        if (!reservedInstanceSpecInfo.hasRegionId()) {
+            throw new NotFoundCloudTypeException("No Region in RI Specification: " +
+                    reservedInstanceSpec.getId());
         }
-        final Long businessAccountId = reservedInstanceBoughtInfo.getBusinessAccountId();
-        final ServiceEntityApiDTO businessAccount = serviceEntityApiDTOMap.get(
-            businessAccountId);
-        if (businessAccount == null) {
-            throw new NotFoundCloudTypeException("Cannot find Business Account with ID " +
-                businessAccountId);
+        final Long regionId = reservedInstanceSpecInfo.getRegionId();
+        final ServiceEntityApiDTO region = serviceEntityApiDTOMap.get(regionId);
+        if (region == null) {
+            throw new NotFoundCloudTypeException("Cannot find Region with ID " +
+                    regionId);
         }
-        final TargetApiDTO targetApiDTO = businessAccount.getDiscoveredBy();
+        final TargetApiDTO targetApiDTO = region.getDiscoveredBy();
         if (targetApiDTO == null) {
-            throw new NotFoundCloudTypeException("Missing target in Business Account " +
-                businessAccountId);
+            throw new NotFoundCloudTypeException("Missing target in Region " +
+                    regionId);
         }
         final String targetType = targetApiDTO.getType();
         if (targetType == null) {
