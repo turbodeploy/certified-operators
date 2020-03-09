@@ -141,12 +141,21 @@ public class ReservedInstanceAnalyzerConstantsTest {
     static final long COMPUTE_TIER_T2_NANO_OID = 4110;
     static final long COMPUTE_TIER_T2_MICRO_OID = 4111;
     static final String COMPUTE_TIER_T2_FAMILY = "t2";
+    static final int NUM_COUPONS = 1;
 
-    static final ComputeTierInfo t2ComputeTierInfo = ComputeTierInfo.newBuilder().setFamily(COMPUTE_TIER_T2_FAMILY).build();
-    static final TypeSpecificInfo t2TypeSpecificInfo = TypeSpecificInfo.newBuilder().setComputeTier(t2ComputeTierInfo).build();
-
-    static final ComputeTierInfo m5ComputeTierInfo = ComputeTierInfo.newBuilder().setFamily(COMPUTE_TIER_M5_FAMILY).build();
-    static final TypeSpecificInfo m5TypeSpecificInfo = TypeSpecificInfo.newBuilder().setComputeTier(m5ComputeTierInfo).build();
+    static final ComputeTierInfo t2ComputeTierInfo = ComputeTierInfo.newBuilder()
+            .setFamily(COMPUTE_TIER_T2_FAMILY)
+            .setNumCoupons(NUM_COUPONS)
+            .build();
+    static final TypeSpecificInfo t2TypeSpecificInfo = TypeSpecificInfo.newBuilder()
+            .setComputeTier(t2ComputeTierInfo)
+            .build();
+    static final ComputeTierInfo m5ComputeTierInfo = ComputeTierInfo.newBuilder()
+            .setFamily(COMPUTE_TIER_M5_FAMILY)
+            .build();
+    static final TypeSpecificInfo m5TypeSpecificInfo = TypeSpecificInfo.newBuilder()
+            .setComputeTier(m5ComputeTierInfo)
+            .build();
     static final TopologyEntityDTO COMPUTE_TIER_M5_LARGE = TopologyEntityDTO.newBuilder()
         .setOid(COMPUTE_TIER_M5_LARGE_OID)
         .setDisplayName("m5.large")

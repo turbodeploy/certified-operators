@@ -141,8 +141,7 @@ public class ReservedInstanceAnalysisRecommendation {
                                                   int numberOfHours,
                                                   int activeHours,
                                                   int riNormalizedCouponsCoupons,
-                                                  float riNormalizedCouponsUsed,
-                                                  TopologyInfo topologyInfo) {
+                                                  float riNormalizedCouponsUsed) {
         this.logTag = Objects.requireNonNull(logTag);
         this.actionGoal = Objects.requireNonNull(actionGoal);
         this.regionalContext = Objects.requireNonNull(regionalContext);
@@ -159,7 +158,7 @@ public class ReservedInstanceAnalysisRecommendation {
         this.riNormalizedCoupons = riNormalizedCouponsCoupons;
         this.riNormalizedCouponsUsed = riNormalizedCouponsUsed;
         this.riSpec = Objects.requireNonNull(regionalContext.riSpecToPurchase());
-        this.riBoughtInfo = createRiBoughtInfo(Objects.requireNonNull(topologyInfo));
+        this.riBoughtInfo = createRiBoughtInfo();
     }
 
     /**
@@ -349,10 +348,9 @@ public class ReservedInstanceAnalysisRecommendation {
     /**
      * Creates the RI Bought object from the buy RI recommendation.
      *
-     * @param topologyInfo The topology for which this RI Bought is going to be created.
      * @return The reserved instance bought info representing this Buy RI recommendation.
      */
-    public ReservedInstanceBoughtInfo createRiBoughtInfo(@Nonnull TopologyInfo topologyInfo) {
+    public ReservedInstanceBoughtInfo createRiBoughtInfo() {
 
         ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder()
             .setFixedCost(CurrencyAmount.newBuilder().setAmount(riUpFrontRate *
@@ -375,20 +373,7 @@ public class ReservedInstanceAnalysisRecommendation {
 
         ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
             .setNumberOfCoupons(riNormalizedCoupons * numOfCoupons);
-        /*
-         * In case of Cloud optimized plans with Purchase RI and Optimize Workloads we need to set
-         * the number of coupons used to zero. The reason being when the RI is created for the Buy
-         * RI action, the market attempts to resize VMs to the bought RIs; however, if the bought RIs
-         * have used coupons set, the resize will fail. In all other cases we set the actual used number.
-         * In all other cases (real time and plans other than Purchase RI and Optimize Workloads) we end
-         * up in the else block.
-         */
-        if (topologyInfo.getPlanInfo() != null && topologyInfo.getPlanInfo().getPlanSubType()
-                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES)) {
-            riBoughtCoupons.setNumberOfCouponsUsed(0);
-        } else {
-            riBoughtCoupons.setNumberOfCouponsUsed(riNormalizedCouponsUsed * numOfCoupons);
-        }
+        riBoughtCoupons.setNumberOfCouponsUsed(riNormalizedCouponsUsed * numOfCoupons);
 
         ReservedInstanceBoughtInfo.Builder riBoughtInfoBuilder = ReservedInstanceBoughtInfo.newBuilder()
                 .setBusinessAccountId(purchasingAccountOid)

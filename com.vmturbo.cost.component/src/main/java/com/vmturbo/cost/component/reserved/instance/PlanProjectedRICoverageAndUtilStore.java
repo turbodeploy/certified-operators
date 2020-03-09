@@ -44,7 +44,6 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReserve
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -188,15 +187,6 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                         .stream().filter( v -> v.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
                         .collect(Collectors.toSet());
         List<PlanProjectedReservedInstanceCoverageRecord> coverageRcd = new ArrayList<>();
-        Builder reservedInstanceBoughtFilterBuilder = ReservedInstanceBoughtFilter.newBuilder();
-        final List<ReservedInstanceBought> allReservedInstancesBought =
-                        reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
-                                              reservedInstanceBoughtFilterBuilder
-                                              .cloudScopeTuples(
-                           repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
-                                                           realtimeTopologyContextId,
-                                                           this.supplyChainServiceBlockingStub))
-                                                  .build());
         Iterator<EntityReservedInstanceCoverage> it = entityRICoverage.iterator();
         while(it.hasNext()) {
             EntityReservedInstanceCoverage riCoverage = it.next();

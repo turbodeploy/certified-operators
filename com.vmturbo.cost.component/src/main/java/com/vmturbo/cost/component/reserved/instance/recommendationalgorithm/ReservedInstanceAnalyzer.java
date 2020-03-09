@@ -259,7 +259,6 @@ public class ReservedInstanceAnalyzer {
 
                 // compute the recommendations
                 List<ReservedInstanceAnalysisRecommendation> recommendations = computeRecommendations(
-                        scope,
                         analysisContextInfo,
                         clustersAnalyzed,
                         historicalDemandDataType);
@@ -316,14 +315,12 @@ public class ReservedInstanceAnalyzer {
      * Given the purchase constraints the contexts clustered by region, return a list of
      * recommendations of RIs to buy.
      *
-     * @param scope The analysis scope.
      * @param analysisContextInfo The analysis context info.
      * @param clustersAnalyzed keep count of how many clusters were analyzed
      * @param demandDataType what type of demand to use in the computation? e.g. allocation or consumption.
      * @return list of RIs to buy
      */
     private List<ReservedInstanceAnalysisRecommendation> computeRecommendations(
-            @Nonnull ReservedInstanceAnalysisScope scope,
             @Nonnull RIBuyAnalysisContextInfo analysisContextInfo,
             @Nonnull Integer clustersAnalyzed,
             @Nonnull ReservedInstanceHistoricalDemandDataType demandDataType) {
@@ -376,7 +373,7 @@ public class ReservedInstanceAnalyzer {
                 continue;
             }
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(
-                    scope, regionalContext, demandCalculationInfo, kernelResult, rates);
+                    regionalContext, demandCalculationInfo, kernelResult, rates);
             if (recommendation != null) {
                 recommendations.add(recommendation);
                 if (recommendation.getCount() > 0) {
@@ -437,7 +434,6 @@ public class ReservedInstanceAnalyzer {
     /**
      * Generate recommendation to buy RIs to provide coverage as specified by the kernel result.
      *
-     * @param scope scope of analysis
      * @param regionalContext the context in which to buy (eg us-east-1 shared-tenancy Linux).
      * @param demandCalculationInfo The uncovered demand calculcatio info, containing the uncovered demand
      *                              broken down by compute tier.
@@ -446,12 +442,10 @@ public class ReservedInstanceAnalyzer {
      * @return a list of recommendations, which may be empty if no actions are necessary.
      */
     @Nullable
-    private ReservedInstanceAnalysisRecommendation generateRecommendation(@Nonnull ReservedInstanceAnalysisScope scope,
-                                                                          @Nonnull RIBuyRegionalContext regionalContext,
+    private ReservedInstanceAnalysisRecommendation generateRecommendation(@Nonnull RIBuyRegionalContext regionalContext,
                                                                           @Nonnull RIBuyDemandCalculationInfo demandCalculationInfo,
                                                                           @Nonnull RecommendationKernelAlgorithmResult kernelResult,
                                                                           @Nonnull PricingProviderResult pricing) {
-        Objects.requireNonNull(scope);
         Objects.requireNonNull(regionalContext);
         Objects.requireNonNull(kernelResult);
         Objects.requireNonNull(pricing);
@@ -471,7 +465,7 @@ public class ReservedInstanceAnalyzer {
         ReservedInstanceAnalysisRecommendation recommendation =
             new ReservedInstanceAnalysisRecommendation(recommendationTag,
                 actionGoal,
-                    regionalContext,
+                regionalContext,
                 demandCalculationInfo.primaryAccountOid(),
                 numberOfRIsToBuy,
                 pricing,
@@ -480,8 +474,7 @@ public class ReservedInstanceAnalyzer {
                 kernelResult.getTotalHours(),
                 demandCalculationInfo.activeHours(),
                 riPotentialInCoupons,
-                riUsedInCoupons,
-                scope.getTopologyInfo());
+                riUsedInCoupons);
         return recommendation;
     }
 
