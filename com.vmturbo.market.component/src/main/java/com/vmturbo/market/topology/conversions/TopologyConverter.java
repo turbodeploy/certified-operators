@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.BiMap;
@@ -31,7 +32,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
-
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,10 +63,10 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -1891,12 +1891,6 @@ public class TopologyConverter {
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone);
-
-            // Overwrite flags for vSAN
-            if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
-                settingsBuilder.setGuaranteedBuyer(true).setProviderMustClone(true)
-                        .setClonable(false).setSuspendable(false).setResizeThroughSupplier(true);
-            }
 
             //compute biclique IDs for this entity, the clique list will be used only for
             // shop together placement, so pmBasedBicliquer is called

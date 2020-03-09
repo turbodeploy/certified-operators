@@ -36,7 +36,6 @@ import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -263,12 +262,9 @@ public class TopologyEntitiesHandler {
             // actions to reference entities not actually in the projected topology.
             secondRoundActions.addAll(ede.generateActions(economy, true, true,
                 true, false, true, false, marketId).stream()
-                    .filter(action -> (action instanceof ProvisionByDemand
-                            || action instanceof ProvisionBySupply || action instanceof Activate)
-                            // Extract resizes that explicitly set extractAction
-                            // to true as part of resizeThroughSupplier
-                            // provision actions.
-                            || (action instanceof Resize && action.isExtractAction()))
+                .filter(action -> (action instanceof ProvisionByDemand ||
+                    action instanceof ProvisionBySupply ||
+                    action instanceof Activate))
                 .collect(Collectors.toList()));
             List<Trader> provisionedTraders = Lists.newArrayList();
 
