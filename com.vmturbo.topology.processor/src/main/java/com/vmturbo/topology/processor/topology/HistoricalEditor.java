@@ -642,7 +642,10 @@ public class HistoricalEditor {
         final Stopwatch stopwatch = Stopwatch.createStarted();
         for (TopologyEntity entity : (Iterable<TopologyEntity>)graph.entities()::iterator) {
             // Skip if it's not a cloned entity.
-            if (entity.getClonedFromEntityOid() <= 0 &&
+            if (entity.getClonedFromEntityOid() <= 0 ||
+                // Or if we can't find entity it was cloned from in graph.
+                // TODO : This condition should be updated once we start supporting
+                //  clones outside of scope (OM-54710)
                 !graph.getEntity(entity.getClonedFromEntityOid()).isPresent()) {
                 continue;
             }
