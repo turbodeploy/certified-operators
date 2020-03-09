@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -15,9 +16,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -43,6 +41,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -281,8 +280,14 @@ public class StatsMapperTest {
                 .addEntities(1L))
             .build();
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
-        apiRequestInput.setStartDate("-5d");
-        apiRequestInput.setEndDate("+2h");
+        final String startRelativeTime = "-5d";
+        final String endRelativeTime = "+2h";
+
+        final long expectedStart = DateTimeUtil.parseTime(startRelativeTime);
+        final long expectedEnd = DateTimeUtil.parseTime(endRelativeTime);
+
+        apiRequestInput.setStartDate(startRelativeTime);
+        apiRequestInput.setEndDate(endRelativeTime);
         final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
         when(paginationMapper.toProtoParams(paginationRequest))
             .thenReturn(PaginationParameters.getDefaultInstance());
@@ -290,12 +295,9 @@ public class StatsMapperTest {
             apiRequestInput, paginationRequest);
 
         // calculate time ranges to test, with some slop to account for clock advance since mapping
-        Instant now = Instant.now();
-        Instant start = Instant.ofEpochMilli(requestProtobuf.getFilter().getStartDate());
-        Instant end = Instant.ofEpochMilli(requestProtobuf.getFilter().getEndDate());
-        Duration slop = Duration.ofSeconds(5);
-        assertThat(Duration.between(start, now).toDays(), equalTo(5L));
-        assertThat(Duration.between(now.minus(slop), end).toHours(), equalTo(2L));
+        final long slop_ms = 2_000;
+        assertThat(Math.abs(requestProtobuf.getFilter().getStartDate() - expectedStart), lessThan(slop_ms));
+        assertThat(Math.abs(requestProtobuf.getFilter().getEndDate() - expectedEnd), lessThan(slop_ms));
     }
 
     @Test
