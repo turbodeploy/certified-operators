@@ -479,7 +479,15 @@ public enum EntitySettingSpecs {
     VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
+            numeric(0.0f/*min*/, 999999.0f/*max*/, 1024.0f/*default*/), true),
+
+    /**
+     * Switch to enable/disable VStorage resizes.
+     */
+    ResizeVStorage("resizeVStorage", "Resize VStorage",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        new BooleanSettingDataType(false), true),
 
     /**
      * Excluded Templates.

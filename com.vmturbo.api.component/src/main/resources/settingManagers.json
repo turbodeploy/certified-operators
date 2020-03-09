@@ -154,7 +154,8 @@
         "poolMemoryUtilizationThreshold",
         "poolStorageUtilizationThreshold",
         "viewPodActiveSessionCapacity",
-        "dailyObservationWindowDesktopPool"
+        "dailyObservationWindowDesktopPool",
+        "resizeVStorage"
       ]
     },
     "storagesettingsmanager": {
