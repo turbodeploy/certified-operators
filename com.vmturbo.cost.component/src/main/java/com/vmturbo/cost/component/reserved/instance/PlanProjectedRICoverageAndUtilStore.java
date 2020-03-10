@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -187,14 +188,14 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                         .stream().filter( v -> v.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
                         .collect(Collectors.toSet());
         List<PlanProjectedReservedInstanceCoverageRecord> coverageRcd = new ArrayList<>();
-        Iterator<EntityReservedInstanceCoverage> it = entityRICoverage.iterator();
-        while(it.hasNext()) {
-            EntityReservedInstanceCoverage riCoverage = it.next();
-            long entityId = riCoverage.getEntityId();
+        // Get aggregated RI coverage for each entity.
+        Map<Long, Double> aggregatedEntityRICoverages = getAggregatedEntityRICoverage(entityRICoverage);
+        for (Map.Entry<Long, Double> aggregatedEntityRICoverage : aggregatedEntityRICoverages.entrySet()) {
+            long entityId = aggregatedEntityRICoverage.getKey();
             TopologyEntityDTO entity = entityMap.get(entityId);
             if (entity == null || entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
                 logger.error("Updating projecte RI coverage for an entity {} which is not found in "
-                             + "topology with topologyContextId {}.", entityId, topologyContextId);
+                        + "topology with topologyContextId {}.", entityId, topologyContextId);
                 continue;
             }
             // find az connected with entity
@@ -208,7 +209,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             // find region connected with az
             List<TopologyEntityDTO> region =
                     getConnectedEntityofType(allRegion, EntityType.AVAILABILITY_ZONE_VALUE,
-                                             az.get(0).getConnectedEntityId());
+                            az.get(0).getConnectedEntityId());
             if (region.size() != 1) {
                 logger.warn("Entity {} connected to wrong number of region!", entity.getOid());
                 continue;
@@ -221,25 +222,59 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             List<TopologyEntityDTO> computeTiers = getEntityConsumedComputeTiers(entity, entityMap);
             if (computeTiers.size() != 1) {
                 logger.warn("Entity {} consumes wrong number of compute tiers {}!", entity.getOid(),
-                    computeTiers.size());
+                        computeTiers.size());
                 continue;
             }
             final double totalCoupons =
                     computeTiers.iterator().next().getTypeSpecificInfo().getComputeTier()
                             .getNumCoupons();
-            riCoverage.getCouponsCoveredByRiMap().forEach((key, value) -> {
+            // The aggregated RI coverage of the entity
+            final Double usedCoupons = aggregatedEntityRICoverage.getValue();
+            if (usedCoupons > totalCoupons) {
+                // Used coupons should be less than or equals total coupons.
+                logger.error("Used coupons are greater than total coupons for " +
+                                "entityId {}, topologyContextId {}, region id {}, az id {}" +
+                                ", ba id {}, total coupon {}, used coupon {}.",
+                        entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
+                        ba.get(0).getOid(), totalCoupons, usedCoupons);
+            } else {
+                // Used coupons are less than or equals total coupons.
                 coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
                         new PlanProjectedReservedInstanceCoverageRecord(
                                 entityId, topologyContextId, region.get(0).getOid(),
                                 az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
-                                totalCoupons, value)));
+                                totalCoupons, usedCoupons)));
                 logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
                                 + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
                         entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                        ba.get(0).getOid(), totalCoupons, value);
-            });
+                        ba.get(0).getOid(), totalCoupons, usedCoupons);
+            }
         }
         Lists.partition(coverageRcd, chunkSize).forEach(entityChunk -> context.batchInsert(coverageRcd).execute());
+    }
+
+    /**
+     * Combines the RI coverages of each entity.
+     *
+     * @param entityRICoverage The list of the RI coverages
+     * @return The aggregated list of the RI coverages of the entities
+     */
+    @Nonnull
+    @VisibleForTesting
+    Map<Long, Double> getAggregatedEntityRICoverage(@Nonnull final List<EntityReservedInstanceCoverage> entityRICoverage) {
+        Map<Long, Double> aggregatedEntityRICoverages = new HashMap<>();
+        for (final EntityReservedInstanceCoverage riCoverage : entityRICoverage) {
+            long entityId = riCoverage.getEntityId();
+            riCoverage.getCouponsCoveredByRiMap().forEach((key, value) -> {
+                if (aggregatedEntityRICoverages.containsKey(entityId)) {
+                    aggregatedEntityRICoverages.put(entityId,
+                            aggregatedEntityRICoverages.get(entityId) + value);
+                } else {
+                    aggregatedEntityRICoverages.put(entityId, value);
+                }
+            });
+        }
+        return aggregatedEntityRICoverages;
     }
 
     /**

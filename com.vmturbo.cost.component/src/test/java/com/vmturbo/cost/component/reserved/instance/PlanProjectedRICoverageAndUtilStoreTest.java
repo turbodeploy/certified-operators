@@ -362,4 +362,42 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         assertEquals(10, record.getCapacity().getAvg(), DELTA);
         assertEquals(0.2, record.getValues().getAvg(), DELTA);
     }
+
+    /**
+     * Tests getting accumulated RI coverage map that merges RI coverages for each entity.
+     */
+    @Test
+    public void testGetAccumulatedRICoverageMap() {
+        EntityReservedInstanceCoverage riCoverage1 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(1L)
+                .putCouponsCoveredByRi(1L, 0.5)
+                .build();
+        EntityReservedInstanceCoverage riCoverage2 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(1L)
+                .putCouponsCoveredByRi(1L, 0.5)
+                .build();
+        EntityReservedInstanceCoverage riCoverage3 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(2L)
+                .putCouponsCoveredByRi(1L, 2.0)
+                .build();
+        EntityReservedInstanceCoverage riCoverage4 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(4L)
+                .putCouponsCoveredByRi(1L, 1.0)
+                .build();
+        EntityReservedInstanceCoverage riCoverage5 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(4L)
+                .putCouponsCoveredByRi(1L, 1.0)
+                .putCouponsCoveredByRi(2L, 2.0)
+                .build();
+        List<EntityReservedInstanceCoverage> entityRICoverage = Arrays.asList(riCoverage1,
+                riCoverage2, riCoverage3, riCoverage4, riCoverage5);
+        Map<Long, Double> accumulatedRICoverage = store.getAggregatedEntityRICoverage(entityRICoverage);
+        // check coverage for entity ID 1
+        assertEquals(new Double(1.0), accumulatedRICoverage.get(1L));
+        // Check coverage for entity ID 2
+        assertEquals(new Double(2.0), accumulatedRICoverage.get(2L));
+        // Check coverage for entity ID 4
+        assertEquals(new Double(4.0), accumulatedRICoverage.get(4L));
+    }
+
 }
