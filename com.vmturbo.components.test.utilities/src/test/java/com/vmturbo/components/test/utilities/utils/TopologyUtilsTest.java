@@ -27,7 +27,7 @@ public class TopologyUtilsTest {
             ));
 
         assertEquals(
-            entityTypeCounts.get(EntityType.APPLICATION),
+            entityTypeCounts.get(EntityType.APPLICATION_COMPONENT),
             entityTypeCounts.get(EntityType.VIRTUAL_MACHINE)
         );
         assertThat(
@@ -65,7 +65,7 @@ public class TopologyUtilsTest {
             ));
 
         assertEquals(
-            entityTypeCounts.get(EntityType.APPLICATION.getNumber()),
+            entityTypeCounts.get(EntityType.APPLICATION_COMPONENT.getNumber()),
             entityTypeCounts.get(EntityType.VIRTUAL_MACHINE.getNumber())
         );
         assertThat(
