@@ -191,7 +191,7 @@ public class SMATemplate {
      */
     public float getNetCost(long businessAccountId, OSType osType, float discountedCoupons) {
         float netCost = 0f;
-        if (discountedCoupons > coupons || coupons == 0) {
+        if (discountedCoupons >= coupons || coupons == 0) {
             netCost = getDiscountedTotalCost(businessAccountId, osType);
         } else {
             float discountPercentage = discountedCoupons / coupons;

@@ -39,6 +39,18 @@ public class SMAVirtualMachine {
      */
     private final long businessAccountId;
     /*
+     * OSType: needed to compute template cost
+     */
+    private final OSType osType;
+    /*
+     * Cloud Zone
+     */
+    private final long zoneId;
+
+    /*
+     * Not invariants.  After SMAReservedInstance and SMATemplates are discovered.
+     */
+    /*
      * VM's current template.  Infer CSP, family and coupons
      */
     private SMATemplate currentTemplate;
@@ -55,17 +67,10 @@ public class SMAVirtualMachine {
      */
     private float currentRICoverage;
     /*
-     * Cloud Zone
+     * Current Reserved Instance
      */
-    private final long zoneId;
-    /*
-     * Current RIKeyID.
-     */
-    private long currentRIKey;
-    /*
-     * OSType: needed to compute template cost
-     */
-    private final OSType osType;
+    @Nullable
+    private SMAReservedInstance currentRI;
 
     /*
      * Computed attributes.
@@ -82,9 +87,6 @@ public class SMAVirtualMachine {
      */
     private HashMap<String, SMATemplate> minCostProviderPerFamily;
 
-    /**
-     * Computed attributes
-     */
     /*
      * The least cost provider for this VM.
      * Set in updateNaturalTemplateAndMinCostProviderPerFamily() also may be reset if in ASG to
@@ -110,7 +112,7 @@ public class SMAVirtualMachine {
      * @param providers the list of templates that the VM can fit in.
      * @param currentRICoverage the current RI converage of the VM
      * @param zoneId the zone ID to which the VM belongs to.
-     * @param currentRIKey ID of the current RI covering the VM.
+     * @param currentRI current RI covering the VM.
      * @param osType  OS.
      */
     public SMAVirtualMachine(final long oid,
@@ -121,7 +123,7 @@ public class SMAVirtualMachine {
                              @Nonnull List<SMATemplate> providers,
                              final float currentRICoverage,
                              final long zoneId,
-                             final long currentRIKey,
+                             final SMAReservedInstance currentRI,
                              final OSType osType) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
@@ -133,7 +135,7 @@ public class SMAVirtualMachine {
         this.providers = new ArrayList(providers);
         this.zoneId = zoneId;
         this.groupSize = 1;
-        this.currentRIKey = currentRIKey;
+        this.currentRI = currentRI;
         this.osType = osType;
     }
 
@@ -267,12 +269,12 @@ public class SMAVirtualMachine {
         currentRICoverage = coverage;
     }
 
-    public long getCurrentRIKey() {
-        return currentRIKey;
+    public SMAReservedInstance getCurrentRI() {
+        return currentRI;
     }
 
-    public void setCurrentRIKey(final long currentRIKey) {
-        this.currentRIKey = currentRIKey;
+    public void setCurrentRI(final SMAReservedInstance currentRI) {
+        this.currentRI = currentRI;
     }
 
     public long getZoneId() {
