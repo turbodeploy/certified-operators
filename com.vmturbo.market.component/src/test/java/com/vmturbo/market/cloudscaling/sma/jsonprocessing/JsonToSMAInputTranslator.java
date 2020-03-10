@@ -162,7 +162,7 @@ public class JsonToSMAInputTranslator {
                         br.write("\t\t\t\t\t\"groupName\": " + smaVirtualMachine.getGroupName() + ",\n");
                     }
                     br.write("\t\t\t\t\t\"currentRICoverage\": " + Math.round(smaVirtualMachine.getCurrentRICoverage()) + ",\n");
-                    br.write("\t\t\t\t\t\"currentRIKeyID\": " + Math.round(smaVirtualMachine.getCurrentRIKey()) + ",\n");
+                    br.write("\t\t\t\t\t\"currentRIKeyID\": " + Math.round(smaVirtualMachine.getCurrentRI().getRiKeyOid()) + ",\n");
                     br.write("\t\t\t\t\t\"currentTemplate\": " + smaVirtualMachine.getCurrentTemplate().getOid() + "\n");
 
                     if (smaVirtualMachine != smaInputContext.getVirtualMachines().get(smaInputContext.getVirtualMachines().size() - 1)) {
@@ -248,24 +248,29 @@ public class JsonToSMAInputTranslator {
             templates.add(template);
             oidToTemplate.put(template.getOid(), template);
         }
-        List<SMAVirtualMachine> virtualMachines = new ArrayList<>();
-        JsonArray virtualMachinesObjs = (JsonArray)inputContextObj.get("VirtualMachines");
-        for (JsonElement virtualMachinesObj : virtualMachinesObjs) {
-            List<SMAVirtualMachine> smaVirtualMachines = parseVirtualMachine(virtualMachinesObj.getAsJsonObject(), oidToTemplate);
-            virtualMachines.addAll(smaVirtualMachines);
-        }
 
         JsonObject contextObj = (JsonObject)inputContextObj.get("context");
         SMAContext context = parseContext(contextObj);
 
+        Map<Long, SMAReservedInstance> oidToRI = new HashMap<>();
         List<SMAReservedInstance> reservedInstances = new ArrayList<>();
         JsonArray reservedInstancesObjs = (JsonArray)inputContextObj.get("ReservedInstances");
         if (reservedInstancesObjs != null) {
             for (JsonElement reservedInstancesObj : reservedInstancesObjs) {
                 SMAReservedInstance reservedInstance = parseReservedInstance(reservedInstancesObj.getAsJsonObject(), oidToTemplate, context);
                 reservedInstances.add(reservedInstance);
+                oidToRI.put(reservedInstance.getRiKeyOid(), reservedInstance);
             }
         }
+
+        List<SMAVirtualMachine> virtualMachines = new ArrayList<>();
+        JsonArray virtualMachinesObjs = (JsonArray)inputContextObj.get("VirtualMachines");
+        for (JsonElement virtualMachinesObj : virtualMachinesObjs) {
+            List<SMAVirtualMachine> smaVirtualMachines = parseVirtualMachine(virtualMachinesObj.getAsJsonObject(),
+                oidToTemplate, oidToRI);
+            virtualMachines.addAll(smaVirtualMachines);
+        }
+
 
         SMAInputContext inputContext = new SMAInputContext(context, virtualMachines, reservedInstances, templates);
         return inputContext;
@@ -329,7 +334,9 @@ public class JsonToSMAInputTranslator {
         return template;
     }
 
-    private List<SMAVirtualMachine>   parseVirtualMachine(JsonObject virtualMachineObj, Map<Long, SMATemplate> oidToTemplate) {
+    private List<SMAVirtualMachine>   parseVirtualMachine(JsonObject virtualMachineObj,
+                                                          Map<Long, SMATemplate> oidToTemplate,
+                                                          Map<Long, SMAReservedInstance> oidToRI) {
         Long oid = virtualMachineObj.get("oid").getAsLong();
         String name = virtualMachineObj.get("name").getAsString();
         Long businessAccountOid = virtualMachineObj.get("businessAccount").getAsLong();
@@ -339,9 +346,9 @@ public class JsonToSMAInputTranslator {
             currentRICoverage = virtualMachineObj.get("currentRICoverage").getAsFloat();
         }
         JsonElement currentRIObj = virtualMachineObj.get("currentRIKeyID");
-        long currentRI = SMAUtils.NO_CURRENT_RI;
+        long currentRiOid = SMAUtils.UNKNOWN_OID;
         if (currentRIObj != null) {
-            currentRI = currentRIObj.getAsLong();
+            currentRiOid = currentRIObj.getAsLong();
         }
         Long currentTemplateOid = virtualMachineObj.get("currentTemplate").getAsLong();
         List<SMATemplate> providers = new ArrayList<>();
@@ -363,13 +370,15 @@ public class JsonToSMAInputTranslator {
                 String vm_name = name + i.toString();
                 long newOid = oid + i;
                 SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupName, businessAccountOid,
-                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI, osType);
+                    oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid,
+                    oidToRI.get(currentRiOid), osType);
                 virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
             SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupName, businessAccountOid,
-                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid, currentRI, osType);
+                oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid,
+                oidToRI.get(currentRiOid), osType);
             virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
         }
