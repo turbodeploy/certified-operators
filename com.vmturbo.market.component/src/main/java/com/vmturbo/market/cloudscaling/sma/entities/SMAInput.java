@@ -159,8 +159,7 @@ public class SMAInput {
         Map<SMAContext, Set<Long>> contextToBusinessAccountIds = new HashMap<>();
         // for each context in which VMs are found, collect the OSTypes, used to restrict template creation.
         Map<SMAContext, Set<OSType>> contextToOSTypes = new HashMap<>();
-        // map from bought RI to SMA RI.
-        Map<Long, SMAReservedInstance> riBoughtOidToRI = new HashMap<>();
+
 
         /*
          * For each virtual machines, create a VirtualMachine and partition into SMAContexts.
@@ -215,7 +214,7 @@ public class SMAInput {
         logger.info("process {} RIs", () -> allRIData.size());
         for (ReservedInstanceData data :allRIData ) {
             if (processReservedInstance(data, cloudTopology, computeTierOidToContextToTemplate,
-                regionIdToOsTypeToContexts, smaContextToRIs, riBoughtOidToRI,
+                regionIdToOsTypeToContexts, smaContextToRIs,
                     reservedInstanceKeyIDGenerator)) {
                 numberRIsCreated++;
             }
@@ -232,7 +231,7 @@ public class SMAInput {
         for (SMAContext context :smaContexts) {
             Set<SMAVirtualMachine> vmsInContext = smaContextToVMs.get(context);
             updateVirtualMachines(vmsInContext, computeTierOidToContextToTemplate, providers,
-                    cloudTopology, context, riBoughtOidToRI,
+                    cloudTopology, context,
                     reservedInstanceKeyIDGenerator, cloudCostData);
         }
         dumpContextToVMsFinal(smaContextToVMs);
@@ -360,7 +359,7 @@ public class SMAInput {
             new ArrayList<SMATemplate>(),
             SMAUtils.NO_RI_COVERAGE,
             zoneId,
-            SMAUtils.BOGUS_RI,
+            SMAUtils.NO_CURRENT_RI,
             osType);
         if (vm == null) {
             logger.error("processVM: createSMAVirtualMachine failed for VM ID={}",
@@ -385,18 +384,16 @@ public class SMAInput {
      * @param providersList map from VM ID to its set of computeTier IDs.
      * @param cloudTopology dictionary.
      * @param context the input context the VM belongs to.
-     * @param riBoughtOidToRI map from RI bought OID to created SMA RI
      * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @param cloudCostData where to find costs and RI related info.  E.g. RI coverage for a VM.
      */
-    private void updateVirtualMachines(final Set<SMAVirtualMachine> vms,
-                                       final Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
-                                       final Map<Long, Set<Long>> providersList,
-                                       final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                       final SMAContext context,
-                                       @Nonnull final Map<Long, SMAReservedInstance> riBoughtOidToRI,
-                                       final SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator,
-                                       @Nonnull final CloudCostData cloudCostData) {
+    private void updateVirtualMachines(Set<SMAVirtualMachine> vms,
+                                       Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
+                                       Map<Long, Set<Long>> providersList,
+                                       CloudTopology<TopologyEntityDTO> cloudTopology,
+                                       SMAContext context,
+                                       SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator,
+                                       @Nonnull CloudCostData cloudCostData) {
         for (SMAVirtualMachine vm : vms) {
             long oid = vm.getOid();
             String name = vm.getName();
@@ -436,11 +433,12 @@ public class SMAInput {
                 vm.setProviders(providers);
                 vm.updateNaturalTemplateAndMinCostProviderPerFamily();
             }
-            Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
-            logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
-                () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
-            if (currentRICoverage != null) {
-                vm.setCurrentRI(currentRICoverage.getFirst());
+            Pair<Long, Float> currentRICoverage = computeRiCoverage(oid, cloudTopology, cloudCostData, reservedInstanceKeyIDGenerator);
+            logger.debug("updateVMs: ID={} name={} currentRICoverage={} currentRI={}",
+                () -> oid, () -> name, () -> currentRICoverage.getSecond(),
+                () -> currentRICoverage.getFirst());
+            if (currentRICoverage.getSecond() > SMAUtils.EPSILON) {
+                vm.setCurrentRIKey(currentRICoverage.getFirst());
                 vm.setCurrentRICoverage(currentRICoverage.getSecond());
             }
         }
@@ -770,16 +768,14 @@ public class SMAInput {
      * @param computeTierOidToContextToTemplate used to look up SMATemplate given the computeTier ID
      * @param regionIdToOsTypeToContexts map from regionID to OSType to context.
      * @param smaContextToRIs map from context to set of RIs, to be updated
-     * @param riBoughtOidToRI map from RI bought OID to created SMA RI, to be updated
      * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @return true if RI is created
      */
-    private boolean processReservedInstance(final ReservedInstanceData data,
-                                            final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                            final Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
-                                            final Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
+    private boolean processReservedInstance(ReservedInstanceData data,
+                                            CloudTopology<TopologyEntityDTO> cloudTopology,
+                                            Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
+                                            Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                             Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
-                                            Map<Long, SMAReservedInstance> riBoughtOidToRI,
                                             SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
         ReservedInstanceBought riBought = data.getReservedInstanceBought();
         long riBoughtId = riBought.getId();
@@ -863,7 +859,6 @@ public class SMAInput {
             Set<SMAReservedInstance> smaRIs = smaContextToRIs.getOrDefault(context, new HashSet<>());
             smaRIs.add(ri);
             smaContextToRIs.put(context, smaRIs);
-            riBoughtOidToRI.put(riBoughtId, ri);
         }
         return true;
     }
@@ -970,55 +965,56 @@ public class SMAInput {
     }
 
     /**
-     * Compute the RI coverage of a VM.  If VM has multiple RIs, then ISF, and only choose one RI.
-     * @param vmOid           OID of virtualMachine
-     * @param cloudCostData   cost dictionary
-     * @param riBoughtOidToRI map from RI bought OID to SMA RI
-     * @return Pair SMA RI to coupons covered.
+     * Compute the RI coverage of a VM.
+     * @param vmOid         oid of virtualMachine
+     * @param cloudTopology  the source cloud topology to get a VM's the source compute tier.
+     * @param cloudCostData  cost dictionary
+     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
+     * @return RI coverage of the VM
      */
     @Nonnull
-    private Pair<SMAReservedInstance, Float> computeVmCoverage(final Long vmOid,
-                                                               final CloudCostData cloudCostData,
-                                                               final Map<Long, SMAReservedInstance> riBoughtOidToRI) {
-        Pair<SMAReservedInstance, Float> currentRICoverage = null;
-        Optional<EntityReservedInstanceCoverage> riCoverageOptional = cloudCostData.getRiCoverageForEntity(vmOid);
-        if (riCoverageOptional.isPresent()) {
-            EntityReservedInstanceCoverage riCoverage = riCoverageOptional.get();
-            currentRICoverage = computeVmCoverage(riCoverage, riBoughtOidToRI);
+    private Pair<Long, Float> computeRiCoverage(Long vmOid,
+                                    CloudTopology<TopologyEntityDTO> cloudTopology,
+                                    CloudCostData cloudCostData,
+                                    SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
+        Pair<Long, Float> currentRICoverage = null;
+        Optional<EntityReservedInstanceCoverage> coverageOptional = cloudCostData.getRiCoverageForEntity(vmOid);
+        if (coverageOptional.isPresent()) {
+            EntityReservedInstanceCoverage coverage = coverageOptional.get();
+            currentRICoverage = computeCoverage(coverage, reservedInstanceKeyIDGenerator);
         } else {
             logger.error("processVirtualMachine: could not coverage VM ID={}", vmOid);
         }
         if (currentRICoverage == null) {
-            return null;
+            return SMAUtils.NO_COMPUTE_RI_COVERAGE;
         }
         return currentRICoverage;
     }
 
-        /**
-     * Compute the current RI Coverage and the SMA specific RI Key ID.
-     * @param riCoverage RI coverage information: RI ID -> # coupons covered
+    /**
+     * Compute the current rI Converage and the SMA specific RI Key ID.
+     * @param riCoverage RI coverage information.
      * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
-     * @return ReservedInstanceCoverage
+     * @return RI coverage of the VM as RIKeyID,Coverage pair.
      */
     @Nullable
-    private Pair<SMAReservedInstance, Float> computeVmCoverage(EntityReservedInstanceCoverage riCoverage,
-                                                               Map<Long, SMAReservedInstance> riBoughtOidToRI) {
-        Map<Long, Double> riOidToCoupons = riCoverage.getCouponsCoveredByRi();
-        float coverage = SMAUtils.NO_RI_COVERAGE;
-        SMAReservedInstance ri = null;
-        for (Entry<Long, Double> coupons : riOidToCoupons.entrySet()) {
+    private Pair<Long, Float> computeCoverage(EntityReservedInstanceCoverage riCoverage,
+                                              SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
+        Map<Long, Double> riToCoupons = riCoverage.getCouponsCoveredByRi();
+        float utilization = SMAUtils.NO_RI_COVERAGE;
+        long riKeyID = SMAUtils.NO_CURRENT_RI;
+        for (Entry<Long, Double> coupons : riToCoupons.entrySet()) {
+            utilization += coupons.getValue();
             if (coupons.getValue() > SMAUtils.EPSILON) {
-                coverage += coupons.getValue();
-                long riOID = coupons.getKey();
-                ri = riBoughtOidToRI.get(riOID);
-                if (ri == null) {
-                    logger.error("computeVmCoverage RI bought OID={} not found in riBoughtOidToRI",
-                        riOID);
+                Long riKeyIDLong = reservedInstanceKeyIDGenerator.getRIKeyIDFromRIBoughtID(coupons.getKey());
+                if (riKeyIDLong == null) {
+                    logger.error("computeCoverage key={} not found in getRIKeyIDFromRIBoughtID",
+                        coupons.getKey());
                     return null;
                 }
             }
         }
-        return new Pair(ri, coverage);
+        return new Pair(riKeyID, utilization);
     }
 
     private double computeHourlyRIRate(ReservedInstanceBoughtCost boughtCost, int years) {
@@ -1069,13 +1065,11 @@ public class SMAInput {
     private void dumpContextToVMs(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs) {
         logger.info("dump contexts to VMS for {} contexts",
             () -> smaContextToVMs.keySet().size());
-        if (logger.isDebugEnabled()) {
-            for (SMAContext context : smaContextToVMs.keySet()) {
-                logger.info("  {}", context);
-                for (SMAVirtualMachine vm : smaContextToVMs.get(context)) {
-                    logger.info("    VM: ID={} name={} businessAccountId={} OS={}", () -> vm.getOid(),
-                        () -> vm.getName(), () -> vm.getBusinessAccountId(), () -> vm.getOsType().name());
-                }
+        for (SMAContext context : smaContextToVMs.keySet()) {
+            logger.info("  {}", context);
+            for (SMAVirtualMachine vm : smaContextToVMs.get(context)) {
+                logger.info("    VM: ID={} name={} businessAccountId={} OS={}", () -> vm.getOid(),
+                    () -> vm.getName(), () -> vm.getBusinessAccountId(), () -> vm.getOsType().name());
             }
         }
     }
@@ -1092,34 +1086,30 @@ public class SMAInput {
     }
 
     private void dumpRegionIdToOsTypeToContexts(Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("dump region to osType to context table for {} regions",
-                () -> regionIdToOsTypeToContexts.rowKeySet().size());
-            for (long regionId : regionIdToOsTypeToContexts.rowKeySet()) {
-                logger.debug("  region={}", regionId);
-                Map<OSType, Set<SMAContext>> map = regionIdToOsTypeToContexts.row(regionId);
-                for (OSType osType : map.keySet()) {
-                    logger.debug("    osType={}", osType);
-                    for (SMAContext context : map.get(osType)) {
-                        logger.debug("      {}", context);
-                    }
+        logger.info("dump region to osType to context table for {} regions",
+            () -> regionIdToOsTypeToContexts.rowKeySet().size());
+        for (long regionId : regionIdToOsTypeToContexts.rowKeySet()) {
+            logger.info("  region={}", regionId);
+            Map<OSType, Set<SMAContext>> map = regionIdToOsTypeToContexts.row(regionId);
+            for (OSType  osType : map.keySet()) {
+                logger.info("    osType={}", osType);
+                for (SMAContext context: map.get(osType)) {
+                    logger.info("      {}", context);
                 }
             }
         }
     }
 
     private void dumpContextToBusinessAccountsIds(Map<SMAContext, Set<Long>> contextToBusinessAccountIds) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("dump context to business account IDs for {} contexts",
-                () -> contextToBusinessAccountIds.keySet().size());
-            for (SMAContext context : contextToBusinessAccountIds.keySet()) {
-                Set<Long> accountIds = contextToBusinessAccountIds.get(context);
-                StringBuffer buffer = new StringBuffer();
-                for (long id : accountIds) {
-                    buffer.append(" ").append(id);
-                }
-                logger.debug("  {}: account IDs={}", () -> context, () -> buffer.toString());
+        logger.info("dump context to business account IDs for {} contexts",
+            () -> contextToBusinessAccountIds.keySet().size());
+        for (SMAContext context: contextToBusinessAccountIds.keySet()) {
+            Set<Long> accountIds = contextToBusinessAccountIds.get(context);
+            StringBuffer buffer = new StringBuffer();
+            for (long id: accountIds) {
+                buffer.append(" ").append(id);
             }
+            logger.info("  {}: account IDs={}", () -> context, () -> buffer.toString());
         }
     }
 

@@ -9,7 +9,6 @@ import org.apache.commons.math3.util.Pair;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -18,11 +17,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * Contains constant definitions for Stable Marriage Algorithm (SMA).
  */
 public class SMAUtils {
-
-    /**
-     * When the name is UNKNOWN.
-     */
-    public static final String UNKNOWN_NAME = "-";
     /**
      * OID for zonal ID, when there is no zone.
      */
@@ -75,7 +69,7 @@ public class SMAUtils {
     /**
      * When there is no RI coverage.
      */
-    public static final long UNKNOWN_OID = -1;
+    public static final long NO_CURRENT_RI = -1;
 
     /**
      * no cost.
@@ -105,18 +99,18 @@ public class SMAUtils {
     public static final Set<OSType> UNKNOWN_OS_SINGLETON_SET = Collections.singleton(OSType.UNKNOWN_OS);
 
     /**
-     * Placeholder for an invalid RI.
+     * no RI Coverage.
      */
-    public static final SMAReservedInstance BOGUS_RI = new SMAReservedInstance(UNKNOWN_OID, UNKNOWN_OID,
-        UNKNOWN_NAME, UNKNOWN_OID, BOGUS_TEMPLATE, UNKNOWN_OID, 0, false, false, false);
+    public static final Pair<Long, Float> NO_COMPUTE_RI_COVERAGE = new Pair(SMAUtils.NO_CURRENT_RI, SMAUtils.NO_RI_COVERAGE);
+
 
     /**
-     * Ensures there are only 4 significant decimal places.  Round up if needed.
+     * Ensures there are only 4 significant decimal places.
      * @param value float value
      * @return float value with at most 4 significant decimal places.
      */
-    public static float format4Digits(float value) {
-        return ((int)((value + 0.00005) * 10000)) / (float)10000.0f;
+    public static float formatDigits(float value) {
+        return ((int)(value * 10000)) / (float)10000.0f;
     }
 
 }
