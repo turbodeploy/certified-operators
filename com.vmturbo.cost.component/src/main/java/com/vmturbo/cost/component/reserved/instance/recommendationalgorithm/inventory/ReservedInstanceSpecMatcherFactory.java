@@ -15,6 +15,8 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -34,8 +36,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
  */
 public class ReservedInstanceSpecMatcherFactory {
 
-    private final ReservedInstanceSpecStore riSpecStore;
+    private static final Logger logger = LogManager.getLogger();
 
+    private final ReservedInstanceSpecStore riSpecStore;
 
     /**
      * Create a new factory instance.
@@ -54,14 +57,15 @@ public class ReservedInstanceSpecMatcherFactory {
      * impact in loading the requisite RI specs.
      *
      * @param cloudTopology The cloud topology, used by the compute tier for each RI spec.
-     * @param purchaseConstraints The purchasing constraints of the analysis, used to scope the
+     * @param purchaseConstraints The purchasing constraints of the analysis mapped to each
+     *                            service provider display name, used to scope the
      *                            potential RI specs for purchase recommendations
      * @param regionOid The target region OID
      * @return A newly created {@link ReservedInstanceSpecMatcher}, scoped to the target region
      */
     public ReservedInstanceSpecMatcher createRegionalMatcher(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+            @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
             long regionOid) {
 
         return  createMatcherForRISpecs(
@@ -73,7 +77,7 @@ public class ReservedInstanceSpecMatcherFactory {
 
     private ReservedInstanceSpecMatcher createMatcherForRISpecs(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+            @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
             @Nonnull Collection<ReservedInstanceSpec> riSpecs) {
 
         // First convert each RI spec to an RI spec data instance (containing the associated compute
@@ -94,7 +98,7 @@ public class ReservedInstanceSpecMatcherFactory {
                 .stream()
                 .map(riSpecKeyEntry -> ImmutablePair.of(
                         riSpecKeyEntry.getKey(),
-                        resolvePurchasingSpec(riSpecKeyEntry.getValue(), purchaseConstraints)))
+                        resolvePurchasingSpec(riSpecKeyEntry.getValue(), purchaseConstraints, cloudTopology)))
                 // It's possible none of the RI specs within this key fit the purchase constraints.
                 // Therefore, ignore this key if it doesn't have a viable RI spec to recommend.
                 .filter(riSpeKeyData -> riSpeKeyData.getRight() != null)
@@ -178,12 +182,12 @@ public class ReservedInstanceSpecMatcherFactory {
     @Nullable
     private ReservedInstanceSpecData resolvePurchasingSpec(
             @Nonnull Collection<ReservedInstanceSpecData> riSpecDataGrouping,
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
+            @Nonnull final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraintMap,
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
+
         return riSpecDataGrouping.stream()
                 .filter(riSpecData -> riSpecData.couponsPerInstance() > 0)
-                .filter(riSpecData -> isRISpecWithinPurchaseConstraints(
-                        purchaseConstraints,
-                        riSpecData.reservedInstanceSpec()))
+                .filter(riSpecData -> filterbyPurchasingConstraints(riSpecData, purchaseConstraintMap, cloudTopology))
                 // Sort the RI specs by smallest to largest and then by OID as a tie-breaker.
                 // In selecting the first RI spec, we'll recommend the smallest instance type
                 // within a family.
@@ -193,4 +197,33 @@ public class ReservedInstanceSpecMatcherFactory {
                 .orElse(null);
     }
 
+    /**
+     * Filter method used to short list RISpecs that match the corresponding purchasing constraints.
+     *
+     * @param riSpecData the RI Spec data for which we want to resolve the constraints.
+     * @param purchaseConstraintMap - Map of all constraints by each service provider.
+     * @param cloudTopology - handle to the cloud topology.
+     * @return true if no constraints found or if applicable to the RISpec data.
+     */
+    private boolean filterbyPurchasingConstraints(
+            final ReservedInstanceSpecData riSpecData,
+            final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraintMap,
+            final CloudTopology<TopologyEntityDTO> cloudTopology) {
+        final long regionId = riSpecData.reservedInstanceSpec()
+                                .getReservedInstanceSpecInfo().getRegionId();
+        final Optional<TopologyEntityDTO> provider = cloudTopology.getServiceProvider(regionId);
+        boolean constraintApplicable = false;
+        if (provider.isPresent()) {
+            String providerName = provider.get().getDisplayName();
+            ReservedInstancePurchaseConstraints constraints =
+                    purchaseConstraintMap.get(providerName.toUpperCase());
+            constraintApplicable =  constraints != null &&
+                    isRISpecWithinPurchaseConstraints(
+                            constraints,
+                            riSpecData.reservedInstanceSpec());
+        } else {
+            logger.warn("Service Provider not found for region {}", regionId);
+        }
+        return constraintApplicable;
+    }
 }

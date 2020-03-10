@@ -32,13 +32,13 @@ public class RegionalRIMatcherCache {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
-    private final ReservedInstancePurchaseConstraints purchaseConstraints;
+    private final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints;
 
 
     public RegionalRIMatcherCache(@Nonnull ReservedInstanceSpecMatcherFactory riSpecMatcherFactory,
                                   @Nonnull ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory,
                                   @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                  @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
+                                  @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints) {
 
         this.riSpecMatcherFactory = Objects.requireNonNull(riSpecMatcherFactory);
         this.riInventoryMatcherFactory = Objects.requireNonNull(riInventoryMatcherFactory);

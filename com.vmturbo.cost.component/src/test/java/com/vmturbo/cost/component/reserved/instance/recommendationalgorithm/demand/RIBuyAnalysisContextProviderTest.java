@@ -173,7 +173,7 @@ public class RIBuyAnalysisContextProviderTest {
 
         RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
         when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(ReservedInstancePurchaseConstraints.class))).thenReturn(matcherCache);
+                any(Map.class))).thenReturn(matcherCache);
 
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()
@@ -216,7 +216,7 @@ public class RIBuyAnalysisContextProviderTest {
 
         RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
         when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(ReservedInstancePurchaseConstraints.class))).thenReturn(matcherCache);
+                any(Map.class))).thenReturn(matcherCache);
 
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()

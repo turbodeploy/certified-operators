@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory;
 
+import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -40,7 +41,7 @@ public class RegionalRIMatcherCacheFactory {
      * @return A newly created instance of {@link RegionalRIMatcherCache}.
      */
     public RegionalRIMatcherCache createNewCache(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                                 @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
+                                                 @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints) {
         return new RegionalRIMatcherCache(
                 riSpecMatcherFactory,
                 riInventoryMatcherFactory,

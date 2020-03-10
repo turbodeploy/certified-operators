@@ -127,7 +127,7 @@ public class RIBuyAnalysisContextProvider {
     @Nonnull
     public RIBuyAnalysisContextInfo computeAnalysisContexts(
             @Nonnull ReservedInstanceAnalysisScope scope,
-            ReservedInstancePurchaseConstraints purchaseConstraints) {
+            Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints) {
 
 
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology();

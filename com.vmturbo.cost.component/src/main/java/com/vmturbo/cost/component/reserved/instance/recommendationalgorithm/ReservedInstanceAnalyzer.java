@@ -14,22 +14,23 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
-
+import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
-import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -38,6 +39,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithm;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
@@ -52,7 +54,6 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.dema
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculationInfo;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculator;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -238,8 +239,9 @@ public class ReservedInstanceAnalyzer {
         final Date analysisStartTime = new Date();
         final Stopwatch overallTime = Stopwatch.createStarted();
         try {
-            // Describes what kind of RIs can be considered for purchase
-            final ReservedInstancePurchaseConstraints purchaseConstraints =
+            // Describes what kind of RIs can be considered for purchase. The purchase
+            // constraints are retrieved as mapping from the service provider display name.
+            final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints =
                     getPurchaseConstraints(scope);
 
             // Find the historical demand by context and create analysis clusters.
@@ -542,47 +544,55 @@ public class ReservedInstanceAnalyzer {
         return results;
     }
 
-    private ReservedInstancePurchaseConstraints getPurchaseConstraints(
+    private Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints(
                     ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
         if (scope.getRiPurchaseProfile() == null) {
             return getPurchaseConstraints();
         } else {
-            RIPurchaseProfile profile = scope.getRiPurchaseProfile();
-            if (!profile.hasRiType()) {
-                throw new IllegalArgumentException(
-                                "No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
-            }
-            ReservedInstanceType type = profile.getRiType();
-            return new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
-                            type.getTermYears(), type.getPaymentOption());
-
+            //TODO Support per provider profile for Plans. OM-56170
+            logger.info("Received a purchase profile in the scope," +
+                    " using the global settings for now");
+            logger.info("Pending TODO. Ignoring profile set in the plan request," +
+                    " using real time settings.");
+            return getPurchaseConstraints();
         }
     }
 
     /**
      * Fetch RI Purchase constraints settings from the Settings Service.
      *
-     * @return RI Purchase Settings constraints object.
+     * @return a Map of the service provider OID and the corresponding
+     * RI Purchase Settings constraints object.
      */
-    private ReservedInstancePurchaseConstraints getPurchaseConstraints() {
-        List<String> settingNames =
-                Arrays.asList(GlobalSettingSpecs.AWSPreferredOfferingClass,
+    @VisibleForTesting
+    protected Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints() {
+
+        final List<String> awsSettingNames =
+                Stream.of(GlobalSettingSpecs.AWSPreferredOfferingClass,
                         GlobalSettingSpecs.AWSPreferredPaymentOption,
                         GlobalSettingSpecs.AWSPreferredTerm)
-                    .stream()
-                    .map(GlobalSettingSpecs::getSettingName)
-                    .collect(Collectors.toList());
+                        .map(GlobalSettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
 
-        Map<String, Setting> settings = new HashMap<>();
+        final List<String> azureSettingNames =
+                Stream.of(GlobalSettingSpecs.AzurePreferredOfferingClass,
+                        GlobalSettingSpecs.AzurePreferredPaymentOption,
+                        GlobalSettingSpecs.AzurePreferredTerm)
+                        .map(GlobalSettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
+
+
+        final Map<String, Setting> settings = new HashMap<>();
         settingsServiceClient.getMultipleGlobalSettings(
-                GetMultipleGlobalSettingsRequest.newBuilder().build().newBuilder()
-                        .addAllSettingSpecName(settingNames)
+                GetMultipleGlobalSettingsRequest.newBuilder()
+                        .addAllSettingSpecName(awsSettingNames)
+                        .addAllSettingSpecName(azureSettingNames)
                         .build())
-        .forEachRemaining( setting -> {
-            settings.put(setting.getSettingSpecName(), setting);
-        });
+                .forEachRemaining(setting -> {
+                    settings.put(setting.getSettingSpecName(), setting);
+                });
 
-        ReservedInstancePurchaseConstraints reservedInstancePurchaseConstraints =
+        ReservedInstancePurchaseConstraints awsReservedInstancePurchaseConstraints =
                 new ReservedInstancePurchaseConstraints(
                         OfferingClass.valueOf(
                                 settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
@@ -591,7 +601,19 @@ public class ReservedInstanceAnalyzer {
                         PaymentOption.valueOf(
                                 settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 
-        return reservedInstancePurchaseConstraints;
+        ReservedInstancePurchaseConstraints azureReservedInstancePurchaseConstraints =
+                new ReservedInstancePurchaseConstraints(
+                        OfferingClass.valueOf(
+                                settings.get(GlobalSettingSpecs.AzurePreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
+                        PreferredTerm.valueOf(
+                                settings.get(GlobalSettingSpecs.AzurePreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
+                        PaymentOption.valueOf(
+                                settings.get(GlobalSettingSpecs.AzurePreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
+
+        return ImmutableMap.<String, ReservedInstancePurchaseConstraints>builder()
+                .put(CategoryPathConstants.AWS.toUpperCase(), awsReservedInstancePurchaseConstraints)
+                .put(CategoryPathConstants.AZURE.toUpperCase(), azureReservedInstancePurchaseConstraints)
+                .build();
 
     }
 }
