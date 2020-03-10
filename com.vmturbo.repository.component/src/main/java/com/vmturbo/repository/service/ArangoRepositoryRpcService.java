@@ -13,9 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -23,6 +20,10 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -258,6 +259,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         final long topologyId = request.getTopologyId();
         logger.debug("Retrieving plan stats for topology {}.", topologyId);
         // create a filter on relatedEntityType
+        final String relatedEntityType = request.getRequestDetails().hasRelatedEntityType() ?
+            request.getRequestDetails().getRelatedEntityType() : null;
         final StatsFilter statsFilter = request.getRequestDetails().getFilter();
         final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
 
@@ -288,7 +291,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         // The response will be sent through the responseObserver. Streaming in this way may perform
         // better than returning the entire result here and subsequently streaming.
         planStatsService.getPlanTopologyStats(reader, statEpoch, statsFilter, entityPredicate,
-            paginationParams, entityReturnType, responseObserver);
+            paginationParams, entityReturnType, responseObserver, relatedEntityType);
     }
 
     /**
@@ -340,6 +343,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         final TopologyID projectedTopologyID = projectedTopologyIdOpt.get();
 
         // create a filter on relatedEntityType
+        final String relatedEntityType = request.getRequestDetails().hasRelatedEntityType() ?
+                request.getRequestDetails().getRelatedEntityType() : null;
         final StatsFilter statsFilter = request.getRequestDetails().getFilter();
         final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
 
@@ -371,7 +376,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         // The response will be sent through the responseObserver. Streaming in this way may perform
         // better than returning the entire result here and subsequently streaming.
         planStatsService.getPlanCombinedStats(sourceReader, projectedReader, statsFilter,
-            entityPredicate, topologyToSortOn, paginationParams, entityReturnType, responseObserver);
+            entityPredicate, topologyToSortOn, paginationParams, entityReturnType, responseObserver,
+            relatedEntityType);
     }
 
     private boolean validatePlanCombinedStatsRequest(PlanCombinedStatsRequest request,
