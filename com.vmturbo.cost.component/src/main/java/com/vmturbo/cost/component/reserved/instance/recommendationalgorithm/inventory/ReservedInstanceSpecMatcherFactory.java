@@ -86,7 +86,7 @@ public class ReservedInstanceSpecMatcherFactory {
                 riSpecs.stream()
                         ///First convert each RI spec to an RI spec data instance,
                         // containing the associated compute tier of the RI spec.
-                        .map(riSpec -> convertRISpecToData(cloudTopology, riSpec))
+                        .map(riSpec -> convertRISpecToData(cloudTopology, riSpec)).filter(Objects::nonNull)
                         // Group the RI specs by an RI spec key, indicating the scope the RI spec
                         // could cover
                         .collect(Collectors.groupingBy(
@@ -151,6 +151,8 @@ public class ReservedInstanceSpecMatcherFactory {
                     .reservedInstanceSpec(riSpec)
                     .build();
         } else {
+            logger.warn("Unable to find compute tier for RI Spec {}", computeTier.map(TopologyEntityDTO::getDisplayName)
+                            .orElse(Long.toString(riSpec.getReservedInstanceSpecInfo().getTierId())));
             return null;
         }
     }
