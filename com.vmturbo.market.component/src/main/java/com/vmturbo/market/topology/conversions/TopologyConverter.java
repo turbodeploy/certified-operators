@@ -70,6 +70,7 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -216,7 +217,7 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
-        this.enableSMA = false;
+        this.marketMode = MarketMode.M2Only;
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
             shoppingListOidToInfos,
             cloudTc,
@@ -326,7 +327,7 @@ public class TopologyConverter {
 
     private final ConsistentScalingHelper consistentScalingHelper;
 
-    private final boolean enableSMA;
+    private final MarketMode marketMode;
 
     /**
      * Constructor with includeGuaranteedBuyer parameter.
@@ -334,7 +335,7 @@ public class TopologyConverter {
      * @param topologyInfo Information about the topology.
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param quoteFactor to be used by move recommendations.
-     * @param enableSMA the market generates compute scaling action for could vms if false.
+     * @param marketMode the market generates compute scaling action for could vms if false.
      *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable market price table
@@ -348,7 +349,7 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
-                             final boolean enableSMA,
+                             final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              CommodityConverter commodityConverter,
@@ -361,7 +362,7 @@ public class TopologyConverter {
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
-        this.enableSMA = enableSMA;
+        this.marketMode = marketMode;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
@@ -408,7 +409,7 @@ public class TopologyConverter {
                              @NonNull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, false, liveMarketMoveCostFactor,
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null);
     }
@@ -417,7 +418,7 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
-                             final boolean enableSMA,
+                             final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull CommodityConverter commodityConverter,
@@ -429,7 +430,7 @@ public class TopologyConverter {
         this.cloudTopology = null;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
-        this.enableSMA = enableSMA;
+        this.marketMode = marketMode;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.commodityConverter = commodityConverter;
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
@@ -2225,7 +2226,7 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
-            if (!enableSMA) {
+            if (marketMode != MarketMode.SMAOnly) {
                 // Create Coupon Comm
                 Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid);
                 if (coupon.isPresent()) {
@@ -2297,13 +2298,15 @@ public class TopologyConverter {
             new ShoppingListInfo(id, buyerOid, providerOid, resourceId, providerEntityType,
                     commBoughtGrouping.getCommodityBoughtList()));
 
-        if (enableSMA && includeByType(commBoughtGrouping.getProviderEntityType())
-                && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+        if (MarketMode.isEnableSMA(marketMode)
+            && includeByType(commBoughtGrouping.getProviderEntityType())
+            && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
             cloudVmComputeShoppingListIDs.add(id);
-            return economyShoppingListBuilder.setMovable(false).build();
-        } else {
-            return economyShoppingListBuilder.build();
+            if (marketMode == MarketMode.SMAOnly) {
+                return economyShoppingListBuilder.setMovable(false).build();
+            }
         }
+        return economyShoppingListBuilder.build();
     }
 
     /**

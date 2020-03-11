@@ -1,4 +1,4 @@
-package com.vmturbo.market.cloudscaling.sma.analysis;
+package com.vmturbo.market.diagnostics;
 
 import java.util.Iterator;
 import java.util.List;
@@ -35,6 +35,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
@@ -51,15 +52,22 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
- * This class externalizes a list of actions in the log in common separated value (CSV) format.
+ * This class externalizes a list of actions or the SMA output to the log in common separated value (CSV) format.
  *
- * <p>The actions are externalized only if log level is set to debug, or market mode is M2WithSMAActions.
+ * <p>The externalization only occurs if 1) the log level of this class is set to debug, or market
+ * mode is M2WithSMAActions.  If M2withSMAActions market mode is chosen, then both M2 and SMA actions
+ * are logged in CSV format, allowing comparisons.
+ *
+ *
  */
-public class SMAExternalizeActions {
+public class ActionLogger {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String header = "market,engine,CSP,billingFamily,businessAccount,region," +
+    // to easily find the data in the log
+    private static final String prefix = "loggedActions";
+
+    private static final String header = ",market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
         "OSType,Tenancy,vmName,vmOid,vmGroupName,savingsPerHour," +
         "sourceTemplate,sourceCoupons,natrualTemplate,naturalCoupons,source RI,RITemplate,RICoupons," +
         "projectedTemplate,projectedCoupons,projected RI,RITemplate,RICoupons," +
@@ -306,6 +314,7 @@ public class SMAExternalizeActions {
 
     private void addRow(StringBuffer buffer) {
         buffer.append(",")
+            .append(prefix). append(",")
             .append(engine).append(",")
             .append(csp.name()).append(",")
             .append(billingFamilyName).append(",")

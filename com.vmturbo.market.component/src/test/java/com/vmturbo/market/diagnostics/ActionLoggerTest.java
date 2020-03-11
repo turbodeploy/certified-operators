@@ -1,4 +1,4 @@
-package com.vmturbo.market.cloudscaling.sma.analysis;
+package com.vmturbo.market.diagnostics;
 
 import static org.junit.Assert.assertEquals;
 
@@ -7,10 +7,12 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import com.vmturbo.market.diagnostics.ActionLogger;
+
 /**
- * JUnit to test SMAExternalizeActions methods.
+ * JUnit to test ActionLogger methods.
  */
-public class SMAExternalizeActionsTest {
+public class ActionLoggerTest {
     private static long key1 = 1L;
     private static double value1 = 3.5;
     private static long key2 = 10L;
@@ -27,7 +29,7 @@ public class SMAExternalizeActionsTest {
         long oid = 1L;
         Map<Long, Double> map = new HashMap<>();
 
-        SMAExternalizeActions externalizedActions = new SMAExternalizeActions();
+        ActionLogger externalizedActions = new ActionLogger();
 
         // empty map, returns 0f
         float value = externalizedActions.computeCouponsUsed(map, oid, type);

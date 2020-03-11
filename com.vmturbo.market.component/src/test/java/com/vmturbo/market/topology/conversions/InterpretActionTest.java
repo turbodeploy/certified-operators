@@ -54,6 +54,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -444,7 +445,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -483,7 +484,7 @@ public class InterpretActionTest {
 
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         // Insert the commodity type into the converter's mapping
@@ -547,7 +548,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
