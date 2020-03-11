@@ -4,6 +4,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -261,7 +262,7 @@ public class ConsulKeyValueStore implements KeyValueStore {
     @Nonnull
     @VisibleForTesting
     static String decodeBase64(@Nonnull final String base64EncodedString) {
-        return new String(Base64.getDecoder().decode(base64EncodedString));
+        return new String(Base64.getDecoder().decode(base64EncodedString.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
     }
 
     /**
