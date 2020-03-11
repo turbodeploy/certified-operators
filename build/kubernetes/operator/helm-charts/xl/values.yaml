@@ -8,7 +8,7 @@ global:
 #  imageUsername: turbouser
 #  imagePassword: turbopassword
   repository: turbonomic
-  tag: 7.21.0
+  tag: 7.21.1
 #  pullPolicy: IfNotPresent
   nodeSelector: {}
   tolerations: []
