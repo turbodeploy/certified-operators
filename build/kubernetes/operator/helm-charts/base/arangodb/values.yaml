@@ -16,7 +16,9 @@ env:
     value: root
 
 persistence:
-  size: 100Gi
+  arangodb: 100Gi
+  apps: 2Gi
+  dump: 2Gi
 
 resources:
   limits:
