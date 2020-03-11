@@ -64,7 +64,6 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.gcp</artifactId>
-            <version>${vmturbo.mt.branch.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.protobuf</groupId>
