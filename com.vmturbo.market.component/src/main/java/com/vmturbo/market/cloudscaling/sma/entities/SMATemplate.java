@@ -191,7 +191,11 @@ public class SMATemplate {
      */
     public float getNetCost(long businessAccountId, OSType osType, float discountedCoupons) {
         float netCost = 0f;
-        if (discountedCoupons >= coupons || coupons == 0) {
+        if (coupons == 0) {
+            // If a template has 0 coupons, then it can't be discounted by a RI, and the on-demand
+            // cost is returned.  E.g. Standard_A2m_v2.
+            netCost = getOnDemandTotalCost(businessAccountId, osType);
+        } else if (discountedCoupons >= coupons) {
             netCost = getDiscountedTotalCost(businessAccountId, osType);
         } else {
             float discountPercentage = discountedCoupons / coupons;

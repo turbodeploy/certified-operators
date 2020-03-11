@@ -67,7 +67,7 @@ public class ActionLogger {
     // to easily find the data in the log
     private static final String prefix = "loggedActions";
 
-    private static final String header = ",market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
+    private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
         "OSType,Tenancy,vmName,vmOid,vmGroupName,savingsPerHour," +
         "sourceTemplate,sourceCoupons,natrualTemplate,naturalCoupons,source RI,RITemplate,RICoupons," +
         "projectedTemplate,projectedCoupons,projected RI,RITemplate,RICoupons," +
