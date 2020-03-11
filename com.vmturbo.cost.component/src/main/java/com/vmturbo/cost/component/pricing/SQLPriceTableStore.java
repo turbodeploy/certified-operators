@@ -89,12 +89,24 @@ public class SQLPriceTableStore implements PriceTableStore {
         return merge.mergeRi(priceTables);
     }
 
+    @Nonnull
     @Override
     public Map<Long, PriceTable> getPriceTables(final Collection<Long> oids) {
         return dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_DATA)
                 .from(Tables.PRICE_TABLE)
                 .where(filterByOidsCondition(oids)).fetchMap(Tables.PRICE_TABLE.OID,
                         Tables.PRICE_TABLE.PRICE_TABLE_DATA);
+    }
+
+    @Nonnull
+    @Override
+    public Map<Long, ReservedInstancePriceTable> getRiPriceTables(final Collection<Long> oids) {
+        final Map<Long, ReservedInstancePriceTable> priceTables =
+                dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA)
+                        .from(Tables.PRICE_TABLE)
+                        .where(filterByOidsCondition(oids))
+                        .fetchMap(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA);
+        return priceTables;
     }
 
     /**

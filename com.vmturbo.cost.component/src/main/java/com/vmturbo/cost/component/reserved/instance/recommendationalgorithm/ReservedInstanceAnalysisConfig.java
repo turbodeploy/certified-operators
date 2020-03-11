@@ -90,7 +90,8 @@ public class ReservedInstanceAnalysisConfig {
     public ReservedInstanceAnalyzer reservedInstanceAnalyzer() {
         return new ReservedInstanceAnalyzer(
                 settingServiceClient(),
-                pricingConfig,
+                pricingConfig.priceTableStore(),
+                pricingConfig.businessAccountPriceTableKeyStore(),
                 riBuyAnalysisContextProvider(),
                 riBuyDemandCalculatorFactory(),
                 reservedInstanceActionsSenderConfig.actionSender(),

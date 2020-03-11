@@ -3,19 +3,19 @@ package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyRegionalContext;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -47,32 +48,46 @@ public class RIBuyRateProvider {
     public static final int HOURS_IN_A_MONTH = 730;
 
     /*
-     * Inputs: set with populate* methods and only accessed threw lookup* methods.
-     */
-    // An interface for obtaining pricing.
-    private final PriceTableStore priceTableStore;
-
-    /*
      * Internal data structures populated at construction time to represent the data in
      * PriceTableStore,  ReservedInstanceBoughtStore and ReservedInstanceSpecStore.
      */
-    // PriceTableStore: Map from region OID to OnDemandPriceTable
-    private ImmutableMap<Long, OnDemandPriceTable> onDemandRateMap;
+    //Internal data structures for accessing on-Demand Prices by BusinessAccount and RegionalContex oid
+    private final PriceHolder<OnDemandPriceTable, PriceTable> onDemandRates;
 
-    // Mapping from ReservedInstanceSpec oid to ReservedInstancePrice
-    private ImmutableMap<Long, ReservedInstancePrice> reservedInstanceSpecRateMap;
+    //Internal data structures for accessing RI Prices by BusinessAccount and Spec oid
+    private final PriceHolder<ReservedInstancePrice, ReservedInstancePriceTable>
+            reservedInstanceSpecRates;
+
+    //PriceTable oid -> BusinessAccount oid mapping
+    private final Map<Long, Long> priceTableKeyOidByBusinessAccountOid;
 
     /**
      * Constructor.  Build all the internal data structures.
-     * @param priceTableStore price table store.
+     * @param priceTableStore price table store
+     * @param baPriceTableStore Business Account oids to their respective price table key store
+     * @param primaryAccounts list of BAs to use for price lookup
      */
-    public RIBuyRateProvider(@Nonnull PriceTableStore priceTableStore) {
+    public RIBuyRateProvider(@Nonnull PriceTableStore priceTableStore,
+            @Nonnull BusinessAccountPriceTableKeyStore baPriceTableStore,
+            Set<Long> primaryAccounts) {
 
-        this.priceTableStore = Objects.requireNonNull(priceTableStore);
+        Objects.requireNonNull(priceTableStore);
+        Objects.requireNonNull(baPriceTableStore);
 
         // compute internal data structures
-        populateOnDemandRateMap();
-        populateReservedInstanceSpecRateMap();
+        priceTableKeyOidByBusinessAccountOid = ImmutableMap.copyOf(
+                baPriceTableStore.fetchPriceTableKeyOidsByBusinessAccount(primaryAccounts));
+
+        Set<Long> priceTablesOids = priceTableKeyOidByBusinessAccountOid.values().stream()
+                .collect(Collectors.toSet());
+
+        onDemandRates = new PriceHolder<>(priceTableStore.getPriceTables(priceTablesOids),
+                priceTableKeyOidByBusinessAccountOid, PriceTable::getOnDemandPriceByRegionIdMap);
+
+        reservedInstanceSpecRates =
+                new PriceHolder<>(priceTableStore.getRiPriceTables(priceTablesOids),
+                        priceTableKeyOidByBusinessAccountOid,
+                        ReservedInstancePriceTable::getRiPricesBySpecIdMap);
     }
 
     /**
@@ -80,18 +95,19 @@ public class RIBuyRateProvider {
      * still needs to lookup rates for a target purchase account, instead of using a merged price
      * table.
      *
+     * @param primaryAccountOid account oid
      * @param regionalContext The regional context
      * @return The pricing provider results or null if either the on-demand or RI rates cannot be found.
      */
     @Nullable
-    public PricingProviderResult findRates(
+    public PricingProviderResult findRates(long primaryAccountOid,
             @Nonnull RIBuyRegionalContext regionalContext) {
-        float onDemandRate = lookupOnDemandRate(regionalContext);
+        float onDemandRate = lookupOnDemandRate(primaryAccountOid, regionalContext);
         if (onDemandRate == 0) {
             return null;
         }
         Pair<Float, Float> riPairOfRates =
-                lookupReservedInstanceRate(
+                lookupReservedInstanceRate(primaryAccountOid,
                         regionalContext.riSpecToPurchase(),
                         regionalContext.analysisTag());
         if (riPairOfRates.getLeft() == Float.MAX_VALUE) {
@@ -112,23 +128,20 @@ public class RIBuyRateProvider {
      * The ReservedInstanceRegionalContext is constructed using the compute tier of the current
      * template.
      *
+     * @param primaryAccountOid account oid
      * @param regionalContext The regional context
      * @param computerTier The target compute tier
      * @return The on-demand rate for the target computer tier or 0.0, if the on-demand rate cannot
      * be determined.
      */
-    public float lookupOnDemandRate(@Nonnull RIBuyRegionalContext regionalContext,
-                                    @Nonnull TopologyEntityDTO computerTier) {
+    public float lookupOnDemandRate(long primaryAccountOid,
+            @Nonnull RIBuyRegionalContext regionalContext,
+            @Nonnull TopologyEntityDTO computerTier) {
 
         float onDemandRate = 0f;
 
-        // onDemandPriceTableByRegion from constructor
-        if (CollectionUtils.isEmpty(onDemandRateMap)) {
-            logger.warn("{}lookupOnDemandRate() on-demand rates are not available",
-                    regionalContext.analysisTag());
-            return onDemandRate;
-        }
-        OnDemandPriceTable onDemandPriceTable = onDemandRateMap.get(regionalContext.regionOid());
+        final OnDemandPriceTable onDemandPriceTable =
+                onDemandRates.get(primaryAccountOid, regionalContext.regionOid());
         if (onDemandPriceTable == null) {
             logger.warn("{}lookupOnDemandRate() could not find on-demand rates for region in context={}",
                     regionalContext.analysisTag(), regionalContext.contextTag());
@@ -190,11 +203,14 @@ public class RIBuyRateProvider {
     /**
      * Find the on-demand rate for this regional context.
      *
+     * @param primaryAccountOid account oid
      * @param regionalContext regional context.
      * @return on-demand rate or 0 if not found.
      */
-    public float lookupOnDemandRate(@Nonnull RIBuyRegionalContext regionalContext) {
-        return lookupOnDemandRate(regionalContext, regionalContext.computeTier());
+    public float lookupOnDemandRate(long primaryAccountOid,
+            @Nonnull RIBuyRegionalContext regionalContext) {
+        return lookupOnDemandRate(primaryAccountOid, regionalContext,
+                regionalContext.computeTier());
     }
 
     /**
@@ -236,25 +252,11 @@ public class RIBuyRateProvider {
         return rate;
     }
 
-    /**
-     * Get the on-demand rate information from the PriceTableStore.
-     */
-    @VisibleForTesting
-    @Nullable
-    void populateOnDemandRateMap() {
-       PriceTable priceTable = priceTableStore.getMergedPriceTable();
-        if (priceTable == null) {
-            logger.warn("populateOnDemandRateMap() priceTableStore.getMergedPriceTable() == null");
-            return;
-        }
-        onDemandRateMap = ImmutableMap.copyOf(priceTable.getOnDemandPriceByRegionIdMap());
-        logger.debug("populateOnDemandRateMap size={}", () -> onDemandRateMap.size());
-    }
+    private Pair<Float, Float> lookupReservedInstanceRate(long primaryAccountOid,
+            @Nonnull ReservedInstanceSpec riSpec, @Nonnull String logTag) {
 
-    private Pair<Float, Float> lookupReservedInstanceRate(@Nonnull ReservedInstanceSpec riSpec,
-                                                         @Nonnull String logTag) {
-
-        ReservedInstancePrice riPrice = reservedInstanceSpecRateMap.get(riSpec.getId());
+        final ReservedInstancePrice riPrice =
+                reservedInstanceSpecRates.get(primaryAccountOid, riSpec.getId());
         if (riPrice == null) {
             logger.warn("lookupReservedInstanceRate() can't find rate for ReservedInstanceSpecId={}",
                     riSpec.getId());
@@ -281,21 +283,6 @@ public class RIBuyRateProvider {
         return pair;
     }
 
-    /**
-     * Populate the reservedInstanceRateMap with the reserved instance rate information from the
-     * PriceTableStore.
-     */
-    @Nullable
-    @VisibleForTesting
-    void populateReservedInstanceSpecRateMap() {
-        ReservedInstancePriceTable riPriceTable = priceTableStore.getMergedRiPriceTable();
-        if (riPriceTable == null) {
-            logger.warn("populateReservedInstanceRateMap() priceTableStore.getMergedRiPriceTable() == null");
-            return;
-        }
-        reservedInstanceSpecRateMap = ImmutableMap.copyOf(riPriceTable.getRiPricesBySpecIdMap());
-        logger.debug("populateReservedInstanceRateMap size={}", () -> reservedInstanceSpecRateMap.size());
-    }
 
     /**
      * A pricing result for on-demand and RI rate lookup.

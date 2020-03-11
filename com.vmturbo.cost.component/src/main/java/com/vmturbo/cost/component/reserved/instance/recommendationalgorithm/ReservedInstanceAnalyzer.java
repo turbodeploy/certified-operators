@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -39,13 +40,10 @@ import com.vmturbo.commons.reservedinstance.recommendationalgorithm.Recommendati
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
-import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
-import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
-import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.RIBuyRateProvider.PricingProviderResult;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyAnalysisContextInfo;
@@ -114,13 +112,15 @@ public class ReservedInstanceAnalyzer {
     /*
     * Needed to create the RIBuyRateProvider.
      */
-    private final PricingConfig pricingConfig;
+    private final PriceTableStore priceTableStore;
+    private final BusinessAccountPriceTableKeyStore baPriceTableStore;
 
     /**
      * Construct an analyzer.
      *
      * @param settingsServiceClient Setting Services client for fetching settings.
-     * @param  pricingConfig The pricing config.
+     * @param priceTableStore price table store
+     * @param baPriceTableStore Business Account oids to their respective price table key store
      * @param analysisContextProvider Provides unique analysis contexts based on the analysis scope.
      * @param demandCalculatorFactory A factory for demand calculators, used to merge recorded demand
     *                                with RI inventory, in order to calculate uncovered demand for analysis.
@@ -131,7 +131,8 @@ public class ReservedInstanceAnalyzer {
      * @param riMinimumDataPoints RI buy hour data points value range from 1 to 168 inclusive
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
-                                    @Nonnull PricingConfig pricingConfig,
+                                    @Nonnull PriceTableStore priceTableStore,
+                                    @Nonnull BusinessAccountPriceTableKeyStore baPriceTableStore,
                                     @Nonnull RIBuyAnalysisContextProvider analysisContextProvider,
                                     @Nonnull RIBuyDemandCalculatorFactory demandCalculatorFactory,
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
@@ -140,7 +141,8 @@ public class ReservedInstanceAnalyzer {
                                     final long realtimeTopologyContextId,
                                     final int riMinimumDataPoints) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
-        this.pricingConfig = pricingConfig;
+        this.priceTableStore = Objects.requireNonNull(priceTableStore);
+        this.baPriceTableStore = Objects.requireNonNull(baPriceTableStore);
         this.analysisContextProvider = Objects.requireNonNull(analysisContextProvider);
         this.demandCalculatorFactory = Objects.requireNonNull(demandCalculatorFactory);
         this.actionsSender = Objects.requireNonNull(actionsSender);
@@ -153,7 +155,8 @@ public class ReservedInstanceAnalyzer {
     @VisibleForTesting
     protected ReservedInstanceAnalyzer() {
         this.settingsServiceClient = null;
-        this.pricingConfig = null;
+        this.priceTableStore = null;
+        this.baPriceTableStore = null;
         this.actionsSender = null;
         this.buyRiStore = null;
         this.actionContextRIBuyStore = null;
@@ -334,7 +337,12 @@ public class ReservedInstanceAnalyzer {
         final RIBuyDemandCalculator demandCalculator = demandCalculatorFactory.newCalculator(
                 analysisContextInfo.regionalRIMatcherCache(),
                 demandDataType);
-        final RIBuyRateProvider rateProvider = new RIBuyRateProvider(pricingConfig.priceTableStore());
+        //get all the BA oids from analysis context
+        final Set<Long> primaryAccounts =  analysisContextInfo.regionalContexts().stream()
+                .map(e -> demandCalculator.calculateUncoveredDemand(e))
+                .map(RIBuyDemandCalculationInfo::primaryAccountOid).collect(Collectors.toSet());
+        final RIBuyRateProvider rateProvider =
+                new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
         // For each cluster
         for (RIBuyRegionalContext regionalContext : analysisContextInfo.regionalContexts()) {
             final RIBuyDemandCalculationInfo demandCalculationInfo =
@@ -353,10 +361,11 @@ public class ReservedInstanceAnalyzer {
                     regionalContext.computeTier().getDisplayName(),
                     regionalContext.region().getDisplayName(),
                     regionalContext.contextTag());
+            final long primaryAccountOid = demandCalculationInfo.primaryAccountOid();
             // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
             // this will be the one with the smallest coupon value.
-            PricingProviderResult rates = rateProvider.findRates(regionalContext);
+            PricingProviderResult rates = rateProvider.findRates(primaryAccountOid, regionalContext);
             if (rates == null) {
                 // something went wrong with the looking up rates.  Error already logged.
                 continue;
@@ -381,7 +390,7 @@ public class ReservedInstanceAnalyzer {
                     Map<TopologyEntityDTO, float[]> riBuyChartDemand =
                             demandCalculationInfo.uncoveredDemandByComputeTier();
                     float hourlyOnDemandCost =
-                            getHourlyOnDemandCost(regionalContext, riBuyChartDemand, rateProvider);
+                            getHourlyOnDemandCost(primaryAccountOid, regionalContext, riBuyChartDemand, rateProvider);
                     recommendation.setEstimatedOnDemandCost(hourlyOnDemandCost *
                             RIBuyRateProvider.HOURS_IN_A_MONTH
                             * 12 * recommendation.getTermInYears());
@@ -398,12 +407,14 @@ public class ReservedInstanceAnalyzer {
      * cost of all compute tiers being covered or just the single compute tier being covered. This
      * method also factors in how much demand each of that compute tier had.
      *
+     * @param primaryAccountOid account oid
      * @param regionalContext The regional context.
      * @param templateTypeHourlyDemand mapping from template to demand in coupons.
      * @param rateProvider The rateProvider to look up the on-demand and RI rates.
      * @return the average hourly charges for the weekly demand.
      */
     public float getHourlyOnDemandCost(
+            long primaryAccountOid,
             @Nonnull RIBuyRegionalContext regionalContext,
             @Nonnull final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
             @Nonnull final RIBuyRateProvider rateProvider) {
@@ -418,7 +429,7 @@ public class ReservedInstanceAnalyzer {
              * rateAndRIProvider:: lookupOnDemandRate.
              */
             final TopologyEntityDTO computerTier = entry.getKey();
-            final float onDemandPrice = rateProvider.lookupOnDemandRate(regionalContext, computerTier);
+            final float onDemandPrice = rateProvider.lookupOnDemandRate(primaryAccountOid, regionalContext, computerTier);
             final int numberOfCoupons = computerTier.getTypeSpecificInfo().getComputeTier().getNumCoupons();
             float weeklyWorkloadDemand = 0f;
             // The demand is in terms of zonal coupons. So inorder to get actual workload demand we
