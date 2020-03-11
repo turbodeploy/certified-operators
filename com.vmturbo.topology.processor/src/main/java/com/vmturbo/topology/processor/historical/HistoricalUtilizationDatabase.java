@@ -29,8 +29,26 @@ public class HistoricalUtilizationDatabase {
     // set up the size limit for the batch insertion
     private final static int BATCH_SIZE = 3;
 
+    private Instant persistDataTimeStamp = null;
+
     public HistoricalUtilizationDatabase(@Nonnull final DSLContext dsl) {
         this.dsl = dsl;
+    }
+
+    /**
+     * Check if at least one hour is passed from current time to the last time persisting info to db,
+     * or if it is the first time to persist info.
+     *
+     * @param current current time point
+     * @return true if at least one hour is passed
+     */
+    @VisibleForTesting
+    protected boolean shouldPersistData(@Nonnull Instant current) {
+        if (persistDataTimeStamp != null &&
+            (persistDataTimeStamp.until(current, ChronoUnit.HOURS) < 1)) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -40,6 +58,11 @@ public class HistoricalUtilizationDatabase {
      */
     public void saveInfo(HistoricalInfo histInfo) {
         Instant startTime = Instant.now();
+        // skip persisting data when info is saved in the previous round but the elapsed time is less
+        // than 1 hour
+        if (!shouldPersistData(startTime)) {
+            return;
+        }
         try {
             byte[] info = Conversions.convertToDto(histInfo).toByteArray();
             // limit the blob size to be max allowed / (BATCH_SIZE + 1), the + 1 is to leave buffer
@@ -66,6 +89,9 @@ public class HistoricalUtilizationDatabase {
             logger.info("Inserted " + chunkList.size() + " chunks into historical_utilization table." +
                     " Time taken for insertion : " + startTime.until(completionTime, ChronoUnit.SECONDS)
                     + " seconds.");
+            persistDataTimeStamp = completionTime;
+            logger.info("Time taken for historical data insertion : " +
+                    startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds.");
         } catch (Exception ex) {
             logger.error( "Exception in saving historical information : ", ex);
         }

@@ -86,7 +86,7 @@ public class HistoricalUtilizationDatabaseTest {
         HistoricalServiceEntityInfo seInfo = createHistoricalSeInfo();
         info.put(0L, seInfo);
         Mockito.when(db.queryMaxAllowedPackageSize()).thenReturn(16);
-
+        Mockito.when(db.shouldPersistData(Mockito.any())).thenReturn(true);
         db.saveInfo(info);
         List<HistoricalUtilizationRecord> result = dsl.selectFrom(HistoricalUtilization
             .HISTORICAL_UTILIZATION).fetch();
@@ -116,6 +116,7 @@ public class HistoricalUtilizationDatabaseTest {
         HistoricalServiceEntityInfo seInfo = createHistoricalSeInfo();
         info.put(0L, seInfo);
         Mockito.when(db.queryMaxAllowedPackageSize()).thenReturn(2000000);
+        Mockito.when(db.shouldPersistData(Mockito.any())).thenReturn(true);
 
         // Saving the BLOB
         db.saveInfo(info);
