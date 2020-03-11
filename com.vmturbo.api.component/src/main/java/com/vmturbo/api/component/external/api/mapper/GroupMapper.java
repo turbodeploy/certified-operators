@@ -787,11 +787,8 @@ public class GroupMapper {
                 throw new ConversionException(
                         "Failed to get static members for group " + groupDto.getUuid(), e);
             }
-            final SupplyChainNode node = supplyChainForScope.get(groupDto.getGroupType());
-            if (node == null) {
-                throw new ConversionException("Group type: " + groupDto.getGroupType() +
-                        " not found in supply chain for scopes: " + groupDto.getScope());
-            }
+            final SupplyChainNode node = supplyChainForScope.getOrDefault(groupDto.getGroupType(),
+                SupplyChainNode.getDefaultInstance());
             final Set<Long> entitiesInScope = RepositoryDTOUtil.getAllMemberOids(node);
             // Check if the user only wants a specific set of entities within the scope.
             if (!memberUuids.isEmpty()) {
