@@ -80,11 +80,9 @@ public class BusinessAccountPriceTableKeyUploader {
                             Optional<StitchingEntity> serviceProvider = setAggregatedBy.stream()
                                     .filter(aggregator -> aggregator.getEntityType() == EntityType.SERVICE_PROVIDER).findAny();
                             if (serviceProvider.isPresent()) {
-                                Long oid = serviceProvider.get().getOid();
+                                long oid = serviceProvider.get().getOid();
                                 logger.info("The oid of the service provider is  {}", oid);
-                                if (oid != null) {
-                                    priceTableKeyBuilder.setServiceProviderId(oid);
-                                }
+                                priceTableKeyBuilder.setServiceProviderId(oid);
                             }
                         }
                             try {
@@ -123,13 +121,13 @@ public class BusinessAccountPriceTableKeyUploader {
         final Builder resultPriceTableKey = PriceTableKey.newBuilder();
         if (!currentPriceTableKey.hasServiceProviderId()) {
             throw new PriceTableKeyException(MessageFormat
-                    .format("Service Provider id not found on current price table key",
-                            currentPriceTableKey.getServiceProviderId()));
+                    .format("Service Provider id not found on current price table key {}",
+                            currentPriceTableKey));
         }
         if (!previousPriceTableKey.hasServiceProviderId()) {
             throw new PriceTableKeyException(MessageFormat
-                    .format("Service Provider id not found on previous price table key",
-                            previousPriceTableKey.getServiceProviderId()));
+                    .format("Service Provider id not found on previous price table key {}",
+                            previousPriceTableKey));
         }
         if (currentPriceTableKey.getServiceProviderId() != previousPriceTableKey.getServiceProviderId()) {
             throw new PriceTableKeyException(MessageFormat
