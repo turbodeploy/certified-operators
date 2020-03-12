@@ -399,7 +399,7 @@ public class GroupMapper {
      * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public Map<Long, GroupApiDTO> groupsToGroupApiDto(@Nonnull final List<Grouping> groups,
+    public Map<Long, GroupApiDTO> groupsToGroupApiDto(@Nonnull final Collection<Grouping> groups,
             boolean populateSeverity) throws ConversionException, InterruptedException {
         final List<GroupAndMembers> groupsAndMembers =
                 groups.stream().map(groupExpander::getMembersForGroup).collect(Collectors.toList());

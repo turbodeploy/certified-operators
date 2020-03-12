@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -52,7 +53,30 @@ public class PolicyMapper {
     private GroupMapper groupMapper;
 
     public PolicyMapper(GroupMapper groupMapper) {
-        this.groupMapper = groupMapper;
+        this.groupMapper = Objects.requireNonNull(groupMapper);
+    }
+
+    /**
+     * Convert a list of {@link Policy} used by the group component
+     * to a {@link PolicyApiDTO} used by the API component.
+     *
+     * @param policyProto list of placement policies protobuf representations to convert.
+     * @param groups collection of groups for conversion
+     *         Should contain groups used in the input policies. Others will be ignored
+     * @return The converted policies list. Order or policies in the list is guaranteed to match
+     *         order of policies in input list
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    @Nonnull
+    public List<PolicyApiDTO> policyToApiDto(@Nonnull final List<PolicyDTO.Policy> policyProto,
+            @Nonnull final Collection<Grouping> groups) throws ConversionException, InterruptedException {
+        final Map<Long, GroupApiDTO> groupsMap = groupMapper.groupsToGroupApiDto(groups, false);
+        final List<PolicyApiDTO> result = new ArrayList<>(policyProto.size());
+        for (Policy policy: policyProto) {
+            result.add(policyToApiDto(policy, groupsMap));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /**
@@ -61,13 +85,11 @@ public class PolicyMapper {
      *
      * @param policyProto The Policy protobuf to convert.
      * @param groupsByID a map from group oid to the group with that oid.
-     *     May only contain only the relevant groups.
      * @return The converted policy
-     * @throws ConversionException if error faced converting objects to API DTOs
-     * @throws InterruptedException if current thread has been interrupted
      */
-    public PolicyApiDTO policyToApiDto(final PolicyDTO.Policy policyProto,
-            final Map<Long, Grouping> groupsByID) throws ConversionException, InterruptedException {
+    @Nonnull
+    private PolicyApiDTO policyToApiDto(final PolicyDTO.Policy policyProto,
+            final Map<Long, GroupApiDTO> groupsByID) {
         final PolicyApiDTO policyApiDTO = new PolicyApiDTO();
 
         final PolicyInfo policyInfo = policyProto.getPolicyInfo();
@@ -198,19 +220,13 @@ public class PolicyMapper {
      * @param policyName name of the policy
      * @param groupsByID map of groups by id
      * @return {@link GroupApiDTO}
-     * @throws ConversionException if error faced converting objects to API DTOs
-     * @throws InterruptedException if current thread has been interrupted
      */
     private GroupApiDTO getPolicyGroupApiDTO(long groupId, @Nonnull String policyName,
-            @Nonnull final Map<Long, Grouping> groupsByID)
-            throws ConversionException, InterruptedException {
+            @Nonnull final Map<Long, GroupApiDTO> groupsByID) {
         final GroupApiDTO groupApiDTO;
-        final Grouping group = groupsByID.get(groupId);
+        final GroupApiDTO group = groupsByID.get(groupId);
         if (group != null) {
-            groupApiDTO = groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
-                    .values()
-                    .iterator()
-                    .next();
+            groupApiDTO = group;
         } else {
             // group may have been deleted, so just create a default group with only uuid
             logger.warn("Group {} for policy \"{}\" not found", groupId, policyName);

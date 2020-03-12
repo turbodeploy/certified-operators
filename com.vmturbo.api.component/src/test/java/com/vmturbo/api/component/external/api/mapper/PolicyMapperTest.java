@@ -7,10 +7,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -34,12 +36,13 @@ public class PolicyMapperTest {
     private Policy.Builder rawPolicyBuilder;
     private PolicyInfo.MergePolicy.Builder rawMergeBuilder;
 
-    private Map<Long, Grouping> policyGroupingMap = new HashMap<>();
+    private Collection<Grouping> policyGroups;
 
     private GroupApiDTO consumerDTO;
     private GroupApiDTO providerDTO;
 
     private PolicyMapper policyMapper;
+    private GroupMapper mockGroupMapper;
 
     private static final long testPolicyID = 4815162342L;
     private static final String testPolicyCommodityType = "typeFoo";
@@ -52,8 +55,9 @@ public class PolicyMapperTest {
         final Grouping consumerGroup = Grouping.newBuilder().setId(testConsumerId).build();
         final Grouping providerGroup = Grouping.newBuilder().setId(testProviderId).build();
 
-        policyGroupingMap.put(testProviderId, providerGroup);
-        policyGroupingMap.put(testConsumerId, consumerGroup);
+        policyGroups = new ArrayList<>();
+        policyGroups.add(providerGroup);
+        policyGroups.add(consumerGroup);
 
         consumerDTO = new GroupApiDTO();
         consumerDTO.setUuid(String.valueOf(testConsumerId));
@@ -73,11 +77,11 @@ public class PolicyMapperTest {
                 .addMergeGroupIds(testProviderId)
                 .addMergeGroupIds(testConsumerId);
 
-        GroupMapper mockGroupMapper = Mockito.mock(GroupMapper.class);
-        Mockito.when(mockGroupMapper.groupsToGroupApiDto(Collections.singletonList(consumerGroup),
-                false)).thenReturn(Collections.singletonMap(consumerGroup.getId(), consumerDTO));
-        Mockito.when(mockGroupMapper.groupsToGroupApiDto(Collections.singletonList(providerGroup),
-                false)).thenReturn(Collections.singletonMap(providerGroup.getId(), providerDTO));
+        mockGroupMapper = Mockito.mock(GroupMapper.class);
+        Mockito.when(mockGroupMapper.groupsToGroupApiDto(policyGroups, false))
+                .thenReturn(
+                        ImmutableMap.of(consumerGroup.getId(), consumerDTO, providerGroup.getId(),
+                                providerDTO));
         policyMapper = new PolicyMapper(mockGroupMapper);
 
     }
@@ -89,7 +93,10 @@ public class PolicyMapperTest {
                 .setTargetId(1L)
                 .build();
 
-        final PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
         // This only tests things unique to discovered policies.
         assertThat(result.getCommodityType(), is("DrsSegmentationCommodity"));
     }
@@ -100,7 +107,10 @@ public class PolicyMapperTest {
                 .setTargetId(1L)
                 .build();
 
-        final PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
         // This only tests things unique to discovered policies.
         assertThat(result.getCommodityType(), is(testPolicyCommodityType));
     }
@@ -117,7 +127,10 @@ public class PolicyMapperTest {
         final Policy policy = rawPolicyBuilder.build();
 
         // when
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         // then - general to any type of policy
         assertEquals(result.getName(), result.getDisplayName());
@@ -150,7 +163,10 @@ public class PolicyMapperTest {
         final Policy policy = rawPolicyBuilder.build();
 
         // when
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         // then - general
         assertEquals(result.getName(), result.getDisplayName());
@@ -181,7 +197,10 @@ public class PolicyMapperTest {
         final Policy policy = rawPolicyBuilder.build();
 
         // when
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         // then - general
         assertEquals(result.getName(), result.getDisplayName());
@@ -210,7 +229,10 @@ public class PolicyMapperTest {
                 .build();
          final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -236,7 +258,10 @@ public class PolicyMapperTest {
                 .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -264,7 +289,10 @@ public class PolicyMapperTest {
             .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -291,7 +319,10 @@ public class PolicyMapperTest {
                 .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -319,7 +350,10 @@ public class PolicyMapperTest {
                 .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -347,7 +381,10 @@ public class PolicyMapperTest {
                 .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -374,7 +411,10 @@ public class PolicyMapperTest {
                 .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -401,7 +441,10 @@ public class PolicyMapperTest {
                 .build();
         final Policy policy = rawPolicyBuilder.build();
 
-        final PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -637,10 +680,15 @@ public class PolicyMapperTest {
                         .build())
                 .build();
         final Policy policy = rawPolicyBuilder.build();
+        Mockito.when(mockGroupMapper.groupsToGroupApiDto(policyGroups, false))
+                .thenReturn(Collections.emptyMap());
 
         // clear the groups map so they are not found
-        policyGroupingMap.clear();
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+        policyGroups.clear();
+        final PolicyApiDTO result =
+                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
+                        .iterator()
+                        .next();
 
         // check that policy info is still populated in PolicyApiDTO
         assertEquals(result.getName(), result.getDisplayName());
