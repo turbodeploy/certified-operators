@@ -210,10 +210,14 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         final Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
             .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
         // tier id --> tier name
+        // Looking up display name in real-time topology, as some (like NVME_SSD StorageTier -
+        // which don't participate in market) are not in plan topology.
+        // It should be safe to look up the tiers in the real-time topology because
+        // Storage tiers available in plan are always going to be a subset of tiers available
+        // in real-time, and the properties (like displayName) of the tiers won't change.
         final Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
                         .stream().filter(key -> key.isPresent())
                         .map(Optional::get).collect(Collectors.toSet()))
-                        .contextId(contextId)
                         .getMinimalEntities()
                         .collect(Collectors.toMap(MinimalEntity::getOid,
                                                   MinimalEntity::getDisplayName));
