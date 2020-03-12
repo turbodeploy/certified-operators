@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
@@ -122,17 +124,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                             .getPlanReservedInstanceBought(planSavedRiRequest)
                             .getReservedInstanceBoughtsList();
             } else {
-                final Map<EntityType, Set<Long>> cloudScopeTuples = repositoryClient.getEntityOidsByType(
-                        request.getScopeSeedOidsList(),
-                        topologyContextId,
-                        supplyChainServiceBlockingStub);
-
-                final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
-                        .cloudScopeTuples(cloudScopeTuples)
-                        .build();
-
-                unstitchedReservedInstances = reservedInstanceBoughtStore
-                        .getReservedInstanceBoughtByFilter(riBoughtFilter);
+                unstitchedReservedInstances = getBoughtReservedInstancesInScope(request, topologyContextId);
             }
             logger.info("Retrieved # of RIs: " + unstitchedReservedInstances.size() + " for planId: "
                                                     + topologyContextId);
@@ -146,6 +138,67 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                         .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Gets all usable RIs in the specified scope- scopes available RIs by region, zone, and business account if
+     * applicable, then filters out subscription-scope RIs if they cannot be applied to any workloads in the scope.
+     *
+     * @param request specifying scope oids
+     * @param topologyContextId the topology context Id from which RIs should be retrieved
+     * @return a list of {@link ReservedInstanceBought} that are usable by workloads in the current scope
+     */
+    public List<ReservedInstanceBought> getBoughtReservedInstancesInScope(
+            @Nonnull final GetReservedInstanceBoughtByTopologyRequest request,
+            @Nonnull final long topologyContextId) {
+        List<Long> scopeIds = request.getScopeSeedOidsList();
+        Set<Long> scopeIdSet = Sets.newHashSet(scopeIds);
+        List<TopologyDTO.TopologyEntityDTO> allBusinessAccounts =
+            repositoryClient.getAllBusinessAccounts(realtimeTopologyContextId);
+        Map<Long, Set<Long>> baOidToEaSiblingAccounts =
+            RepositoryClient.getBaOidToEaSiblingAccounts(allBusinessAccounts);
+        Set<Long> scopeBusinessAccountsOids =
+            RepositoryClient.getFilteredScopeBusinessAccountOids(scopeIdSet, allBusinessAccounts);
+        Set<Long> allBusinessAccountOidsInScope =
+            RepositoryClient.getAllBusinessAccountOidsInScope(scopeBusinessAccountsOids, baOidToEaSiblingAccounts);
+
+        final Map<EntityType, Set<Long>> cloudScopeTuples = repositoryClient.getEntityOidsByTypeForRIQuery(
+                scopeIds,
+                topologyContextId,
+                supplyChainServiceBlockingStub,
+                allBusinessAccountOidsInScope);
+
+        final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
+                .cloudScopeTuples(cloudScopeTuples)
+                .build();
+
+        final List<ReservedInstanceBought> boughtReservedInstances = reservedInstanceBoughtStore
+                .getReservedInstanceBoughtByFilter(riBoughtFilter);
+
+        // If Business Account was considered in RI selection, (request.getScopeSeedOidsList() represented one or more
+        // Business Accounts or workloads) filter on shared vs. subscription scope
+        return cloudScopeTuples.containsKey(EntityType.BUSINESS_ACCOUNT)
+            ? boughtReservedInstances.stream()
+            .filter(boughtReservedInstance -> {
+                if (!boughtReservedInstance.hasReservedInstanceBoughtInfo()) {
+                    return false;
+                }
+                ReservedInstanceBought.ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
+                    boughtReservedInstance.getReservedInstanceBoughtInfo();
+                if (!reservedInstanceBoughtInfo.hasReservedInstanceScopeInfo()) {
+                    return false;
+                }
+                ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo scopeInfo =
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo();
+                if (scopeInfo.getShared()) {
+                    return true;
+                }
+                return scopeInfo.getApplicableBusinessAccountIdList().stream()
+                    .filter(scopeBusinessAccountsOids::contains)
+                    .collect(Collectors.counting()) > 0;
+            })
+            .collect(Collectors.toList())
+            : boughtReservedInstances;
     }
 
     @Override

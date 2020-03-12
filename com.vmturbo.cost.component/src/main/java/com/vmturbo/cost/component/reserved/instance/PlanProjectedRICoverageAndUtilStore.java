@@ -353,7 +353,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
                         .cloudScopeTuples(
-                        repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
+                        repositoryClient.getEntityOidsByTypeForRIQuery(topoInfo.getScopeSeedOidsList(),
                                 realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
                         .build())
                 .stream()

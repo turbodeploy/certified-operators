@@ -1,6 +1,5 @@
 package com.vmturbo.repository.api;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,11 +13,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
+import org.springframework.util.CollectionUtils;
 
 import io.grpc.Channel;
 import io.grpc.Status;
@@ -50,6 +54,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 
 /**
  * Sends commands to the repository using gRPC.
@@ -143,20 +149,15 @@ public class RepositoryClient {
     }
 
     /**
-     * Add the business family (master account OID to the cloud account OIDs for the scope of the plan).
+     * Get all Business Account {@link TopologyEntityDTO} in the current repository.
      *
-     * @param scopeIds The seed plan scopes OIDs.
-     * @param realtimeTopologyContextId The real-time topology context id used to get all accounts in the
-     * environment, and figure out relevant accounts for plans and real-time.
-     * @return OIDs of business families in scope - master and sub-accounts.
-     * TODO: This may need to be revisited.  Check with Vasile and team.
+     * @param realtimeTopologyContextId the realtimeTopologyContextId used to request accounts
+     * @return list of all Business Account {@link TopologyEntityDTO} in the current repository
      */
-    public List<Long> getRelatedBusinessAccountOrSubscriptionOids(final List<Long> scopeIds,
-                                                                  final Long realtimeTopologyContextId) {
-        // If business account scope, add all sibling accounts under the same business family
+    public List<TopologyEntityDTO> getAllBusinessAccounts(final long realtimeTopologyContextId) {
+        // If business account scope, add all sibling accounts under the same billing family
         // This is only needed in cloud OCP plans.
-        List<TopologyEntityDTO> allBusinessAccounts =
-                          RepositoryDTOUtil.topologyEntityStream(
+        return RepositoryDTOUtil.topologyEntityStream(
                          repositoryService
                          .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest
                                          .newBuilder()
@@ -169,52 +170,102 @@ public class RepositoryClient {
                                           // as the TopologyEntityDTO is needed.
                                           .map(PartialEntity::getFullEntity)
                                       .collect(Collectors.toList());
-        return parseRelatedBusinessAccountOrSubscriptionOids(scopeIds, allBusinessAccounts);
     }
 
     /**
-     * Get the related business accounts/ subscriptions in a billing family by parsing the
-     * TopologyEntityDTO's associated with all business account/subscriptions in real-time.
+     * Retrieves the Azure EA enrollment number associated with a given business account, or
+     * returns null if there is none.
      *
-     * @param scopeIds The seed plan scopes OIDs.
-     * @param allBusinessAccounts All real-time Business accounts/subscriptions.
-     * @return
+     * @param businessAccount a {@link TopologyEntityDTO} representing a Business Account object
+     * @return the Azure EA enrollment number corresponding to the given {@param businessAccount}
      */
-    public List<Long> parseRelatedBusinessAccountOrSubscriptionOids(@Nonnull final List<Long> scopeIds,
-                                      @Nonnull final List<TopologyEntityDTO> allBusinessAccounts) {
+    public static String getEnrollmentNumber(TopologyEntityDTO businessAccount) {
+        // Prevent this function from returning null- if null is returned,
+        // Collectors.groupingBy in getBaOidToEaSiblingAccounts will fail with NPE
+        String enrollmentNumber = "";
+        if (!businessAccount.hasTypeSpecificInfo() ||
+            !businessAccount.getTypeSpecificInfo().hasBusinessAccount()) {
+            return enrollmentNumber;
+        }
+        List<PricingIdentifier> pricingIdentifiers = businessAccount
+            .getTypeSpecificInfo()
+            .getBusinessAccount()
+            .getPricingIdentifiersList();
 
-        Set<Long> relatedBusinessAccountsOrSubscriptions = new HashSet<>();
-        // Get the business families in scope and the sub-accounts under them.
-        for (long scopeId : scopeIds) {
-           for(TopologyEntityDTO ba : allBusinessAccounts) {
-               List<ConnectedEntity> subAccountsList = ba.getConnectedEntityListList()
-                           .stream()
-                           .filter(v -> v.getConnectedEntityType()
-                                  == EntityType.BUSINESS_ACCOUNT_VALUE)
-                           .collect(Collectors.toList());
-               List<Long> connectedOidsList = ba.getConnectedEntityListList()
-                                                  .stream()
-                                                  .map(ConnectedEntity::getConnectedEntityId)
-                                                  .collect(Collectors.toList());
-                // if scope is a sub-account
-                if (connectedOidsList.contains(scopeId)
-                    // scope is a master account
-                    || ba.getOid() == scopeId
-                    // account ba is a master account, and scope is another entity e.g. VM
-                    || !subAccountsList.isEmpty()) {
-                    relatedBusinessAccountsOrSubscriptions.addAll(subAccountsList.stream()
-                                                  .map(ConnectedEntity::getConnectedEntityId)
-                                                  .collect(Collectors.toList()));
-                    relatedBusinessAccountsOrSubscriptions.add(ba.getOid());
+        if (CollectionUtils.isEmpty(pricingIdentifiers)) {
+            return enrollmentNumber;
+        }
+        for (PricingIdentifier pricingIdentifier : pricingIdentifiers) {
+            if (pricingIdentifier.getIdentifierName() == PricingIdentifierName.ENROLLMENT_NUMBER) {
+                enrollmentNumber = pricingIdentifier.getIdentifierValue();
+            }
+        }
+        return enrollmentNumber;
+    }
+
+    /**
+     * Build a map of all Business Account oid -> EA sibling oids (including key oid). Used in place of AWS
+     * BA -> connectedTo -> BA representing billing family relationships.
+     *
+     * @param allBusinessAccounts all business accounts in the current real-time topology
+     * @return map of all Business Account oid -> EA sibling oids (including key oid)
+     */
+    public static Map<Long, Set<Long>> getBaOidToEaSiblingAccounts(@Nonnull final List<TopologyEntityDTO> allBusinessAccounts) {
+        Map<String, Set<Long>> enrollmentNumberToAccountOids = allBusinessAccounts.stream()
+            .collect(Collectors.groupingBy(RepositoryClient::getEnrollmentNumber,
+                    Collectors.mapping(TopologyEntityDTO::getOid, Collectors.toSet())));
+
+        Map<Long, Set<Long>> baOidToEaAccounts = Maps.newHashMap();
+        for (Map.Entry<String, Set<Long>> entry : enrollmentNumberToAccountOids.entrySet()) {
+            String enrollmentNumber = entry.getKey();
+            if (Strings.isNotBlank(enrollmentNumber)) {
+                Set<Long> eaAccountOids = entry.getValue();
+                eaAccountOids.forEach(eaAccoundOid -> baOidToEaAccounts.put(eaAccoundOid, eaAccountOids));
+            }
+        }
+        return baOidToEaAccounts;
+    }
+
+    /**
+     * Get the business accounts in the scope dictated by {@param scopeEntityOids}. The result of this function
+     * does not include Azure EA sibling accounts related to EA accounts in the scope specified.
+     *
+     * @param scopeEntityOids The seed plan scope- set of all entity OIDs in scope
+     * @param allBusinessAccounts All real-time Business accounts/subscriptions.
+     * @return a set of all business account OIDs in the scope dictated by {@param scopeEntityOids}
+     */
+    public static Set<Long> getFilteredScopeBusinessAccountOids(
+            @Nonnull final Set<Long> scopeEntityOids,
+            @Nonnull final List<TopologyEntityDTO> allBusinessAccounts) {
+        // real-time or plan global scope, return all Business Accounts/Subscriptions.
+        if (scopeEntityOids.isEmpty()) {
+            return allBusinessAccounts.stream()
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toSet());
+        }
+        Set<Long> scopeBusinessAccounts = Sets.newHashSet();
+        for (TopologyEntityDTO ba : allBusinessAccounts) {
+            long baOid = ba.getOid();
+            Set<Long> subAccounts = Sets.newHashSet();
+            boolean baConnectedToScopeId = false;
+            for (ConnectedEntity baConnectedEntity : ba.getConnectedEntityListList()) {
+                long connectedEntityOid = baConnectedEntity.getConnectedEntityId();
+                if (scopeEntityOids.contains(connectedEntityOid)) {
+                    baConnectedToScopeId = true;
                 }
-            };
+                if (baConnectedEntity.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    subAccounts.add(connectedEntityOid);
+                }
+            }
+            // scope is an account or connected entity
+            if (scopeEntityOids.contains(baOid) || baConnectedToScopeId) {
+                // add business account
+                scopeBusinessAccounts.add(baOid);
+                // add potential AWS master sub-accounts
+                scopeBusinessAccounts.addAll(subAccounts);
+            }
         }
-        // real-time or plan global scope, return all Business Accounts/ Substriptions.
-        if (scopeIds.isEmpty()) {
-            return allBusinessAccounts.stream().map(TopologyEntityDTO::getOid)
-                            .collect(Collectors.toList());
-        }
-        return new ArrayList<>(relatedBusinessAccountsOrSubscriptions);
+        return scopeBusinessAccounts;
     }
 
     /**
@@ -251,6 +302,38 @@ public class RepositoryClient {
     }
 
     /**
+     * A helper method to combine the results of getFilteredScopeBusinessAccountOids and getBaOidToEaSiblingAccounts
+     *
+     * @param scopeBusinessAccountsOids a set of all business account OIDs in the scope
+     * @param baOidToEaSiblingAccounts a map of all Business Account oid -> EA sibling oids (including key oid)
+     * @return a set of all scope-related account OIDs (includes
+     */
+    public static Set<Long> getAllBusinessAccountOidsInScope(
+        @Nonnull Set<Long> scopeBusinessAccountsOids,
+        @Nonnull Map<Long, Set<Long>> baOidToEaSiblingAccounts) {
+        return new HashSet<Long>() {{
+            addAll(scopeBusinessAccountsOids);
+            addAll(scopeBusinessAccountsOids.stream()
+                .map(scopeBusinessAccountsOid -> baOidToEaSiblingAccounts.getOrDefault(scopeBusinessAccountsOid, Sets.newHashSet()))
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet()));
+        }};
+    }
+
+    /**
+     * Get a set of all Business Account OIDs in scope from a set of scope OIDs.
+     *
+     * @param scopeEntityOids set of all scope OIDs
+     * @return a set of Business Account OIDs in scope
+     */
+    public Set<Long> getAllBusinessAccountOidsInScope(@Nonnull Set<Long> scopeEntityOids) {
+        List<TopologyEntityDTO> allBusinessAccounts = getAllBusinessAccounts(realtimeTopologyContextId);
+        Map<Long, Set<Long>> baOidToEaSiblingAccounts = getBaOidToEaSiblingAccounts(allBusinessAccounts);
+        Set<Long> scopeBusinessAccountsOids = RepositoryClient.getFilteredScopeBusinessAccountOids(scopeEntityOids, allBusinessAccounts);
+        return getAllBusinessAccountOidsInScope(scopeBusinessAccountsOids, baOidToEaSiblingAccounts);
+    }
+
+    /**
      * Get the entities map associated with a scoped or global topology (cloud plans or real-time).
      *
      * @param scopeIds  The topology scope seed IDs.
@@ -260,9 +343,29 @@ public class RepositoryClient {
      * @return A Map containing the relevant cloud scopes, keyed by scope type and mapped to scope OIDs.
      */
     @Nonnull
-    public Map<EntityType, Set<Long>> getEntityOidsByType(@Nonnull final List<Long> scopeIds,
-                          final Long topologyContextId,
-                          @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub) {
+    public Map<EntityType, Set<Long>> getEntityOidsByTypeForRIQuery(
+            @Nonnull final List<Long> scopeIds,
+            final long topologyContextId,
+            @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub) {
+        return getEntityOidsByTypeForRIQuery(scopeIds, topologyContextId, supplyChainServiceBlockingStub, null);
+    }
+
+    /**
+     * Get the entities map associated with a scoped or global topology (cloud plans or real-time).
+     *
+     * @param scopeIds  The topology scope seed IDs.
+     * @param topologyContextId The topology context id.
+     * @param supplyChainServiceBlockingStub the Supply Chain Service to make calls to to get the topology
+     * nodes associated with the scopeIds.
+     * @param accountIds the optional set of business account IDs to be integrated into the returned map
+     * @return A Map containing the relevant cloud scopes, keyed by scope type and mapped to scope OIDs.
+     */
+    @Nonnull
+    public Map<EntityType, Set<Long>> getEntityOidsByTypeForRIQuery(
+            @Nonnull final List<Long> scopeIds,
+            final Long topologyContextId,
+            @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
+            @Nullable final Set<Long> accountIds) {
         try {
             final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
             GetSupplyChainRequest request = requestBuilder
@@ -280,8 +383,20 @@ public class RepositoryClient {
                             scopeIds.size(),
                             response.getSupplyChain().getMissingStartingEntitiesList());
             }
-            Map<EntityType, Set<Long>> topologyMap =
-                            parseSupplyChainResponseToEntityOidsMap(response.getSupplyChain());
+            Map<EntityType, Set<Long>> topologyMap = parseSupplyChainResponseToEntityOidsMap(response.getSupplyChain());
+
+            Set<Integer> typesRelevantToAccountRIScope = Sets.newHashSet(
+                EntityType.BUSINESS_ACCOUNT_VALUE,
+                EntityType.DATABASE_VALUE,
+                EntityType.DATABASE_SERVER_VALUE,
+                EntityType.VIRTUAL_MACHINE_VALUE);
+
+            Set<Integer> topologyTypesRelevantToAccountRIScope = retrieveTopologyEntities(scopeIds, topologyContextId)
+                .map(scopeEntity -> scopeEntity.getEntityType())
+                .distinct()
+                .filter(typesRelevantToAccountRIScope::contains)
+                .collect(Collectors.toSet());
+
             // Include supported non-supplychain entities in response.
             for (EntityType entityType : supportedNonSupplyChainEntitiesByType) {
                 switch (entityType) {
@@ -289,11 +404,13 @@ public class RepositoryClient {
                         // Make adjustment for Business Accounts/Subscriptions.  Get all related
                         // accounts in the family.
                         if (topologyContextId != realtimeTopologyContextId) {
-                            List<Long> allRelatedBaOids = getRelatedBusinessAccountOrSubscriptionOids(
-                                    new ArrayList<>(scopeIds),
-                                realtimeTopologyContextId);
+                            if (topologyTypesRelevantToAccountRIScope.isEmpty()) {
+                                break;
+                            }
                             topologyMap.put(EntityType.BUSINESS_ACCOUNT,
-                                    new HashSet<>(allRelatedBaOids));
+                                Objects.isNull(accountIds)
+                                    ? getAllBusinessAccountOidsInScope(Sets.newHashSet(scopeIds))
+                                    : accountIds);
                         }
                         break;
                     default:
