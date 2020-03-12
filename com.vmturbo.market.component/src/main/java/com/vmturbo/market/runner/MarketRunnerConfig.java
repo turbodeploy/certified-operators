@@ -94,7 +94,7 @@ public class MarketRunnerConfig {
     @Value("${standardQuoteFactor}")
     private float standardQuoteFactor;
 
-    @Value("${marketMode}")
+    @Value("${marketMode:M2Only}")
     private String marketMode;
 
     @Value("${suspensionThrottlingPerCluster}")
