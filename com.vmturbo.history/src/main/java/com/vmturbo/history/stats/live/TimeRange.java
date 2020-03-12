@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.commons.lang.time.DateUtils;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Record1;
@@ -361,24 +362,25 @@ public class TimeRange {
                     // in daily and monthly tables
                     TimeFrame timeFrame = requiredTimeFrame.orElseGet(() ->
                             timeFrameCalculator.millis2TimeFrame(statsFilter.getStartDate()));
+                    long startDate = statsFilter.getStartDate();
                     if (requestsHeadroomStats(statsFilter) && (
                             timeFrame == TimeFrame.LATEST || timeFrame == TimeFrame.HOUR)) {
                         timeFrame = TimeFrame.DAY;
+                        startDate = DateUtils.truncate(new Date(startDate), Calendar.DATE).getTime();
                     }
-                    if (statsFilter.getStartDate() == statsFilter.getEndDate()) {
+                    if (startDate == statsFilter.getEndDate()) {
                         // equal timestamps, resolve to latest prior (or equal) timestamp in timeframe table
-                        final Timestamp latest = getMaxTimestamp(statsFilter.getStartDate(),
+                        final Timestamp latest = getMaxTimestamp(startDate,
                                 clusterId, statsFilter, timeFrame);
 
                         if (latest != null) {
                             result = new TimeRange(latest.getTime(), statsFilter.getEndDate(),
-                                    timeFrame, Collections.singletonList(latest));
+                                timeFrame, Collections.singletonList(latest));
                         }
                     } else {
                         // both times given, but they're different
                         final List<Timestamp> available = getClusterTimestamps(timeFrame,
-                                statsFilter.getStartDate(), statsFilter.getEndDate(),
-                                clusterId, statsFilter);
+                            startDate, statsFilter.getEndDate(), clusterId, statsFilter);
                         if (available.size() > 0) {
                             result = new TimeRange(
                                     available.get(0).getTime(), statsFilter.getEndDate(),
