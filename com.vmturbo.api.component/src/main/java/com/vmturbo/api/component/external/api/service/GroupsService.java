@@ -1120,13 +1120,8 @@ public class GroupsService implements IGroupsService {
         } else {
             groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest);
         }
-
-        Map<String, GroupAndMembers> idToGroupAndMembers = new HashMap<>();
-
-        groupsWithMembers.stream()
-            .forEach((group) -> idToGroupAndMembers.put(Long.toString(group.group().getId()), group));
-
-        return nextGroupPage(groupsWithMembers, idToGroupAndMembers, paginationRequest, environmentType);
+        // Paginate the response and return it.
+        return nextGroupPage(groupsWithMembers, paginationRequest, environmentType);
     }
 
     /**
@@ -1243,7 +1238,6 @@ public class GroupsService implements IGroupsService {
      * paginationRequest parameters.
      *
      * @param groupsWithMembers The groups to populate and order.
-     * @param idToGroupAndMembers A mapping from a group id to the group with its members.
      * @param paginationRequest Contains the parameters for the pagination.
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link SearchPaginationResponse} containing the groups.
@@ -1252,9 +1246,8 @@ public class GroupsService implements IGroupsService {
      * @throws InterruptedException if current thread has been interrupted
      */
     private SearchPaginationResponse nextGroupPage(final List<GroupAndMembers> groupsWithMembers,
-            final Map<String, GroupAndMembers> idToGroupAndMembers,
-            final SearchPaginationRequest paginationRequest,
-            @Nullable final EnvironmentType environmentType)
+                                                   final SearchPaginationRequest paginationRequest,
+                                                   @Nullable final EnvironmentType environmentType)
             throws InvalidOperationException, ConversionException, InterruptedException {
 
         final long skipCount;
@@ -1274,20 +1267,28 @@ public class GroupsService implements IGroupsService {
             skipCount = 0;
         }
 
+        // TODO (OM-56346): The below logic is badly broken. Since 'toGroupApiDto' may filter based on
+        // environment type, there is no way here to know the total record count or correctly
+        // detect whether we are returning the final page.
+        // groupsWithMembers::size does *not* represent the totalRecordCount
+        // This was an easy fix in 7.21.2, when the environment type filtering was done right in
+        // this method. It will need a new fix for 7.21.200.
+        // Total count of records, prior to pagination
+        final int totalRecordCount = groupsWithMembers.size();
         final List<GroupApiDTO> paginatedGroupApiDTOs =
                 groupMapper.toGroupApiDto(groupsWithMembers, true, paginationRequest,
                         environmentType);
         final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs);
 
+        // Determine if this is the final page
         long nextCursor = skipCount + paginatedGroupApiDTOs.size();
-        if (nextCursor == idToGroupAndMembers.values().size()) {
-            return paginationRequest.finalPageResponse(retList, null);
+        if (nextCursor >= totalRecordCount) {
+            if (nextCursor > totalRecordCount) {
+                logger.warn("Illegal cursor: the value is bigger than the total record count.");
+            }
+            return paginationRequest.finalPageResponse(retList, totalRecordCount);
         }
-        if (nextCursor > idToGroupAndMembers.values().size()) {
-            logger.warn("Illegal cursor: the value is bigger than the total amount of groups");
-            return paginationRequest.finalPageResponse(retList, null);
-        }
-        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor), null);
+        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor), totalRecordCount);
     }
 
     /**

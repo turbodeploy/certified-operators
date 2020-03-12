@@ -737,8 +737,10 @@ public class SearchService implements ISearchService {
                 if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
                     entitySeverityList.addAll(chunk.getEntitySeverity().getEntitySeverityList());
                 } else {
-                    if (chunk.getPaginationResponse().hasNextCursor()) {
-                        paginationResponse.setNextCursor(chunk.getPaginationResponse().getNextCursor());
+                    final PaginationResponse chunkPaginationResponse = chunk.getPaginationResponse();
+                    paginationResponse.setTotalRecordCount(chunkPaginationResponse.getTotalRecordCount());
+                    if (chunkPaginationResponse.hasNextCursor()) {
+                        paginationResponse.setNextCursor(chunkPaginationResponse.getNextCursor());
                     }
                 }
             });

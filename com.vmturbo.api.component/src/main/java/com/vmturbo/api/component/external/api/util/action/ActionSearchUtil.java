@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 
 /**
  * Common functionality that has to do with action searching.
@@ -122,11 +123,13 @@ public class ActionSearchUtil {
                     realtimeTopologyContextId,
                     detailLevel);
 
-            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                    .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
+            final PaginationResponse paginationResponse = response.getPaginationResponse();
+            final int totalRecordCount = paginationResponse.getTotalRecordCount();
+            return PaginationProtoUtil.getNextCursor(paginationResponse)
+                    .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, totalRecordCount))
+                    .orElseGet(() -> paginationRequest.finalPageResponse(results, totalRecordCount));
         }
 
-        return paginationRequest.finalPageResponse(Collections.emptyList(), null);
+        return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
     }
 }

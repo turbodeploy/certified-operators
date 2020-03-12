@@ -1160,6 +1160,7 @@ public class GroupMapper {
         return skipCount;
     }
 
+    // TODO (OM-56346): We need a wrapper on this return type, to contain the pagination information
     @Nonnull
     private List<GroupAndMembers> applyPagination(@Nonnull List<GroupAndMembers> groups,
             @Nonnull Comparator<GroupAndMembers> comparator,
@@ -1176,6 +1177,9 @@ public class GroupMapper {
         } else {
             filteredGroups = groups;
         }
+        // TODO: Right here in 'filteredGroups' we have the totalRecordCount
+        // This needs to be used to calculate whether this is the final page, as well as to
+        // populate the totalRecordCount field in the pagination response.
         final List<GroupAndMembers> groupsPage;
         if (paginationRequest != null) {
             final Comparator<GroupAndMembers> effectiveComparator =

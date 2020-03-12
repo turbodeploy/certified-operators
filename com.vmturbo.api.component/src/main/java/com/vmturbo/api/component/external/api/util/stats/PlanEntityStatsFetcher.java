@@ -202,9 +202,11 @@ public class PlanEntityStatsFetcher {
                 }
             });
         if (paginationResponseReference.get().isPresent()) {
-            return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, null));
+            final PaginationResponse paginationResponse = paginationResponseReference.get().get();
+            final int totalRecordCount = paginationResponse.getTotalRecordCount();
+            return PaginationProtoUtil.getNextCursor(paginationResponse)
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, totalRecordCount))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, totalRecordCount));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }
@@ -280,9 +282,11 @@ public class PlanEntityStatsFetcher {
                 }
             });
         if (paginationResponseReference.get().isPresent()) {
-            return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, null));
+            final PaginationResponse paginationResponse = paginationResponseReference.get().get();
+            final int totalRecordCount = paginationResponse.getTotalRecordCount();
+            return PaginationProtoUtil.getNextCursor(paginationResponse)
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, totalRecordCount))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, totalRecordCount));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }

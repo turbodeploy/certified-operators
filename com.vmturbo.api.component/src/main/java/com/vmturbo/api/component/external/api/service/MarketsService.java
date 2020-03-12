@@ -91,6 +91,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -420,9 +421,11 @@ public class MarketsService implements IMarketsService {
                         .filter(ActionOrchestratorAction::hasActionSpec)
                         .map(ActionOrchestratorAction::getActionSpec)
                         .collect(Collectors.toList()), apiId.oid(), inputDto.getDetailLevel());
-        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
+        final PaginationResponse paginationResponse = response.getPaginationResponse();
+        final int totalRecordCount = paginationResponse.getTotalRecordCount();
+        return PaginationProtoUtil.getNextCursor(paginationResponse)
+                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, totalRecordCount))
+                .orElseGet(() -> paginationRequest.finalPageResponse(results, totalRecordCount));
     }
 
     /**
