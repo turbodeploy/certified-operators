@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +51,8 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
     private final Logger logger = LogManager.getLogger();
 
+    private final PersistentListenerProbeContainerChooser persistentProbeChooser =
+        new PersistentListenerProbeContainerChooser();
     private final ProbeContainerChooser containerChooser = new RoundRobinProbeContainerChooser();
     private final ProbePropertyStore probePropertyStore;
 
@@ -236,6 +239,65 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
             }
     }
 
+    private void sendDiscoveryMessageToProbe(long probeId,
+                                    final long targetId,
+                                    MediationServerMessage message,
+                                    @Nullable IOperationMessageHandler<?> responseHandler)
+        throws CommunicationException, InterruptedException, ProbeException {
+        boolean success = false;
+        try {
+            final Collection<ITransport<MediationServerMessage, MediationClientMessage>> transports =
+                probeStore.getTransport(probeId);
+            logger.debug("Choosing transport from {} options.",
+                transports.size());
+            ITransport<MediationServerMessage, MediationClientMessage> transport;
+            // Choose transport using round robin containerChooser.
+            ProbeInfo probeInfo =
+                probeStore.getProbe(probeId).orElseThrow(() -> new ProbeException(String.format(
+                "Probe %s is not registered", String.valueOf(probeId))));
+
+            if (probeSupportsPersistentConnections(probeInfo)) {
+                transport = getOrCreateTransportForTarget(probeId, targetId);
+            } else {
+                transport = transports.size() == 1 ? transports.iterator().next()
+                        : containerChooser.choose(transports);
+            }
+            logger.debug("Choosing transport {}", transport.hashCode());
+            // Register the handler before sending the message so there is no gap where there is
+            // no registered handler for an outgoing message. Of course this means cleanup is
+            // necessary!
+            if (responseHandler != null) {
+                messageHandlers.put(
+                    message.getMessageID(),
+                    new MessageAnticipator(transport, responseHandler));
+            }
+            transport.send(message);
+            success = true;
+        } finally {
+            if (!success) {
+                messageHandlers.remove(message.getMessageID());
+            }
+        }
+    }
+
+    /**
+     * Returns a transport for a given targetId. If the transport hasn't been created yet, create
+     * it and assign it to that target.
+     *
+     * @param probeId probe that will be connected to the transport
+     * @param targetId target to assign to a transport
+     * @return ITransport assigned to the target
+     * @throws ProbeException is the probe is not found
+     */
+    @VisibleForTesting
+    public ITransport<MediationServerMessage, MediationClientMessage> getOrCreateTransportForTarget(Long probeId,
+                                                                                                    Long targetId)
+        throws ProbeException {
+        final Collection<ITransport<MediationServerMessage, MediationClientMessage>> transports =
+            probeStore.getTransport(probeId);
+        return persistentProbeChooser.getOrCreateTransportForTarget(targetId, transports);
+    }
+
     private void sendMessageToProbe(long probeId,
                                     MediationServerMessage message,
                                     @Nullable IOperationMessageHandler<?> responseHandler)
@@ -268,8 +330,13 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         }
     }
 
+    private boolean probeSupportsPersistentConnections(ProbeInfo probeInfo) {
+        return probeInfo.hasIncrementalRediscoveryIntervalSeconds();
+    }
+
     @Override
     public void sendDiscoveryRequest(final long probeId,
+                                     final long targetId,
                                      @Nonnull final DiscoveryRequest discoveryRequest,
                                      @Nonnull final IOperationMessageHandler<Discovery>
                                              responseHandler)
@@ -279,7 +346,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setMessageID(nextMessageId())
                 .setDiscoveryRequest(discoveryRequest).build();
 
-        sendMessageToProbe(probeId, message, responseHandler);
+        sendDiscoveryMessageToProbe(probeId, targetId, message, responseHandler);
     }
 
     @Override
