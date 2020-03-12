@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -25,12 +24,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
+import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -54,6 +55,7 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.dema
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculationInfo;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculator;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -544,17 +546,30 @@ public class ReservedInstanceAnalyzer {
         return results;
     }
 
-    private Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints(
-                    ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
-        if (scope.getRiPurchaseProfile() == null) {
+    @VisibleForTesting
+    Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints(
+            ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
+        if (scope.getRiPurchaseProfiles() == null) {
+            logger.info("Using the global purchase constraint settings.");
             return getPurchaseConstraints();
         } else {
-            //TODO Support per provider profile for Plans. OM-56170
-            logger.info("Received a purchase profile in the scope," +
-                    " using the global settings for now");
-            logger.info("Pending TODO. Ignoring profile set in the plan request," +
-                    " using real time settings.");
-            return getPurchaseConstraints();
+            logger.info("Using the purchase profiles in analysis scope.");
+            Map<String, RIPurchaseProfile> profiles = scope.getRiPurchaseProfiles();
+            final Builder<String, ReservedInstancePurchaseConstraints> constraintBuilder =
+                    ImmutableMap.builder();
+            profiles.forEach((key, profile) -> {
+                if (!profile.hasRiType()) {
+                    throw new IllegalArgumentException("No ReservedInstanceType is defined" +
+                            " for profile " + key + " in ReservedInstanceAnalysisScope");
+                }
+                ReservedInstanceType type = profile.getRiType();
+                final ReservedInstancePurchaseConstraints constraints =
+                        new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
+                                type.getTermYears(), type.getPaymentOption());
+
+                constraintBuilder.put(key.toUpperCase(), constraints);
+            });
+            return constraintBuilder.build();
         }
     }
 

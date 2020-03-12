@@ -8,14 +8,16 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.ImmutableList;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -38,6 +40,7 @@ import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActio
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyAnalysisContextProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -146,6 +149,58 @@ public class ReservedInstanceAnalyzerTest {
                         7777, 1);
         final Map<String, ReservedInstancePurchaseConstraints> constraints
                 = analyzer.getPurchaseConstraints();
+        Assert.assertEquals(2, constraints.size());
+        Assert.assertEquals(awsConstraints, constraints.get(CategoryPathConstants.AWS.toUpperCase()));
+        Assert.assertEquals(azureConstraints, constraints.get(CategoryPathConstants.AZURE.toUpperCase()));
+    }
+
+    /**
+     * Tests the loading of the purchase setting constraints from the analysis scope.
+     */
+    @Test
+    public void testGetPurchaseConstraintsInScope() {
+        final PreferredTerm awsPrefTerm = PreferredTerm.YEARS_1;
+        final PreferredTerm azurePrefTerm = PreferredTerm.YEARS_3;
+        final SettingServiceGrpc.SettingServiceBlockingStub settingsService =
+                SettingServiceGrpc.newBlockingStub(settingsServer.getChannel());
+        final ReservedInstancePurchaseConstraints awsConstraints =
+                new ReservedInstancePurchaseConstraints(OfferingClass.STANDARD,
+                        awsPrefTerm.getYears(), PaymentOption.ALL_UPFRONT);
+        final ReservedInstancePurchaseConstraints azureConstraints =
+                new ReservedInstancePurchaseConstraints(OfferingClass.CONVERTIBLE,
+                        azurePrefTerm.getYears(), PaymentOption.ALL_UPFRONT);
+        RIPurchaseProfile awsProfile = RIPurchaseProfile.newBuilder()
+                .setRiType(ReservedInstanceType.newBuilder()
+                        .setPaymentOption(awsConstraints.getPaymentOption())
+                        .setOfferingClass(awsConstraints.getOfferingClass())
+                        .setTermYears(awsConstraints.getTermInYears())).build();
+        RIPurchaseProfile azureProfile = RIPurchaseProfile.newBuilder()
+                .setRiType(ReservedInstanceType.newBuilder()
+                        .setPaymentOption(azureConstraints.getPaymentOption())
+                        .setOfferingClass(azureConstraints.getOfferingClass())
+                        .setTermYears(azureConstraints.getTermInYears())).build();
+        final Map<String, RIPurchaseProfile> profileMap =
+                ImmutableMap.<String, RIPurchaseProfile>builder()
+                        .put(CategoryPathConstants.AWS.toUpperCase(), awsProfile)
+                        .put(CategoryPathConstants.AZURE.toUpperCase(), azureProfile)
+                        .build();
+
+        ReservedInstanceAnalysisScope scope = mock(ReservedInstanceAnalysisScope.class);
+        when(scope.getRiPurchaseProfiles()).thenReturn(profileMap);
+        final ReservedInstanceAnalyzer analyzer =
+                new ReservedInstanceAnalyzer(settingsService,
+                        mock(PriceTableStore.class),
+                        mock(BusinessAccountPriceTableKeyStore.class),
+                        mock(RIBuyAnalysisContextProvider.class),
+                        mock(RIBuyDemandCalculatorFactory.class),
+                        mock(ReservedInstanceActionsSender.class),
+                        mock(BuyReservedInstanceStore.class),
+                        mock(ActionContextRIBuyStore.class),
+                        7777, 1);
+
+
+        final Map<String, ReservedInstancePurchaseConstraints> constraints
+                = analyzer.getPurchaseConstraints(scope);
         Assert.assertEquals(2, constraints.size());
         Assert.assertEquals(awsConstraints, constraints.get(CategoryPathConstants.AWS.toUpperCase()));
         Assert.assertEquals(azureConstraints, constraints.get(CategoryPathConstants.AZURE.toUpperCase()));
