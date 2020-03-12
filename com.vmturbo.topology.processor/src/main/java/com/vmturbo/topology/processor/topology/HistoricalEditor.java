@@ -150,6 +150,7 @@ public class HistoricalEditor {
             }
             historicalInfo = Conversions.convertFromDto(histInfo);
         }
+        logger.info("Time taken to load historical utilization data is " + loadDurationTimer.getTimeElapsedSecs());
     }
 
     /**

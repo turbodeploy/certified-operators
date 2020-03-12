@@ -5,12 +5,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
-import com.google.protobuf.InvalidProtocolBufferException;
+import java.util.List;
 
 import org.jooq.DSLContext;
+
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+
+import org.mockito.Mockito;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -18,6 +22,8 @@ import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
+import com.vmturbo.topology.processor.db.tables.HistoricalUtilization;
+import com.vmturbo.topology.processor.db.tables.records.HistoricalUtilizationRecord;
 
 public class HistoricalUtilizationDatabaseTest {
     /**
@@ -44,12 +50,11 @@ public class HistoricalUtilizationDatabaseTest {
 
     private DSLContext dsl = dbConfig.getDslContext();
 
-    @Test
-    public void testWriteRead() throws DbException {
-        HistoricalInfo resultInfo = null;
+    private HistoricalCommodityInfo soldCommInfo = new HistoricalCommodityInfo();
+    private HistoricalCommodityInfo boughtCommInfo = new HistoricalCommodityInfo();
 
+    private HistoricalServiceEntityInfo createHistoricalSeInfo() {
         // Creating HistoricalCommodityInfo for sold commodities
-        HistoricalCommodityInfo soldCommInfo = new HistoricalCommodityInfo();
         soldCommInfo.setCommodityTypeAndKey(SOLD_COMMODITY_TYPE);
         soldCommInfo.setHistoricalUsed(10);
         soldCommInfo.setHistoricalPeak(20);
@@ -58,7 +63,6 @@ public class HistoricalUtilizationDatabaseTest {
         soldCommInfo.setUpdated(false);
 
         // Creating HistoricalCommodityInfo for bought commodities
-        HistoricalCommodityInfo boughtCommInfo = new HistoricalCommodityInfo();
         boughtCommInfo.setCommodityTypeAndKey(BOUGHT_COMMODITY_TYPE);
         boughtCommInfo.setHistoricalUsed(30);
         boughtCommInfo.setHistoricalPeak(40);
@@ -71,32 +75,72 @@ public class HistoricalUtilizationDatabaseTest {
         seInfo.setSeOid(12345678);
         seInfo.getHistoricalCommoditySold().add(soldCommInfo);
         seInfo.getHistoricalCommodityBought().add(boughtCommInfo);
+        return seInfo;
+    }
 
-        // Creating HistoricalInfo
+    // test save and read when the max allowed size for query is smaller than the protobuf to be saved
+    @Test
+    public void testWriteReadWithDataLargerThanDBMaxAllowedPackage() {
+        HistoricalUtilizationDatabase db = Mockito.spy(new HistoricalUtilizationDatabase(dsl));
         HistoricalInfo info = new HistoricalInfo();
+        HistoricalServiceEntityInfo seInfo = createHistoricalSeInfo();
         info.put(0L, seInfo);
+        Mockito.when(db.queryMaxAllowedPackageSize()).thenReturn(16);
 
-        // Creating HistoricalUtilizationDatabase
-        HistoricalUtilizationDatabase db = new HistoricalUtilizationDatabase(dsl);
+        db.saveInfo(info);
+        List<HistoricalUtilizationRecord> result = dsl.selectFrom(HistoricalUtilization
+            .HISTORICAL_UTILIZATION).fetch();
+        // the blob size is about 45, so we need 45/(16/4) chunks
+        assertTrue(result.size() == 12);
+        // Reading the BLOB
+        byte[] bytes = db.getInfo();
+        HistoricalInfo resultInfo = null;
+        if (bytes != null) {
+            HistoricalInfoDTO histInfo = null;
+            try {
+                histInfo = HistoricalInfoDTO.parseFrom(bytes);
+            } catch (InvalidProtocolBufferException e) {
+                //logger.error(e.getMessage());
+            }
+            resultInfo = Conversions.convertFromDto(histInfo);
+        }
+        // Assertions
+        checkLoadedResult(resultInfo);
+    }
+
+    // test save and read when the max allowed size for query is larger than the protobuf to be saved
+    @Test
+    public void testWriteReadWithDataSmallerThanDBMaxAllowedPackage() throws DbException {
+        HistoricalUtilizationDatabase db = Mockito.spy(new HistoricalUtilizationDatabase(dsl));
+        HistoricalInfo info = new HistoricalInfo();
+        HistoricalServiceEntityInfo seInfo = createHistoricalSeInfo();
+        info.put(0L, seInfo);
+        Mockito.when(db.queryMaxAllowedPackageSize()).thenReturn(2000000);
 
         // Saving the BLOB
         db.saveInfo(info);
+        List<HistoricalUtilizationRecord> result = dsl.selectFrom(HistoricalUtilization
+            .HISTORICAL_UTILIZATION).fetch();
+        assertTrue(result.size() == 1); // only one row
 
         // Reading the BLOB
         byte[] bytes = db.getInfo();
+        HistoricalInfo resultInfo = null;
         if (bytes != null) {
-            if (bytes != null) {
-                HistoricalInfoDTO histInfo = null;
-                try {
-                    histInfo = HistoricalInfoDTO.parseFrom(bytes);
-                } catch (InvalidProtocolBufferException e) {
-                    //logger.error(e.getMessage());
-                }
-                resultInfo = Conversions.convertFromDto(histInfo);
+            HistoricalInfoDTO histInfo = null;
+            try {
+                histInfo = HistoricalInfoDTO.parseFrom(bytes);
+            } catch (InvalidProtocolBufferException e) {
+                //logger.error(e.getMessage());
             }
+            resultInfo = Conversions.convertFromDto(histInfo);
         }
 
         // Assertions
+        checkLoadedResult(resultInfo);
+    }
+
+    private void checkLoadedResult(HistoricalInfo resultInfo) {
         HistoricalServiceEntityInfo resultSeInfo = resultInfo.get(12345678);
         assertNotNull(resultSeInfo);
         assertEquals(12345678, resultSeInfo.getSeOid());
