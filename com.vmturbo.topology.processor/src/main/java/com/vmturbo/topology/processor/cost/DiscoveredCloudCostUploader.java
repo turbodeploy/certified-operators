@@ -248,7 +248,7 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable {
 
             try {
                 businessAccountPriceTableKeyUploader.uploadAccountPriceTableKeys(stitchingContext,
-                    probeTypesForTargetId);
+                        probeTypesForTargetId, cloudEntitiesMap);
             } catch (RuntimeException e) {
                 logger.error("Failed to upload price table keys.", e);
             }

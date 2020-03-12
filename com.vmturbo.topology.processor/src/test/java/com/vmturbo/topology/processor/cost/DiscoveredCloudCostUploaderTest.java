@@ -65,7 +65,7 @@ public class DiscoveredCloudCostUploaderTest {
         cloudCostUploader.uploadCostData(topologyInfo, stitchingContext);
         Assert.assertEquals(0, stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE).count());
         verify(businessAccountPriceTableKeyUploader, times(1))
-                .uploadAccountPriceTableKeys(any(), anyMap());
+                .uploadAccountPriceTableKeys(any(), any(), any());
     }
 
     @Test

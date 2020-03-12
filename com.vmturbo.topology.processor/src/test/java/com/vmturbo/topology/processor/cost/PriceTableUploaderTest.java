@@ -419,7 +419,7 @@ public class PriceTableUploaderTest {
                                         .setPriceAmount(CurrencyAmount.newBuilder()
                                                 .setAmount(IP_PRICE_AMOUNT))))))
                 .build();
-        PriceTableKey.Builder priceTableKey = PriceTableKey.newBuilder().setPricingGroup("AWS")
+        PriceTableKey.Builder priceTableKey = PriceTableKey.newBuilder().setServiceProviderId(123456L)
                 .putProbeKeyMaterial("ENROLLMENT_NO", "123");
         ProbePriceData probePriceData = new ProbePriceData();
         probePriceData.riSpecPrices = Collections.emptyList();
@@ -446,6 +446,7 @@ public class PriceTableUploaderTest {
         return PricingDTO.PriceTable.newBuilder()
             .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
                 .setRelatedRegion(REGION_ENTITY_BUILDER))
+                .setServiceProviderId("ServiceProvider")
             .build();
     }
 

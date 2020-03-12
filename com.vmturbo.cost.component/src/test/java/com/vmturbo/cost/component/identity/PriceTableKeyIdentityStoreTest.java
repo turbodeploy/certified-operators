@@ -79,6 +79,8 @@ public class PriceTableKeyIdentityStoreTest {
     private Flyway flyway;
     private DSLContext dsl;
     private PriceTableKeyIdentityStore testIdentityStore;
+    private final Long awsServiceProviderOid = 123456L;
+    private final Long azureServiceProviderOid = 9876543L;
 
     /**
      * Set up identity generator.
@@ -130,7 +132,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithIdentifiers() throws IdentityStoreException, DbException {
-        PriceTableKey priceTableKey = mockPriceTableKey("aws");
+        PriceTableKey priceTableKey = mockPriceTableKey(awsServiceProviderOid);
 
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore
@@ -147,7 +149,7 @@ public class PriceTableKeyIdentityStoreTest {
 
         assertThat(identityMatchingAttributeMap.get("enrollmentId"), is("123"));
         assertThat(identityMatchingAttributeMap.get("offerId"), is("456"));
-        assertThat(identityMatchingAttributeMap.get("pricing_group"), is("aws"));
+        assertThat(identityMatchingAttributeMap.get("service_provider_oid"), is("123456"));
     }
 
 
@@ -159,7 +161,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithSameIdentifier() throws IdentityStoreException, DbException {
-        PriceTableKey priceTableKey = mockPriceTableKey("aws");
+        PriceTableKey priceTableKey = mockPriceTableKey(awsServiceProviderOid);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore
@@ -175,10 +177,10 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithUniqueIdentifiers() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey(azureServiceProviderOid);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
-        priceTableKey = priceTableKey.newBuilderForType().setPricingGroup("aws").build();
+        priceTableKey = priceTableKey.newBuilderForType().setServiceProviderId(awsServiceProviderOid).build();
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings(dsl);
@@ -193,7 +195,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testCascadeDeleteOnPriceTableKeyOidDelete() throws IdentityStoreException, DbException {
-        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey(awsServiceProviderOid);
         final long oid = testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
@@ -232,8 +234,8 @@ public class PriceTableKeyIdentityStoreTest {
         final PriceTable priceTable1 = mockPriceTable(2L);
         final PriceTable priceTable2 = mockPriceTable(2L);
 
-        final PriceTableKey priceTableKey1 = mockPriceTableKey("Aws");
-        final PriceTableKey priceTableKey2 = mockPriceTableKey("Azure");
+        final PriceTableKey priceTableKey1 = mockPriceTableKey(awsServiceProviderOid);
+        final PriceTableKey priceTableKey2 = mockPriceTableKey(azureServiceProviderOid);
 
         final long oid1 = testIdentityStore.fetchOrAssignOid(priceTableKey1);
         final long oid2 = testIdentityStore.fetchOrAssignOid(priceTableKey2);
@@ -334,7 +336,7 @@ public class PriceTableKeyIdentityStoreTest {
     }
 
     private void insertAzurePriceTable() {
-        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey(azureServiceProviderOid);
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
         //add new price Table.
         SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
@@ -349,9 +351,9 @@ public class PriceTableKeyIdentityStoreTest {
 
     }
 
-    private PriceTableKey mockPriceTableKey(final String pricingGroup) {
+    private PriceTableKey mockPriceTableKey(final Long serviceProviderId) {
         return PriceTableKey.newBuilder()
-                .setPricingGroup(pricingGroup)
+                .setServiceProviderId(serviceProviderId)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();

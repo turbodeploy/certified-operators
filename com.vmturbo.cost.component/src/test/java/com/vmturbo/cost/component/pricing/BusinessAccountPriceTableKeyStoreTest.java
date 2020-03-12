@@ -60,6 +60,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
     private DSLContext dsl;
     private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
     private PriceTableKeyIdentityStore priceTableKeyIdentityStore;
+    private final Long awsServiceProviderOid = 123456L;
+    private final Long azureServiceProviderOid = 9876543L;
 
     /**
      * Set up identity generator.
@@ -108,7 +110,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testFetchByValidBusinessAccountOID() {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTable(awsServiceProviderOid);
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(priceTableKey);
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore
@@ -122,7 +124,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testFetchByInvalidBusinessAccountOID() {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTable(awsServiceProviderOid);
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(priceTableKey);
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore
@@ -137,7 +139,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testAccurateBAToPriceTableMapping() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTable(awsServiceProviderOid);
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(priceTableKey);
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());
@@ -159,8 +161,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testOverwriteBAToPriceTableMapping() throws IdentityStoreException {
-        PriceTableKey fooPriceTableKey = mockPriceTable("aws");
-        PriceTableKey barPriceTableKey = mockPriceTable("azure");
+        PriceTableKey fooPriceTableKey = mockPriceTable(awsServiceProviderOid);
+        PriceTableKey barPriceTableKey = mockPriceTable(azureServiceProviderOid);
 
         //first insert
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(fooPriceTableKey);
@@ -191,8 +193,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testCollectAndRestoreDiagsFunctionality() throws DiagnosticsException, IdentityStoreException {
-        PriceTableKey fooPriceTableKey = mockPriceTable("aws");
-        PriceTableKey barPriceTableKey = mockPriceTable("azure");
+        PriceTableKey fooPriceTableKey = mockPriceTable(awsServiceProviderOid);
+        PriceTableKey barPriceTableKey = mockPriceTable(azureServiceProviderOid);
 
         //first insert
         BusinessAccountPriceTableKey businessAccountPriceTableKey = BusinessAccountPriceTableKey.newBuilder()
@@ -225,7 +227,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testDeleteValidBAOid() throws DbException {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTable(awsServiceProviderOid);
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(priceTableKey);
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
 
@@ -263,7 +265,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test(expected = DataIntegrityViolationException.class)
     public void testDeleteBAOidWithNonExistentPriceTablekeyOid() throws DbException {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTable(awsServiceProviderOid);
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(priceTableKey);
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
         Map<IdentityMatchingAttributes, Long> priceTableKeyOids = priceTableKeyIdentityStore.fetchAllOidMappings();
@@ -281,7 +283,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testDeleteBAWithReusedPriceTableKey() throws DbException {
-        PriceTableKey fooPriceTableKey = mockPriceTable("aws");
+        PriceTableKey fooPriceTableKey = mockPriceTable(awsServiceProviderOid);
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(fooPriceTableKey);
         businessAccountPriceTableKey = businessAccountPriceTableKey.toBuilder().putBusinessAccountPriceTableKey(456L, fooPriceTableKey).build();
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
@@ -297,9 +299,9 @@ public class BusinessAccountPriceTableKeyStoreTest {
         assertThat(priceTableKeyOids.values().contains(priceTableKeyOid), is(true));
     }
 
-    private PriceTableKey mockPriceTable(final String pricingGroup) {
+    private PriceTableKey mockPriceTable(final Long serviceProviderOid) {
         return PriceTableKey.newBuilder()
-                .setPricingGroup(pricingGroup)
+                .setServiceProviderId(serviceProviderOid)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();

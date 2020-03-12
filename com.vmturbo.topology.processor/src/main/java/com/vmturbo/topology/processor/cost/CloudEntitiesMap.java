@@ -33,7 +33,8 @@ public class CloudEntitiesMap implements Map<String, Long> {
             EntityType.REGION,
             EntityType.AVAILABILITY_ZONE,
             EntityType.RESERVED_INSTANCE,
-            EntityType.BUSINESS_ACCOUNT
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.SERVICE_PROVIDER
     );
 
     /**
