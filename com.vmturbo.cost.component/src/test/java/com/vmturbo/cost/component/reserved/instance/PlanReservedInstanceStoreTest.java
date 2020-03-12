@@ -9,17 +9,12 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -34,15 +29,25 @@ import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Tests for the {@link PlanReservedInstanceStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestSQLDatabaseConfig.class})
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanReservedInstanceStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.cost.component.db.Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
     private static final long PLAN_ID = 112345L;
     private static final double DELTA = 0.01;
 
@@ -75,18 +80,13 @@ public class PlanReservedInstanceStoreTest {
 
     private static final Map<String, Long> TIER_TO_COUNT_MAP = createTierToCountMap();
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private Flyway flyway;
+    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
 
-    private PlanReservedInstanceStore planReservedInstanceStore;
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
-    private ReservedInstanceSpecStore reservedInstanceSpecStore;
-
-    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
-
-    private DSLContext dsl;
+    private PlanReservedInstanceStore planReservedInstanceStore = new PlanReservedInstanceStore(dsl, new IdentityProvider(0), reservedInstanceCostCalculator);
 
     /**
      * Initialize instances before test.
@@ -95,13 +95,6 @@ public class PlanReservedInstanceStoreTest {
      */
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
-        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-        planReservedInstanceStore = new PlanReservedInstanceStore(dsl, new IdentityProvider(0), reservedInstanceCostCalculator);
         insertDefaultReservedInstanceSpec();
         final List<ReservedInstanceBought> reservedInstanceBoughtInfos =
                         Arrays.asList(ReservedInstanceBought.newBuilder().setId(riId_1).setReservedInstanceBoughtInfo(RI_INFO_1).build(),
@@ -115,14 +108,6 @@ public class PlanReservedInstanceStoreTest {
         result.put("t101.small", 10L);
         result.put("t102.large", 20L);
         return Collections.unmodifiableMap(result);
-    }
-
-    /**
-     * Clean up instances after test.
-     */
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     /**

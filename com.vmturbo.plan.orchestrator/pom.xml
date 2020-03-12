@@ -305,6 +305,10 @@
         <!-- Common test utilities. -->
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>

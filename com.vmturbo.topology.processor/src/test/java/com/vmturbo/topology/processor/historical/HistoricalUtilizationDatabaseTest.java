@@ -4,28 +4,33 @@ import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
 import com.google.protobuf.InvalidProtocolBufferException;
+
+import org.jooq.DSLContext;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
+import com.vmturbo.topology.processor.db.TopologyProcessor;
 
 public class HistoricalUtilizationDatabaseTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private static final CommodityType SOLD_COMMODITY_TYPE = CommodityType.newBuilder()
         .setType(1234)
@@ -37,19 +42,7 @@ public class HistoricalUtilizationDatabaseTest {
         .setKey("666")
         .build();
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private DSLContext dsl;
-
-    @Before
-    public void setup() {
-        dsl = dbConfig.prepareDatabase();
-    }
-
-    @After
-    public void teardown() {
-        dbConfig.clean();
-    }
+    private DSLContext dsl = dbConfig.getDslContext();
 
     @Test
     public void testWriteRead() throws DbException {

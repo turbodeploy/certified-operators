@@ -1,60 +1,46 @@
 package com.vmturbo.plan.orchestrator;
 
+import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
+import static org.junit.Assert.assertEquals;
+
 import java.time.LocalDateTime;
 import java.util.Collections;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Result;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-
-import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
-import static org.junit.Assert.assertEquals;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Tests for database schema.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class DatabaseSchemaIT {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    protected Flyway flyway;
-    protected DSLContext dsl;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    protected DSLContext dsl = dbConfig.getDslContext();
 
     @Before
     public void prepare() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-
         IdentityGenerator.initPrefix(0);
-    }
-
-    @After
-    public void cleanup() {
-        flyway.clean();
     }
 
     @Test

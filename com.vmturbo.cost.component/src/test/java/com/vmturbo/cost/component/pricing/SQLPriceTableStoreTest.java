@@ -20,19 +20,14 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -40,6 +35,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
@@ -47,26 +43,29 @@ import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit tests for {@link SQLPriceTableStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class SQLPriceTableStoreTest {
 
     private static final PriceTable MERGED_PRICE_TABLE = mockPriceTable(2L);
 
     private static final ReservedInstancePriceTable MERGED_RI_PRICE_TABLE = mockRiPriceTable(22L);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private SQLPriceTableStore store;
 
@@ -96,24 +95,16 @@ public class SQLPriceTableStoreTest {
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
 
+        dsl = dbConfig.getDslContext();
         store = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
                 new IdentityProvider(0)), mergeFactory);
 
         when(merge.merge(any())).thenReturn(MERGED_PRICE_TABLE);
         when(merge.mergeRi(any())).thenReturn(MERGED_RI_PRICE_TABLE);
         when(mergeFactory.newMerge()).thenReturn(merge);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

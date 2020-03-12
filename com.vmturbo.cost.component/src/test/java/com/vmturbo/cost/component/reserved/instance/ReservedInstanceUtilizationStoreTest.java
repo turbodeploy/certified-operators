@@ -11,17 +11,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -31,6 +26,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
@@ -45,21 +41,25 @@ import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.Off
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ReservedInstanceUtilizationStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    private final static double DELTA = 0.000001;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    private static final double DELTA = 0.000001;
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
@@ -72,8 +72,6 @@ public class ReservedInstanceUtilizationStoreTest {
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
     private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
-
-    private DSLContext dsl;
 
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
@@ -142,10 +140,6 @@ public class ReservedInstanceUtilizationStoreTest {
 
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
         Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
         ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putAllRiPricesBySpecId(map).build();
@@ -158,11 +152,6 @@ public class ReservedInstanceUtilizationStoreTest {
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);
         insertDefaultReservedInstanceSpec();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

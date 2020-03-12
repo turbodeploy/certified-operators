@@ -359,6 +359,10 @@
         <!-- test dependencies -->
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>auth-test</artifactId>
             <scope>test</scope>
         </dependency>

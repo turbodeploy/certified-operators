@@ -836,6 +836,7 @@
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
@@ -913,6 +914,7 @@
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
@@ -1007,6 +1009,7 @@
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
@@ -1827,6 +1830,12 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>sql-utils</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>sql-test-utils</artifactId>
+                <scope>test</scope>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

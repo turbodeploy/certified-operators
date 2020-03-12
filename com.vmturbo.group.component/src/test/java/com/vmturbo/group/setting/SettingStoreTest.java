@@ -62,11 +62,11 @@ import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
-import com.vmturbo.group.group.DbCleanupRule;
-import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.schedule.ScheduleValidator;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test for {@link SettingStore}.
@@ -77,12 +77,12 @@ public class SettingStoreTest {
      * Rule to create the DB schema and migrate it.
      */
     @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
     /**
      * Rule to automatically cleanup DB data before each test.
      */
     @Rule
-    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private final Logger logger = LogManager.getLogger();
 

@@ -12,21 +12,16 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.flywaydb.core.Flyway;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
@@ -38,18 +33,29 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 import com.vmturbo.trax.Trax;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestSQLDatabaseConfig.class})
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class SqlEntityCostStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
     private static final long ID1 = 1L;
     private static final long ID2 = 2L;
     private static final int ASSOCIATED_ENTITY_TYPE1 = 1;
@@ -93,9 +99,7 @@ public class SqlEntityCostStoreTest {
                     .build())
             .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE2)
             .build();
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private Flyway flyway;
+
     private SqlEntityCostStore store;
 
     /**
@@ -104,18 +108,11 @@ public class SqlEntityCostStoreTest {
      */
     private final MutableFixedClock clock = new MutableFixedClock(1_000_000_000);
 
+    private DSLContext dsl = dbConfig.getDslContext();
+
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        store = new SqlEntityCostStore(dsl, clock, 10);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
+        store = new SqlEntityCostStore(dsl, clock, 1);
     }
 
     @Test

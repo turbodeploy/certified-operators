@@ -48,8 +48,6 @@ import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException
 import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
-import com.vmturbo.group.group.DbCleanupRule;
-import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
@@ -58,6 +56,8 @@ import com.vmturbo.group.setting.SettingPolicyValidator;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.setting.SettingsUpdatesSender;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit tests for {@link ScheduleStore}.
@@ -83,12 +83,12 @@ public class ScheduleStoreTest {
      * Rule to create the DB schema and migrate it.
      */
     @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
     /**
      * Rule to automatically cleanup DB data before each test.
      */
     @Rule
-    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private ScheduleStore scheduleStore;
     private SettingSpecStore settingSpecStore;

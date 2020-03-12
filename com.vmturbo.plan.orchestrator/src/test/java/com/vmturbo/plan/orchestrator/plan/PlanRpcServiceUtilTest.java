@@ -16,9 +16,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope.Builder;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
@@ -100,7 +103,7 @@ public class PlanRpcServiceUtilTest {
         final ScenarioChange riScenario = ScenarioChange.newBuilder()
                         .setRiSetting(riSetting).build();
         final ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
-                        .addChanges(getResizeScenarioChanges())
+                        .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
                         .addChanges(riScenario)
                         .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                         .setScope(planScopeBuilder.build()).build();
@@ -110,15 +113,16 @@ public class PlanRpcServiceUtilTest {
         return request;
     }
 
-    private static ScenarioChange getResizeScenarioChanges() {
+    private ScenarioChange getResizeScenarioChanges(String actionSetting) {
         final EnumSettingValue settingValue = EnumSettingValue.newBuilder()
-                        .setValue(StringConstants.AUTOMATIC).build();
-        final Setting resizeSetting = Setting.newBuilder()
-                        .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
-                        .setEnumSettingValue(settingValue).build();
+            .setValue(actionSetting).build();
+        final String resizeSettingName = EntitySettingSpecs.Resize.getSettingName();
+        final Setting resizeSetting = Setting.newBuilder().setSettingSpecName(resizeSettingName)
+            .setEnumSettingValue(settingValue).build();
         return ScenarioChange.newBuilder()
-                        .setSettingOverride(SettingOverride.newBuilder().setSetting(resizeSetting).build())
-                        .build();
+            .setSettingOverride(SettingOverride.newBuilder()
+                .setSetting(resizeSetting).build())
+            .build();
     }
 
     /**
@@ -159,4 +163,37 @@ public class PlanRpcServiceUtilTest {
         Assert.assertEquals(Collections.emptyList(), request.getAccountsList());
         Assert.assertEquals(DemandType.CONSUMPTION, request.getDemandType());
     }
+
+    /**
+     * Verify that resizeEnabled is calculated correctly based on ScenarioChanges.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testResizeEnabled() throws Exception {
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(1L).setStatus(PlanStatus.QUEUED)
+            .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
+                .addChanges(ScenarioChange.newBuilder()
+                    .setRiSetting(RISetting.newBuilder().build())))).build();
+        Assert.assertTrue(PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
+    }
+
+    /**
+     * Verify that resizeEnabled is calculated correctly based on ScenarioChanges.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testResizeDisabled() throws Exception {
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(3L).setStatus(PlanStatus.QUEUED)
+            .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                .addChanges(getResizeScenarioChanges(StringConstants.DISABLED))
+                .addChanges(ScenarioChange.newBuilder()
+                    .setRiSetting(RISetting.newBuilder().build())))).build();
+        Assert.assertTrue(!PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
+    }
+
 }

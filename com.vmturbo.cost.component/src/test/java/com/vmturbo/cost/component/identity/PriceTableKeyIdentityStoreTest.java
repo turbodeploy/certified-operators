@@ -20,20 +20,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -44,6 +37,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.PriceTableKeyOid;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
@@ -53,19 +47,25 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttribute;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
  * Context Configuration for this test class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PriceTableKeyIdentityStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private final Type type = new TypeToken<Map<String, String>>() {
     }.getType();
@@ -73,12 +73,11 @@ public class PriceTableKeyIdentityStoreTest {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private Flyway flyway;
-    private DSLContext dsl;
-    private PriceTableKeyIdentityStore testIdentityStore;
+    private PriceTableKeyIdentityStore testIdentityStore = new PriceTableKeyIdentityStore(dsl,
+                new IdentityProvider(0));
+
     private final Long awsServiceProviderOid = 123456L;
     private final Long azureServiceProviderOid = 9876543L;
 
@@ -89,29 +88,6 @@ public class PriceTableKeyIdentityStoreTest {
     public static void setupClass() {
         IdentityGenerator.initPrefix(0L);
     }
-
-    /**
-     * Setup for this test class.
-     */
-    @Before
-    public void setup() {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        testIdentityStore = new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0));
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-    }
-
-    /**
-     * Teardown after test finishes.
-     */
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
-
 
     /**
      * Test Empty set of oids.

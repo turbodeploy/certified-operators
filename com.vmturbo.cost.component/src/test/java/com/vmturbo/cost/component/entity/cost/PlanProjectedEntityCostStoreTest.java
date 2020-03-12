@@ -9,18 +9,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
@@ -32,6 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityCostRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
@@ -41,27 +34,28 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit tests for the plan projected entity cost store.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanProjectedEntityCostStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
     @Rule
-    public TestName name = new TestName();
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
     private static final long PLAN_ID = 1L;
     private static final double DELTA = 0.01;
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private Flyway flyway;
-    private PlanProjectedEntityCostStore store;
-    private DSLContext dsl;
     private final int chunkSize = 10;
     private static final EntityCost VM_COST = EntityCost.newBuilder()
                     .setAssociatedEntityId(7L)
@@ -81,26 +75,11 @@ public class PlanProjectedEntityCostStoreTest {
                             .setAmount(50).setCurrency(840)))
             .build();
 
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        // Tests whose names begin with "testChunked" skip this initialization and do it themselves.
-        if (!name.getMethodName().startsWith("testChunked")) {
-            store = new PlanProjectedEntityCostStore(dsl, chunkSize);
-            updateCostsTable();
-        }
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
+    private DSLContext dsl = dbConfig.getDslContext();
 
     @Test
     public void testUpdateProjectedEntityCostsTable() {
+        initializeCostStore(chunkSize);
         commonUpdateProjectedEntityCostsTableVerification();
     }
 
@@ -108,8 +87,7 @@ public class PlanProjectedEntityCostStoreTest {
     public void testChunkedUpdateProjectedEntityCostsTable() {
         // This is a chunk test, so need to complete test setup. Use a chunk size of 1 to force
         // processing in multiple chunks.
-        store = new PlanProjectedEntityCostStore(dsl, 1);
-        updateCostsTable();
+        initializeCostStore(1);
         commonUpdateProjectedEntityCostsTableVerification();
     }
 
@@ -129,7 +107,8 @@ public class PlanProjectedEntityCostStoreTest {
         assertEquals(100.0000, componentCost.getAmount().getAmount(), DELTA);
     }
 
-    private void updateCostsTable() {
+    private PlanProjectedEntityCostStore initializeCostStore(final int chunkSize) {
+        PlanProjectedEntityCostStore store = new PlanProjectedEntityCostStore(dsl, chunkSize);
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(PLAN_ID)
                 .setTopologyId(0l)
@@ -172,6 +151,7 @@ public class PlanProjectedEntityCostStoreTest {
                         topoInfo.getTopologyContextId(), regionId, zoneId,
                         accountId, totalCoupons, usedCoupons)));
         dsl.batchInsert(riUtilizationRecords).execute();
+        return store;
     }
 
     /**
@@ -179,6 +159,7 @@ public class PlanProjectedEntityCostStoreTest {
      */
     @Test
     public void testDeletePlanProjectedEntityCosts() {
+        final PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
         int rows = store.deletePlanProjectedCosts(PLAN_ID);
         // 2 rows in plan_projected_entity_cost, 1 each in
         // plan_projected_entity_to_reserved_instance_mapping,
@@ -192,6 +173,7 @@ public class PlanProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetPlanProjectedStatRecordsByGroup() {
+        final PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
         final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
                         .latestTimestampRequested(true)
                         .entityIds(Arrays.asList(7L, 8L))

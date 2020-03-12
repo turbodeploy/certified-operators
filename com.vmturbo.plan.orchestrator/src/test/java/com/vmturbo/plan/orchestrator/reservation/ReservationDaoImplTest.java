@@ -21,19 +21,13 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
-import org.flywaydb.core.Flyway;
 import org.hamcrest.Matchers;
-import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -50,23 +44,26 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDaoImpl;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class ReservationDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private ReservationDaoImpl reservationDao;
 
@@ -141,18 +138,9 @@ public class ReservationDaoImplTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        reservationDao = new ReservationDaoImpl(dsl);
-        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+        reservationDao = new ReservationDaoImpl(dbConfig.getDslContext());
+        templatesDao = new TemplatesDaoImpl(dbConfig.getDslContext(), "emptyDefaultTemplates.json",
                 new IdentityInitializer(0));
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

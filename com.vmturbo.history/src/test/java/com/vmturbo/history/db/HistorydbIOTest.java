@@ -15,6 +15,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,12 +27,15 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Field;
 import org.jooq.Record3;
 import org.jooq.Table;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -42,24 +47,26 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.HistorydbIO.SeekPaginationCursor;
 import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.sql.utils.DbCleanupRule;
 
 /**
  * Tests for HistorydbIO
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 public class HistorydbIOTest {
 
     private static final Logger logger = LogManager.getLogger();
 
     @Autowired
     private DbTestConfig dbTestConfig;
-    private String testDbName;
-    private HistorydbIO historydbIO;
+    private static String testDbName;
+    private static HistorydbIO historydbIO;
 
     final Field<BigDecimal> avgValue =
         avg(JooqUtils.getDoubleField(VmStatsLatest.VM_STATS_LATEST, StringConstants.AVG_VALUE)).as(StringConstants.AVG_VALUE);
@@ -71,10 +78,49 @@ public class HistorydbIOTest {
         select(uuid, avgValue, avgCapacity)
             .from(VmStatsLatest.VM_STATS_LATEST).asTable("aggregatedStats");
 
+    /**
+     * Common setup code to run before every test.
+     *
+     * @throws VmtDbException If there is a DB error.
+     */
     @Before
-    public void setup() {
+    public void setupDb() throws VmtDbException {
         testDbName = dbTestConfig.testDbName();
         historydbIO = dbTestConfig.historydbIO();
+        HistorydbIO.mappedSchemaForTests = testDbName;
+        HistorydbIO.setSharedInstance(historydbIO);
+        historydbIO.setSchemaForTests(testDbName);
+        BasedbIO.setSharedInstance(historydbIO);
+        // Do not clear old db - we rely on the "teardown" to delete data after each test.
+        historydbIO.init(false, null, testDbName, Optional.empty());
+    }
+
+    /**
+     * Delete all data in the database after every test.
+     *
+     * @throws Exception If database issue.
+     */
+    @After
+    public void teardown() throws Exception {
+        // Delete all data in any tables.
+        try (Connection conn = historydbIO.connection()) {
+            DbCleanupRule.cleanDb(historydbIO.using(conn), Vmtdb.VMTDB);
+        } catch (SQLException e) {
+            throw e;
+        }
+    }
+
+    /**
+     * Teardown the database after ALL the tests are done.
+     */
+    @AfterClass
+    public static void teardownDb() {
+        DBConnectionPool.instance.getInternalPool().close();
+        try {
+            SchemaUtil.dropDb(testDbName);
+        } catch (VmtDbException e) {
+            logger.error("Problem dropping db: " + testDbName, e);
+        }
     }
 
     @Test
@@ -235,22 +281,10 @@ public class HistorydbIOTest {
     }
 
     private void setupDatabase() throws VmtDbException {
-        HistorydbIO.mappedSchemaForTests = testDbName;
-        HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName, Optional.empty());
-        historydbIO.setSchemaForTests(testDbName);
-
-        BasedbIO.setSharedInstance(historydbIO);
 
     }
 
     private void teardownDatabase() {
-        DBConnectionPool.instance.getInternalPool().close();
-        try {
-            SchemaUtil.dropDb(testDbName);
-        } catch (VmtDbException e) {
-            logger.error("Problem dropping db: " + testDbName, e);
-        }
     }
 
     /**

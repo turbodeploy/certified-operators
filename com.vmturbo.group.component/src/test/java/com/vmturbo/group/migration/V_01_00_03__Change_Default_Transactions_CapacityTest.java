@@ -12,14 +12,10 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
@@ -29,6 +25,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
@@ -40,19 +37,25 @@ import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.setting.SettingsUpdatesSender;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {TestSQLDatabaseConfig.class})
-@TestPropertySource(properties = {"originalSchemaName=group_component"})
 public class V_01_00_03__Change_Default_Transactions_CapacityTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
 
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON = "setting-test-json/setting-spec.json";
 
-    private DSLContext dslContext;
+    private DSLContext dslContext = dbConfig.getDslContext();
 
     private SettingStore settingStore;
 
@@ -72,20 +75,11 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
 
     @Before
     public void setup() {
-        dslContext = dbConfig.prepareDatabase();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
 
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
             settingPolicyValidator, settingsUpdatesSender);
         migration = new V_01_00_03__Change_Default_Transactions_Capacity(settingStore);
-    }
-
-    /**
-     * Release all resources occupied by test.
-     */
-    @After
-    public void tearDown() {
-        dbConfig.clean();
     }
 
     @Test
@@ -137,7 +131,7 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
     private SettingPolicyRecord makeSettingPolicyRecord(final long id,
                                                         final int entityType,
                                                         Map<String, Float> settings) {
-        final SettingPolicyRecord record = dbConfig.dsl().newRecord(Tables.SETTING_POLICY);
+        final SettingPolicyRecord record = dslContext.newRecord(Tables.SETTING_POLICY);
         record.setId(id);
         record.setName("Default Policy " + id);
         record.setEntityType(entityType);

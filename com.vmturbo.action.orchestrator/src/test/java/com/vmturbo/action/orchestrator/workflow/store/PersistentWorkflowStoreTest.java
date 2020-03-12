@@ -20,54 +20,47 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import org.jooq.DSLContext;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.tables.records.WorkflowRecord;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Test the class {@link PersistentWorkflowStore} persisting a list of
  * WorkflowInfo items. The WorkflowIdentityStore is mocked.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class PersistentWorkflowStoreTest {
-
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
     /**
-     * the class to run the DB migration
+     * Rule to automatically cleanup DB data before each test.
      */
-    private Flyway flyway;
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     /**
      * the jooq context for running DB operations
      */
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     IdentityStore mockIdentityStore;
 
@@ -85,23 +78,8 @@ public class PersistentWorkflowStoreTest {
 
     @Before
     public void setup() {
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway = dbConfig.flyway();
-        flyway.clean();
-        flyway.migrate();
-
-        // Grab a handle for JOOQ DB operations
-        dsl = dbConfig.dsl();
-
         // Set up a mock for the IdentityStore
         mockIdentityStore = Mockito.mock(IdentityStore.class);
-    }
-
-    @After
-    public void teardown() {
-        // at the end, remove the test DB
-        flyway.clean();
     }
 
     /**

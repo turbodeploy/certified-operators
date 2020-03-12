@@ -13,22 +13,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-
-import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -52,6 +45,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
@@ -68,17 +62,24 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.ReservedInstanceD
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * This class tests methods in the ReservedInstanceSpecStore class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class RIBuyAnalysisContextProviderTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private static final long REGION_ID = 111;
     private static final Long MASTER_ACCOUNT_1_OID = 222L;
@@ -90,20 +91,20 @@ public class RIBuyAnalysisContextProviderTest {
     private static final long VM_ID = 101L;
     private static final long MASTER_VM_ID = 102L;
     private static final long SPEC_ID = 777L;
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
 
     private static final long CONTEXT_ID = 9999L;
 
-    private Flyway flyway;
-
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final RegionalRIMatcherCache matcherCache = mock(RegionalRIMatcherCache.class);
     private final ReservedInstanceSpecMatcher matcher = mock(ReservedInstanceSpecMatcher.class);
 
-    private final GrpcTestServer grpcServer = GrpcTestServer.newServer(repositoryService);
+    /**
+     * gRPC test server.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(repositoryService);
 
     /**
      * Setup each test.
@@ -111,13 +112,6 @@ public class RIBuyAnalysisContextProviderTest {
      */
     @Before
     public void setup() throws Exception {
-
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        grpcServer.start();
-
         when(repositoryService.retrieveTopologyEntities(any()))
                 .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
                         .addAllEntities(entityMap.values()
@@ -144,14 +138,6 @@ public class RIBuyAnalysisContextProviderTest {
                 any(TopologyEntityDTO.class), any(OSType.class), any(Tenancy.class)))
                 .thenReturn(Optional.of(data));
         when(matcherCache.getOrCreateRISpecMatchForRegion(REGION_ID)).thenReturn(matcher);
-    }
-
-    /**
-     * Teardown after test finishes.
-     */
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     /**

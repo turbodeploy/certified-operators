@@ -12,19 +12,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
 import com.google.common.collect.Sets;
 
+import org.jooq.DSLContext;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -32,37 +27,25 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.ActionGroupFilter;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class ActionGroupStoreTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private ActionGroupStore actionGroupStore;
-
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-
-        actionGroupStore = new ActionGroupStore(dsl);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
+    private ActionGroupStore actionGroupStore = new ActionGroupStore(dsl);
 
     @Test
     public void testUpsert() {
@@ -76,7 +59,6 @@ public class ActionGroupStoreTest {
         final Map<ActionGroupKey, ActionGroup> actionGroups =
                 actionGroupStore.ensureExist(Collections.singleton(groupKey));
         assertThat(actionGroups.get(groupKey).key(), is(groupKey));
-        assertThat(actionGroups.get(groupKey).id(), is(1));
     }
 
     @Test
@@ -116,13 +98,16 @@ public class ActionGroupStoreTest {
                 .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
                 .build();
 
-        actionGroupStore.ensureExist(Collections.singleton(groupKey));
+        final Map<ActionGroupKey, ActionGroup> initialGroups =
+            actionGroupStore.ensureExist(Collections.singleton(groupKey));
+        final int id = initialGroups.get(groupKey).id();
+
         // Try to insert the same key again.
         final Map<ActionGroupKey, ActionGroup> actionGroups =
                 actionGroupStore.ensureExist(Collections.singleton(groupKey));
         assertThat(actionGroups.get(groupKey).key(), is(groupKey));
         // Retain the initial ID.
-        assertThat(actionGroups.get(groupKey).id(), is(1));
+        assertThat(actionGroups.get(groupKey).id(), is(id));
     }
 
     @Test
