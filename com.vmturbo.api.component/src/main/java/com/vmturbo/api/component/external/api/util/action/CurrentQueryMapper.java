@@ -364,6 +364,8 @@ class CurrentQueryMapper {
                             return Optional.of(GroupBy.ACTION_CATEGORY);
                         case StringConstants.RISK_DESCRIPTION:
                             return Optional.of(GroupBy.ACTION_EXPLANATION);
+                        case StringConstants.SEVERITY:
+                            return Optional.of(GroupBy.SEVERITY);
                         case StringConstants.ACTION_STATES:
                             return Optional.of(GroupBy.ACTION_STATE);
                         case StringConstants.ACTION_TYPE:

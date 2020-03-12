@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -254,6 +255,79 @@ public class CombinedStatsBucketsTest {
                 .setSavings(0.0)
                 .setInvestments(0.0)
                 .build()));
+    }
+
+    /**
+     * Test Group-by Action Severity properly buckets the numActions for each action severity category.
+     */
+    @Test
+    public void testGroupByActionSeverity() {
+        final QueryInfo queryInfo = mock(QueryInfo.class);
+        when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
+                .addGroupBy(GroupBy.SEVERITY)
+                .build());
+        when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
+        final SingleActionInfo criticalActionPerfmance = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo criticalActionCompliance = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.COMPLIANCE);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo majorActionPrevention = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.PREVENTION);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo minorActionEfficiency = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.EFFICIENCY_IMPROVEMENT);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+
+        buckets.addActionInfo(criticalActionPerfmance);
+        buckets.addActionInfo(criticalActionCompliance);
+        buckets.addActionInfo(majorActionPrevention);
+        buckets.addActionInfo(minorActionEfficiency);
+
+        final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
+        assertThat(stats, containsInAnyOrder(
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                        .setSeverity(Severity.CRITICAL))
+                .setActionCount(2)
+                    .setEntityCount(1)
+                    .setSavings(0.0)
+                    .setInvestments(0.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder().setSeverity(Severity.MAJOR))
+                    .setActionCount(1)
+                    .setEntityCount(1)
+                    .setSavings(0.0)
+                    .setInvestments(0.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                        .setSeverity(Severity.MINOR))
+                .setActionCount(1)
+                    .setEntityCount(1)
+                    .setSavings(0.0)
+                    .setInvestments(0.0)
+                .build()
+        ));
     }
 
     @Test

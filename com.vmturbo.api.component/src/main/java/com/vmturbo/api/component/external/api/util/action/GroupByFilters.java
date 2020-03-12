@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -100,6 +101,14 @@ public class GroupByFilters {
 
     public void setActionCostType(@Nonnull final ActionDTO.ActionCostType costType) {
         setValue(StringConstants.ACTION_COST_TYPE, costType.name());
+    }
+
+    /**
+     * Set filter by Action Severity value
+     * @param severity - the severity of the Action {@link Severity}
+     */
+    public void setActionRiskSeverity(@Nonnull final Severity severity) {
+        setValue(StringConstants.SEVERITY, severity.name());
     }
 
     public void setReasonCommodity(final int reasonCommodityBaseType) {

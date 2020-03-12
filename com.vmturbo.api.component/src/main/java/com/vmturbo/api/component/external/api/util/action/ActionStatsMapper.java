@@ -154,6 +154,10 @@ class ActionStatsMapper {
             groupByFilters.setActionCostType(actionStat.getStatGroup().getCostType());
         }
 
+        if (actionStat.getStatGroup().hasSeverity()) {
+            groupByFilters.setActionRiskSeverity(actionStat.getStatGroup().getSeverity());
+        }
+
         if (actionStat.getStatGroup().hasTargetEntityType()) {
             groupByFilters.setTargetEntityType(actionStat.getStatGroup().getTargetEntityType());
         }
