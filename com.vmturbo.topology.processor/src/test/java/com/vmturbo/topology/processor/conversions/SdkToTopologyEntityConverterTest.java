@@ -13,12 +13,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
@@ -26,7 +28,6 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -42,13 +43,13 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ConsumerPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -763,57 +764,5 @@ public class SdkToTopologyEntityConverterTest {
         // has suspendable setting and is disabled
         assertTrue(applicationTopologyDTO.getAnalysisSettings().hasSuspendable());
         assertFalse(applicationTopologyDTO.getAnalysisSettings().getSuspendable());
-    }
-
-    /**
-     * Test that GuestLoad Applications are flagged as daemons.
-     */
-    @Test
-    public void testDaemonSetting() {
-        final String nameSpace = "default";
-        final String name = "name";
-        final String value = "value";
-
-        CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder()
-            .setEntityType(EntityType.APPLICATION)
-            .setApplicationData(ApplicationData.newBuilder().setType("GuestLoad"))
-            .setId("id");
-        TopologyDTO.TopologyEntityDTO.Builder topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
-
-        assertTrue(topologyEntityDTO.hasAnalysisSettings());
-        assertTrue(topologyEntityDTO.getAnalysisSettings().hasDaemon());
-        assertTrue(topologyEntityDTO.getAnalysisSettings().getDaemon());
-
-        // No longer a GuestLoad
-        builder.clearApplicationData();
-        topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
-        assertTrue(topologyEntityDTO.hasAnalysisSettings());
-        assertFalse(topologyEntityDTO.getAnalysisSettings().hasDaemon());
-        assertFalse(topologyEntityDTO.getAnalysisSettings().getDaemon());
-
-        // Add a consumer policy, daemon = false
-        builder.setConsumerPolicy(ConsumerPolicy.newBuilder()
-            .setDaemon(false)
-            .build());
-        topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
-        assertTrue(topologyEntityDTO.hasAnalysisSettings());
-        assertTrue(topologyEntityDTO.getAnalysisSettings().hasDaemon());
-        assertFalse(topologyEntityDTO.getAnalysisSettings().getDaemon());
-        builder.setConsumerPolicy(ConsumerPolicy.newBuilder()
-            .setDaemon(false)
-            .build());
-
-        // Add a consumer policy, daemon = true
-        builder.setConsumerPolicy(ConsumerPolicy.newBuilder()
-            .setDaemon(true)
-            .build());
-        topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
-        assertTrue(topologyEntityDTO.hasAnalysisSettings());
-        assertTrue(topologyEntityDTO.getAnalysisSettings().hasDaemon());
-        assertTrue(topologyEntityDTO.getAnalysisSettings().getDaemon());
     }
 }

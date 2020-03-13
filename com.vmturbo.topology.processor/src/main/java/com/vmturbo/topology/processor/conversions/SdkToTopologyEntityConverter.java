@@ -307,7 +307,6 @@ public class SdkToTopologyEntityConverter {
                 cloneable = Optional.of(actionEligibility.getCloneable());
             }
         }
-        Optional<Boolean> isDaemon = getDaemonSetting(dto);
 
         // Calculate suspendable flag if no info is provided from ActionEligibility
         if (!suspendable.isPresent()) {
@@ -334,8 +333,7 @@ public class SdkToTopologyEntityConverter {
                 isProviderMustClone,
                 isDeletable,
                 suspendable,
-                cloneable,
-                isDaemon
+                cloneable
         );
 
         retBuilder.setTypeSpecificInfo(info);
@@ -347,32 +345,6 @@ public class SdkToTopologyEntityConverter {
                 .build());
         }
         return retBuilder;
-    }
-
-    /**
-     * Extract the daemon setting from the entity DTO.  This setting can either come directly from
-     * the probe, or can be set if entity is a GuestLoad.
-     * @param entityDTO entity DTO to check
-     * @return Optional.empty if the setting is not present. Optional.of(false) if the setting is
-     * present and set to false.  Optional.of(true) if the setting is present and set to true or if
-     * the entity is a GuestLoad Application.
-     */
-    private static Optional<Boolean> getDaemonSetting(final EntityDTOOrBuilder entityDTO) {
-        /*
-         * If the consumer policy exists and has a daemon setting, we need Optional.of to indicate
-         * that the setting was explicitly set.
-         */
-        boolean daemonSetting = false;
-        boolean daemonSettingPresent = entityDTO.getConsumerPolicy().hasDaemon();
-        if (daemonSettingPresent) {
-            daemonSetting = entityDTO.getConsumerPolicy().getDaemon();
-        }
-        if (!daemonSetting && entityDTO.hasApplicationData()) {
-            daemonSetting |= entityDTO.getApplicationData().getType().equals("GuestLoad");
-        }
-        return daemonSettingPresent || daemonSetting
-            ? Optional.of(daemonSetting)
-            : Optional.empty();
     }
 
     /**
@@ -423,7 +395,6 @@ public class SdkToTopologyEntityConverter {
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
         final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
-        final Optional<Boolean> isDaemon = getDaemonSetting(dto);
         final boolean isDeletable = dto.getConsumerPolicy().getDeletable();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
@@ -555,8 +526,7 @@ public class SdkToTopologyEntityConverter {
                 isProviderMustClone,
                 isDeletable,
                 suspendable,
-                cloneable,
-                isDaemon
+                cloneable
         );
 
         retBuilder.setTypeSpecificInfo(info);
@@ -584,8 +554,7 @@ public class SdkToTopologyEntityConverter {
             boolean isProviderMustClone,
             boolean isDeletable,
             Optional<Boolean> suspendable,
-            Optional<Boolean> cloneable,
-            Optional<Boolean> isDaemon
+            Optional<Boolean> cloneable
         ) {
         AnalysisSettings.Builder analysisSettingsBuilder =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
@@ -608,7 +577,6 @@ public class SdkToTopologyEntityConverter {
         }
 
         cloneable.ifPresent(analysisSettingsBuilder::setCloneable);
-        isDaemon.ifPresent(analysisSettingsBuilder::setDaemon);
 
         final TopologyEntityDTO.Builder result =
                 TopologyDTO.TopologyEntityDTO.newBuilder()

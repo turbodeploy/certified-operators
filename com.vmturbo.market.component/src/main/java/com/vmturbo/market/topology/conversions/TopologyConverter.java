@@ -134,8 +134,7 @@ public class TopologyConverter {
 
     private static final Set<Integer> CONTAINER_TYPES = ImmutableSet.of(
         // TODO: Add container collection
-        EntityType.CONTAINER_VALUE,
-        EntityType.CONTAINER_POD_VALUE);
+        EntityType.CONTAINER_VALUE);
 
     // If a cloud entity buys from this set of cloud entity types, then we need to create DataCenter
     // commodity bought for it.
@@ -497,7 +496,7 @@ public class TopologyConverter {
                         skippedEntities.put(entity.getOid(), entity);
                     }
                     entityOidToDto.put(entity.getOid(), entity);
-                    if (CONTAINER_TYPES.contains(entityType)) {
+                    if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
                         // VMs and ContainerPods
                         providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
                             .stream()
@@ -1181,7 +1180,6 @@ public class TopologyConverter {
                 .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
                        - traderSetting.getMinDesiredUtilization())
                 .setProviderMustClone(traderSetting.getProviderMustClone())
-                .setDaemon(traderSetting.getDaemon())
             .build();
         TopologyDTO.TopologyEntityDTO.Builder entityDTOBuilder =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
@@ -1825,31 +1823,40 @@ public class TopologyConverter {
             boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
             /*
              * Whether trader is suspendable in market or not depends on multiple conditions
-             * 1. Topology settings - policy sends the suspendable flag
+             * 1. Topology settings - policy sends suspendable flag as false
              * (entity settings and analysis settings (happens later))
-             * 2. Topology sends controllable flag
+             * 2. Topology sends controllable flag as false
              * 3. Whether entity is a VM in plan (to improve)
-             * 4. Whether in plan the VM hosts containers (in which case 3 is overridden)
+             * 4. Whether in plan the VM hosts containers (in which case trump 3)
              * 5. Whether entity is top of supply chain (to improve)
              * 6. Whether it is a DB or DBServer on cloud
              */
             boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
             boolean isProviderMustClone = EntitySettings.BooleanKey
                     .PROVIDER_MUST_CLONE.value(topologyDTO);
-            // If the entity hosts containers, use the entity setting.  Otherwise, force suspension
-            // to false. In the future, mediation needs to set the suspend/clone setting so that
-            // this override is not required.
-            if (!providersOfContainers.contains(topologyDTO.getOid())) {
-                if ((bottomOfSupplyChain && active) ||
-                        topOfSupplyChain ||   // Workaround for OM-25254. Should be set by mediation
-                        entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    suspendable = false;
-                }
+            if (bottomOfSupplyChain && active) {
+                suspendable = false;
+            }
+            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE)) {
+                suspendable = false;
+            }
+            // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
+            // (even for an empty Set) it is worth checking again. Also improves readability.
+            if (isPlan() && providersOfContainers.contains(topologyDTO.getOid())) {
+                clonable = true;
+                suspendable = true;
+            }
+            if (topOfSupplyChain) { // Workaround for OM-25254. Should be set by mediation.
+                suspendable = false;
             }
             // If topologyEntity set clonable value, we should directly use it.
             clonable = topologyDTO.getAnalysisSettings().hasCloneable()
                             ? topologyDTO.getAnalysisSettings().getCloneable()
                                             : clonable;
+            // If topologyEntity set suspendable value, we should directly use it.
+            suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
+                            ? topologyDTO.getAnalysisSettings().getSuspendable()
+                                            : suspendable;
             // If topologyEntity set providerMustClone, we need to use its value.
             isProviderMustClone = topologyDTO.getAnalysisSettings().hasProviderMustClone()
                 ? topologyDTO.getAnalysisSettings().getProviderMustClone()
@@ -1860,10 +1867,6 @@ public class TopologyConverter {
                 suspendable = false;
             }
 
-            // If topologyEntity set suspendable value, we should directly use it.
-            if (topologyDTO.getAnalysisSettings().hasSuspendable()) {
-                suspendable = topologyDTO.getAnalysisSettings().getSuspendable();
-            }
             final StitchingErrors stitchingErrors = StitchingErrors.fromProtobuf(topologyDTO);
             final boolean controllable = topologyDTO.getAnalysisSettings().getControllable() &&
                 // If there were stitching errors, it's risky to control this entity.
@@ -1888,8 +1891,7 @@ public class TopologyConverter {
                     .setMoveCostFactor((isPlan() || isEntityFromCloud)
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
-                    .setProviderMustClone(isProviderMustClone)
-                    .setDaemon(topologyDTO.getAnalysisSettings().getDaemon());
+                    .setProviderMustClone(isProviderMustClone);
 
             // Overwrite flags for vSAN
             if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
