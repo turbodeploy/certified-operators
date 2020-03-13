@@ -17,6 +17,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -27,7 +28,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -90,6 +90,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
@@ -681,30 +682,6 @@ public class ScenarioMapperTest {
     }
 
     /**
-     * Tests {@link PlanChanges.IgnoreConstraint} mapped to expected {@link RemoveConstraintApiDTO}
-     */
-    @Test
-    public void testToRemoveConstraintApiDTO() {
-        //GIVEN
-        long groupId = 1234;
-        BaseApiDTO baseApiDto = new BaseApiDTO();
-        when(contextMock.dtoForId(groupId)).thenReturn(baseApiDto);
-
-        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder().setIgnoreGroup(
-                PlanChanges.ConstraintGroup.newBuilder()
-                        .setCommodityType("ClusterCommodity")
-                        .setGroupUuid(groupId).build())
-                .build();
-
-        //WHEN
-        RemoveConstraintApiDTO removeConstraintApiDTO= scenarioMapper.toRemoveConstraintApiDTO(ignoreConstraint, contextMock);
-
-        //THEN
-        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
-        assertThat(removeConstraintApiDTO.getTarget(), is(baseApiDto));
-    }
-
-    /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
      */
@@ -1063,38 +1040,6 @@ public class ScenarioMapperTest {
         final Scenario scenario = buildScenario(ScenarioChange.newBuilder().build());
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         Assert.assertTrue(scenarioApiDTO.getConfigChanges().getAutomationSettingList().isEmpty());
-    }
-
-    /**
-     * Tests converting of ScenarioApiDto to ScenarioInfo when Ignore Constraint setting is provided
-     * by scenarioApiDto
-     *
-     * @throws Exception UuidMapper throws, one of the underlying operations
-     * required to map the UUID to an {@link UuidMapper.ApiId} fails
-     */
-    @Test
-    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() throws Exception {
-        final ScenarioApiDTO dto = new ScenarioApiDTO();
-        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
-        List<RemoveConstraintApiDTO> removeConstraints = ImmutableList.of(
-                createRemoveConstraintApiDto("1", ConstraintType.ClusterCommodity),
-                createRemoveConstraintApiDto("2", ConstraintType.DataCenterCommodity)
-        );
-        configChanges.setRemoveConstraintList(removeConstraints);
-        dto.setConfigChanges(configChanges);
-        final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
-        final ScenarioChange scenarioChange = scenarioInfo.getChangesList().get(0);
-        Assert.assertTrue(scenarioChange.hasPlanChanges());
-        final IgnoreConstraint ignoreClusterCommodity =
-                scenarioChange.getPlanChanges().getIgnoreConstraints(0);
-        final IgnoreConstraint ignoreDataCenterCommodity =
-                scenarioChange.getPlanChanges().getIgnoreConstraints(1);
-        Assert.assertEquals(ConstraintType.ClusterCommodity.name(),
-                ignoreClusterCommodity.getIgnoreGroup().getCommodityType());
-        Assert.assertEquals(ConstraintType.DataCenterCommodity.name(),
-                ignoreDataCenterCommodity.getIgnoreGroup().getCommodityType());
-        Assert.assertEquals(1l, ignoreClusterCommodity.getIgnoreGroup().getGroupUuid());
-        Assert.assertEquals(2l, ignoreDataCenterCommodity.getIgnoreGroup().getGroupUuid());
     }
 
     /**
@@ -1712,5 +1657,171 @@ public class ScenarioMapperTest {
             .filter(Optional::isPresent)
             .filter(spec -> scenarioMapper.isSettingSpecForEntityType(spec.get().getSettingSpec(), entityType))
             .count();
+    }
+
+    /**
+     * Tests mapping {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} ignoreAllEntities.
+     *
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test
+    public void testToIgnoreConstraintIsIgnoreAllEntities()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+        dto.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+
+        //WHEN
+        IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
+
+        //THEN
+        assertTrue(response.getIgnoreAllEntities());
+        assertFalse(response.hasGlobalIgnoreEntityType());
+        assertFalse(response.hasIgnoreGroup());
+    }
+
+    /**
+     * Tests {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} ignores specific entity type.
+     *
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test
+    public void testToIgnoreConstraintIsIgnoreAllConstraintsForEntityType()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+        dto.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+
+        //WHEN
+        IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
+
+        //THEN
+        assertTrue(response.hasGlobalIgnoreEntityType());
+        assertTrue(response.getGlobalIgnoreEntityType().getEntityType() == EntityType.VIRTUAL_MACHINE);
+        assertFalse(response.hasIgnoreAllEntities());
+        assertFalse(response.hasIgnoreGroup());
+
+    }
+
+    /**
+     * Tests {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} for specific group.
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test
+    public void testToIgnoreConstraintIsIgnoreConstraintForGroup()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+        dto.setConstraintType(ConstraintType.ClusterCommodity);
+        final long entityId = 1L;
+        dto.setTarget(entity(entityId));
+
+        ApiId apiId = mock(ApiId.class);
+        doReturn(entityId).when(apiId).oid();
+        doReturn(true).when(apiId).isGroup();
+        doReturn(apiId).when(uuidMapper).fromUuid(any());
+
+        //WHEN
+        IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
+
+        //THEN
+        assertTrue(response.hasIgnoreGroup());
+        assertTrue(response.getIgnoreGroup().getCommodityType() ==
+                ConstraintType.ClusterCommodity.name());
+        assertTrue(response.getIgnoreGroup().getGroupUuid() == entityId);
+        assertFalse(response.hasGlobalIgnoreEntityType());
+        assertFalse(response.hasIgnoreAllEntities());
+    }
+
+    /**
+     * Tests {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} for specific group.
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testToIgnoreConstraintThrowsIllegalArgumentException()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+
+        //WHEN
+        scenarioMapper.toIgnoreConstraint(dto);
+    }
+
+    /**
+     * Tests map {@link IgnoreConstraint} ignoreAllEntities to {@link RemoveConstraintApiDTO}.
+     */
+    @Test
+    public void testToRemoveConstraintApiDTOFromIgnoreAllEntities() {
+        //GIVEN
+        final IgnoreConstraint constraint = IgnoreConstraint.newBuilder()
+                .setIgnoreAllEntities(true)
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO =
+                scenarioMapper.toRemoveConstraintApiDTO(constraint, null);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
+        assertNull(removeConstraintApiDTO.getTarget());
+        assertNull(removeConstraintApiDTO.getTarget());
+    }
+
+    /**
+     * Tests map {@link IgnoreConstraint} ignoreEntityType to {@link RemoveConstraintApiDTO}.
+     */
+    @Test
+    public void testToRemoveConstraintApiDTOFromGlobalIgnoreEntityType() {
+        //GIVEN
+        final IgnoreConstraint constraint = IgnoreConstraint.newBuilder()
+                .setGlobalIgnoreEntityType(
+                        GlobalIgnoreEntityType.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE))
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO =
+                scenarioMapper.toRemoveConstraintApiDTO(constraint, null);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
+        assertThat(removeConstraintApiDTO.getTargetEntityType(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertNull(removeConstraintApiDTO.getTarget());
+    }
+
+    /**
+     * Tests map {@link IgnoreConstraint} perGroup to {@link RemoveConstraintApiDTO}.
+     */
+    @Test
+    public void testToRemoveConstraintApiDTOFromIgnoreGroup() {
+        //GIVEN
+        long groupId = 1234;
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setGroupType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        when(contextMock.dtoForId(groupId)).thenReturn(groupApiDTO);
+
+        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder()
+                .setIgnoreGroup(PlanChanges.ConstraintGroup.newBuilder()
+                        .setCommodityType("ClusterCommodity")
+                        .setGroupUuid(groupId).build())
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO =
+                scenarioMapper.toRemoveConstraintApiDTO(ignoreConstraint, contextMock);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
+        assertThat(removeConstraintApiDTO.getTarget(), is(groupApiDTO));
+        assertTrue(removeConstraintApiDTO.getTargetEntityType() == UIEntityType.VIRTUAL_MACHINE.apiStr());
     }
 }

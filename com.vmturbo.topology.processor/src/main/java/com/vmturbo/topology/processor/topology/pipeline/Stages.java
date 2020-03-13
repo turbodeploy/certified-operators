@@ -92,6 +92,7 @@ import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfi
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
+import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
@@ -768,9 +769,18 @@ public class Stages {
         @Override
         public Status passthrough(TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             boolean isPressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(getContext().getTopologyInfo());
-            constraintsEditor.editConstraints(input, changes, isPressurePlan);
+            try {
+                constraintsEditor.editConstraints(input, changes, isPressurePlan);
+            } catch (ConstraintsEditorException e) {
+                throw new PipelineStageException(e);
+            }
             // TODO (roman, 23 Oct 2018): Add some high-level information about modifications made.
             return Status.success();
+        }
+
+        @Override
+        public boolean required() {
+            return true;
         }
     }
 

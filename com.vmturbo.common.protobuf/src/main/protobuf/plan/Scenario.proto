@@ -117,9 +117,13 @@ message ScenarioChange {
             oneof ignore {
                 ConstraintGroup ignore_group = 1;
 
-                IgnoreEntityTypes ignore_entity_types = 2;
+                //Field deprecated rather than removed so we can identify
+                //configurations no longer supported
+                IgnoreEntityTypes _deprecated_ignore_entity_types = 2 [deprecated = true];
 
                 bool ignore_all_entities = 3;
+
+                GlobalIgnoreEntityType global_ignore_entity_type = 4;
             }
         }
 
@@ -129,9 +133,19 @@ message ScenarioChange {
             optional int64 group_uuid = 2;
         }
 
+        //Deprecated, Use GlobalIgnoreEntityType instead
+        //Deprecated rather than removed so we can identify IgnoreConstraint
+        //configurations no longer supported
         message IgnoreEntityTypes {
-            repeated  common_dto.EntityDTO.EntityType entityTypes = 1;
+            option deprecated = true;
+            repeated common_dto.EntityDTO.EntityType entityTypes = 1;
         }
+
+        //Change to indicate ignore all constraints for planScope of set entityType
+        message GlobalIgnoreEntityType {
+            optional common_dto.EntityDTO.EntityType entity_type = 1;
+        }
+
 
         // A change to a placement policy or a new policy altogether.
         message PolicyChange {

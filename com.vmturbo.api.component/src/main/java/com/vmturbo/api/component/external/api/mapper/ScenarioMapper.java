@@ -47,6 +47,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -90,6 +91,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
@@ -237,10 +239,12 @@ public class ScenarioMapper {
      *          required to map the UUID to an {@link UuidMapper.ApiId} fails
      * @throws InvalidOperationException e.g in case if alleviate pressure plan, if we don't get
      *         cluster information.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
      */
     @Nonnull
     public ScenarioInfo toScenarioInfo(final String name,
-                                       @Nonnull final ScenarioApiDTO dto) throws OperationFailedException, InvalidOperationException {
+                                       @Nonnull final ScenarioApiDTO dto)
+            throws OperationFailedException, InvalidOperationException, IllegalArgumentException {
         final ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
@@ -840,8 +844,18 @@ public class ScenarioMapper {
         return retChanges.build();
     }
 
+    /**
+     * Maps list of {@link ConfigChangesApiDTO} to list of {@link ScenarioChange}.
+     *
+     * @param configChanges the changes to map to list of scenarioChange
+     * @return list of {@link ScenarioChange} built from configChanges
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
-    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges) throws OperationFailedException {
+    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges)
+            throws OperationFailedException, IllegalArgumentException {
         if (configChanges == null) {
             return Collections.emptyList();
         }
@@ -923,8 +937,18 @@ public class ScenarioMapper {
         return ScenarioChange.newBuilder().setRiSetting(awsRISetting).build();
     }
 
+    /**
+     * Maps {@link ConfigChangesApiDTO} to {@link ScenarioChange}.
+     *
+     * @param configChanges the changes to map to scenarioChange
+     * @return the {@link ScenarioChange} built from configChanges
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
-    private ScenarioChange buildPlanChanges(@Nonnull ConfigChangesApiDTO configChanges) {
+    private ScenarioChange buildPlanChanges(@Nonnull ConfigChangesApiDTO configChanges)
+            throws OperationFailedException, IllegalArgumentException {
         final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
         final List<RemoveConstraintApiDTO> constraintsToRemove = configChanges.getRemoveConstraintList();
         if (!CollectionUtils.isEmpty(constraintsToRemove)) {
@@ -934,31 +958,100 @@ public class ScenarioMapper {
         return ScenarioChange.newBuilder().setPlanChanges(planChangesBuilder.build()).build();
     }
 
+    /**
+     * Maps list of {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint}.
+     *
+     * @param constraints list of constraints to map
+     * @return {@link IgnoreConstraint} mapped from constraints
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
     private List<IgnoreConstraint> getIgnoreConstraintsPlanSetting(
-            @Nonnull List<RemoveConstraintApiDTO> constraintsToIgnore) {
+            @Nonnull List<RemoveConstraintApiDTO> constraints)
+            throws OperationFailedException, IllegalArgumentException {
         final ImmutableList.Builder<IgnoreConstraint> ignoreConstraintsBuilder = ImmutableList.builder();
-        for (RemoveConstraintApiDTO constraint : constraintsToIgnore) {
+        for (RemoveConstraintApiDTO constraint : constraints) {
             final IgnoreConstraint ignoreConstraint = toIgnoreConstraint(constraint);
             ignoreConstraintsBuilder.add(ignoreConstraint);
         }
         return ignoreConstraintsBuilder.build();
     }
 
+    /**
+     * Checks if {@link RemoveConstraintApiDTO} should ignore constraints of all entities.
+     *
+     * @param constraint the constraint to check
+     * @return true if all entity constraints should be ignored
+     */
+    private static boolean isIgnoreAllEntities(RemoveConstraintApiDTO constraint) {
+        return ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType() &&
+                constraint.getTarget() == null &&
+                constraint.getTargetEntityType() == null;
+    }
+
+    /**
+     * Checks if {@link RemoveConstraintApiDTO} should ignore constraints of particular entity.
+     *
+     * @param constraint the constraint to check
+     * @return true if constraints should be ignored for specific entityType
+     */
+    private static boolean isIgnoreAllConstraintsForEntityType(RemoveConstraintApiDTO constraint) {
+        return ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType() &&
+                constraint.getTarget() == null &&
+                constraint.getTargetEntityType() != null;
+    }
+
+    /**
+     * Checks if {@link RemoveConstraintApiDTO} should ignore constraints on group of entities.
+     *
+     * @param constraint the constraint to check
+     * @return true if constraints should be ignored specific group
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     */
+    private boolean isIgnoreConstraintForGroup(@Nonnull final RemoveConstraintApiDTO constraint)
+            throws OperationFailedException {
+        return constraint.getTarget() != null &&
+                constraint.getTarget().getUuid() != null &&
+                uuidMapper.fromUuid(constraint.getTarget().getUuid()).isGroup();
+    }
+
+    /**
+     * Maps {@link RemoveConstraintApiDTO} to  {@link IgnoreConstraint}.
+     *
+     * @param constraint the dto to map
+     * @return IgnoreConstraint mapped from constraint
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
-    private IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) {
-        ConstraintGroup.Builder constraintGroup = ConstraintGroup.newBuilder();
-        ConstraintType constraintType = constraint.getConstraintType();
-        if (constraintType == null || constraintType == ConstraintType.GlobalIgnoreConstraint) {
-            constraintGroup.setCommodityType(ConstraintType.GlobalIgnoreConstraint.name());
+    IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) throws OperationFailedException, IllegalArgumentException {
+        final IgnoreConstraint.Builder ignoreConstraint = IgnoreConstraint.newBuilder();
+        if (isIgnoreAllEntities(constraint)) {
+            ignoreConstraint.setIgnoreAllEntities(true);
+        } else if (isIgnoreAllConstraintsForEntityType(constraint)) {
+            final String uiEntityType = constraint.getTargetEntityType();
+            final EntityType targetEntityType = UIEntityType.fromString(uiEntityType).sdkType();
+            final GlobalIgnoreEntityType globalIgnoreEntityType = GlobalIgnoreEntityType.newBuilder()
+                    .setEntityType(targetEntityType)
+                    .build();
+            ignoreConstraint.setGlobalIgnoreEntityType(globalIgnoreEntityType);
+        } else if (isIgnoreConstraintForGroup(constraint)) {
+            final ApiId apiId = uuidMapper.fromUuid(constraint.getTarget().getUuid());
+            final ConstraintType constraintType = constraint.getConstraintType() == null ? ConstraintType.GlobalIgnoreConstraint :
+                    constraint.getConstraintType();
+            ConstraintGroup constraintGroup = ConstraintGroup.newBuilder()
+                    .setGroupUuid(apiId.oid())
+                    .setCommodityType(constraintType.name())
+            .build();
+            ignoreConstraint.setIgnoreGroup(constraintGroup);
         } else {
-            constraintGroup.setCommodityType(constraintType.name());
-            // group uuid is only available if it's not global constraint
-            constraintGroup.setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()));
+            throw new IllegalArgumentException("RemoveConstraintApiDTO configuration not supported");
         }
-        return IgnoreConstraint.newBuilder()
-                .setIgnoreGroup(constraintGroup)
-                .build();
+        return ignoreConstraint.build();
     }
 
     /**
@@ -1265,6 +1358,7 @@ public class ScenarioMapper {
                 .flatMap(override -> createApiSettingFromOverride(override, mappingContext).stream())
                 .collect(Collectors.toList());
 
+
         final List<PlanChanges> allPlanChanges = changes.stream()
                 .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
                 .collect(Collectors.toList());
@@ -1328,14 +1422,23 @@ public class ScenarioMapper {
     @Nonnull
     RemoveConstraintApiDTO toRemoveConstraintApiDTO(@Nonnull IgnoreConstraint constraint, ScenarioChangeMappingContext mappingContext) {
         final RemoveConstraintApiDTO constraintApiDTO = new RemoveConstraintApiDTO();
-        // Currently as IgnoreConstraint for all entities is passed as a API parameter(OM-18012),
-        // the UI has no way to displayIgnoreConstraint setting for all entities. So we are only
-        // converting the IgnoreConstraint if it is set for groups.
-        if (constraint.hasIgnoreGroup()) {
+
+        if (constraint.hasIgnoreAllEntities() && constraint.getIgnoreAllEntities()) {
+            constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+        } else if (constraint.hasGlobalIgnoreEntityType()) {
+            EntityType entityType = constraint.getGlobalIgnoreEntityType().getEntityType();
+            constraintApiDTO.setTargetEntityType(
+                    UIEntityType.fromSdkTypeToEntityTypeString(entityType.getNumber()));
+            constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+        } else if (constraint.hasIgnoreGroup()) { // Per Group Settings
             ConstraintGroup constraintGroup = constraint.getIgnoreGroup();
             constraintApiDTO.setConstraintType(
                     ConstraintType.valueOf(constraintGroup.getCommodityType()));
-            constraintApiDTO.setTarget(mappingContext.dtoForId(constraintGroup.getGroupUuid()));
+            //ConstraintGroup configuration only supports groups, can derive dto mappingContext will return
+            GroupApiDTO groupApiDTO =
+                    (GroupApiDTO) mappingContext.dtoForId(constraintGroup.getGroupUuid());
+            constraintApiDTO.setTarget(groupApiDTO);
+            constraintApiDTO.setTargetEntityType(groupApiDTO.getGroupType());
         }
         return constraintApiDTO;
     }

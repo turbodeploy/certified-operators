@@ -125,8 +125,8 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreEntityTypes;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioId;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
@@ -789,9 +789,9 @@ public class MarketsService implements IMarketsService {
                 updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
                         .setPlanChanges(PlanChanges.newBuilder()
                                 .addIgnoreConstraints(IgnoreConstraint.newBuilder()
-                                        .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
-                                                .addEntityTypes(EntityType.VIRTUAL_MACHINE)
-                                                .build())
+                                        .setGlobalIgnoreEntityType(
+                                                GlobalIgnoreEntityType.newBuilder()
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE))
                                         .build())));
             } else {
                 logger.warn("Ignoring \"ignore constraints\" option because the scenario already has ignored "
