@@ -92,8 +92,11 @@ public class StatsUtils {
     }
 
     public static boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
-        return !UserScopeUtils.isUserObserver() &&
-                scope.getScopeTypes()
+        //Only allow non-scoped-observer users.
+        if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
+            return false;
+        }
+        return scope.getScopeTypes()
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported
                 // types will be ignored
