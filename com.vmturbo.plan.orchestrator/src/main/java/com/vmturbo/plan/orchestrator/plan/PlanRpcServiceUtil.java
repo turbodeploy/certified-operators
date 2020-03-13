@@ -10,19 +10,22 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
+
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -53,8 +56,30 @@ public class PlanRpcServiceUtil {
                                           @Nonnull ScenarioChange riScenario, long planId,
                                           @Nonnull final GroupServiceBlockingStub groupServiceClient,
                                           @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient) {
-        // when there is buy RI involved, trigger it first
+
+        // Create the PurchaseProfileByCloudtype map based on the Scenario RI settings
         RISetting riSetting = riScenario.getRiSetting();
+        Map<String, RIPurchaseProfile> riPurchaseProfileMap = Maps.newHashMap();
+        riSetting.getRiSettingByCloudtypeMap().entrySet().forEach(riSettingEntry -> {
+                    String cloudType = riSettingEntry.getKey();
+                    RIProviderSetting riProviderSetting = riSettingEntry.getValue();
+                    ReservedInstanceType.OfferingClass defaultOffering = cloudType == CloudType.AZURE.name() ?
+                            ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
+                    ReservedInstanceType.PaymentOption defaultPayment = ReservedInstanceType.PaymentOption.ALL_UPFRONT;
+                    int defaultTerm = 1;
+                    RIPurchaseProfile riPurchaseProfile = RIPurchaseProfile.newBuilder()
+                            .setRiType(ReservedInstanceType.newBuilder().setOfferingClass(
+                                    riProviderSetting.hasPreferredOfferingClass() ?
+                                            riProviderSetting.getPreferredOfferingClass() : defaultOffering)
+                                    .setPaymentOption(riProviderSetting.hasPreferredPaymentOption() ?
+                                            riProviderSetting.getPreferredPaymentOption() : defaultPayment)
+                                    .setTermYears(riProviderSetting.hasPreferredTerm() ?
+                                            riProviderSetting.getPreferredTerm() : defaultTerm)
+                            ).build();
+                    riPurchaseProfileMap.put(cloudType, riPurchaseProfile);
+                }
+        );
+
         /*
          * Because OCP currently does not allow User scoping by OSType or Tenancy, not setting
          * platforms or tenancies here in the requests, results in null and the RI buy algorithm will
@@ -68,15 +93,7 @@ public class PlanRpcServiceUtil {
                                 .setPlanType(scenarioInfo.getType())
                                 .setPlanSubType(getPlanSubType(scenarioInfo)))
                                 .build())
-                .setPurchaseProfile(RIPurchaseProfile.newBuilder()
-                        .setRiType(ReservedInstanceType.newBuilder()
-                                .setOfferingClass(riSetting.hasPreferredOfferingClass() ?
-                                riSetting.getPreferredOfferingClass() : ReservedInstanceType
-                                .OfferingClass.STANDARD)
-                                .setPaymentOption(riSetting.hasPreferredPaymentOption() ?
-                                riSetting.getPreferredPaymentOption()
-                                : ReservedInstanceType.PaymentOption.ALL_UPFRONT)
-                                .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1)));
+                .putAllPurchaseProfileByCloudtype(riPurchaseProfileMap);
         final Map<Integer, Set<Long>> scopeObjectByClass = getClassNameToOids(scenarioInfo.getScope()
                         .getScopeEntriesList(), groupServiceClient, repositoryServiceClient);
         final Set<Long> regionIds = scopeObjectByClass.get(EntityType.REGION.getNumber());

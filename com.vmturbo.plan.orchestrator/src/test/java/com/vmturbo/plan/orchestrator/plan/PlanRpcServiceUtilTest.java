@@ -23,12 +23,14 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope.Builder;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -82,17 +84,21 @@ public class PlanRpcServiceUtilTest {
         final TopologyInfo topologyInfo = request.getTopologyInfo();
         Assert.assertEquals(PLAN_ID, topologyInfo.getTopologyContextId());
         Assert.assertEquals(StringConstants.OPTIMIZE_CLOUD_PLAN, topologyInfo.getPlanInfo().getPlanType());
-        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfile().getRiType());
+        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfileByCloudtypeOrThrow(CloudType.AWS.name())
+                .getRiType());
         Assert.assertEquals(Collections.emptyList(), request.getRegionsList());
         Assert.assertEquals(BUSINESS_ACCOUNTS_OIDS, request.getAccountsList());
         Assert.assertEquals(DemandType.CONSUMPTION, request.getDemandType());
     }
 
     private StartBuyRIAnalysisRequest createBuyRIAnalysisRequest(List<Long> scopeOids, String scopeClassName) {
+        final RIProviderSetting riProviderSetting = RIProviderSetting.newBuilder()
+                .setPreferredOfferingClass(OfferingClass.STANDARD)
+                .setPreferredPaymentOption(PaymentOption.PARTIAL_UPFRONT)
+                .setPreferredTerm(PreferredTerm.YEARS_3.getYears())
+                .build();
         final RISetting riSetting = RISetting.newBuilder()
-                        .setPreferredOfferingClass(OfferingClass.STANDARD)
-                        .setPreferredPaymentOption(PaymentOption.PARTIAL_UPFRONT)
-                        .setPreferredTerm(PreferredTerm.YEARS_3.getYears())
+                .putRiSettingByCloudtype(CloudType.AWS.name(), riProviderSetting)
                         .setDemandType(DemandType.ALLOCATION)
                         .build();
         final Builder planScopeBuilder = PlanScope.newBuilder();
@@ -158,7 +164,8 @@ public class PlanRpcServiceUtilTest {
         final TopologyInfo topologyInfo = request.getTopologyInfo();
         Assert.assertEquals(PLAN_ID, topologyInfo.getTopologyContextId());
         Assert.assertEquals(StringConstants.OPTIMIZE_CLOUD_PLAN, topologyInfo.getPlanInfo().getPlanType());
-        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfile().getRiType());
+        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfileByCloudtypeOrThrow(CloudType.AWS.name())
+                .getRiType());
         Assert.assertEquals(REGION_OIDS, request.getRegionsList());
         Assert.assertEquals(Collections.emptyList(), request.getAccountsList());
         Assert.assertEquals(DemandType.CONSUMPTION, request.getDemandType());

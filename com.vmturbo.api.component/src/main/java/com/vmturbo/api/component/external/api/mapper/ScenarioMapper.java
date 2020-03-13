@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AzurePreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 
@@ -99,6 +100,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel.Builder;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -106,6 +108,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -155,16 +158,11 @@ public class ScenarioMapper {
     static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
 
     /**
-     * Hardcoded group display name for current utilization changes.
-     */
-    private static final String VIRTUAL_MACHINES_DISPLAY_NAME = "Virtual Machines";
-
-    /**
      * Supported RI Purchase Profile Settings.
      */
     private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet
                     .of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm,
-                        RIDemandType);
+                            AzurePreferredTerm, RIDemandType);
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -914,27 +912,44 @@ public class ScenarioMapper {
             return null;
         }
 
-        RISetting.Builder awsRISetting = RISetting.newBuilder();
+        RIProviderSetting.Builder awsRISetting = RIProviderSetting.newBuilder();
+        RIProviderSetting.Builder azureRISetting = RIProviderSetting.newBuilder();
+        RISetting.Builder riSetting = RISetting.newBuilder();
 
         SUPPORTED_RI_PROFILE_SETTINGS.forEach(setting -> {
             SettingsMapper.inputValueToString(settings.get(setting.getSettingName())).ifPresent(settingValue -> {
                 switch (setting) {
+                    case RIDemandType:
+                        riDemandTypeMapper.valueOf(settingValue)
+                                .ifPresent(riSetting::setDemandType);
+                        break;
                     case AWSPreferredOfferingClass:
-                        riOfferingClassMapper.valueOf(settingValue).ifPresent(awsRISetting::setPreferredOfferingClass);
+                        riOfferingClassMapper.valueOf(settingValue)
+                                .ifPresent(awsRISetting::setPreferredOfferingClass);
                         break;
                     case AWSPreferredPaymentOption:
-                        riPaymentOptionMapper.valueOf(settingValue).ifPresent(awsRISetting::setPreferredPaymentOption);
+                        riPaymentOptionMapper.valueOf(settingValue)
+                                .ifPresent(awsRISetting::setPreferredPaymentOption);
                         break;
                     case AWSPreferredTerm:
-                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears).ifPresent(awsRISetting::setPreferredTerm);
+                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears)
+                                .ifPresent(awsRISetting::setPreferredTerm);
                         break;
-                    case RIDemandType:
-                        riDemandTypeMapper.valueOf(settingValue).ifPresent(awsRISetting::setDemandType);
+                    case AzurePreferredTerm:
+                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears)
+                                .ifPresent(azureRISetting::setPreferredTerm);
                         break;
                 }
             });
         });
-        return ScenarioChange.newBuilder().setRiSetting(awsRISetting).build();
+
+        if (StringUtils.isNotEmpty(awsRISetting.toString())) {
+            riSetting.putRiSettingByCloudtype(CloudType.AWS.name(), awsRISetting.build());
+        }
+        if (StringUtils.isNotEmpty(azureRISetting.toString())) {
+            riSetting.putRiSettingByCloudtype(CloudType.AZURE.name(), azureRISetting.build());
+        }
+        return ScenarioChange.newBuilder().setRiSetting(riSetting).build();
     }
 
     /**
@@ -1313,41 +1328,72 @@ public class ScenarioMapper {
     }
 
     /**
-     * Convert {@link RISetting} to {@link SettingApiDTO}.
+     * Convert {@link RISetting} to a list of {@link SettingApiDTO}.
      *
      * @param ri the RISetting
-     * @return a list of SettingApiDTO
+     * @return a list of {@link SettingApiDTO}
      */
-    private List<SettingApiDTO> createRiSettingApiDTO(RISetting ri) {
-        List<SettingApiDTO> riSettings = new ArrayList<>();
+    private List<SettingApiDTO> createRiSettingApiDTOs(RISetting ri) {
+        List<SettingApiDTO> riSettingDTOs = new ArrayList<>();
 
-        SettingApiDTO<String> offeringClassDto = new SettingApiDTO<>();
-        offeringClassDto.setUuid(AWSPreferredOfferingClass.getSettingName());
-        offeringClassDto.setValue(ri.getPreferredOfferingClass().name());
-        offeringClassDto.setDisplayName(AWSPreferredOfferingClass.getDisplayName());
-        riSettings.add(offeringClassDto);
+        // AWS
+        if (ri.containsRiSettingByCloudtype(CloudType.AWS.name())) {
+            RIProviderSetting riSettingProvider = ri.getRiSettingByCloudtypeMap().get(CloudType.AWS.name());
 
-        SettingApiDTO<String> paymentDto = new SettingApiDTO<>();
-        paymentDto.setUuid(AWSPreferredPaymentOption.getSettingName());
-        paymentDto.setValue(ri.getPreferredPaymentOption().name());
-        paymentDto.setDisplayName(AWSPreferredPaymentOption.getDisplayName());
-        riSettings.add(paymentDto);
+            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredOfferingClass.getSettingName(),
+                    riSettingProvider.getPreferredOfferingClass().name(),
+                    AWSPreferredOfferingClass.getDisplayName()));
 
-        SettingApiDTO<String> termDto = new SettingApiDTO<>();
-        termDto.setUuid(AWSPreferredTerm.getSettingName());
-        Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm.getPrefferedTermEnum(ri.getPreferredTerm()).orElse(null));
-        termDto.setValue(term.map(PreferredTerm::name).orElse(null));
-        termDto.setDisplayName(AWSPreferredTerm.getDisplayName());
-        riSettings.add(termDto);
+            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredPaymentOption.getSettingName(),
+                    riSettingProvider.getPreferredPaymentOption().name(),
+                    AWSPreferredPaymentOption.getDisplayName()));
+
+            Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm
+                    .getPrefferedTermEnum(riSettingProvider.getPreferredTerm())
+                    .orElse(null));
+            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredTerm.getSettingName(),
+                    term.map(PreferredTerm::name).orElse(null),
+                    AWSPreferredTerm.getDisplayName()));
+        }
+
+        // Azure
+        if (ri.containsRiSettingByCloudtype(CloudType.AZURE.name())) {
+            RIProviderSetting riSettingProvider = ri.getRiSettingByCloudtypeMap().get(CloudType.AZURE.name());
+            Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm
+                    .getPrefferedTermEnum(riSettingProvider.getPreferredTerm())
+                    .orElse(null));
+            riSettingDTOs.add(createRiSettingApiDTO(AzurePreferredTerm.getSettingName(),
+                    term.map(PreferredTerm::name).orElse(null),
+                    AzurePreferredTerm.getDisplayName()));
+        }
 
         if (ri.hasDemandType()) {
             final SettingApiDTO<String> demandTypeDto = new SettingApiDTO<>();
             demandTypeDto.setUuid(RIDemandType.getSettingName());
             demandTypeDto.setValue(ri.getDemandType().name());
             demandTypeDto.setDisplayName(RIDemandType.getDisplayName());
-            riSettings.add(demandTypeDto);
+            riSettingDTOs.add(demandTypeDto);
         }
-        return riSettings;
+        return riSettingDTOs;
+    }
+
+    /**
+     * Create a {@link SettingApiDTO} given a uuid, value and displayName.
+     *
+     * @param uuid        uuid of the setting
+     * @param value       value of the setting
+     * @param displayName displayName of the setting
+     * @return {@link SettingApiDTO}
+     */
+    private SettingApiDTO createRiSettingApiDTO(@Nonnull final String uuid,
+                                                @Nonnull final String value,
+                                                @Nonnull final String displayName) {
+        SettingApiDTO<String> settingDTO = new SettingApiDTO<>();
+        settingDTO.setUuid(uuid);
+        settingDTO.setValue(value);
+        settingDTO.setDisplayName(displayName);
+
+        return settingDTO;
     }
 
     @Nonnull
@@ -1364,10 +1410,10 @@ public class ScenarioMapper {
                 .collect(Collectors.toList());
 
         final List<SettingApiDTO> riSetting = changes.stream()
-                        .filter(ScenarioChange::hasRiSetting)
-                        .map(ScenarioChange::getRiSetting)
-                        .flatMap(ri -> createRiSettingApiDTO(ri).stream())
-                        .collect(Collectors.toList());
+                .filter(ScenarioChange::hasRiSetting)
+                .map(ScenarioChange::getRiSetting)
+                .flatMap(ri -> createRiSettingApiDTOs(ri).stream())
+                .collect(Collectors.toList());
 
         final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext );
 
@@ -1375,23 +1421,23 @@ public class ScenarioMapper {
 
         outputChanges.setRemoveConstraintList(removeConstraintApiDTOS);
         outputChanges.setAutomationSettingList(settingsManagerMapping
-            .convertToPlanSetting(settingChanges));
+                .convertToPlanSetting(settingChanges));
         outputChanges.setAddPolicyList(Lists.newArrayList());
         outputChanges.setRemovePolicyList(Lists.newArrayList());
         Optional<IncludedCoupons> includedCoupons = allPlanChanges
-                        .stream().filter(PlanChanges::hasIncludedCoupons)
-                        .map(PlanChanges::getIncludedCoupons)
-                        .findFirst();
+                .stream().filter(PlanChanges::hasIncludedCoupons)
+                .map(PlanChanges::getIncludedCoupons)
+                .findFirst();
         if (includedCoupons.isPresent()) {
             final IncludedCouponsApiDTO includedCouponsDto = new IncludedCouponsApiDTO();
             IncludedCoupons includedCouponsMsg = includedCoupons.get();
             final List<Long> includedCouponOidsList =
-                                                    includedCouponsMsg.getIncludedCouponOidsList();
+                    includedCouponsMsg.getIncludedCouponOidsList();
             if (includedCouponOidsList != null) {
                 includedCouponsDto.setIncludedCouponOidsList(includedCouponOidsList);
                 includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList()
-                                ? includedCouponsMsg.getIsWhiteList()
-                                : true);
+                        ? includedCouponsMsg.getIsWhiteList()
+                        : true);
             }
             outputChanges.setIncludedCoupons(includedCouponsDto);
         }

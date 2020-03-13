@@ -80,11 +80,16 @@ message ScenarioChange {
     };
 
     message RISetting {
+        optional common_dto.DemandType demand_type = 1;
+        // RI Setting by CloudType
+        map<string, RIProviderSetting> ri_setting_by_cloudtype = 2;
+    }
+
+    message RIProviderSetting {
         optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
         optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
         optional int32 preferred_term = 3;
         optional int64 purchase_date = 4;
-        optional common_dto.DemandType demand_type = 5;
     }
 
     message PlanChanges {

@@ -4,6 +4,7 @@ import static com.vmturbo.api.component.external.api.mapper.ScenarioMapper.MAX_U
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AzurePreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 import static org.hamcrest.core.Is.is;
@@ -95,6 +96,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -103,12 +105,15 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.RISettingsEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -590,17 +595,23 @@ public class ScenarioMapperTest {
     }
 
     /**
-     * Tests ScenarioChange Object is correctly built to match SettingApiDTO configurations.
+     * Tests ScenarioChange Object is correctly built for both AWS and Azure to match SettingApiDTO configurations.
      */
     @Test
-    public void buildRISettingChangesShouldCreateScenarioChangeWithRISettingFromAWSRIsettings() {
+    public void testBuildRISettingChanges() {
         // GIVEN
         List<SettingApiDTO> riSettingList = new ArrayList<>();
-        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), "true"));
-        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(), "Convertible"));
-        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(), "Partial Upfront"));
-        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(), "Years 1"));
-        riSettingList.add(createStringSetting(RIDemandType.getSettingName(), "Consumption"));
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), Boolean.TRUE.toString()));
+        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(),
+                RISettingsEnum.PreferredOfferingClass.CONVERTIBLE.name()));
+        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(),
+                RISettingsEnum.PreferredPaymentOption.PARTIAL_UPFRONT.name()));
+        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(),
+                String.valueOf(RISettingsEnum.PreferredTerm.YEARS_3.name())));
+        riSettingList.add(createStringSetting(AzurePreferredTerm.getSettingName(),
+                String.valueOf(RISettingsEnum.PreferredTerm.YEARS_1.name())));
+        riSettingList.add(createStringSetting(RIDemandType.getSettingName(),
+                RISettingsEnum.DemandType.CONSUMPTION.name()));
 
         // WHEN
         final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
@@ -609,9 +620,47 @@ public class ScenarioMapperTest {
         Assert.assertNotNull(scenarioChange);
         final RISetting riSetting = scenarioChange.getRiSetting();
         Assert.assertNotNull(riSetting);
-        Assert.assertEquals(OfferingClass.CONVERTIBLE, riSetting.getPreferredOfferingClass());
-        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riSetting.getPreferredPaymentOption());
-        Assert.assertEquals(1, riSetting.getPreferredTerm());
+        final RIProviderSetting awsRIProviderSetting = riSetting.getRiSettingByCloudtypeOrThrow(CloudType.AWS.name());
+        final RIProviderSetting azureRIProviderSetting = riSetting.getRiSettingByCloudtypeOrThrow(CloudType.AZURE.name());
+        Assert.assertNotNull(awsRIProviderSetting);
+        Assert.assertNotNull(azureRIProviderSetting);
+        Assert.assertEquals(DemandType.CONSUMPTION, riSetting.getDemandType());
+        Assert.assertEquals(OfferingClass.CONVERTIBLE, awsRIProviderSetting.getPreferredOfferingClass());
+        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, awsRIProviderSetting.getPreferredPaymentOption());
+        Assert.assertEquals(3, awsRIProviderSetting.getPreferredTerm());
+        Assert.assertEquals(1, azureRIProviderSetting.getPreferredTerm());
+    }
+
+    /**
+     * Tests ScenarioChange Object is correctly built for AWS to match SettingApiDTO configurations.
+     */
+    @Test
+    public void testBuildRISettingChangesWithAWSOnly() {
+        // GIVEN
+        List<SettingApiDTO> riSettingList = new ArrayList<>();
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), Boolean.TRUE.toString()));
+        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(),
+                RISettingsEnum.PreferredOfferingClass.CONVERTIBLE.name()));
+        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(),
+                RISettingsEnum.PreferredPaymentOption.PARTIAL_UPFRONT.name()));
+        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(),
+                RISettingsEnum.PreferredTerm.YEARS_1.name()));
+        riSettingList.add(createStringSetting(RIDemandType.getSettingName(),
+                RISettingsEnum.DemandType.CONSUMPTION.name()));
+
+        // WHEN
+        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
+
+        // THEN
+        Assert.assertNotNull(scenarioChange);
+        final RISetting riSetting = scenarioChange.getRiSetting();
+        Assert.assertNotNull(riSetting);
+        Assert.assertEquals(1, riSetting.getRiSettingByCloudtypeMap().size());
+        final RIProviderSetting riProviderSetting = riSetting.getRiSettingByCloudtypeOrThrow(CloudType.AWS.name());
+        Assert.assertNotNull(riProviderSetting);
+        Assert.assertEquals(OfferingClass.CONVERTIBLE, riProviderSetting.getPreferredOfferingClass());
+        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riProviderSetting.getPreferredPaymentOption());
+        Assert.assertEquals(1, riProviderSetting.getPreferredTerm());
         Assert.assertEquals(DemandType.CONSUMPTION, riSetting.getDemandType());
     }
 
@@ -1823,5 +1872,55 @@ public class ScenarioMapperTest {
         assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
         assertThat(removeConstraintApiDTO.getTarget(), is(groupApiDTO));
         assertTrue(removeConstraintApiDTO.getTargetEntityType() == UIEntityType.VIRTUAL_MACHINE.apiStr());
+    }
+
+    @Test
+    public void testToApiRIChange() throws Exception {
+        // GIVEN
+        RIProviderSetting.Builder awsRISetting = RIProviderSetting.newBuilder();
+        RIProviderSetting.Builder azureRISetting = RIProviderSetting.newBuilder();
+
+        awsRISetting.setPreferredOfferingClass(OfferingClass.CONVERTIBLE);
+        awsRISetting.setPreferredPaymentOption(PaymentOption.PARTIAL_UPFRONT);
+        awsRISetting.setPreferredTerm(RISettingsEnum.PreferredTerm.YEARS_3.getYears());
+        azureRISetting.setPreferredTerm(RISettingsEnum.PreferredTerm.YEARS_1.getYears());
+
+        RISetting.Builder riSetting = RISetting.newBuilder();
+        riSetting.setDemandType(DemandType.CONSUMPTION);
+
+        riSetting.putRiSettingByCloudtype(CloudType.AWS.name(), awsRISetting.build());
+        riSetting.putRiSettingByCloudtype(CloudType.AZURE.name(), azureRISetting.build());
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+                .setRiSetting(riSetting).build());
+
+        // WHEN
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+
+        // THEN
+        assertNotNull(dto.getConfigChanges());
+        assertNotNull(dto.getConfigChanges().getRiSettingList());
+        assertEquals(5, dto.getConfigChanges().getRiSettingList().size());
+
+        dto.getConfigChanges().getRiSettingList().forEach(settingDTO -> {
+            GlobalSettingSpecs setting = GlobalSettingSpecs.getSettingByName(settingDTO.getUuid())
+                    .orElseThrow(() -> new AssertionError("RI Setting not found: " + settingDTO.getUuid()));
+            switch (setting) {
+                case RIDemandType:
+                    assertEquals(DemandType.CONSUMPTION.name(), settingDTO.getValue());
+                    break;
+                case AWSPreferredOfferingClass:
+                    assertEquals(OfferingClass.CONVERTIBLE.name(), settingDTO.getValue());
+                    break;
+                case AWSPreferredPaymentOption:
+                    assertEquals(PaymentOption.PARTIAL_UPFRONT.name(), settingDTO.getValue());
+                    break;
+                case AWSPreferredTerm:
+                    assertEquals(RISettingsEnum.PreferredTerm.YEARS_3.name(), settingDTO.getValue());
+                    break;
+                case AzurePreferredTerm:
+                    assertEquals(RISettingsEnum.PreferredTerm.YEARS_1.name(), settingDTO.getValue());
+                    break;
+            }
+        });
     }
 }
