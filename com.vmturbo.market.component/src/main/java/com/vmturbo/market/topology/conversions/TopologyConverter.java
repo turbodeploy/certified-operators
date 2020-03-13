@@ -2767,6 +2767,9 @@ public class TopologyConverter {
         // find original sold commodity of same type from original entity
         Optional<CommoditySoldDTO> originalCommoditySold =
                 commodityIndex.getCommSold(traderOid, commType);
+        if (!originalCommoditySold.isPresent() && projectedTraderTO.getCloneOf() != 0) {
+            originalCommoditySold = commodityIndex.getCommSold(projectedTraderTO.getCloneOf(), commType);
+        }
         CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
                 .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
                     originalCommoditySold, CommoditySoldDTO::getScalingFactor))

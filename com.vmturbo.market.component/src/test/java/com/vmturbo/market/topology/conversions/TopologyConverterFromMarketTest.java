@@ -736,6 +736,11 @@ public class TopologyConverterFromMarketTest {
                         .build())
                 .build();
 
+        // Clone PM test
+        final long cloneId = 6767;
+        final EconomyDTOs.TraderTO clonePM = EconomyDTOs.TraderTO.newBuilder().setOid(cloneId)
+            .addCommoditiesSold(economyCPUSold).setCloneOf(PM_OID).build();
+
         // create trader TO (i.e. as returned from Market) that corresponds to expectedVM Entity
         EconomyDTOs.TraderTO vmTrader = EconomyDTOs.TraderTO.newBuilder().setOid(VM_OID)
                 .addShoppingLists(ShoppingListTO.newBuilder().setOid(VM_OID)
@@ -753,20 +758,25 @@ public class TopologyConverterFromMarketTest {
         // Act
         Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                 // the traders in the market
-                Lists.newArrayList(pmTrader, vmTrader),
+                Lists.newArrayList(pmTrader, vmTrader, clonePM),
                 // map back to original TopologyEntityDTOs
                 ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
                         expectedEntity2.getOid(), expectedEntity2),
                 PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
                 setUpWastedFileAnalysis());
 
-        // Assert two entities returned - they will be in the original order - VM and PM
-        assertEquals(2L, entity.size());
+        // Assert three entities returned - they will be in the original order - VM and PM and PMClone
+        assertEquals(3L, entity.size());
         // check that the PM expected capacity and used matches the actual converted capacity and used
         final CommoditySoldDTO actualCpuCommodity =
                 entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
         assertEquals(topologyCPUSold.getCapacity(), actualCpuCommodity.getCapacity(), epsilon);
         assertEquals(topologyCPUSold.getUsed(), actualCpuCommodity.getUsed(), epsilon);
+        // check clone pm
+        final CommoditySoldDTO actualCpuCommodityOfClone =
+                entity.get(clonePM.getOid()).getEntity().getCommoditySoldList(0);
+        assertEquals(topologyCPUSold.getCapacity(), actualCpuCommodityOfClone.getCapacity(), epsilon);
+        assertEquals(topologyCPUSold.getUsed(), actualCpuCommodityOfClone.getUsed(), epsilon);
         // check that the VM expected used matches the actual converted used
         assertEquals(1, entity.get(vmTrader.getOid()).getEntity()
                 .getCommoditiesBoughtFromProvidersList().size());
