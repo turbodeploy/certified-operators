@@ -7,15 +7,15 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;

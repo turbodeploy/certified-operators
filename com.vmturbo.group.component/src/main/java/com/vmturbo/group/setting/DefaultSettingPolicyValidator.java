@@ -53,6 +53,12 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     private final SettingSpecStore settingSpecStore;
     private final IGroupStore groupStore;
 
+    /**
+     * Constructs setting policy validator.
+     *
+     * @param settingSpecStore setting specs store
+     * @param groupStore group store
+     */
     public DefaultSettingPolicyValidator(@Nonnull final SettingSpecStore settingSpecStore,
             @Nonnull final IGroupStore groupStore) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
@@ -72,6 +78,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     /**
      * {@inheritDoc}
      */
+    @Override
     public void validateSettingPolicy(@Nonnull final SettingPolicyInfo settingPolicyInfo,
             @Nonnull final Type type) throws InvalidItemException {
         // We want to collect everything wrong with the input and put that
@@ -98,7 +105,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         errors.addAll(validateReferencedSpecs(settingPolicyInfo));
 
         if (type.equals(Type.DEFAULT)) {
-            if (settingPolicyInfo.hasScope()) {
+            if (settingPolicyInfo.hasScope() && settingPolicyInfo.getScope().getGroupsCount() > 0) {
                 errors.add("Default setting policy should not have a scope!");
             }
             if (settingPolicyInfo.hasScheduleId()) {

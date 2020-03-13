@@ -1,5 +1,7 @@
 package com.vmturbo.group.service;
 
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +25,8 @@ import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
+import com.vmturbo.group.setting.DefaultSettingPolicyCreator;
+import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -105,7 +109,17 @@ public class RpcConfig {
                 repositoryClientConfig.searchServiceClient(),
                 userSessionConfig.userSessionContext(), groupStitchingManager(),
                 transactionProvider(), identityProviderConfig.identityProvider(),
-                targetSearchService());
+                targetSearchService(), settingsPoliciesUpdater());
+    }
+
+    /**
+     * Setting policies updater to process incoming discovered setting policies.
+     *
+     * @return setting policies updater
+     */
+    @Bean
+    public DiscoveredSettingPoliciesUpdater settingsPoliciesUpdater() {
+        return new DiscoveredSettingPoliciesUpdater(identityProviderConfig.identityProvider());
     }
 
     /**
@@ -157,7 +171,10 @@ public class RpcConfig {
         return new SettingPolicyRpcService(settingConfig.settingStore(),
                 settingConfig.settingSpecsStore(),
                 settingConfig.entitySettingStore(),
-                actionsRpcService(), realtimeTopologyContextId, entitySettingsResponseChunkSize);
+                actionsRpcService(),
+                identityProviderConfig.identityProvider(),
+                transactionProvider(),
+                realtimeTopologyContextId, entitySettingsResponseChunkSize);
     }
 
     @Bean
@@ -174,4 +191,28 @@ public class RpcConfig {
     public ScheduleServiceController scheduleServiceController() {
         return new ScheduleServiceController(scheduleService());
     }
+
+    /**
+     * A bean to construct default setting policies.
+     *
+     * @return default setting policies creator
+     */
+    @Bean
+    public DefaultSettingPolicyCreator defaultSettingPoliciesCreator() {
+        // TODO move this bean definition info SettingsConfig as soon as we get rid of SettingStore
+        // and PolicyStore singletons in TransactionProvider
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingConfig.settingSpecsStore(),
+                        transactionProvider(), TimeUnit.SECONDS.toMillis(
+                        settingConfig.createDefaultSettingPolicyRetryIntervalSec),
+                        identityProviderConfig.identityProvider());
+        /*
+         * Asynchronously create the default setting policies.
+         * This is asynchronous so that DB availability doesn't prevent the group component from
+         * starting up.
+         */
+        settingConfig.settingsCreatorThreadPool().execute(creator);
+        return creator;
+    }
+
 }

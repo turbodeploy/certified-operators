@@ -20,9 +20,11 @@ public interface TransactionProvider {
      * @return result of an operation
      * @throws StoreOperationException operation (if any) while operating with stores
      *         object.
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    <T> T transaction(@Nonnull TransactionalOperation<T> operation) throws StoreOperationException;
+    <T> T transaction(@Nonnull TransactionalOperation<T> operation)
+            throws StoreOperationException, InterruptedException;
 
     /**
      * Stores is a set of different stores (DAOs) available to be operated within the transaction.
@@ -65,9 +67,10 @@ public interface TransactionProvider {
          * @param stores stores available within the transaction
          * @return operation result
          * @throws StoreOperationException if any store thrown an exception.
+         * @throws InterruptedException if current thread has been interrupted
          */
         @Nonnull
-        T execute(@Nonnull Stores stores) throws StoreOperationException;
+        T execute(@Nonnull Stores stores) throws StoreOperationException, InterruptedException;
     }
 }
 

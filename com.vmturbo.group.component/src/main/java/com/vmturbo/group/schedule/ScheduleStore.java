@@ -1,7 +1,7 @@
 package com.vmturbo.group.schedule;
 
 import static com.vmturbo.group.db.Tables.SCHEDULE;
-import static com.vmturbo.group.db.Tables.SETTING_POLICY_SCHEDULE;
+import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import static org.jooq.impl.DSL.deleteFrom;
 import static org.jooq.impl.DSL.trueCondition;
 
@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
@@ -49,7 +51,6 @@ import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.tables.pojos.Schedule;
 import com.vmturbo.group.db.tables.records.ScheduleRecord;
-import com.vmturbo.group.db.tables.records.SettingPolicyScheduleRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.SettingStore;
 
@@ -101,7 +102,6 @@ public class ScheduleStore implements DiagsRestorable {
                 final DSLContext context = DSL.using(configuration);
                 logger.info("Exporting schedules");
                 appender.appendString(exportSchedulesAsJson(context));
-                appender.appendString(exportSettingPolicySchedulesAsJson(context));
             });
         } catch (DataAccessException e) {
             logger.error("Exception collecting schedule diags", e);
@@ -115,23 +115,18 @@ public class ScheduleStore implements DiagsRestorable {
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
-        if (collectedDiags.size() != 2) {
+        if (collectedDiags.size() != 1) {
             throw new DiagnosticsException("Wrong number of diagnostics lines: "
-                + collectedDiags.size() + ". Expected: 2.");
+                + collectedDiags.size() + ". Expected: 1.");
         }
         try {
             dslContext.transaction(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 logger.info("Restoring schedules");
+                context.deleteFrom(SETTING_POLICY).execute();
                 deleteAllSchedules(context);
                 final int schedSize = importSchedulesFromJson(context, collectedDiags.get(0));
                 logger.info("Imported {} schedules", () -> schedSize);
-
-                logger.info("Restoring setting policy schedule mappings");
-                deleteAllSettingPolicyMappings(context);
-                final int schedMappingSize = importSettingPolicySchedulesFromJson(context,
-                    collectedDiags.get(1));
-                logger.info("Imported {} setting policy schedule mappings", () -> schedMappingSize);
             });
         } catch (DataAccessException e) {
             logger.error("Exception restoring schedule diags", e);
@@ -423,10 +418,11 @@ public class ScheduleStore implements DiagsRestorable {
      public void assignScheduleToSettingPolicy(final long settingPolicyId, final long scheduleId)
         throws SettingPolicyNotFoundException, ScheduleNotFoundException, InvalidScheduleAssignmentException {
         try {
-            dslContext.transactionResult(configuration -> {
+            dslContext.transaction(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 // Verify both objects exists
-                Optional<SettingPolicy> settingPolicy = settingStore.getSettingPolicy(settingPolicyId);
+                final Optional<SettingPolicy> settingPolicy =
+                        settingStore.getSettingPolicy(context, settingPolicyId);
                 if (!settingPolicy.isPresent()) {
                     throw new SettingPolicyNotFoundException(settingPolicyId);
                 } else {
@@ -438,9 +434,13 @@ public class ScheduleStore implements DiagsRestorable {
                 if (!getSchedule(scheduleId).isPresent()) {
                     throw new ScheduleNotFoundException(scheduleId);
                 }
-                SettingPolicyScheduleRecord record =
-                    new SettingPolicyScheduleRecord(settingPolicyId, scheduleId);
-                return context.newRecord(SETTING_POLICY_SCHEDULE, record).store();
+                final SettingPolicy updatedPolicy = SettingPolicy.newBuilder(settingPolicy.get())
+                        .setInfo(SettingPolicyInfo.newBuilder(settingPolicy.get().getInfo())
+                                .setScheduleId(scheduleId))
+                        .build();
+                settingStore.deleteSettingPolcies(context, Collections.singleton(settingPolicyId),
+                        Type.USER);
+                settingStore.createSettingPolicies(context, Collections.singleton(updatedPolicy));
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof SettingPolicyNotFoundException) {
@@ -466,8 +466,8 @@ public class ScheduleStore implements DiagsRestorable {
         @Nonnull final DSLContext context, @Nonnull final long scheduleId) {
         return context
             .selectCount()
-            .from(SETTING_POLICY_SCHEDULE
-            .where(SETTING_POLICY_SCHEDULE.SCHEDULE_ID.eq(scheduleId)))
+            .from(SETTING_POLICY)
+            .where(SETTING_POLICY.SCHEDULE_ID.eq(scheduleId))
             .fetchOne(0, Integer.class);
     }
 
@@ -482,8 +482,8 @@ public class ScheduleStore implements DiagsRestorable {
         @Nonnull final DSLContext context, final Collection<Long> scheduleIds) {
         return context
             .selectCount()
-            .from(SETTING_POLICY_SCHEDULE
-            .where(SETTING_POLICY_SCHEDULE.SCHEDULE_ID.in(scheduleIds)))
+            .from(SETTING_POLICY
+            .where(SETTING_POLICY.SCHEDULE_ID.in(scheduleIds)))
             .fetchOne(0, Integer.class);
     }
 
@@ -498,16 +498,6 @@ public class ScheduleStore implements DiagsRestorable {
     }
 
     /**
-     * Truncate setting policy schedule mappings, for internal use when restoring diags.
-     *
-     * @param context jooq DSL context
-     * @return truncate execution result
-     */
-    private int deleteAllSettingPolicyMappings(@Nonnull final DSLContext context) {
-        return context.truncate(SETTING_POLICY_SCHEDULE).execute();
-    }
-
-    /**
      * Export schedules as JSON, for internal use when collecting diags.
      *
      * @param context jooq DSL context
@@ -516,17 +506,6 @@ public class ScheduleStore implements DiagsRestorable {
     @Nonnull
     private String exportSchedulesAsJson(@Nonnull final DSLContext context) {
         return context.fetch(SCHEDULE).formatJSON();
-    }
-
-    /**
-     * Export setting policy schedule mappings as JSON, for internal use when collecting diags.
-     *
-     * @param context jooq DSL context
-     * @return Exported setting policy schedule mappings as jooq JSON string
-     */
-    @Nonnull
-    private String exportSettingPolicySchedulesAsJson(@Nonnull final DSLContext context) {
-        return context.fetch(SETTING_POLICY_SCHEDULE).formatJSON();
     }
 
     /**
@@ -543,24 +522,6 @@ public class ScheduleStore implements DiagsRestorable {
             .loadJSON(schedulesJson)
             .fields(SCHEDULE.ID, SCHEDULE.DISPLAY_NAME, SCHEDULE.START_TIME, SCHEDULE.END_TIME,
                 SCHEDULE.LAST_DATE, SCHEDULE.RECUR_RULE, SCHEDULE.TIME_ZONE_ID)
-            .execute()
-            .executed();
-    }
-
-    /**
-     * Import setting policy schedule mappings from JSON, for internal use when restoring diags.
-     *
-     * @param context jooq DSL context
-     * @param settingPolicyJson Setting policy schedule mappings as jooq Json string
-     * @return Number of imported records.
-     * @throws IOException If any IO exception
-     */
-    private int importSettingPolicySchedulesFromJson(@Nonnull final DSLContext context,
-                                                     @Nonnull final String settingPolicyJson)
-        throws IOException {
-        return context.loadInto(SETTING_POLICY_SCHEDULE)
-                .loadJSON(settingPolicyJson)
-            .fields(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID, SETTING_POLICY_SCHEDULE.SCHEDULE_ID)
             .execute()
             .executed();
     }

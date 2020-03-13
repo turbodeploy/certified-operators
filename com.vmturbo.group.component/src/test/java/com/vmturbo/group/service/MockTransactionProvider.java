@@ -9,7 +9,6 @@ import org.mockito.Mockito;
 
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.service.TransactionProviderImpl.StoresImpl;
-import com.vmturbo.group.setting.ISettingPolicyStore;
 
 /**
  * Mock transaction provider, holding the stores, that are really mocks.
@@ -17,7 +16,7 @@ import com.vmturbo.group.setting.ISettingPolicyStore;
 public class MockTransactionProvider implements TransactionProvider {
     private final Stores stores;
     private final IPlacementPolicyStore placementPolicyStore;
-    private final ISettingPolicyStore settingPolicyStore;
+    private final MockSettingPolicyStore settingPolicyStore;
     private final MockGroupStore groupStore;
 
     /**
@@ -25,7 +24,7 @@ public class MockTransactionProvider implements TransactionProvider {
      */
     public MockTransactionProvider() {
         this.placementPolicyStore = Mockito.mock(IPlacementPolicyStore.class);
-        this.settingPolicyStore = Mockito.mock(ISettingPolicyStore.class);
+        this.settingPolicyStore = Mockito.spy(new MockSettingPolicyStore());
         this.groupStore = Mockito.spy(new MockGroupStore());
         this.stores = new StoresImpl(settingPolicyStore, placementPolicyStore, groupStore);
     }
@@ -33,7 +32,7 @@ public class MockTransactionProvider implements TransactionProvider {
     @Nonnull
     @Override
     public <T> T transaction(@Nonnull TransactionalOperation<T> operation)
-            throws StoreOperationException {
+            throws StoreOperationException, InterruptedException {
         try {
             return operation.execute(stores);
         } catch (DataAccessException e) {
@@ -52,7 +51,7 @@ public class MockTransactionProvider implements TransactionProvider {
     }
 
     @Nonnull
-    public ISettingPolicyStore getSettingPolicyStore() {
+    public MockSettingPolicyStore getSettingPolicyStore() {
         return settingPolicyStore;
     }
 

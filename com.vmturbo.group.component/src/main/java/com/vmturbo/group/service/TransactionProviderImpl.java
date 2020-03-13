@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -14,12 +15,14 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.ISettingPolicyStore;
+import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingStore;
 
 /**
@@ -115,17 +118,35 @@ public class TransactionProviderImpl implements TransactionProvider {
             this.dslContext = dslContext;
         }
 
+        @Nonnull
         @Override
-        public void updateTargetSettingPolicies(long targetId,
-                @Nonnull List<DiscoveredSettingPolicyInfo> settingPolicyInfos,
-                @Nonnull Map<String, Long> groupOids) throws DataAccessException {
-            settingStore.updateTargetSettingPolicies(dslContext, targetId, settingPolicyInfos,
-                    groupOids);
+        public Map<Long, Map<String, Long>> getDiscoveredPolicies() {
+            return settingStore.getDiscoveredPolicies(dslContext);
         }
 
         @Override
-        public int onGroupDeleted(long deletedGroupId) {
-            return settingStore.onGroupDeleted(dslContext, deletedGroupId);
+        public void deletePolicies(@Nonnull Collection<Long> oids, @Nonnull Type allowedType)
+                throws StoreOperationException {
+            settingStore.deleteSettingPolcies(dslContext, oids, allowedType);
+        }
+
+        @Override
+        public void createSettingPolicies(@Nonnull Collection<SettingPolicy> settingPolicies)
+                throws StoreOperationException {
+            settingStore.createSettingPolicies(dslContext, settingPolicies);
+        }
+
+        @Nonnull
+        @Override
+        public Optional<SettingPolicy> getPolicy(long id) throws StoreOperationException {
+            return settingStore.getSettingPolicy(dslContext, id);
+        }
+
+        @Nonnull
+        @Override
+        public Collection<SettingPolicy> getPolicies(
+                @Nonnull SettingPolicyFilter filter) throws StoreOperationException {
+            return settingStore.getSettingPolicies(dslContext, filter);
         }
     }
 
@@ -153,4 +174,5 @@ public class TransactionProviderImpl implements TransactionProvider {
             policyStore.deletePoliciesForGroupBeingRemoved(dslContext, groupIds);
         }
     }
+
 }

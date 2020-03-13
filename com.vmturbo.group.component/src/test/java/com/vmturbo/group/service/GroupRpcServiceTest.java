@@ -115,6 +115,7 @@ import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
+import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.GroupTestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -141,6 +142,7 @@ public class GroupRpcServiceTest {
     private MockGroupStore groupStoreDAO;
     private GrpcTestServer testServer;
     private IdentityProvider identityProvider;
+    private DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -186,13 +188,15 @@ public class GroupRpcServiceTest {
                 TargetSearchServiceGrpc.newBlockingStub(testServer.getChannel());
         transactionProvider = new MockTransactionProvider();
         groupStoreDAO = transactionProvider.getGroupStore();
+        settingPolicyUpdater = Mockito.mock(DiscoveredSettingPoliciesUpdater.class);
         groupRpcService = new GroupRpcService(temporaryGroupCache,
                 searchServiceRpc,
                 userSessionContext,
                 groupStitchingManager,
                 transactionProvider,
                 identityProvider,
-                targetSearchServiceRpc);
+                targetSearchServiceRpc,
+                settingPolicyUpdater);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -1175,8 +1179,9 @@ public class GroupRpcServiceTest {
 
         verify(transactionProvider.getPlacementPolicyStore()).updateTargetPolicies(eq(10L),
                 eq(Collections.emptyList()), anyMap());
-        verify(transactionProvider.getSettingPolicyStore()).updateTargetSettingPolicies(eq(10L),
-                eq(Collections.emptyList()), anyMap());
+        Mockito.verify(settingPolicyUpdater)
+                .updateSettingPolicies(Mockito.eq(transactionProvider.getSettingPolicyStore()),
+                        Mockito.any(), Mockito.any());
     }
 
     /**

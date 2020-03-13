@@ -73,6 +73,9 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
             }
             logger.error("Failed to get diags", e);
             throw new DiagnosticsException(Collections.singletonList(e.getMessage()));
+        } catch (InterruptedException e) {
+            // TODO: fix with OM-56029
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -143,6 +146,9 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
         } catch (StoreOperationException e) {
             logger.error("Failed to restore diags", e);
             throw new DiagnosticsException(Collections.singletonList(e.getMessage()));
+        } catch (InterruptedException e) {
+            // TODO: fix with OM-56029
+            Thread.currentThread().interrupt();
         }
     }
 
