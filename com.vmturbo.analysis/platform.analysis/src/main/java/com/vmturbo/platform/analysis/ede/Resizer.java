@@ -276,12 +276,12 @@ public class Resizer {
         // If the current capacity is already above the raw material's capacity, do not resize up
         // further.
         if (rawMaterial != null &&
-                resizeCommodity.getEffectiveCapacity() > rawMaterial.getEffectiveCapacity()) {
+            resizeCommodity.getEffectiveCapacity() + capacityIncrement > rawMaterial.getEffectiveCapacity()) {
             if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
-                logger.info("Cannot resize {}/{} further up. Current capacity {} already " +
-                        "above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
-                        commSpec.getDebugInfoNeverUseInCode(), resizeCommodity.getEffectiveCapacity(),
-                        rawMaterial.getEffectiveCapacity());
+                logger.info("Cannot resize {}/{} further up. Current capacity {} + capacityIncrement {} " +
+                    "is above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
+                     commSpec.getDebugInfoNeverUseInCode(), resizeCommodity.getEffectiveCapacity(),
+                     capacityIncrement, rawMaterial.getEffectiveCapacity());
             }
             return 0;
         }
@@ -306,11 +306,17 @@ public class Resizer {
         double headroom = rawMaterial == null ? Double.MAX_VALUE :
             resizeCommodity.getSettings().getUtilizationUpperBound() *
                 (rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity());
-        if (headroom > 0) {
+        // Need to consider capacity headroom as the comparison between the commodity to resize
+        // and then provider's commodity (rawMaterial) as we can't generate a scale up to be higher
+        // capacity than the seller's provider has.
+        double capacityHeadroom = rawMaterial == null ? Double.MAX_VALUE :
+            rawMaterial.getEffectiveCapacity() - resizeCommodity.getEffectiveCapacity();
+        if (headroom > 0 && capacityHeadroom >= capacityIncrement) {
             if (headroom < numIncrements * capacityIncrement) {
                 numIncrements = (int) Math.floor(headroom / capacityIncrement);
             }
-            double desiredIncrement = numIncrements * capacityIncrement;
+            int availableIncrements = (int) Math.floor(capacityHeadroom / capacityIncrement);
+            double desiredIncrement = Math.min(availableIncrements, numIncrements) * capacityIncrement;
             if (rawMaterial == null) {
                 // This is possible in case of portchannel where the raw material is dummy value.
                 logger.debug("Raw material is null. Resizing up by {} for {} on {}",
