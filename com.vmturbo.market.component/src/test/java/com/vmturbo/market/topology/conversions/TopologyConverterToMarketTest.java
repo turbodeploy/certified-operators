@@ -360,8 +360,8 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
-     * Verify that plan VMs are not suspendable, and that plan entities
-     * are eligible for resize.
+     * Verify that plan and RT VMs that do not host containers are suspendable, and that plan
+     * entities are eligible for resize.
      */
     @Test
     public void testPlanVsRealtimeEntities() {
@@ -384,7 +384,7 @@ public class TopologyConverterToMarketTest {
         TraderTO planVm = convertToMarketTO(Sets.newHashSet(vm), PLAN_TOPOLOGY_INFO).iterator().next();
         TraderTO realtimeVm = convertToMarketTO(Sets.newHashSet(vm), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertFalse(planVm.getSettings().getSuspendable());
-        assertTrue(realtimeVm.getSettings().getSuspendable());
+        assertFalse(realtimeVm.getSettings().getSuspendable());
         assertTrue(planVm.getSettings().getIsEligibleForResizeDown());
         assertFalse(realtimeVm.getSettings().getIsEligibleForResizeDown());
     }
@@ -1560,16 +1560,18 @@ public class TopologyConverterToMarketTest {
     }
     /**
      * The intent of this test is to ensure that Containers that are hosted by ContainerPods are
-     * marked not movable.
+     * marked not movable.  This also tests whether that the VM that hosts the pods is suspendable.
      * @throws IOException when one of the files cannot be load
      */
     @Test
     public void testConvertContainer() throws IOException {
         final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+            messageFromJsonFile("protobuf/messages/vm-1.dto.json"),
             messageFromJsonFile("protobuf/messages/vm-3.dto.json"),
             messageFromJsonFile("protobuf/messages/pod-1.dto.json"),
             messageFromJsonFile("protobuf/messages/container-1.dto.json"),
-            messageFromJsonFile("protobuf/messages/container-2.dto.json"))
+            messageFromJsonFile("protobuf/messages/container-2.dto.json"),
+            messageFromJsonFile("protobuf/messages/vm-4.dto.json"))
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
@@ -1579,7 +1581,7 @@ public class TopologyConverterToMarketTest {
             .convertToMarket(topologyDTOs);
         // Container 1 and 2's SLs are movable.  Container 1 is hosted by a VM, so it should
         // be movable.  Container 2 is hosted by a container pod, so it should not be movable.
-        assertEquals(4, traderTOs.size());
+        assertEquals(6, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
             if (traderTO.getOid() == 73305182227091L) {
                 // container-1 is movable
@@ -1587,6 +1589,18 @@ public class TopologyConverterToMarketTest {
             } else if (traderTO.getOid() == 73305182227092L) {
                 // container-2 is not movable
                 assertFalse(traderTO.getShoppingLists(0).getMovable());
+            } else if (traderTO.getOid() == 73305182227020L) {
+                // VM-4 has no suspension setting and hosts pods, so it should have suspendable
+                // true.
+                assertFalse(traderTO.getSettings().getSuspendable());
+            } else if (traderTO.getOid() == 101L) {
+                // VM-1 has no suspension setting does not host containers, so it should have
+                // suspendable false.
+                assertFalse(traderTO.getSettings().getSuspendable());
+            } else if (traderTO.getOid() == 73305182227019L) {
+                // This is VM-3.  It should be suspendable because it hosts containers, but it was
+                // explicitly set to false.
+                assertFalse(traderTO.getSettings().getSuspendable());
             }
         }
     }
