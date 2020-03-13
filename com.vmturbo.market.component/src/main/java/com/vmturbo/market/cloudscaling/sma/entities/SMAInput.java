@@ -11,12 +11,15 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Stopwatch;
+import com.google.common.base.Strings;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
@@ -135,6 +138,8 @@ public class SMAInput {
         Objects.requireNonNull(cloudCostData, "cloudCostData is null");
         Objects.requireNonNull(marketPriceTable, "marketPriceTable is null");
 
+
+        final Stopwatch stopWatch = Stopwatch.createStarted();
         /*
          * maps from SMAContext to entities.  Needed to build SMAInputContexts.
          * The OSType in the context is OSTypeForContext, which is UNKNOWN for Azure.
@@ -165,6 +170,7 @@ public class SMAInput {
         /*
          * For each virtual machines, create a VirtualMachine and partition into SMAContexts.
          */
+        final Stopwatch stopWatchDetails = Stopwatch.createStarted();
         List<TopologyEntityDTO> virtualMachines =
             cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
         int numberVMsCreated = 0;
@@ -179,8 +185,9 @@ public class SMAInput {
                 smaContextToVMs, regionIdToOsTypeToContexts, contextToBusinessAccountIds,
                 contextToOSTypes);
         }
-        logger.info("created {} VMs from {} VirtualMachines in {} contexts", numberVMsCreated,
-            virtualMachines.size(), smaContextToVMs.keySet().size());
+        logger.info("created {} VMs from {} VirtualMachines in {} contexts {}ms",
+            numberVMsCreated, virtualMachines.size(), smaContextToVMs.keySet().size(),
+            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
         dumpContextToVMs(smaContextToVMs);
         dumpRegionIdToOsTypeToContexts(regionIdToOsTypeToContexts);
         dumpContextToBusinessAccountsIds(contextToBusinessAccountIds);
@@ -188,28 +195,34 @@ public class SMAInput {
         /*
          * For each ComputeTier, create SMATemplates, but only in contexts where VMs exist.
          */
+        stopWatchDetails.reset();
+        stopWatchDetails.start();
         final List<TopologyEntityDTO> computeTiers =
             cloudTopology.getAllEntitiesOfType(EntityType.COMPUTE_TIER_VALUE);
         logger.info("process {} computeTiers", () -> computeTiers.size());
         int numberTemplatesCreated = processComputeTiers(computeTiers, cloudTopology, cloudCostData,
             regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes,
             computeTierOidToContextToTemplate, smaContextToTemplates, marketPriceTable);
-        logger.info("created {} templates from {} compute tiers in {} contexts",
+        logger.info("created {} templates from {} compute tiers in {} contexts {}ms",
             () -> numberTemplatesCreated, () -> computeTiers.size(),
-            () -> smaContextToTemplates.keySet().size());
+            () -> smaContextToTemplates.keySet().size(), () -> stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
         dumpSmaContextsToTemplates(smaContextToTemplates);
         dumpComputeTierOidToContextToTemplate(computeTierOidToContextToTemplate);
 
         /*
          * For each the RI, create an SMAReservedInstance, but only in contexts where VMs exist.
          */
+        stopWatchDetails.reset();
+        stopWatchDetails.start();
         int numberRIsCreated = 0;
         Collection<ReservedInstanceData> allRIData;
         if (isPlan) {
             // include existing and bought RIs
+            logger.debug("cloudCostData.getAllRiBought()");
             allRIData = cloudCostData.getAllRiBought();
         } else {
             // for realtime, only include existing RIs
+            logger.debug("cloudCostData.getExistingRiBought()");
             allRIData = cloudCostData.getExistingRiBought();
         }
         logger.info("process {} RIs", () -> allRIData.size());
@@ -220,13 +233,16 @@ public class SMAInput {
                 numberRIsCreated++;
             }
         }
-        logger.info("created {} RIs from {} RI bought data in {} contexts",
-            numberRIsCreated, cloudCostData.getAllRiBought().size(), smaContextToRIs.keySet().size());
+        logger.info("created {} RIs from {} RI bought data in {} contexts {}ms",
+            numberRIsCreated, cloudCostData.getAllRiBought().size(),
+            smaContextToRIs.keySet().size(), stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
         dumpSmaContextsToRIs(smaContextToRIs);
 
         /*
          * Update VM's current template and provider list.
          */
+        stopWatchDetails.reset();
+        stopWatchDetails.start();
         Set<SMAContext> smaContexts = smaContextToVMs.keySet();
         logger.info("update VMS for {} contexts", () -> smaContexts.size());
         for (SMAContext context :smaContexts) {
@@ -236,10 +252,14 @@ public class SMAInput {
                     reservedInstanceKeyIDGenerator, cloudCostData);
         }
         dumpContextToVMsFinal(smaContextToVMs);
+        logger.info("time to update SMAVirtualMachines {}ms",
+            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
 
         /*
          * build input contexts.
          */
+        stopWatchDetails.reset();
+        stopWatchDetails.start();
         inputContexts = new ArrayList<>();
         logger.info("build input contexts for {} contexts", () -> smaContexts.size());
         for (SMAContext context : smaContexts) {
@@ -255,7 +275,7 @@ public class SMAInput {
                 logger.error(" no template for context={}", context);
                 continue;
             }
-            logger.info("{} #VMs={} #RIs={} #templates={}", () -> context,
+            logger.debug("{} #VMs={} #RIs={} #templates={}", () -> context,
                 () -> smaVMs.size(), () -> smaRIs.size(), () -> smaTemplates.size());
             SMAInputContext inputContext = new SMAInputContext(context,
                 Lists.newArrayList(smaVMs),
@@ -263,6 +283,11 @@ public class SMAInput {
                 Lists.newArrayList(smaTemplates));
             inputContexts.add(inputContext);
         }
+        logger.info("time to generate SMAInputContexts {}ms",
+            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
+
+        logger.info("time to convert to SMA data structures {}ms",
+            stopWatch.elapsed(TimeUnit.MILLISECONDS));
     }
 
     /**
@@ -301,7 +326,7 @@ public class SMAInput {
         }
         VirtualMachineInfo vmInfo = entity.getTypeSpecificInfo().getVirtualMachine();
         if (vmInfo.getBillingType() != VMBillingType.ONDEMAND) {
-            logger.debug("processVM: skip VM name={} OID={} billingType={} != ONDEMAND",
+            logger.debug("processVM: skip VM OID={} name={}  billingType={} != ONDEMAND",
                 () -> oid, () -> name, () -> vmInfo.getBillingType().name());
             return;
         }
@@ -323,8 +348,8 @@ public class SMAInput {
             zoneId = zoneOptional.get().getOid();
         } else if (csp != SMACSP.AZURE) {
             // Azure currently does not support availability zones.
-            logger.error("processVM: VM ID={} can't find availabilty zone",
-                oid);
+            logger.error("processVM: VM OID={} name={} can't find availabilty zone",
+                oid, name);
             return;
         }
 
@@ -363,11 +388,11 @@ public class SMAInput {
             SMAUtils.BOGUS_RI,
             osType);
         if (vm == null) {
-            logger.error("processVM: createSMAVirtualMachine failed for VM ID={}",
-                () -> vm.getOid());
+            logger.error("processVM: createSMAVirtualMachine failed for VM OID={} name={}",
+                oid, name);
             return;
         }
-        logger.debug("processVM: new {}", vm);
+        logger.debug("processVM: new VM {}", vm);
 
         Set<SMAVirtualMachine> contextVMs = smaContextToVMs.getOrDefault(context, new HashSet<>());
         contextVMs.add(vm);
@@ -819,8 +844,9 @@ public class SMAInput {
 
         boolean found = contextExists(regionIdToOsTypeToContexts, billingFamilyId, regionId, osType, tenancy);
         if (found == false) {
+            final String nameFinal = name;
             logger.debug("processRI: no context exits for RI name={} with billingFamilyId={} regionId={} OSType={} Tenancy={} ISF={} shared={} platformFlexible={}",
-                () -> name, () -> billingFamilyId, () -> regionId, () -> osType.name(),
+                () -> nameFinal, () -> billingFamilyId, () -> regionId, () -> osType.name(),
                 () -> tenancy.name(), () -> riSpecInfo.getSizeFlexible(), () -> shared,
                 () -> riSpecInfo.getPlatformFlexible());
             return false;
@@ -828,6 +854,11 @@ public class SMAInput {
 
         SMAContext context = new SMAContext(csp, osTypeForContext, regionId, billingFamilyId, tenancy);
         long computeTierOid = riSpecInfo.getTierId();
+        if (Strings.isNullOrEmpty(name)) {
+            logger.trace("RI name is null or empty for riBoughtID={}", riBoughtId);
+            name = constructRIName(cloudTopology, regionId, businessAccountId, riBoughtInfo);
+
+        }
         // for Azure, this RI covers a set of templates, one for each OSType.
         SMATemplate template = computeTierOidToContextToTemplate.get(computeTierOid, context);
         if (template == null) {
@@ -866,6 +897,35 @@ public class SMAInput {
             riBoughtOidToRI.put(riBoughtId, ri);
         }
         return true;
+    }
+
+    /**
+     * For new RIs that have been bought, their probeReservedInstanceId is undefined, but used as
+     * the name; therefore, construct an RI name.
+     *
+     * @param cloudTopology      cloud topology dictionary
+     * @param regionId           region OID
+     * @param businessAccountId  business account OID
+     * @param riBoughtInfo       RI's bought information
+     * @return constructed RI name
+     */
+    private String constructRIName(final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                   long regionId, long businessAccountId,
+                                   ReservedInstanceBoughtInfo riBoughtInfo) {
+        Optional<TopologyEntityDTO> optionalDTO = cloudTopology.getEntity(regionId);
+        String regionName = SMAUtils.UNKNOWN_NAME;
+        if (optionalDTO.isPresent()) {
+            regionName = optionalDTO.get().getDisplayName();
+        }
+        optionalDTO = cloudTopology.getEntity(businessAccountId);
+        String businessName = SMAUtils.UNKNOWN_NAME;
+        if (optionalDTO.isPresent()) {
+            businessName = optionalDTO.get().getDisplayName();
+        }
+        float fixedCost = (float) riBoughtInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount();
+        float usagePerHourCost = (float) riBoughtInfo.getReservedInstanceBoughtCost().getUsageCostPerHour().getAmount();
+        return "buyRI_" + businessName + "_" + regionName + "_" + SMAUtils.format4Digits(fixedCost) +
+            "_" + SMAUtils.format4Digits(usagePerHourCost);
     }
 
     /**

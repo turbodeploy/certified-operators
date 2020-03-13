@@ -69,8 +69,8 @@ public class ActionLogger {
 
     private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
         "OSType,Tenancy,vmName,vmOid,vmGroupName,savingsPerHour," +
-        "sourceTemplate,sourceCoupons,natrualTemplate,naturalCoupons,source RI,RITemplate,RICoupons," +
-        "projectedTemplate,projectedCoupons,projected RI,RITemplate,RICoupons," +
+        "sourceTemplate,sourceCoupons,natrualTemplate,naturalCoupons,sourceRI,RITemplate,RICoupons," +
+        "projectedTemplate,projectedCoupons,projectedRI,RITemplate,RICoupons," +
         "templateChange,familyChange";
     /*
      * What is written to the log for each action
@@ -169,14 +169,7 @@ public class ActionLogger {
             // Projected Template
             ActionEntity projectedActionEntity = changeProvider.getDestination();
             processTemplate(projectedActionEntity, projectedCloudTopology, false);
-
-            // determine if template or family changes in the scale action.
-            if (sourceTemplateName != projectedTemplateName) {
-                templateChange = 1;
-            }
-            if (sourceFamilyName != projectedFamilyName) {
-                familyChange = 1;
-            }
+            setChange();
             addRow(buffer);
         }
         logger.info(buffer.toString());
@@ -304,10 +297,10 @@ public class ActionLogger {
      * determine if template or family changes in the scale action.
      */
     private void setChange() {
-        if (sourceTemplateName != projectedTemplateName) {
+        if (!sourceTemplateName.equals(projectedTemplateName)) {
             templateChange = 1;
         }
-        if (sourceFamilyName != projectedFamilyName) {
+        if (!sourceFamilyName.equals(projectedFamilyName)) {
             familyChange = 1;
         }
     }
