@@ -52,6 +52,7 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
@@ -113,6 +114,8 @@ public class BusinessAccountRetrieverTest {
 
     private ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private CostServiceMole costBackend = spy(CostServiceMole.class);
 
     private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
@@ -135,6 +138,7 @@ public class BusinessAccountRetrieverTest {
 
     private BusinessAccountRetriever businessAccountRetriever;
 
+    private boolean defaultFetchCost = true;
     /**
      * Sets up the tests.
      */
@@ -505,7 +509,7 @@ public class BusinessAccountRetrieverTest {
 
         // ACT
         final SupplementaryData data = supplementaryDataFactory.newSupplementaryData(
-            targetAccounts, false);
+            targetAccounts, false, defaultFetchCost);
 
         // ASSERT
         verify(costBackend).getCurrentAccountExpenses(GetCurrentAccountExpensesRequest.newBuilder()
@@ -528,12 +532,12 @@ public class BusinessAccountRetrieverTest {
         final Set<Long> accountIds = Sets.newHashSet(accountID);
         when(groupServiceMole.countGroups(any())).thenReturn(CountGroupsResponse.newBuilder().setCount(countGroupsOwnedByAccount).build());
         final SupplementaryData data =
-                supplementaryDataFactory.newSupplementaryData(accountIds, false);
+                supplementaryDataFactory.newSupplementaryData(accountIds, false, defaultFetchCost);
         Assert.assertEquals(countGroupsOwnedByAccount, data.getResourceGroupCount(accountID));
     }
 
     /**
-     * Test the "all" case of {@link SupplementaryDataFactory#newSupplementaryData(Set, boolean)}.
+     * Test the "all" case of {@link SupplementaryDataFactory#newSupplementaryData(Set, boolean, boolean)}.
      */
     @Test
     public void testSupplementaryDataAllAccountsCostPrice() {
@@ -542,7 +546,7 @@ public class BusinessAccountRetrieverTest {
             new SupplementaryDataFactory(CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
 
         // ACT
-        supplementaryDataFactory.newSupplementaryData(Collections.emptySet(), true);
+        supplementaryDataFactory.newSupplementaryData(Collections.emptySet(), true, defaultFetchCost);
 
         // ASSERT
         // Checking that we set the query scope properly.
@@ -561,7 +565,7 @@ public class BusinessAccountRetrieverTest {
         final SupplementaryDataFactory supplementaryDataFactory = mock(SupplementaryDataFactory.class);
         // ACT
         final List<BusinessUnitApiDTO> retDtos = new BusinessAccountMapper(
-            thinTargetCache, supplementaryDataFactory).convert(Collections.emptyList(), true);
+            thinTargetCache, supplementaryDataFactory, userSessionContext ).convert(Collections.emptyList(), true);
         // ASSERT
         assertThat(retDtos, is(Collections.emptyList()));
     }
@@ -609,11 +613,11 @@ public class BusinessAccountRetrieverTest {
 
         final SupplementaryDataFactory supplementaryDataFactory = mock(SupplementaryDataFactory.class);
         final SupplementaryData supplementaryData = mock(SupplementaryData.class);
-        when(supplementaryDataFactory.newSupplementaryData(any(), eq(false))).thenReturn(supplementaryData);
+        when(supplementaryDataFactory.newSupplementaryData(any(), eq(false), eq(true))).thenReturn(supplementaryData);
         final float costPrice = 11.0f;
         when(supplementaryData.getCostPrice(any())).thenReturn(Optional.of(costPrice));
         final BusinessAccountMapper businessAccountMapper =
-            new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory);
+            new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory, userSessionContext );
 
         final ThinTargetInfo discoveringTargetInfo = ImmutableThinTargetInfo.builder()
             .oid(discoveringTarget)
@@ -637,7 +641,7 @@ public class BusinessAccountRetrieverTest {
 
         // ASSERT
         verify(supplementaryDataFactory).newSupplementaryData(
-                Collections.singleton(entity.getOid()), false);
+                Collections.singleton(entity.getOid()), false, defaultFetchCost);
         verify(supplementaryData).getCostPrice(entity.getOid());
 
         assertThat(businessUnitDTO.getBusinessUnitType(), is(BusinessUnitType.DISCOVERED));
@@ -678,11 +682,30 @@ public class BusinessAccountRetrieverTest {
     @Test
     public void testCostUnavailable() {
         final SupplementaryDataFactory supplementaryDataFactory = new SupplementaryDataFactory(
-            CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-            GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
-        final BusinessAccountMapper mapper = new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory);
+                CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+        final BusinessAccountMapper mapper = new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory, userSessionContext );
 
         doReturn(Optional.of(new StatusRuntimeException(Status.UNAVAILABLE))).when(costBackend).getCurrentAccountExpensesError(any());
+
+        List<BusinessUnitApiDTO> actualBusinessUnits = mapper.convert(Collections.singletonList(ACCOUNT), true);
+        Assert.assertEquals(1, actualBusinessUnits.size());
+        BusinessUnitApiDTO actual = actualBusinessUnits.get(0);
+        Assert.assertNull(actual.getCostPrice());
+    }
+
+    /**
+     * When user is of type scoped observer; call to cost component
+     * shud not be made to fetch account costs.
+     */
+    @Test
+    public void testCostWithScopedUser() {
+        final SupplementaryDataFactory supplementaryDataFactory = new SupplementaryDataFactory(
+                CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+        final BusinessAccountMapper mapper = new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory, userSessionContext );
+        when(userSessionContext.isUserObserver()).thenReturn(true);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
 
         List<BusinessUnitApiDTO> actualBusinessUnits = mapper.convert(Collections.singletonList(ACCOUNT), true);
         Assert.assertEquals(1, actualBusinessUnits.size());

@@ -17,6 +17,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -36,16 +37,21 @@ public class BusinessAccountMapper {
 
     private final SupplementaryDataFactory supplementaryDataFactory;
 
+    private final UserSessionContext userSessionContext;
+
     /**
      * Constructs business account mapper.
      *
-     * @param thinTargetCache target cache
-     * @param supplementaryDataFactory supplementary data factory
+     * @param thinTargetCache          target cache
+     * @param supplementaryDataFactory supplementary data factory.
+     * @param userSessionContext       {@link UserSessionContext}.
      */
     public BusinessAccountMapper(@Nonnull final ThinTargetCache thinTargetCache,
-            @Nonnull final SupplementaryDataFactory supplementaryDataFactory) {
+                                 @Nonnull final SupplementaryDataFactory supplementaryDataFactory,
+                                 @Nonnull final UserSessionContext userSessionContext) {
         this.thinTargetCache = thinTargetCache;
         this.supplementaryDataFactory = supplementaryDataFactory;
+        this.userSessionContext = userSessionContext;
     }
 
     /**
@@ -65,9 +71,11 @@ public class BusinessAccountMapper {
 
         final Set<Long> accountIds =
                 entities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-        final SupplementaryData supplementaryData =
-                supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts);
 
+        //if user is an observer and is scoped do not fetch cost;
+        boolean fetchCost = !(userSessionContext.isUserObserver() && userSessionContext.isUserScoped());
+        final SupplementaryData supplementaryData =
+                supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts, fetchCost );
         return entities.stream()
                 .map(entity -> buildDiscoveredBusinessUnitApiDTO(entity, supplementaryData))
                 .collect(Collectors.toList());
