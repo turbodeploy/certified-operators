@@ -180,7 +180,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         // resolve the time range for pagination param
         final Optional<TimeRange> paginationTimeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
-                Optional.empty(), Optional.of(entityType), Optional.of(paginationParams), Optional.empty());
+                Optional.empty(), Optional.ofNullable(entityType), Optional.of(paginationParams), Optional.empty());
 
         if (!paginationTimeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer

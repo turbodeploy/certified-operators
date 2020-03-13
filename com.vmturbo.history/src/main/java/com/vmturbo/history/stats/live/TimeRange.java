@@ -34,6 +34,7 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -293,7 +294,8 @@ public class TimeRange {
             private TimeFrame getTimeFrame(long resolvedStartTime,
                             @Nonnull StatsFilter statsFilter) {
                 if (statsFilter.hasRollupPeriod()) {
-                    return timeFrameCalculator.millis2TimeFrame(statsFilter.getRollupPeriod());
+                    return timeFrameCalculator.range2TimeFrame(statsFilter.getRollupPeriod(),
+                                    RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
                 }
                 return timeFrameCalculator.millis2TimeFrame(resolvedStartTime);
             }

@@ -24,6 +24,7 @@ import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.KVConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 import com.vmturbo.topology.processor.history.percentile.PercentileHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotEditor;
@@ -34,7 +35,7 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
  * Configuration for historical values aggregation sub-package.
  */
 @Configuration
-@Import({HistoryClientConfig.class, ClockConfig.class, KVConfig.class})
+@Import({HistoryClientConfig.class, ClockConfig.class, KVConfig.class, TopologyProcessorApiConfig.class})
 public class HistoryAggregationConfig {
     @Value("${historyAggregationMaxPoolSize}")
     private int historyAggregationMaxPoolSize = Runtime.getRuntime().availableProcessors();
@@ -86,6 +87,9 @@ public class HistoryAggregationConfig {
 
     @Autowired
     private KVConfig kvConfig;
+
+    @Autowired
+    private TopologyProcessorApiConfig tpApiConfig;
 
     /**
      * History component blocking client interface.
@@ -167,13 +171,23 @@ public class HistoryAggregationConfig {
     }
 
     /**
+     * {@link ExecutorService} instance to do background loading tasks.
+     *
+     * @return {@link ExecutorService} instance to do background loading tasks.
+     */
+    @Bean
+    protected ExecutorService backgroundHistoryLoadingPool() {
+        return Executors.newCachedThreadPool();
+    }
+
+    /**
      * Timeslot commodities history editor.
      *
      * @return timeslot editor bean
      */
     @Bean
     public IHistoricalEditor<?> timeslotHistoryEditor() {
-        return new TimeSlotEditor(timeslotEditorConfig(), historyClient());
+        return new TimeSlotEditor(timeslotEditorConfig(), historyClient(), backgroundHistoryLoadingPool());
     }
 
     /**

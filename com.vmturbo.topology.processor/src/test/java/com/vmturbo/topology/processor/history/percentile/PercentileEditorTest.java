@@ -110,6 +110,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private GraphWithSettings graphWithSettings;
     private PercentileEditorCacheAccess percentileEditor;
     private PercentilePersistenceTask percentilePersistenceTask;
+    private TopologyInfo topologyInfo;
 
     /**
      * Set up the test.
@@ -120,6 +121,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentilePersistenceTask = Mockito.spy(new PercentileTaskStub(null));
         percentileEditor = new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG,
                 null, clock, (service) -> percentilePersistenceTask);
+        topologyInfo = TopologyInfo.newBuilder().setTopologyId(77777L).build();
     }
 
     private void setUpTopology() {
@@ -226,7 +228,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     public void testLoadData() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         // First initializing history from db.
-        percentileEditor.initContext(new HistoryAggregationContext(graphWithSettings, false), Collections.emptyList());
+        percentileEditor.initContext(new HistoryAggregationContext(topologyInfo, graphWithSettings,
+                        false), Collections.emptyList());
         // LATEST(1, 2, 3, 4, 5) + TOTAL(41, 42, 43, 44, 45) = FULL(42, 44, 46, 48, 50)
         Assert.assertEquals(Arrays.asList(42, 44, 46, 48, 50),
                 percentileEditor.getCacheEntry(VCPU_COMMODITY_REFERENCE)
@@ -295,7 +298,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                                                boolean enforceMaintenanceIsExpected)
                     throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         // First initializing history from db.
         percentileEditor.initContext(context, Collections.emptyList());
         // Necessary to set last checkpoint timestamp.
@@ -416,7 +420,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     public void testCompleteBroadcastFailsIfObjectIsNotInitialized()
                     throws HistoryCalculationException, InterruptedException {
         final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         percentileEditor.completeBroadcast(context);
         Mockito.verify(percentilePersistenceTask, Mockito.times(1))
                         .save(Mockito.any(), periodCaptor.capture(), Mockito.any());
@@ -434,7 +439,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     public void testCacheBackupSuccessCase()
                     throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         percentileEditor.initContext(context, Collections.emptyList());
         final EntityCommodityFieldReference mockReference =
                         Mockito.mock(EntityCommodityFieldReference.class);
@@ -458,7 +464,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCacheBackupFailureCase() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         percentileEditor.initContext(context, Collections.emptyList());
         final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache =
                         percentileEditor.getCache();
@@ -486,7 +493,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCompleteBroadcastTooSoon() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         percentileEditor.initContext(context, Collections.emptyList());
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_06_00);
         Mockito.reset(percentilePersistenceTask);
@@ -522,7 +530,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCompleteBroadcastOneMaintenanceWindow() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         percentileEditor.initContext(context, Collections.emptyList());
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_12_00);
 
@@ -554,7 +563,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCompleteBroadcastTwoMaintenanceWindows() throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
-        HistoryAggregationContext context = new HistoryAggregationContext(graphWithSettings, false);
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                        graphWithSettings, false);
         percentileEditor.initContext(context, Collections.emptyList());
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_30_2019_00_00);
 
