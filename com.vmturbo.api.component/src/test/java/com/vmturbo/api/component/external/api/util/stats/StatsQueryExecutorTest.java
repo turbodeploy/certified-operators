@@ -7,6 +7,7 @@ import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.st
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -19,13 +20,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.api.component.ApiTestUtils;
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -36,6 +42,8 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -50,8 +58,9 @@ public class StatsQueryExecutorTest {
 
     private StatsSubQuery statsSubQuery2 = mock(StatsSubQuery.class);
 
-    private StatsQueryExecutor executor = new StatsQueryExecutor(contextFactory,
-        scopeExpander);
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
+    private StatsQueryExecutor executor = new StatsQueryExecutor(contextFactory, scopeExpander, repositoryApi);
 
     private ApiId scope = mock(ApiId.class);
 
@@ -310,8 +319,8 @@ public class StatsQueryExecutorTest {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
-        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(111L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(111L));
 
         // One of the queries is applicable.
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
@@ -334,28 +343,73 @@ public class StatsQueryExecutorTest {
                 ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").build()).build());
         when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
 
+        final MinimalEntity host1 = MinimalEntity.newBuilder()
+            .setOid(201L)
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+            .addDiscoveringTargetIds(1L)
+            .addDiscoveringTargetIds(2L)
+            .build();
+        final MinimalEntity host2 = MinimalEntity.newBuilder()
+            .setOid(202L)
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+            .addDiscoveringTargetIds(1L)
+            .build();
+
         List<StatSnapshotApiDTO> stats;
-        StatSnapshotApiDTO snapshotApiDTO;
 
-        // If not all entities were discovered by fabric, then don't show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L, 2L));
+        /*
+         * Scope is a group
+         */
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.isEntity()).thenReturn(false);
+        final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
+        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(UIEntityType.PHYSICAL_MACHINE));
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
+        // If not all entities in group were discovered by fabric, then don't show cooling and power.
+        when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(host1.getOid(), host2.getOid()));
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiMinEntityReq(
+            Lists.newArrayList(host1, host2));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
         stats = executor.getAggregateStats(scope, period);
-        snapshotApiDTO = stats.get(0);
-        assertTrue(snapshotApiDTO.getStatistics().stream()
-            .noneMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
-
-        // If not all entities were discovered by fabric, then don't show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
-        stats = executor.getAggregateStats(scope, period);
-        snapshotApiDTO = stats.get(0);
-        assertTrue(snapshotApiDTO.getStatistics().stream()
-            .noneMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+        assertFalse(stats.get(0).getStatistics().stream()
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
 
         // If all entities were discovered by fabric, then show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(2L));
+        when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(host1.getOid()));
+        multiEntityRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(host1));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
         stats = executor.getAggregateStats(scope, period);
-        snapshotApiDTO = stats.get(0);
-        assertTrue(snapshotApiDTO.getStatistics().stream()
+        assertTrue(stats.get(0).getStatistics().stream()
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+
+        /*
+         * Scope is an entity
+         */
+        when(scope.isGroup()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(true);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
+            UIEntityType.PHYSICAL_MACHINE)));
+        // if host is not stitched, then don't show cooling and power.
+        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
+        stats = executor.getAggregateStats(scope, period);
+        assertFalse(stats.get(0).getStatistics().stream()
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+
+        // if host is stitched, then show cooling and power.
+        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L, 2L));
+        stats = executor.getAggregateStats(scope, period);
+        assertTrue(stats.get(0).getStatistics().stream()
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+
+        /*
+         * Scope is market
+         */
+        when(scope.isGroup()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isRealtimeMarket()).thenReturn(true);
+        // if it's market, then do not show cooling and power.
+        stats = executor.getAggregateStats(scope, period);
+        assertFalse(stats.get(0).getStatistics().stream()
             .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
     }
 
