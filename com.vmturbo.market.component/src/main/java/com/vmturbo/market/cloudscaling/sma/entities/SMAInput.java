@@ -27,6 +27,7 @@ import com.google.common.collect.Table;
 import org.apache.commons.math3.util.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.internal.$guava$.annotations.$VisibleForTesting;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
@@ -40,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -74,14 +76,8 @@ public class SMAInput {
      */
     public final List<SMAInputContext> inputContexts;
 
-    /*
-     * Dictionary for SMACSP by region.  Only regions where VMs were found.
-     */
-    private CspFromRegion cspFromRegion = new CspFromRegion();
-
     // map to convert commodity sold key to OSType.
     static Map<String, OSType> nameToOSType = new HashMap<>();
-
 
     static {
         nameToOSType.put("LINUX",                  OSType.LINUX);
@@ -152,6 +148,10 @@ public class SMAInput {
         SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator =
             new SMAReservedInstanceKeyIDGenerator();
         /*
+         * Dictionary for SMACSP by region.  Only regions where VMs were found.
+         */
+        CspFromRegion cspFromRegion = new CspFromRegion();
+        /*
          * Map from computeTier OID to context to template, needed to convert provider list from
          * compute tier to template.  Need context, because there is a one to many relationship
          * between a compute tier and templates, one template per context for a compute tier.
@@ -166,6 +166,9 @@ public class SMAInput {
         Map<SMAContext, Set<OSType>> contextToOSTypes = new HashMap<>();
         // map from bought RI to SMA RI.
         Map<Long, SMAReservedInstance> riBoughtOidToRI = new HashMap<>();
+        // map from RI bought ID to coupons used: used to track RIs that cover VMs that are not
+        // scalable, because an action was executed.
+        Map<Long, Float> riBoughtIdToCouponsUsed = new HashMap<>();
 
         /*
          * For each virtual machines, create a VirtualMachine and partition into SMAContexts.
@@ -182,8 +185,8 @@ public class SMAInput {
             }
             numberVMsCreated++;
             processVirtualMachine(vm, cloudTopology, cloudCostData, consistentScalingHelper,
-                smaContextToVMs, regionIdToOsTypeToContexts, contextToBusinessAccountIds,
-                contextToOSTypes);
+                cspFromRegion, smaContextToVMs, riBoughtIdToCouponsUsed, regionIdToOsTypeToContexts,
+                contextToBusinessAccountIds, contextToOSTypes);
         }
         logger.info("created {} VMs from {} VirtualMachines in {} contexts {}ms",
             numberVMsCreated, virtualMachines.size(), smaContextToVMs.keySet().size(),
@@ -201,7 +204,7 @@ public class SMAInput {
             cloudTopology.getAllEntitiesOfType(EntityType.COMPUTE_TIER_VALUE);
         logger.info("process {} computeTiers", () -> computeTiers.size());
         int numberTemplatesCreated = processComputeTiers(computeTiers, cloudTopology, cloudCostData,
-            regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes,
+            regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes, cspFromRegion,
             computeTierOidToContextToTemplate, smaContextToTemplates, marketPriceTable);
         logger.info("created {} templates from {} compute tiers in {} contexts {}ms",
             () -> numberTemplatesCreated, () -> computeTiers.size(),
@@ -228,8 +231,8 @@ public class SMAInput {
         logger.info("process {} RIs", () -> allRIData.size());
         for (ReservedInstanceData data :allRIData ) {
             if (processReservedInstance(data, cloudTopology, computeTierOidToContextToTemplate,
-                regionIdToOsTypeToContexts, smaContextToRIs, riBoughtOidToRI,
-                    reservedInstanceKeyIDGenerator)) {
+                regionIdToOsTypeToContexts, riBoughtIdToCouponsUsed, cspFromRegion,
+                reservedInstanceKeyIDGenerator, smaContextToRIs, riBoughtOidToRI)) {
                 numberRIsCreated++;
             }
         }
@@ -260,7 +263,28 @@ public class SMAInput {
          */
         stopWatchDetails.reset();
         stopWatchDetails.start();
-        inputContexts = new ArrayList<>();
+        inputContexts = generateInputContexts(smaContextToVMs, smaContextToRIs, smaContextToTemplates);
+        logger.info("time to generate SMAInputContexts {}ms",
+            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("time to convert to SMA data structures {}ms",
+            stopWatch.elapsed(TimeUnit.MILLISECONDS));
+    }
+
+
+    /**
+     * Generate the set of input contexts.
+     * @param smaContextToVMs         Map from context to set of VMs
+     * @param smaContextToRIs         Map from context to set of RIs
+     * @param smaContextToTemplates   Map from context to set of Templates
+     * @return list of input contexts
+     */
+    @$VisibleForTesting
+    @Nonnull
+    static List<SMAInputContext> generateInputContexts(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
+                                                         Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
+                                                         Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
+        List<SMAInputContext> inputContexts = new ArrayList<>();
+        Set<SMAContext> smaContexts = smaContextToVMs.keySet();
         logger.info("build input contexts for {} contexts", () -> smaContexts.size());
         for (SMAContext context : smaContexts) {
             Set<SMAVirtualMachine> smaVMs = smaContextToVMs.get(context);
@@ -283,11 +307,7 @@ public class SMAInput {
                 Lists.newArrayList(smaTemplates));
             inputContexts.add(inputContext);
         }
-        logger.info("time to generate SMAInputContexts {}ms",
-            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
-
-        logger.info("time to convert to SMA data structures {}ms",
-            stopWatch.elapsed(TimeUnit.MILLISECONDS));
+        return inputContexts;
     }
 
     /**
@@ -297,20 +317,25 @@ public class SMAInput {
      *  @param entity                     topology entity DTO that is a VM.
      * @param cloudTopology               the cloud topology to find source template.
      * @param cloudCostData               where to find costs and RI related info.  E.g. RI coverage for a VM.
+     * @param consistentScalingHelper     used to figure out the consistent scaling information.
+     * @param cspFromRegion               keep track of CSP by region
      * @param smaContextToVMs             map from SMA context to set of SMA virtual machines, updated
+     * @param riBoughtIdToCouponsUsed     keep track of RI coverage of VMs that are not scalable, updated.
      * @param regionIdToOsTypeToContexts  table from region ID  to osType to set of SMAContexts, defined
      * @param contextToBusinessAccountIds map from context to set of business account IDs, defined.
      * @param contextToOSTypes            map from context to set of OSTypes.  Limits compute Tier processing. defined.
-     * @param consistentScalingHelper     used to figure out the consistent scaling information.
      */
-    private void processVirtualMachine(@Nonnull TopologyEntityDTO entity,
-                                       @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                       @Nonnull CloudCostData cloudCostData,
-                                       ConsistentScalingHelper consistentScalingHelper,
-                                       Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
-                                       Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
-                                       Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
-                                       Map<SMAContext, Set<OSType>> contextToOSTypes) {
+    @$VisibleForTesting
+    static void processVirtualMachine(final TopologyEntityDTO entity,
+                                      final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                      final CloudCostData cloudCostData,
+                                      final ConsistentScalingHelper consistentScalingHelper,
+                                      final CspFromRegion cspFromRegion,
+                                      Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
+                                      Map<Long, Float> riBoughtIdToCouponsUsed,
+                                      Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
+                                      Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
+                                      Map<SMAContext, Set<OSType>> contextToOSTypes) {
         long oid = entity.getOid();
         String name = entity.getDisplayName();
         int entityType = entity.getEntityType();
@@ -330,6 +355,12 @@ public class SMAInput {
                 () -> oid, () -> name, () -> vmInfo.getBillingType().name());
             return;
         }
+        AnalysisSettings settings = entity.getAnalysisSettings();
+        boolean isEligibleForScale = settings.getIsEligibleForScale();
+        if (!isEligibleForScale) {
+            processNotEligibleForScaling(cloudCostData, oid, name, riBoughtIdToCouponsUsed);
+            return;
+        }
         String tenancyName = vmInfo.getTenancy().name();
         Tenancy tenancy = Tenancy.valueOf(tenancyName);
         String osName = vmInfo.getGuestOsInfo().getGuestOsType().name();
@@ -340,7 +371,7 @@ public class SMAInput {
         /*
          * create Context
          */
-        long regionId = getVMRegionId(oid, cloudTopology);
+        long regionId = getVMRegionId(oid, cloudTopology, cspFromRegion);
         SMACSP csp = cspFromRegion.lookupWithRegionId(regionId);
         Optional<TopologyEntityDTO> zoneOptional = cloudTopology.getConnectedAvailabilityZone(oid);
         long zoneId = SMAUtils.NO_ZONE;
@@ -399,6 +430,35 @@ public class SMAInput {
         smaContextToVMs.put(context, contextVMs);
         // Update table from region to osType, to Set of contexts
         updateRegionIdToOsTypeToContexts(regionIdToOsTypeToContexts, regionId, osTypeForContext, context);
+    }
+
+    /**
+     * found a VM that is not eligible for scaling, determine if covered by RIs and update the
+     * riBoughtIdToCouponsUsed map.
+     * @param cloudCostData           RI coverage of VMs
+     * @param oid                     VM oid
+     * @param name                    VM name
+     * @param riBoughtIdToCouponsUsed map from RI bought OID to coupons covering VM.
+     */
+    private static void processNotEligibleForScaling(final CloudCostData cloudCostData,
+                                              long oid, final String name,
+                                              Map<Long, Float> riBoughtIdToCouponsUsed) {
+        // check if VM is covered by one or more RIs, if so cache the RI and coupons.
+        logger.debug("processVM: VM OID={} name={} not eligible for scale", oid, name);
+        Optional<EntityReservedInstanceCoverage> optional = cloudCostData.getRiCoverageForEntity(oid);
+        if (optional.isPresent()) {
+            EntityReservedInstanceCoverage coverage = optional.get();
+            Map<Long, Double> couponsCoveredByRIs = coverage.getCouponsCoveredByRi();
+            for (Long riBoughtOID : couponsCoveredByRIs.keySet()) {
+                Double coupons = couponsCoveredByRIs.get(riBoughtOID);
+                Float previousCoupons = riBoughtIdToCouponsUsed.get(riBoughtOID);
+                if (previousCoupons == null) {
+                    riBoughtIdToCouponsUsed.put(riBoughtOID, coupons.floatValue());
+                } else {
+                    riBoughtIdToCouponsUsed.put(riBoughtOID, coupons.floatValue() + previousCoupons);
+                }
+            }
+        }
     }
 
     /**
@@ -483,17 +543,19 @@ public class SMAInput {
      * @param regionIdToOsTypeToContexts  table from region ID to osType to set of contexts.
      * @param contextToBusinessAccountIds map from context to set of business accounts in this context
      * @param contextToOSTypes            map from context to set of OSTypes in this context
+     * @param cspFromRegion               keep track of CSP by region
      * @param computeTierIdToContextToTemplateMap compute tier ID to context to Template map, to be updated
      * @param smaContextToTemplates       map from context to template, to be updated
      * @param marketPriceTable            price table to compute on-demand cost.
      * @return true if a template is created, else false
      */
-    private int processComputeTiers(List<TopologyEntityDTO> computeTiers,
-                                    CloudTopology<TopologyEntityDTO> cloudTopology,
-                                    CloudCostData cloudCostData,
-                                    Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
-                                    Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
-                                    Map<SMAContext, Set<OSType>> contextToOSTypes,
+    private int processComputeTiers(final List<TopologyEntityDTO> computeTiers,
+                                    final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                    final CloudCostData cloudCostData,
+                                    final Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
+                                    final Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
+                                    final Map<SMAContext, Set<OSType>> contextToOSTypes,
+                                    final CspFromRegion cspFromRegion,
                                     Table<Long, SMAContext, SMATemplate> computeTierIdToContextToTemplateMap,
                                     Map<SMAContext, Set<SMATemplate>> smaContextToTemplates,
                                     MarketPriceTable marketPriceTable) {
@@ -794,18 +856,23 @@ public class SMAInput {
      * @param cloudTopology   topology to get business account and region.
      * @param computeTierOidToContextToTemplate used to look up SMATemplate given the computeTier ID
      * @param regionIdToOsTypeToContexts map from regionID to OSType to context.
+     * @param riBoughtIdToCouponsUsed map from ri Bought OID to coupons in VMs that can't scale.
+     * @param cspFromRegion keep track of CSP and regions
+     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @param smaContextToRIs map from context to set of RIs, to be updated
      * @param riBoughtOidToRI map from RI bought OID to created SMA RI, to be updated
-     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @return true if RI is created
      */
-    private boolean processReservedInstance(final ReservedInstanceData data,
-                                            final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                            final Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
-                                            final Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
-                                            Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
-                                            Map<Long, SMAReservedInstance> riBoughtOidToRI,
-                                            SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator) {
+    @$VisibleForTesting
+    static boolean processReservedInstance(final ReservedInstanceData data,
+                                           final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                           final Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
+                                           final Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
+                                           final Map<Long, Float> riBoughtIdToCouponsUsed,
+                                           final CspFromRegion cspFromRegion,
+                                           final SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator,
+                                           Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
+                                           Map<Long, SMAReservedInstance> riBoughtOidToRI) {
         ReservedInstanceBought riBought = data.getReservedInstanceBought();
         long riBoughtId = riBought.getId();
         ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
@@ -814,7 +881,7 @@ public class SMAInput {
         String name = riBoughtInfo.getProbeReservedInstanceId();  // getDisplayName();
         long zoneId = riBoughtInfo.getAvailabilityZoneId();
         zoneId = (zoneId == 0 ? SMAUtils.NO_ZONE : zoneId);
-        int count = riBoughtInfo.getNumBought();
+        float count = riBoughtInfo.getNumBought();
         ReservedInstanceBoughtCost boughtCost = riBoughtInfo.getReservedInstanceBoughtCost();
         boolean shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
 
@@ -869,6 +936,16 @@ public class SMAInput {
         ReservedInstanceKey reservedInstanceKey = new ReservedInstanceKey(data,
                 template.getFamily(), billingFamilyId);
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
+        // if RI has coupons covering VMs that can't scale, update the count
+        Float usedCoupons = riBoughtIdToCouponsUsed.get(riBoughtId);
+        if (usedCoupons != null) {
+            float numberRIsUsed = usedCoupons / (float)template.getCoupons();
+            logger.info("processRI: RI bouught OID={} has usedCoupons={}, reduce count by int of {}",
+            riBoughtId, usedCoupons, numberRIsUsed);
+            count = count - numberRIsUsed;
+            logger.info("processRI: RI bouught OID={} has count={} == 0", riBoughtId, count);
+            return false;
+        }
 
         String templateName = template.getName();
         // Unfortunately, the probe returns ISF=true for metal templates.
@@ -909,9 +986,9 @@ public class SMAInput {
      * @param riBoughtInfo       RI's bought information
      * @return constructed RI name
      */
-    private String constructRIName(final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                   long regionId, long businessAccountId,
-                                   ReservedInstanceBoughtInfo riBoughtInfo) {
+    private static String constructRIName(final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                          long regionId, long businessAccountId,
+                                          ReservedInstanceBoughtInfo riBoughtInfo) {
         Optional<TopologyEntityDTO> optionalDTO = cloudTopology.getEntity(regionId);
         String regionName = SMAUtils.UNKNOWN_NAME;
         if (optionalDTO.isPresent()) {
@@ -922,8 +999,8 @@ public class SMAInput {
         if (optionalDTO.isPresent()) {
             businessName = optionalDTO.get().getDisplayName();
         }
-        float fixedCost = (float) riBoughtInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount();
-        float usagePerHourCost = (float) riBoughtInfo.getReservedInstanceBoughtCost().getUsageCostPerHour().getAmount();
+        float fixedCost = (float)riBoughtInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount();
+        float usagePerHourCost = (float)riBoughtInfo.getReservedInstanceBoughtCost().getUsageCostPerHour().getAmount();
         return "buyRI_" + businessName + "_" + regionName + "_" + SMAUtils.format4Digits(fixedCost) +
             "_" + SMAUtils.format4Digits(usagePerHourCost);
     }
@@ -937,8 +1014,8 @@ public class SMAInput {
      * @param tenancy Tenancy
      * @return true if exists.
      */
-    private boolean contextExists(Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext,
-                                  long billingFamilyId, long regionId, OSType osType, Tenancy tenancy) {
+    private static boolean contextExists(Table<Long, OSType, Set<SMAContext>> regionToOsTypeToContext,
+                                         long billingFamilyId, long regionId, OSType osType, Tenancy tenancy) {
         Set<SMAContext> contexts = regionToOsTypeToContext.get(regionId, osType);
         if (contexts == null) {
             return false;
@@ -962,10 +1039,12 @@ public class SMAInput {
      *
      * @param oid           ID  of topology entity
      * @param cloudTopology dictionary of cloud topoolgy
+     * @param cspFromRegion keep track of CSP by region
      * @return region ID
      */
-    private long getVMRegionId(long oid,
-                               @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+    private static long getVMRegionId(final long oid,
+                                      final @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+                                      CspFromRegion cspFromRegion) {
         long regionId = -1;
         TopologyEntityDTO region = null;
         Optional<TopologyEntityDTO> regionOpt = cloudTopology.getConnectedRegion(oid);
@@ -1014,9 +1093,9 @@ public class SMAInput {
      * @param msg           who is this.
      * @return billing family ID
      */
-    private long getBillingFamilyId(long oid,
-                                    @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                    String msg) {
+    private static long getBillingFamilyId(long oid,
+                                           @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+                                           String msg) {
         long billingFamilyId = oid;
         Optional<GroupAndMembers> optional = cloudTopology.getBillingFamilyForEntity(oid);
         if (!optional.isPresent()) {
@@ -1081,7 +1160,7 @@ public class SMAInput {
         return new Pair(ri, coverage);
     }
 
-    private double computeHourlyRIRate(ReservedInstanceBoughtCost boughtCost, int years) {
+    private static double computeHourlyRIRate(ReservedInstanceBoughtCost boughtCost, int years) {
         double fixedCost = boughtCost.getFixedCost().getAmount();
         double recurringCostPerHour = boughtCost.getRecurringCostPerHour().getAmount();
         double usageCostPerHour = boughtCost.getUsageCostPerHour().getAmount();
@@ -1097,8 +1176,9 @@ public class SMAInput {
      * @param osType osType.
      * @param context context.
      */
-    private void updateRegionIdToOsTypeToContexts(Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
-                                                long regionId, OSType  osType, SMAContext context) {
+    private static void
+    updateRegionIdToOsTypeToContexts(Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
+                                     long regionId, OSType osType, SMAContext context) {
         Map<OSType, Set<SMAContext>> map = (Map<OSType, Set<SMAContext>>)regionIdToOsTypeToContexts.row(regionId);
         if (map == null) {
             map = new HashMap<>();
@@ -1233,7 +1313,7 @@ public class SMAInput {
      * This class is to generate unique IDs for ReservedInstanceKey, which is used to aggregate
      * RIs together.
      */
-    class SMAReservedInstanceKeyIDGenerator {
+    static class SMAReservedInstanceKeyIDGenerator {
         // map from ReservedInstanceKey to riKeyID.  This is a one-to-one map.
         private Map<ReservedInstanceKey, Long> riKeyToOid = new HashMap();
         // map from RIBought OID to riKeyID.  Multiple RIBoughtIDs may map to a single riKeyID.
