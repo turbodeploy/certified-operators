@@ -27,6 +27,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_BY_HOUR;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.row;
 
@@ -64,6 +65,7 @@ import org.apache.logging.log4j.util.Strings;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetStep;
+import org.jooq.Queries;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
@@ -105,6 +107,7 @@ import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.Scenarios;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
@@ -123,6 +126,18 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
 public class HistorydbIO extends BasedbIO {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Use this to get stats table fields by name when working with a dynamically typed table.
+     *
+     * <p>For example, suppose you have a variable of type <code>Table&lt;?&gt;</code>, and you know
+     * it's one of the various entity stats tables, and you want to access its fields. You can
+     * use something like <code>table.get(GENERIC_STATS.AVG_VALUE, Double.class)</code>.</p>
+     *
+     * <p>An hourly table is used because it has all the fields that appear in any table (all the
+     * *_key fields, samples, etc.)</p>
+     */
+    public static final VmStatsByHour GENERIC_STATS_TABLE = VM_STATS_BY_HOUR.VM_STATS_BY_HOUR;
 
     // length restriction on the  COMMODITY_KEY column; all stats tables have same column length
     private static final int COMMODITY_KEY_MAX_LENGTH = VmStatsLatest.VM_STATS_LATEST.COMMODITY_KEY
@@ -619,71 +634,45 @@ public class HistorydbIO extends BasedbIO {
         final Query query;
         if (specificEntityType.isPresent() && specificEntityOid.isPresent()) {
             query = new AvailableEntityTimestampsQuery(
-                    timeFrame, specificEntityType.get(), specificEntityOid.get(), 1,
-                    new Timestamp(startTime), new Timestamp(endTime), false
-            ).getQuery();
+                    timeFrame, specificEntityType.get(), specificEntityOid.get(), 0,
+                    new Timestamp(startTime), new Timestamp(endTime), false).getQuery();
         } else {
-            query = new AvailableTimestampsQuery(
-                    timeFrame, HistoryVariety.ENTITY_STATS, 0,
-                    new Timestamp(startTime), new Timestamp(endTime)
-            ).getQuery();
+            query = new AvailableTimestampsQuery(timeFrame, HistoryVariety.ENTITY_STATS, 0,
+                    new Timestamp(startTime), new Timestamp(endTime)).getQuery();
         }
         return (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
     }
 
     /**
      * Return a long epoch date representing the closest time stamp equals or before a given time point.
-     * The method can optionally take an entity type as a parameter, so that we will look for
-     * the time stamp only in the specified entity type table. If a specific entity oid is also
-     * added, the oid will be used to look for time stamp inside the specified table. User can specify
-     * pagination param which will be used in the condition to query data. If it does not exist, commodity
-     * in {@link StatsFilter} will be considered as the condition to query data.
+     * The timestamps are selected among the already ingested topologies. If the only
+     * commodity in the stasFilter is priceIndex, the timestamp will be selected among the
+     * ingested priceIndex timestamps
      *
      * @param statsFilter          stats filter which contains commodity requests.
-     * @param entityTypeOpt        entity type to use for getting the time stamp.
-     * @param specificEntityOidOpt entity to use for the lookup in the table.
      * @param timepPointOpt        time point to specify end time. If not present, the result is
      *                             the most recent time stamp.
-     * @param paginationParams     the option to query data based on pagination parameter.
+     * @param timeFrameOpt         required timeframe, or LATEST if not specified
      * @return a {@link Timestamp} for the snapshot recorded in the xxx_stats_latest table having
      *                             closest time to a given time point.
+     * @throws IllegalArgumentException
      */
     public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-            @Nonnull final Optional<EntityType> entityTypeOpt,
-            @Nonnull final Optional<String> specificEntityOidOpt,
-            @Nonnull final Optional<Long> timepPointOpt,
-            @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
+            @Nonnull final Optional<Long> timepPointOpt, @Nonnull final Optional<TimeFrame> timeFrameOpt)
             throws IllegalArgumentException {
-        try (Connection conn = connection()) {
+        try {
             Timestamp exclusiveUpperTimeBound =
                     // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
                     timepPointOpt.map(t -> new Timestamp(t + 1))
                             .orElse(null);
-            final String[] propertyTypes;
-            boolean excludeProperties = false;
-            if (paginationParams.isPresent()) {
-                if (!StringUtils.isEmpty(paginationParams.get().getSortCommodity())) {
-                    propertyTypes = new String[]{paginationParams.get().getSortCommodity()};
-                } else {
-                    throw new IllegalArgumentException("Sort commodity in pagination parameter does not exist.");
-                }
-            } else {
-                // check the commodity request list, if it only contains PI, fetch data for PI,
-                // otherwise, filter out PI in the query. The reason is that PI and other regular
-                // commodities may have different timestamps, since PI is generated from market
-                // analysis. In most cases where request list contains both PI and regular commodities,
-                // we want only regular commodity timestamp, so we need to exclude PI in the query.
-                // Note: in cases where the request contains currentPI, since it should have the same
-                // timestamp as PI in DB, we can still use PI in the where condition
-                propertyTypes = new String[]{PRICE_INDEX};
-                excludeProperties = !isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList());
-            }
+            // check the commodity request list, if it only contains PI, fetch data for PI,
+            // otherwise, get the timestamp of the most recent ingested topology. PI needs to be
+            // treated differently because it doesn't get persisted when a topology is ingested.
+            final HistoryVariety historyVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
+                ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
-            // create select query
-            final Query query = new AvailableEntityTimestampsQuery(
-                    TimeFrame.LATEST, entityTypeOpt.orElse(null), specificEntityOidOpt.orElse(null), 1,
-                    null, exclusiveUpperTimeBound, excludeProperties, propertyTypes
-            ).getQuery();
+            final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
+                    historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
             final List<Timestamp> snapshotTimeRecords
                     = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
 
@@ -691,8 +680,6 @@ public class HistorydbIO extends BasedbIO {
                 return Optional.of(snapshotTimeRecords.get(0));
             }
 
-        } catch (SQLException e) {
-            logger.warn("Error fetching most recent timestamp: ", e);
         } catch (VmtDbException e) {
             logger.error("Failed to get database connection.", e);
         }

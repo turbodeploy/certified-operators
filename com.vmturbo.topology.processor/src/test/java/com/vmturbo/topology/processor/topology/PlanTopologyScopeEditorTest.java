@@ -7,9 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,8 +19,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.commons.analysis.InvertedIndex;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -38,15 +36,20 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -678,6 +681,42 @@ public class PlanTopologyScopeEditorTest {
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
         assertEquals(6, result.size());
+    }
+
+    /**
+     * Scenario: scope on vm2 and a clone added of this VM via plan scenario.
+     * Expected: the entities in scope should be vm2 and its clone.
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     */
+    @Test
+    public void testScopeOnpremTopologyOnVMWithClone() throws PipelineStageException {
+        long originalVMOid = 30002L;
+        final PlanScope planScope = PlanScope.newBuilder()
+                .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
+                        .setScopeObjectOid(originalVMOid).setDisplayName("VM2").build()).build();
+        long cloneOid = 3456L;
+        TopologyEntity.Builder cloneOfVM1 =  TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+            .setOid(cloneOid)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOrigin(Origin.newBuilder()
+                    .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder().setPlanId(99))
+                .build()))
+            .setClonedFromEntityOid(originalVMOid);
+        TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.topologyGraphOf(vm2InDc1, cloneOfVM1);
+        // populate InvertedIndex
+        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                index = planTopologyScopeEditor.createInvertedIndex();
+        graphWithClone.entities().forEach(entity -> index.add(entity));
+        // scope using inverted index
+        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
+                .indexBasedScoping(index, graphWithClone, groupResolver, planScope, PlanProjectType.USER);
+
+        result.entities().forEach(e -> System.out.println(e.getOid() + " "));
+        assertEquals(2, result.size());
+        assertTrue(result.getEntity(cloneOid).isPresent());
+        // Make sure clone has original entity Oid
+        assertEquals(originalVMOid, result.getEntity(cloneOid).get().getClonedFromEntityOid());
     }
 
     private static TopologyEntity.Builder createHypervisorTopologyEntity(long oid,

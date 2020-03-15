@@ -27,16 +27,11 @@ import com.google.common.collect.Iterables;
 
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceZonalContext;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 
 public class ComputeTierDemandStatsStore {
 
     private final Logger logger = LogManager.getLogger();
-
-    private static final int RI_HOUR_ADDITION = 23;
-    private static final int HOURS_A_DAY = 24;
-    private static final int RI_MINIMUM_DATA_POINTS_LOWER_BOUND = 1;
-    private static final int RI_MINIMUM_DATA_POINTS_UPPER_BOUND = 168;
     /**
      * Number of records to commit in one batch.
      */
@@ -175,31 +170,38 @@ public class ComputeTierDemandStatsStore {
     }
 
     /**
-     * @return All compute tier demand stats.
-     * @throws DataAccessException
-     *
-     *  NOTE: This returns a resourceful stream. Resource should be closed
-     *  by the caller.
+     * Queries for the unique set of demand clusters (account, region, compute tier, platform, tenancy).
+     * @return A {@link Stream} of records representing the unique set of demand clusters.
      */
-    public Stream<ComputeTierTypeHourlyByWeekRecord> getAllDemandStats()
-            throws DataAccessException {
+    public Stream<ComputeTierTypeHourlyByWeekRecord> getUniqueDemandClusters() {
+        return dslContext
+                .selectDistinct(
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.REGION_OR_ZONE_ID,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY)
+                .from(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+                .fetchStreamInto(ComputeTierTypeHourlyByWeekRecord.class);
 
-        return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .fetchSize(statsRecordsQueryBatchSize)
-                .stream();
     }
 
-    public List<ComputeTierTypeHourlyByWeekRecord> fetchDemandStats(ReservedInstanceZonalContext context,
-                                                                    Set<Long> accountNumbers) {
+    /**
+     * Fetch the demand stats for a target demand cluster.
+     *
+     * @param demandCluster The target demand cluster
+     * @return The list of records for the target demand cluster.
+     */
+    @Nonnull
+    public List<ComputeTierTypeHourlyByWeekRecord> fetchDemandStats(
+            @Nonnull RIBuyDemandCluster demandCluster) {
 
-        // TODO: karthikt - Ignore accountNumbers for now as we don't yet support account scopes
-        // introduced by OM-38894.
         return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID.eq(context.getMasterAccountId()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID.eq(context.getComputeTier().getOid()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.AVAILABILITY_ZONE.eq(context.getAvailabilityZoneId()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM.eq((byte)context.getPlatform().getNumber()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY.eq((byte)context.getTenancy().getNumber()))
+                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID.eq(demandCluster.accountOid()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID.eq(demandCluster.computeTierOid()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.REGION_OR_ZONE_ID.eq(demandCluster.regionOrZoneOid()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM.eq((byte)demandCluster.platform().getNumber()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY.eq((byte)demandCluster.tenancy().getNumber()))
                 .orderBy(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY, COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR)
                 .fetch();
     }

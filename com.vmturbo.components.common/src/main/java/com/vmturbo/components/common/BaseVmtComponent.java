@@ -119,6 +119,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public static final String PROP_PROPERTIES_YAML_PATH = "propertiesYamlPath";
 
     /**
+     * The path to the secret file used to load external secret properties
+     * prior to Spring configuration.
+     */
+    public static final String PROP_SECRETS_YAML_PATH = "secretsYamlPath";
+
+    /**
      * The environment key for the port number for the Jetty instance for each component.
      */
     public static final String PROP_serverHttpPort = "serverHttpPort";

@@ -3,7 +3,6 @@ package com.vmturbo.history.listeners;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.None;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Live;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Projected;
-import static com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest.MARKET_STATS_LATEST;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -264,7 +263,7 @@ public class TopologyCoordinator extends TopologyListenerBase
                     SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                         .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL,
                             SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                        .observe((double) result.getLeft());
+                        .observe((double)result.getLeft());
                 }
             } catch (Exception e) {
                 logger.error("Projected plan topology ingestion failed", e);
@@ -520,7 +519,6 @@ public class TopologyCoordinator extends TopologyListenerBase
         processingStatus.startHourRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTables(snapshot)
                 .distinct()
-                .filter(t -> t == MARKET_STATS_LATEST || isEntityStatsTable(t))
                 .collect(Collectors.toList());
         // nothing to do if there are no stats
         if (!tables.isEmpty()) {
@@ -549,7 +547,6 @@ public class TopologyCoordinator extends TopologyListenerBase
         processingStatus.startDayMonthRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTablesForHour(snapshot)
                 .distinct()
-                .filter(this::isEntityStatsTable)
                 .collect(Collectors.toList());
         if (!tables.isEmpty()) {
             rollupLock.lock();

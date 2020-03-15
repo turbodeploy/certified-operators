@@ -36,10 +36,10 @@
         <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
-        <grpc.version>1.21.0</grpc.version>
+        <grpc.version>1.28.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
-        <protobuf.version>3.6.1</protobuf.version>
+        <protobuf.version>3.11.0</protobuf.version>
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
         <owasp.version>5.3.0</owasp.version>
@@ -367,6 +367,7 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
@@ -495,6 +496,13 @@
             <id>mediation-netapp</id>
             <modules>
                 <module>../com.vmturbo.mediation.netapp.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-nutanix</id>
+            <modules>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
             </modules>
         </profile>
 
@@ -1089,6 +1097,7 @@
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
@@ -2037,6 +2046,37 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.common</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.mediation.gcp</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java-util</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-netty</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-protobuf</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-stub</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-core</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>

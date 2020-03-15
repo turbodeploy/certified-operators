@@ -45,22 +45,26 @@ public class CloudDiscoveryConverterTest {
      */
     @Test
     public void testEphemeralVolumeSize() {
-        final CloudProviderConversionContext mockContext = mock(CloudProviderConversionContext.class);
-        final String volumeId = "volumeId";
-        when(mockContext.getCloudEntityTypeForProfileType(any()))
-            .thenReturn(Optional.of(EntityType.COMPUTE_TIER));
-        when(mockContext.getVolumeIdFromStorageFilePath(any(), any()))
-            .thenReturn(Optional.of(volumeId));
-        final String storageTierId = "NVME_SSD";
-        when(mockContext.getStorageTierId(any()))
-            .thenReturn(storageTierId);
-        when(mockContext.getAvailabilityZone(any())).thenReturn(Optional.of("azure::us_east"));
-
-        final CloudDiscoveryConverter converter = new CloudDiscoveryConverter(
-            DiscoveryResponse.getDefaultInstance(), mockContext);
-
         final int vmProfileSizeInGB = 1900;
         final String vmProfileId = "vmProfileId";
+        final String vmId = "vmId";
+        final EntityDTO.InstanceDiskType vmDiskType = EntityDTO.InstanceDiskType.NVME_SSD;
+
+        final CloudProviderConversionContext mockContext = mock(CloudProviderConversionContext.class);
+        final CloudDiscoveryConverter converter = new CloudDiscoveryConverter(
+            DiscoveryResponse.getDefaultInstance(), mockContext);
+        final String volumeId = converter.createEphemeralVolumeId(vmId, 0, vmDiskType.toString());
+        when(mockContext.getCloudEntityTypeForProfileType(any()))
+                .thenReturn(Optional.of(EntityType.COMPUTE_TIER));
+        final String storageTierId = "NVME_SSD";
+        when(mockContext.getStorageTierId(any()))
+                .thenReturn(storageTierId);
+        when(mockContext.getAvailabilityZone(any())).thenReturn(Optional.of("azure::us_east"));
+
+        when(mockContext.getVolumeIdFromStorageFilePath(any(), any()))
+                .thenReturn(Optional.of(volumeId));
+
+
         final EntityDTO vm = EntityBuilders.virtualMachine("vmId")
             .profileId(vmProfileId)
             .numEphemeralStorages(1)
@@ -69,7 +73,9 @@ public class CloudDiscoveryConverterTest {
         final EntityProfileDTO vmProfile = EntityProfileDTO.newBuilder()
             .setId(vmProfileId)
             .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setVmProfileDTO(VMProfileDTO.newBuilder().setInstanceDiskSize(vmProfileSizeInGB))
+                .setVmProfileDTO(VMProfileDTO.newBuilder()
+                        .setInstanceDiskType(vmDiskType)
+                        .setInstanceDiskSize(vmProfileSizeInGB))
             .build();
         final EntityProperty localName = EntityProperty.newBuilder()
                 .setNamespace(SupplyChainConstants.NAMESPACE)

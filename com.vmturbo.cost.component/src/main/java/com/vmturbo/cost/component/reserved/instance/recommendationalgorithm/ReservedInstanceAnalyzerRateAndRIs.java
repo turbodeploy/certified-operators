@@ -72,7 +72,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     // The Reserved Instance specification store.
     private final ReservedInstanceSpecStore riSpecStore;
 
-    // The store containing the inventory of RIs that have already been purchased.
+    // The inventory of RIs that have already been purchased.
     private final ReservedInstanceBoughtStore riBoughtStore;
 
     // The store containing the RIs included in plan from the inventory of RIs that have already been purchased.
@@ -214,7 +214,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         List<Price> prices = baseRate.getPricesList();
         if (prices.size() > 1) {
             logger.warn("{}lookupOnDemandRate for masterID={} regionId={} tier={} platform={} tenancy={} prices.size()={} > 1",
-                logTag, regionalContext.getMasterAccountId(), regionalContext.getRegionId(),
+                logTag, regionalContext.getAccountId(), regionalContext.getRegionId(),
                 regionalContext.getComputeTier().getDisplayName(), regionalContext.getPlatform().name(),
                 regionalContext.getTenancy().name(), prices.size());
         }
@@ -455,7 +455,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     lookupReservedInstancesBoughtInfos(ReservedInstanceRegionalContext regionalContext, String logTag) {
         List<ReservedInstanceBoughtInfo> reservedInstances = new ArrayList<>();
         Map<Long, List<ReservedInstanceBoughtInfo>> risBought =
-                            reservedInstanceBoughtInfoTable.rowMap().get(regionalContext.getMasterAccountId());
+                            reservedInstanceBoughtInfoTable.rowMap().get(regionalContext.getAccountId());
         if (risBought == null) {
             logger.debug("{}no RIs found in regionalContext={}",
                 logTag, regionalContext);

@@ -55,12 +55,14 @@ import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
+import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.common.TargetCollectionUpdate.TargetPolicyUpdate;
 import com.vmturbo.group.common.TargetCollectionUpdate.TargetSettingPolicyUpdate;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.pojos.SettingPolicySchedule;
+import com.vmturbo.group.db.tables.records.GlobalSettingsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicyScheduleRecord;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -811,21 +813,28 @@ public class SettingStore implements DiagsRestorable {
 
     @Retryable(value = {SQLTransientException.class},
         maxAttempts = 3, backoff = @Backoff(delay = 2000))
-    private void updateGlobalSettingInternal(@Nonnull final Setting setting)
+    private void updateGlobalSettingInternal(@Nonnull final Collection<Setting> settings)
             throws SQLTransientException, DataAccessException {
         try {
-            dslContext.update(GLOBAL_SETTINGS)
-                        .set(GLOBAL_SETTINGS.SETTING_DATA, setting.toByteArray())
-                        .where(GLOBAL_SETTINGS.NAME.eq(setting.getSettingSpecName()))
-                        .execute();
-            try {
-                settingsUpdatesSender.notifySettingsUpdated(setting);
-            } catch (InterruptedException e) {
-                logger.error("Interrupted exception while broadcasting notification for setting {}",
+            dslContext.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                final List<GlobalSettingsRecord> globalSettingsRecords = settings.stream()
+                    .map(setting -> transaction.newRecord(GLOBAL_SETTINGS,
+                        new GlobalSettingsRecord(setting.getSettingSpecName(), setting.toByteArray())))
+                    .collect(Collectors.toList());
+                transaction.batchUpdate(globalSettingsRecords).execute();
+            });
+
+            for (Setting setting : settings) {
+                try {
+                    settingsUpdatesSender.notifySettingsUpdated(setting);
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted exception while broadcasting notification for setting {}",
                         setting.getSettingSpecName(), e);
-            } catch (CommunicationException e) {
-                logger.error("CommunicationException exception while broadcasting notification for" +
-                                " setting {}", setting.getSettingSpecName(), e);
+                } catch (CommunicationException e) {
+                    logger.error("CommunicationException exception while broadcasting notification for" +
+                        " setting {}", setting.getSettingSpecName(), e);
+                }
             }
         } catch (DataAccessException e) {
             if ((e.getCause() instanceof SQLException) &&
@@ -842,10 +851,43 @@ public class SettingStore implements DiagsRestorable {
             throws DataAccessException {
 
         try {
-            updateGlobalSettingInternal(setting);
+            updateGlobalSettingInternal(Collections.singletonList(setting));
         } catch (SQLTransientException e) {
             throw new DataAccessException("Failed to update setting: "
                 + setting.getSettingSpecName(), e.getCause());
+        }
+    }
+
+    /**
+     * Reset global settings.
+     *
+     * @param settingSpecNames the names of settings to reset
+     * @throws DataAccessException If there is another problem connecting to the database.
+     * @throws SettingNotFoundException If there are settings that are not in the database.
+     */
+    public void resetGlobalSetting(@Nonnull final Collection<String> settingSpecNames)
+            throws DataAccessException, SettingNotFoundException {
+        final List<String> settingNotFound = new ArrayList<>();
+        // Get default global settings.
+        final List<Setting> settings = DefaultGlobalSettingsCreator.defaultSettingsFromSpecs(
+            settingSpecNames.stream().map(settingSpecName -> {
+                if (settingSpecStore.getSettingSpec(settingSpecName).isPresent()) {
+                    return settingSpecStore.getSettingSpec(settingSpecName).get();
+                } else {
+                    settingNotFound.add(settingSpecName);
+                    return null;
+                }
+            }).filter(Objects::nonNull).collect(Collectors.toSet()));
+
+        if (!settingNotFound.isEmpty()) {
+            throw new SettingNotFoundException(settingNotFound);
+        }
+
+        try {
+            updateGlobalSettingInternal(settings);
+        } catch (SQLTransientException e) {
+            throw new DataAccessException("Failed to update settings: "
+                + settingSpecNames, e.getCause());
         }
     }
 

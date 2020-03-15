@@ -669,11 +669,7 @@ public class MarketStatsAccumulator {
             // get the peak to save it as max of used subtype
             double peak = commodityBoughtDTO.getPeak();
 
-            // if the commodity bought is associated with a volume, use the volume display name
-            // as key, since we want to show the volume name in the "Entity" column of chart
-            // "Capacity And Usage" in UI for cloud vm. Note: this only applies to cloud vm, since
-            // for on-prem vm we only show related entity which is the storage name
-            final String key = extractVolumeKey(entityDTO, commoditiesBought, entityByOid)
+            final String key = extractVolumeKey(entityDTO, commoditiesBought)
                 .orElse(commodityBoughtDTO.getCommodityType().getKey());
 
             Record record = dbTable.newRecord();
@@ -705,16 +701,12 @@ public class MarketStatsAccumulator {
      *
      * @param entityDTO the entity buying commodities
      * @param commoditiesBought commodities bought, potentially associated with volume(s)
-     * @param entityByOid entities by oid, potentially including volume(s)
      * @return key generated from volume information, if any is present/relevant
      */
     private Optional<String> extractVolumeKey(@Nonnull final TopologyEntityDTO entityDTO,
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
-            @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
-        if (HistoryStatsUtils.isCloudEntity(entityDTO) && commoditiesBought.hasVolumeId()
-                && entityByOid.containsKey(commoditiesBought.getVolumeId())) {
-            final TopologyEntityDTO volumeEntity = entityByOid.get(commoditiesBought.getVolumeId());
-            return Optional.of(TopologyDTOUtil.createVolumeKey(volumeEntity));
+            @Nonnull final CommoditiesBoughtFromProvider commoditiesBought) {
+        if (HistoryStatsUtils.isCloudEntity(entityDTO) && commoditiesBought.hasVolumeId()) {
+            return Optional.of(Long.toString(commoditiesBought.getVolumeId()));
         }
         return Optional.empty();
     }

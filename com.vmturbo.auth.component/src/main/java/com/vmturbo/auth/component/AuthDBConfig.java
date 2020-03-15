@@ -230,13 +230,18 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     @Primary
     public @Nonnull DataSource dataSource() {
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        String dbPassword = authDbPassword;
-        if (!credentials.isPresent()) {
-            // Use authDbPassword if specified;
-            // else, use the same externalized admin db password as prefix and append it with random characters.
-            dbPassword = !Strings.isEmpty(dbPassword) ? dbPassword : getRootSqlDBPassword() + generatePassword();
+        String dbPassword;
+        if (authDbPassword != null) {
+            // Use authDbPassword if specified as environment variable.
+            dbPassword = authDbPassword;
+        } else if (!credentials.isPresent()) {
+            // else if db credentials do not exist in Consul, use the same externalized admin db
+            // password as prefix and append it with random characters, and store the encrypted db
+            // password in Consul.
+            dbPassword = getRootSqlDBPassword() + generatePassword();
             authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
         } else {
+            // else, use the decrypted db password stored in Consul.
             dbPassword = getDecryptPassword(credentials.get());
         }
         // Get DataSource from the given DB schema name and user. Make sure we have the proper user

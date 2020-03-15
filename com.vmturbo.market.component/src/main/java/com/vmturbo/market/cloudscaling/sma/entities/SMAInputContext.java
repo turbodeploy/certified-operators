@@ -70,7 +70,7 @@ public class SMAInputContext {
                     oldVM.getProviders(),
                     oldVM.getCurrentRICoverage(),
                     oldVM.getZoneId(),
-                    oldVM.getCurrentRIKey(),
+                    oldVM.getCurrentRI(),
                     oldVM.getOsType());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
@@ -120,8 +120,8 @@ public class SMAInputContext {
                     (float)smaMatch.getDiscountedCoupons(),
                     oldVM.getZoneId(),
                     smaMatch.getReservedInstance() == null ?
-                            SMAUtils.NO_CURRENT_RI :
-                            smaMatch.getReservedInstance().getRiKeyOid(),
+                            SMAUtils.BOGUS_RI :
+                            smaMatch.getReservedInstance(),
                     oldVM.getOsType());
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);

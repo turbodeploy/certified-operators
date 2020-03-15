@@ -26,6 +26,7 @@
         "businessUserMove",
         "storageMove",
         "suspend",
+        "suspendIsDisabled",
         "delete",
         "resize",
         "provision",
@@ -142,6 +143,7 @@
         "maxObservationPeriodBusinessUser",
         "maxObservationPeriodVirtualMachine",
         "maxObservationPeriodDesktopPool",
+        "maxVMGrowthObservationPeriod",
         "resizeTargetUtilizationNetThroughput",
         "resizeTargetUtilizationIoThroughput",
         "resizeTargetUtilizationImageCPU",
@@ -162,7 +164,8 @@
         "viewPodActiveSessionCapacity",
         "dailyObservationWindowDesktopPool",
         "appHeapScalingIncrement",
-        "dbMemScalingIncrement"
+        "dbMemScalingIncrement",
+        "resizeVStorage"
       ]
     },
     "storagesettingsmanager": {

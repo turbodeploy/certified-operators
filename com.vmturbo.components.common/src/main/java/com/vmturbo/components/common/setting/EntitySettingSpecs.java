@@ -190,6 +190,12 @@ public enum EntitySettingSpecs {
             EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
+     * For some types of entities Suspend actions are disabled by default.
+     */
+    DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
+
+    /**
      * Delete action automation mode.
      */
     Delete("delete", "Delete", Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -513,7 +519,15 @@ public enum EntitySettingSpecs {
     VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
+            numeric(0.0f/*min*/, 999999.0f/*max*/, 1024.0f/*default*/), true),
+
+    /**
+     * Switch to enable/disable VStorage resizes.
+     */
+    ResizeVStorage("resizeVStorage", "Resize VStorage",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        new BooleanSettingDataType(false), true),
 
     /**
      * Excluded Templates.
@@ -1121,6 +1135,7 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.Reconfigure.name,
             EntitySettingSpecs.Resize.name,
             EntitySettingSpecs.Suspend.name,
+            EntitySettingSpecs.DisabledSuspend.name,
             EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
             EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,
             EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name,
@@ -1308,6 +1323,7 @@ public enum EntitySettingSpecs {
         return cls.isInstance(value) ? cls.cast(value) : null;
     }
 
+
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToManual() {
         return new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
@@ -1322,6 +1338,12 @@ public enum EntitySettingSpecs {
     private static SettingDataStructure<?> nonExecutableActionMode() {
         return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, ActionMode.class);
     }
+
+    @Nonnull
+    private static SettingDataStructure<?> actionExecutionModeSetToDisabled() {
+        return new EnumSettingDataType<>(ActionMode.DISABLED, ActionMode.class);
+    }
+
 
     @Nonnull
     private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {

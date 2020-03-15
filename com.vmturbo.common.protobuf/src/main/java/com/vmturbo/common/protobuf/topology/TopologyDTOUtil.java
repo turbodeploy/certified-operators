@@ -308,35 +308,4 @@ public final class TopologyDTOUtil {
         return marketTier.getConnectedEntityListList().stream()
                 .map(ConnectedEntity::getConnectedEntityId).anyMatch(id -> id == entityId);
     }
-
-    /**
-     * Creates a key for the volumeEntity by concatenating the displayName with the vendor ids.
-     *
-     * @param volumeEntity for which the volume key is being created.
-     * @return String representing volume key.
-     */
-    @Nonnull
-    public static String createVolumeKey(@Nonnull final TopologyEntityDTO volumeEntity) {
-        final String volumeKey;
-        if (volumeEntity.hasOrigin() && volumeEntity.getOrigin().hasDiscoveryOrigin()) {
-            final String vendorIds = volumeEntity.getOrigin().getDiscoveryOrigin()
-                    .getDiscoveredTargetDataMap().values().stream()
-                    .map(PerTargetEntityInformation::getVendorId)
-                    .filter(vendorId -> !vendorId.equals(volumeEntity.getDisplayName()))
-                    .collect(Collectors.joining(", "));
-            volumeKey = volumeEntity.getDisplayName() + (vendorIds.isEmpty() ? "" :
-                    " - " + vendorIds);
-        } else {
-            volumeKey = volumeEntity.getDisplayName();
-        }
-        // HistoryDbio::initializeCommodityRecord has logic to truncate commodity keys whose length
-        // *exceeds* 80 characters down to a length of 79 characters. This means that if a
-        // commodity key has a length of exactly 80 characters, truncation is *not* carried out.
-        // That logic needs to be replicated here as well.
-        if (volumeKey.length() > MAX_KEY_LENGTH) {
-            return volumeKey.substring(0, MAX_KEY_LENGTH - 1);
-        } else {
-            return volumeKey;
-        }
-    }
 }

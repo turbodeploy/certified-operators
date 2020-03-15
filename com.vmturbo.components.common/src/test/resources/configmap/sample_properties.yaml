@@ -12,3 +12,5 @@ customProperties:
        new: 'this is new'
     test-component:
        xyz: 999
+       # this is to verify the value will be replaced by value from secret file
+       username: fromPropertyFile

@@ -11,13 +11,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase;
 import com.vmturbo.history.schema.HistoryVariety;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;

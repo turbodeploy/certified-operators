@@ -31,7 +31,6 @@ import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
-import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.MigrationConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanDeletionSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
@@ -44,7 +43,6 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 @Import({DeploymentProfileConfig.class,
         PlanConfig.class,
         ScenarioConfig.class,
-        ClusterRollupSchedulerConfig.class,
         TemplatesConfig.class,
         ApiSecurityConfig.class,
         GlobalConfig.class,
@@ -77,9 +75,6 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private PlanOrchestratorDBConfig dbConfig;
-
-    @Autowired
-    private ClusterRollupSchedulerConfig clusterRollupSchedulerConfig;
 
     @Autowired
     private PlanProjectConfig planProjectConfig;
@@ -134,7 +129,6 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @Override
     public void onStartComponent() {
         super.onStartComponent();
-        clusterRollupSchedulerConfig.clusterRollupTask().initializeSchedule();
         planDeletionSchedulerConfig.planDeletionTask().start();
     }
 

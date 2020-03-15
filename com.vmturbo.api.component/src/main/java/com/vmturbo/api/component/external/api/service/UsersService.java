@@ -503,10 +503,11 @@ public class UsersService implements IUsersService {
         try {
             String request = baseRequest().path("/users/remove/" + uuid).build().toUriString();
             HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
+            String userName;
             try {
                 final ResponseEntity<AuthUserDTO> result = restTemplate_.exchange(request,
                     HttpMethod.DELETE, entity, AuthUserDTO.class);
-                final String userName = result.getBody() != null ? result.getBody().getUser() : "";
+                userName = result.getBody() != null ? result.getBody().getUser() : "";
                 final String details = String.format("Deleted user %s", userName);
                 AuditLog.newEntry(AuditAction.DELETE_USER,
                     details, true)
@@ -516,7 +517,7 @@ public class UsersService implements IUsersService {
                 logger_.error("Unable to remove user {}", uuid, e.getCause());
                 throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
             }
-            widgetsetsService.transferWidgetsets(uuid);
+            widgetsetsService.transferWidgetsets(uuid, userName);
             expireActiveSessions(uuid);
 
             return Boolean.TRUE;

@@ -268,7 +268,7 @@ public class SdkToTopologyEntityConverter {
                 // TODO (roman, Jan 31 2020) OM-55034: Get rid of these three.
                 // Only used in StorageAccessCapacityPostStitchingOperation.
                 dto.getDiskArrayData(),
-                dto.getStorageControllerRelatedData(),
+                dto.getStorageControllerData(),
                 dto.getLogicalPoolData()
         ).forEach(
             data -> data.getAllFields().forEach(

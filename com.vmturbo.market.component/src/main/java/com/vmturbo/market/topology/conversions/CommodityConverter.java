@@ -185,15 +185,24 @@ public class CommodityConverter {
                 1.0f : effectiveCapacityPercentage;
         float scale = effectiveCapacityPercentage < 1.0f ?
                 1.0f : effectiveCapacityPercentage;
+
+        resizable = resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
+                && !TopologyConversionUtils.isEntityConsumingCloud(dto)
+                // We do not want to resize idle entities. If the resizable flag
+                // is not set to false for idle entities, they can get resized
+                // because of historical utilization.
+                && dto.getEntityState() == EntityState.POWERED_ON;
+
+        // Overwrite the flag for vSAN
+        if (TopologyConversionUtils.isVsanStorage(dto)
+                && type == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE) {
+            resizable = true;
+        }
+
         final CommodityDTOs.CommoditySoldSettingsTO.Builder economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
-                                && !TopologyConversionUtils.isEntityConsumingCloud(dto)
-                                // We do not want to resize idle entities. If the resizable flag
-                                // is not set to false for idle entities, they can get resized
-                                // because of hitorical utilization.
-                                && dto.getEntityState() == EntityState.POWERED_ON)
-                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
+                        .setResizable(resizable)
+                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement() * scalingFactor)
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
@@ -231,6 +240,7 @@ public class CommodityConverter {
                 maxQuantityFloat = 0;
             }
         }
+        maxQuantityFloat *= scalingFactor;
         // if entry not present, initialize to 0
         int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
                 topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
@@ -238,6 +248,7 @@ public class CommodityConverter {
                                   topologyCommSold.hasHistoricalPeak()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
+        peak *= scalingFactor;
         if (peak < used) {
             peak = used;
         }

@@ -394,7 +394,10 @@ public class PlanTopologyScopeEditor {
                 (entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ||
                 entity.getTopologyEntityDtoBuilder().getOrigin().hasReservationOrigin()))
                 .forEach(entity -> scopingResult.put(entity.getOid(),
-                        TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())));
+                        entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ?
+                        TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())
+                            .setClonedFromEntityOid(entity.getClonedFromEntityOid())
+                        : TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())));
         logger.info("Completed scoping stage for on-prem topology .....");
         return new TopologyGraphCreator<>(scopingResult).build();
     }

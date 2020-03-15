@@ -2,15 +2,21 @@ package com.vmturbo.history.db.bulk;
 
 import static com.vmturbo.history.db.RecordTransformer.identity;
 import static com.vmturbo.history.db.bulk.DbInserters.valuesInserter;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
@@ -47,6 +53,13 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     private static final String HOUR_KEY_FIELD_NAME = VM_STATS_LATEST.HOUR_KEY.getName();
     private static final String DAY_KEY_FIELD_NAME = VM_STATS_LATEST.DAY_KEY.getName();
     private static final String MONTH_KEY_FIELD_NAME = VM_STATS_LATEST.MONTH_KEY.getName();
+
+    // cluster stats tables
+    private static final Set<Table<?>> CLUSTER_STATS_TABLES = ImmutableSet.of(
+            CLUSTER_STATS_LATEST,
+            CLUSTER_STATS_BY_HOUR,
+            CLUSTER_STATS_BY_DAY,
+            CLUSTER_STATS_BY_MONTH);
 
     // we delegate to this factory for all the writers we create
     private final BulkInserterFactory factory;
@@ -114,7 +127,10 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             return getEntityStatsInserter(table);
         } else if (Entities.ENTITIES == table || table == HistUtilization.HIST_UTILIZATION) {
             return factory.getInserter(
-                table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
+                    table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
+        } else if (CLUSTER_STATS_TABLES.contains(table)) {
+            return factory.getInserter(
+                    table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
         } else {
             return factory.getInserter(table, table, identity(), valuesInserter(table, basedbIO));
         }

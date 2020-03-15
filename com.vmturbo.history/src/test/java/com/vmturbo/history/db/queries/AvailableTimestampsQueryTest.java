@@ -108,7 +108,7 @@ public class AvailableTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableTimestampsQuery(
                 TimeFrame.LATEST, HistoryVariety.ENTITY_STATS, 0,
                 null, Timestamp.valueOf("2019-01-02 03:04:05")).getQuery();
-        queryChecker.withMoreConditions("available_timestamps.time_stamp < TIMESTAMP '2019-01-02 03:04:05\\.0'")
+        queryChecker.withMoreConditions("available_timestamps.time_stamp <= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
 

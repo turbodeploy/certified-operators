@@ -39,6 +39,7 @@ import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
 
 /**
  * A utility to convert extract requested stats from {@link TopologyEntityDTO}.
@@ -135,8 +136,9 @@ interface PlanEntityStatsExtractor {
                             commodityBoughtDTO.getPeak()));
                     final StatValue usedValues = accumulator.toStatValue();
                     final StatRecord statRecord =
-                        buildStatRecord(commodityName, key, usedValues, buildStatValue(0),
-                            providerOidString, StringConstants.RELATION_BOUGHT);
+                        buildStatRecord(commodityName, key, usedValues,
+                                PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
+                                StringConstants.RELATION_BOUGHT);
                     snapshot.addStatRecords(statRecord);
                 });
             }
@@ -181,12 +183,13 @@ interface PlanEntityStatsExtractor {
 
             if (commodityNames.contains(PRICE_INDEX)) {
                 final float projectedPriceIdx = (float)projectedEntity.getProjectedPriceIndex();
+                final StatValue statValue = PlanEntityStatsExtractorUtil.buildStatValue(projectedPriceIdx);
                 final StatRecord priceIdxStatRecord = StatRecord.newBuilder()
                     .setName(PRICE_INDEX)
                     .setCurrentValue(projectedPriceIdx)
-                    .setUsed(buildStatValue(projectedPriceIdx))
-                    .setPeak(buildStatValue(projectedPriceIdx))
-                    .setCapacity(buildStatValue(projectedPriceIdx))
+                    .setUsed(statValue)
+                    .setPeak(statValue)
+                    .setCapacity(statValue)
                     .build();
                 snapshot.addStatRecords(priceIdxStatRecord);
             }
@@ -272,22 +275,6 @@ interface PlanEntityStatsExtractor {
                 .setRelation(relation)
                 .build();
             return statRecord;
-        }
-
-        /**
-         * Create a {@link StatValue} initialized from a single value. All the fields
-         * are set to the same value.
-         *
-         * @param value the value to initialize the StatValue with
-         * @return a {@link StatValue} initialized with all fields set from the given value
-         */
-        private StatValue buildStatValue(float value) {
-            return StatValue.newBuilder()
-                .setAvg(value)
-                .setMin(value)
-                .setMax(value)
-                .setTotal(value)
-                .build();
         }
     }
 }

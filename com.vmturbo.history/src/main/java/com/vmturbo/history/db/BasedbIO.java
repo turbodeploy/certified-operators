@@ -1459,7 +1459,7 @@ public abstract class BasedbIO {
             // Create the database
             logger.info("Initializing database '" + dbName + "'...");
             SchemaUtil.createDb(dbName, rootConn);
-            execute("use " + dbName + ";", rootConn);
+            execute("use `" + dbName + "`;", rootConn);
 
             createDBUser(rootConn, dbName, getRequestHost());
             // Create user on localhost for testing.
@@ -1480,9 +1480,7 @@ public abstract class BasedbIO {
         logger.info("Initialize permissions for " + requestUser + " on '" + dbName + "'...");
         // Clean up existing db user, if it exists.
         try (PreparedStatement stmt = rootConn.prepareStatement(
-            "DROP USER ?@?;")) {
-            stmt.setString(1, getUserName());
-            stmt.setString(2, hostName);
+            "DROP USER " + requestUser + ";")) {
             stmt.execute();
             logger.info("Cleaned up {} db user.", requestUser);
         } catch (SQLException e) {
@@ -1491,18 +1489,13 @@ public abstract class BasedbIO {
         }
         // Create db user.
         try (PreparedStatement stmt = rootConn.prepareStatement(
-            "CREATE USER ?@? IDENTIFIED BY ?;")) {
-            stmt.setString(1, getUserName());
-            stmt.setString(2, hostName);
-            stmt.setString(3, getPassword());
+            "CREATE USER " + requestUser + " IDENTIFIED BY '" + getPassword() + "';")) {
             stmt.execute();
             logger.info("Created {} db user.", requestUser);
         }
         // Grant db user privileges
         try (PreparedStatement stmt = rootConn.prepareStatement(
-            "GRANT ALL PRIVILEGES ON *.* TO ?@?;")) {
-            stmt.setString(1, getUserName());
-            stmt.setString(2, hostName);
+            "GRANT ALL PRIVILEGES ON *.* TO " + requestUser + ";")) {
             stmt.execute();
             logger.info("Granted all privileges to user {}.", requestUser);
         }

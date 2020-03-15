@@ -2,7 +2,9 @@ package com.vmturbo.components.common.config;
 
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_COMPONENT_TYPE;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_PROPERTIES_YAML_PATH;
+import static com.vmturbo.components.common.BaseVmtComponent.PROP_SECRETS_YAML_PATH;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -15,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Supplier;
 
@@ -44,6 +47,10 @@ public class PropertiesLoader {
 
     private static final String DEFAULT_PROPERTIES_YAML_FILE_PATH =
         "file:/etc/turbonomic/properties.yaml";
+
+    private static final String DEFAULT_SECRETS_YAML_FILE_PATH =
+            "file:/vault/secrets/db-creds";
+
     private static final String CONFIG = "config";
     /**
      * The config source name for the properties read from "properties.yaml".
@@ -73,9 +80,12 @@ public class PropertiesLoader {
         String propertiesYamlFilePath = EnvironmentUtils
             .getOptionalEnvProperty(PROP_PROPERTIES_YAML_PATH)
             .orElse(DEFAULT_PROPERTIES_YAML_FILE_PATH);
+        final String secretYamlFilePath = EnvironmentUtils
+                .getOptionalEnvProperty(PROP_SECRETS_YAML_PATH)
+                .orElse(DEFAULT_SECRETS_YAML_FILE_PATH);
         final String componentType = applicationContext.getEnvironment().getRequiredProperty(PROP_COMPONENT_TYPE);
         final PropertySource<?> mergedPropertyConfiguration =
-            fetchConfigurationProperties(componentType, propertiesYamlFilePath);
+            fetchConfigurationProperties(componentType, propertiesYamlFilePath, secretYamlFilePath);
         applicationContext.getEnvironment().getPropertySources()
             .addFirst(mergedPropertyConfiguration);
         // Fetch other configuration properties from files compiled into the component
@@ -90,7 +100,7 @@ public class PropertiesLoader {
     }
 
     /**
-     * Fetch the Turbonomic external configuration properties for this component.
+     * Fetch the Turbonomic external configuration properties and secrets for this component.
      *
      * <p>The configuration properties are fetched from the "properties.yaml" file mounted
      * from the K8s ConfigMap resource. This includes defaultProperties and customProperties
@@ -108,31 +118,57 @@ public class PropertiesLoader {
      *     <li>customProperties: [component-type]:
      * </ol>
      *
+     * <p>The secrets are fetched from secret file.
+     * Sample secrets are:
+     *  password: A1a-9Y9tLPAX2NXOJYb9
+     *  username: v-kubernetes-coke-plan--3AvWqRZs
+     *
      * @param componentType The type of the component to be configured, used to look up the
      *                      subsection of the properties.yaml file
      * @param propertiesYamlFilePath the file path to fetch the "properties.yaml" file from
+     * @param secretYamlFilePath the file path to fetch the secrets
      * @return a PropertySource containing the configuration properties loaded from the
      * given configuration file path
      * @throws ContextConfigurationException if there is a problem reading the "properties.yaml"
      * file or the file has an invalid structure
      */
     @VisibleForTesting
-    static PropertySource<?> fetchConfigurationProperties(
-        @Nonnull final String componentType,
-        @Nonnull final String propertiesYamlFilePath) throws ContextConfigurationException {
+    static PropertySource<?> fetchConfigurationProperties(@Nonnull final String componentType,
+            @Nonnull final String propertiesYamlFilePath,
+            @Nonnull final String secretYamlFilePath) throws ContextConfigurationException {
         try {
-            final Properties yamlProperties = ConfigMapPropertiesReader.readConfigMap(
-                componentType, propertiesYamlFilePath);
-            // log the properties for debugging
-            logger.info("Configuration properties loaded from properties.yaml: {}",
-                propertiesYamlFilePath);
-            yamlProperties.forEach(PropertiesLoader::logProperty);
+            final Properties yamlProperties = getProperties(componentType, propertiesYamlFilePath);
+            getSecrets(componentType, secretYamlFilePath).ifPresent(secrets -> yamlProperties.putAll(secrets));
             // populate a PropertySource with the config properties from the yaml file
             return new PropertiesPropertySource(PROPERTIES_YAML_CONFIG_SOURCE, yamlProperties);
         } catch (IOException e) {
             throw new ContextConfigurationException("Error reading configuration file: " +
                 propertiesYamlFilePath, e);
         }
+    }
+
+    private static Properties getProperties(@Nonnull String componentType,
+            @Nonnull String propertiesYamlFilePath) throws IOException {
+        final Properties yamlProperties = ConfigMapPropertiesReader.readConfigMap(
+            componentType, propertiesYamlFilePath);
+        // log the properties for debugging
+        logger.info("Configuration properties loaded from properties.yaml: {}",
+            propertiesYamlFilePath);
+        yamlProperties.forEach(PropertiesLoader::logProperty);
+        return yamlProperties;
+    }
+
+    private static Optional<Properties> getSecrets(@Nonnull String componentType,
+            @Nonnull String secretYamlFilePath) throws IOException {
+        try {
+            // log the properties for debugging
+            logger.info("Trying to load secrets from: {}", secretYamlFilePath);
+            final Properties yamlProperties = SecretPropertiesReader.readSecretFile(componentType, secretYamlFilePath);
+            return Optional.ofNullable(yamlProperties);
+        } catch (FileNotFoundException e) {
+            logger.info("The DB secret file: {} doesn't exist, skip loading secrets.", secretYamlFilePath);
+        }
+        return Optional.empty();
     }
 
     /**

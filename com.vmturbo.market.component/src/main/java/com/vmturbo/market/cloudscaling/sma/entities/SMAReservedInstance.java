@@ -390,8 +390,9 @@ public class SMAReservedInstance {
      */
 
     public boolean isVMDiscountedByThisRI(SMAVirtualMachine vm) {
-        float riCoverage = vm.getCurrentRICoverage();
-        return (riCoverage > SMAUtils.EPSILON && vm.getCurrentRIKey() == getRiKeyOid());
+        return (vm.getCurrentRI() != null &&
+            vm.getCurrentRI().getRiKeyOid() == getRiKeyOid()) &&
+            vm.getCurrentRICoverage() > SMAUtils.EPSILON;
     }
 
     /**

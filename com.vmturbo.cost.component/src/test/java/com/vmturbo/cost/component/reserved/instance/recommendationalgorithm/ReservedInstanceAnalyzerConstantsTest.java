@@ -15,7 +15,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzerRateAndRIs.ReservedInstanceSpecKey;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -142,12 +141,21 @@ public class ReservedInstanceAnalyzerConstantsTest {
     static final long COMPUTE_TIER_T2_NANO_OID = 4110;
     static final long COMPUTE_TIER_T2_MICRO_OID = 4111;
     static final String COMPUTE_TIER_T2_FAMILY = "t2";
+    static final int NUM_COUPONS = 1;
 
-    static final ComputeTierInfo t2ComputeTierInfo = ComputeTierInfo.newBuilder().setFamily(COMPUTE_TIER_T2_FAMILY).build();
-    static final TypeSpecificInfo t2TypeSpecificInfo = TypeSpecificInfo.newBuilder().setComputeTier(t2ComputeTierInfo).build();
-
-    static final ComputeTierInfo m5ComputeTierInfo = ComputeTierInfo.newBuilder().setFamily(COMPUTE_TIER_M5_FAMILY).build();
-    static final TypeSpecificInfo m5TypeSpecificInfo = TypeSpecificInfo.newBuilder().setComputeTier(m5ComputeTierInfo).build();
+    static final ComputeTierInfo t2ComputeTierInfo = ComputeTierInfo.newBuilder()
+            .setFamily(COMPUTE_TIER_T2_FAMILY)
+            .setNumCoupons(NUM_COUPONS)
+            .build();
+    static final TypeSpecificInfo t2TypeSpecificInfo = TypeSpecificInfo.newBuilder()
+            .setComputeTier(t2ComputeTierInfo)
+            .build();
+    static final ComputeTierInfo m5ComputeTierInfo = ComputeTierInfo.newBuilder()
+            .setFamily(COMPUTE_TIER_M5_FAMILY)
+            .build();
+    static final TypeSpecificInfo m5TypeSpecificInfo = TypeSpecificInfo.newBuilder()
+            .setComputeTier(m5ComputeTierInfo)
+            .build();
     static final TopologyEntityDTO COMPUTE_TIER_M5_LARGE = TopologyEntityDTO.newBuilder()
         .setOid(COMPUTE_TIER_M5_LARGE_OID)
         .setDisplayName("m5.large")
@@ -255,19 +263,6 @@ public class ReservedInstanceAnalyzerConstantsTest {
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
             regionOhio);
 
-
-    /*
-     * ReservedInstanceSpecKey
-     */
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_1 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_2 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2);
-
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_3 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
-    static final ReservedInstanceSpecKey RI_SPEC_KEY_4 = new ReservedInstanceSpecKey(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2,
-        ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2);
     /*
      * ReservedInstanceSpecInfo
      */

@@ -131,7 +131,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
         Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
                 null, null, 0,
                 null, Timestamp.valueOf("2019-01-02 03:04:05"), false).getQuery();
-        queryChecker.withConditions("market_stats_latest.snapshot_time < TIMESTAMP '2019-01-02 03:04:05\\.0'")
+        queryChecker.withConditions("market_stats_latest.snapshot_time <= TIMESTAMP '2019-01-02 03:04:05\\.0'")
                 .check(query);
     }
 

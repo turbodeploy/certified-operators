@@ -110,7 +110,7 @@ public class EntitySettingsApplicator {
                                                             @Nonnull final GraphWithSettings graphWithSettings) {
         return ImmutableList.of(new MoveApplicator(graphWithSettings),
                 new VMShopTogetherApplicator(topologyInfo),
-                new SuspendApplicator(),
+                new SuspendApplicator(true), new SuspendApplicator(false),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.StorageMove,
@@ -194,6 +194,7 @@ public class EntitySettingsApplicator {
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.ACTIVE_SESSIONS),
                 new VsanStorageApplicator(),
+                new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
                 new ScalingPolicyApplicator(),
@@ -478,8 +479,9 @@ public class EntitySettingsApplicator {
      */
     private static class SuspendApplicator extends SingleSettingApplicator {
 
-        private SuspendApplicator() {
-            super(EntitySettingSpecs.Suspend);
+        private SuspendApplicator(boolean isEnabledByDefault) {
+            super(isEnabledByDefault ? EntitySettingSpecs.Suspend :
+                EntitySettingSpecs.DisabledSuspend);
         }
 
         @Override
@@ -574,6 +576,33 @@ public class EntitySettingsApplicator {
                                     entity::getEntityType, entity::getDisplayName, commSoldBuilder::getCommodityType);
                         }
                     });
+        }
+    }
+
+    /**
+     * Applies the "ResizeVStorage" setting to {@link TopologyEntityDTO.Builder} which is an on-prem VM.
+     */
+    private static class ResizeVStorageApplicator extends SingleSettingApplicator {
+
+        private ResizeVStorageApplicator() {
+            super(EntitySettingSpecs.ResizeVStorage);
+        }
+
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE &&
+                entity.getEnvironmentType() == EnvironmentType.ON_PREM) {
+                final boolean resizeable = setting.hasBooleanSettingValue() && setting.getBooleanSettingValue().getValue();
+                entity.getCommoditySoldListBuilderList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityType.VSTORAGE_VALUE)
+                    .forEach(commSoldBuilder -> {
+                        commSoldBuilder.setIsResizeable(resizeable);
+                        logger.trace("Setting resizable for {}:{}:{} to {}",
+                            entity.getEntityType(), entity.getDisplayName(),
+                            commSoldBuilder.getCommodityType(), resizeable);
+                    });
+            }
         }
     }
 

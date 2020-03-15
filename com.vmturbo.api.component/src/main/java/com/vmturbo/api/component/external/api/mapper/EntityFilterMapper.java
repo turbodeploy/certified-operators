@@ -348,16 +348,19 @@ public class EntityFilterMapper {
      * properties are maps, in which multiple values may correspond to a single key.
      * For example key "user" -> ["peter" and "paul"].</p>
      *
+     * <p>If parsing fails, then the filter that is generated
+     * should reject all entities.
+     * </p>
+     *
      * @param propName property name to use for the search.
      * @param expField expression field coming from the UI.
      * @param positiveMatch if false, then negate the result of the filter.
-     * @return the property filter; {@code null} when the expression cannot be parsed.
+     * @return the property filter
      */
-    @Nullable
-    public static PropertyFilter mapPropertyFilterForMultimapsExact(
-            @Nonnull String propName,
-            @Nonnull String expField,
-            boolean positiveMatch) {
+    @Nonnull
+    public static PropertyFilter mapPropertyFilterForMultimapsExact(@Nonnull String propName,
+                                                                    @Nonnull String expField,
+                                                                    boolean positiveMatch) {
         final List<String> keyValuePairs = splitWithEscapes(expField, '|');
         String key = null;
         final List<String> values = new ArrayList<>();
@@ -365,25 +368,25 @@ public class EntityFilterMapper {
             final List<String> kv = splitWithEscapes(kvp, '=');
             if (kv.size() != 2) {
                 logger.error("Cannot parse {} as a key/value pair", kvp);
-                return null;
+                return REJECT_ALL_PROPERTY_FILTER;
             }
             if (key == null) {
                 key = removeEscapes(kv.get(0));
             } else if (!key.equals(removeEscapes(kv.get(0)))) {
                 logger.error("Map filter {} contains more than one key", expField);
-                return null;
+                return REJECT_ALL_PROPERTY_FILTER;
             }
             if (!kv.get(1).isEmpty()) {
                 values.add(removeEscapes(kv.get(1)));
             } else {
                 logger.error("Cannot parse {} as a key/value pair", kvp);
-                return null;
+                return REJECT_ALL_PROPERTY_FILTER;
             }
         }
 
         if (key == null) {
             logger.error("Cannot parse {} to generate a string filter", expField);
-            return null;
+            return REJECT_ALL_PROPERTY_FILTER;
         }
 
         final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
@@ -397,6 +400,17 @@ public class EntityFilterMapper {
         logger.debug("Property filter constructed: {}", propertyFilter);
         return propertyFilter;
     }
+
+    /**
+     * A filter that rejects every entity (assuming that no entity has oid=0)
+     */
+    public static final PropertyFilter REJECT_ALL_PROPERTY_FILTER =
+            PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.OID)
+                .setNumericFilter(NumericFilter.newBuilder()
+                                    .setValue(0L)
+                                    .setComparisonOperator(ComparisonOperator.EQ))
+                .build();
 
     /**
      * Create a map filter for the specified property name

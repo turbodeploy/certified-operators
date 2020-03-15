@@ -247,7 +247,8 @@ defaultProperties:
         # Move cost factor for controlling aggressiveness of market in generating on-prem live market move actions.
         liveMarketMoveCostFactor: 0.05
         # Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
-        enableSMA: false
+        # or runs market and generates SMA actions to the log file.
+        marketMode: M2Only
     mediation.client:
         silentRetryTime: 0
         connRetryIntervalSeconds: 10

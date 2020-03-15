@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.BiMap;
@@ -32,6 +31,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
+
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,13 +63,14 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -216,14 +217,14 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
-        this.enableSMA = false;
+        this.marketMode = MarketMode.M2Only;
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
             shoppingListOidToInfos,
             cloudTc,
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
             cert,
-            projectedReservedInstanceCoverage, tierExcluder);
+            projectedReservedInstanceCoverage, tierExcluder, commodityIndex);
     }
 
     /**
@@ -326,7 +327,7 @@ public class TopologyConverter {
 
     private final ConsistentScalingHelper consistentScalingHelper;
 
-    private final boolean enableSMA;
+    private final MarketMode marketMode;
 
     /**
      * Constructor with includeGuaranteedBuyer parameter.
@@ -334,7 +335,7 @@ public class TopologyConverter {
      * @param topologyInfo Information about the topology.
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param quoteFactor to be used by move recommendations.
-     * @param enableSMA the market generates compute scaling action for could vms if false.
+     * @param marketMode the market generates compute scaling action for could vms if false.
      *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable market price table
@@ -348,7 +349,7 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
-                             final boolean enableSMA,
+                             final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              CommodityConverter commodityConverter,
@@ -361,7 +362,7 @@ public class TopologyConverter {
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
-        this.enableSMA = enableSMA;
+        this.marketMode = marketMode;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
@@ -380,7 +381,7 @@ public class TopologyConverter {
                 unmodifiableEntityOidToDtoMap,
                 oidToProjectedTraderTOMap,
                 cert,
-                projectedReservedInstanceCoverage, tierExcluder);
+                projectedReservedInstanceCoverage, tierExcluder, commodityIndex);
     }
 
 
@@ -408,7 +409,7 @@ public class TopologyConverter {
                              @NonNull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, false, liveMarketMoveCostFactor,
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null);
     }
@@ -417,7 +418,7 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
-                             final boolean enableSMA,
+                             final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull CommodityConverter commodityConverter,
@@ -429,7 +430,7 @@ public class TopologyConverter {
         this.cloudTopology = null;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
-        this.enableSMA = enableSMA;
+        this.marketMode = marketMode;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.commodityConverter = commodityConverter;
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
@@ -443,7 +444,7 @@ public class TopologyConverter {
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
             cert,
-            projectedReservedInstanceCoverage, tierExcluder);
+            projectedReservedInstanceCoverage, tierExcluder, commodityIndex);
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
     }
@@ -1737,7 +1738,8 @@ public class TopologyConverter {
                                     CommodityBoughtDTO::getScalingFactor))
                     .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
-                    .setPeak(peakQuantity);
+                    .setPeak(reverseScaleComm(peakQuantity, originalCommodityBoughtDTO,
+                            CommodityBoughtDTO::getScalingFactor));
                     if (originalCommodityBoughtDTO.isPresent()
                             && originalCommodityBoughtDTO.get().hasHistoricalUsed()
                             && originalCommodityBoughtDTO.get().getHistoricalUsed().hasPercentile()) {
@@ -1890,6 +1892,12 @@ public class TopologyConverter {
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone);
+
+            // Overwrite flags for vSAN
+            if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
+                settingsBuilder.setGuaranteedBuyer(true).setProviderMustClone(true)
+                        .setClonable(false).setSuspendable(false).setResizeThroughSupplier(true);
+            }
 
             //compute biclique IDs for this entity, the clique list will be used only for
             // shop together placement, so pmBasedBicliquer is called
@@ -2218,7 +2226,7 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
-            if (!enableSMA) {
+            if (marketMode != MarketMode.SMAOnly) {
                 // Create Coupon Comm
                 Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid);
                 if (coupon.isPresent()) {
@@ -2290,13 +2298,15 @@ public class TopologyConverter {
             new ShoppingListInfo(id, buyerOid, providerOid, resourceId, providerEntityType,
                     commBoughtGrouping.getCommodityBoughtList()));
 
-        if (enableSMA && includeByType(commBoughtGrouping.getProviderEntityType())
-                && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+        if (MarketMode.isEnableSMA(marketMode)
+            && includeByType(commBoughtGrouping.getProviderEntityType())
+            && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
             cloudVmComputeShoppingListIDs.add(id);
-            return economyShoppingListBuilder.setMovable(false).build();
-        } else {
-            return economyShoppingListBuilder.build();
+            if (marketMode == MarketMode.SMAOnly) {
+                return economyShoppingListBuilder.setMovable(false).build();
+            }
         }
+        return economyShoppingListBuilder.build();
     }
 
     /**
@@ -2645,6 +2655,7 @@ public class TopologyConverter {
             }
             usedQuantity *= topologyCommBought.getScalingFactor();
             float peakQuantity = getQuantity(index, peakQuantities, topologyCommBought, "peak");
+            peakQuantity *= topologyCommBought.getScalingFactor();
             newQuantityList.add(new Pair(Float.valueOf(usedQuantity),
                     Float.valueOf(peakQuantity)));
         }
@@ -2756,20 +2767,29 @@ public class TopologyConverter {
         // find original sold commodity of same type from original entity
         Optional<CommoditySoldDTO> originalCommoditySold =
                 commodityIndex.getCommSold(traderOid, commType);
-        float usage = commSoldTO.getQuantity();
-        float capacity = getCapacityForCommodity(commSoldTO, marketTier, commType, traderOid);
-        double newCapacity = reverseScaleComm(capacity, originalCommoditySold, CommoditySoldDTO::getScalingFactor);
+        CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
+                .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setCapacity((float)reverseScaleComm(commSoldTO.getCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setPeakQuantity((float)reverseScaleComm(peak,
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setMaxQuantity((float)reverseScaleComm(commSoldTO.getMaxQuantity(),
+                        originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .build();
+        double capacity = getCapacityForCommodity(adjustedCommSoldTO, marketTier, commType, traderOid);
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
-            .setCapacity(newCapacity)
-            .setUsed(reverseScaleComm(usage, originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-            .setPeak(peak)
+            .setCapacity(capacity)
+            .setUsed(adjustedCommSoldTO.getQuantity())
+            .setPeak(adjustedCommSoldTO.getPeakQuantity())
             .setIsResizeable(commSoldTO.getSettings().getResizable())
             .setEffectiveCapacityPercentage(
                 commSoldTO.getSettings().getUtilizationUpperBound() * 100)
             .setCommodityType(commType)
             .setIsThin(commSoldTO.getThin())
-            .setCapacityIncrement(
-                commSoldTO.getSettings().getCapacityIncrement());
+            .setCapacityIncrement((float)reverseScaleComm(
+                    commSoldTO.getSettings().getCapacityIncrement(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor));
 
         // set hot add / hot remove, if present
         originalCommoditySold
@@ -2782,7 +2802,7 @@ public class TopologyConverter {
             float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
                                         .getPercentile();
             double existingCapacity = originalCommoditySold.get().getCapacity();
-            float projectedPercentile = (float)(existingCapacity / newCapacity) * existingPercentile;
+            float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
             commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
                     .setPercentile(projectedPercentile)
                     .build());
@@ -2929,7 +2949,7 @@ public class TopologyConverter {
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    private <T> double reverseScaleComm(final double valueToReverseScale,
+    static <T> double reverseScaleComm(final double valueToReverseScale,
                     @Nonnull final Optional<T> commodity,
                     @Nonnull Function<T, Double> scalingFactorExtractor) {
         return commodity.map(scalingFactorExtractor).filter(sf -> {

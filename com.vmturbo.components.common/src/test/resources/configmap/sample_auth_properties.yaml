@@ -1,0 +1,18 @@
+defaultProperties:
+    global:
+       foo: 123
+       bar: 456
+    auth:
+       xyz: 123
+       authDbUsername : 'username'
+       authDbPassword: 'password'
+    other-component:
+       ignored: 1000
+customProperties:
+    global:
+       bar: 789
+       new: 'this is new'
+    auth:
+       xyz: 999
+       # this is to verify the value will be replaced by value from secret file
+       username: fromPropertyFile
