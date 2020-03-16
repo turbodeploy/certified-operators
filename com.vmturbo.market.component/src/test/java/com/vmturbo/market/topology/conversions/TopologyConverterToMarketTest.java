@@ -713,7 +713,14 @@ public class TopologyConverterToMarketTest {
         assertTrue(traderTwo.getSettings().getCanAcceptNewCustomers());
         assertTrue(traderTwo.getSettings().getIsShopTogether());
         assertTrue(traderTwo.getSettings().getClonable());
-        assertTrue(traderTwo.getSettings().getSuspendable());
+        // OM-51562 marks GuestLoads as daemons, which causes virtually all VMs suspend.
+        // Before that, although all VMs were suspendable, it was the presence of the GuestLoad
+        // that prevented VM suspension, which effectively caused the suspendable flag on VMs to be
+        // ignored.  Since this test entity is at the top of the supply chain, it is marked not
+        // suspendable, but the explicit setting above sets it to suspendable true. In order to
+        // preserve existing behavior (not suspend VMs that do not host containers), the suspendable
+        // flag will continue to be ignored and VMs that do not host containers will not suspend.
+        assertFalse(traderTwo.getSettings().getSuspendable());
         assertEquals(traderTwo.getSettings().getQuoteFactor(), MarketAnalysisUtils.QUOTE_FACTOR, epsilon);
     }
 

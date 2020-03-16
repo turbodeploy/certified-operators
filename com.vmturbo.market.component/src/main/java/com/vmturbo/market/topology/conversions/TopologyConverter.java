@@ -1833,12 +1833,15 @@ public class TopologyConverter {
              * 5. Whether entity is top of supply chain (to improve)
              * 6. Whether it is a DB or DBServer on cloud
              */
-            boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
+            // If topologyEntity set suspendable value, we should directly use it.
+            boolean suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
+                            ? topologyDTO.getAnalysisSettings().getSuspendable()
+                            : EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
             boolean isProviderMustClone = EntitySettings.BooleanKey
                     .PROVIDER_MUST_CLONE.value(topologyDTO);
-            // If the entity hosts containers, use the entity setting.  Otherwise, force suspension
-            // to false. In the future, mediation needs to set the suspend/clone setting so that
-            // this override is not required.
+            // If the entity hosts containers, use the entity setting.  Otherwise, force VM
+            // suspension to false. In the future, mediation needs to set the suspend/clone setting
+            // so that this override is not required.
             if (!providersOfContainers.contains(topologyDTO.getOid())) {
                 if ((bottomOfSupplyChain && active) ||
                         topOfSupplyChain ||   // Workaround for OM-25254. Should be set by mediation
@@ -1860,10 +1863,6 @@ public class TopologyConverter {
                 suspendable = false;
             }
 
-            // If topologyEntity set suspendable value, we should directly use it.
-            if (topologyDTO.getAnalysisSettings().hasSuspendable()) {
-                suspendable = topologyDTO.getAnalysisSettings().getSuspendable();
-            }
             final StitchingErrors stitchingErrors = StitchingErrors.fromProtobuf(topologyDTO);
             final boolean controllable = topologyDTO.getAnalysisSettings().getControllable() &&
                 // If there were stitching errors, it's risky to control this entity.
