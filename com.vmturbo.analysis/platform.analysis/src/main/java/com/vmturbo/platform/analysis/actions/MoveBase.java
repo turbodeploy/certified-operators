@@ -14,7 +14,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 class MoveBase extends ActionImpl {
     // Fields
-    private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
     private final @NonNull ShoppingList target_;
     private final @Nullable Trader source_;
 
@@ -30,21 +29,14 @@ class MoveBase extends ActionImpl {
      *               is supposed to be buying from just before the action is taken.
      */
     public MoveBase(@NonNull Economy economy, @NonNull ShoppingList target, @Nullable Trader source) {
-        economy_ = economy;
+        super(economy);
         target_ = target;
         source_ = source;
     }
 
     // Methods
 
-    /**
-     * Returns the economy of {@code this} move or reconfiguration. i.e. the economy containing
-     * target and source.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly MoveBase this) {
-        return economy_;
-    }
+
 
     /**
      * Returns the target of {@code this} move or reconfiguration. i.e. the shopping list that

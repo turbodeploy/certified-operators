@@ -5,9 +5,11 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
@@ -16,6 +18,8 @@ import com.vmturbo.platform.analysis.economy.Trader;
  * It also keeps track of the state of an action instance whether it is being taken or not.
  */
 public class ActionImpl implements Action {
+    // Fields
+    private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
 
     // a flag to indicate if the action is taken or not
     private boolean actionTaken = false;
@@ -29,9 +33,27 @@ public class ActionImpl implements Action {
     // main market.
     private boolean extractAction_ = false;
 
-    private ActionType type_;
-
     private @NonNull List<Action> subsequentActions_ = new LinkedList<>();
+
+    // Constructors
+
+    /**
+     * Constructs a new ActionImpl object. It's not intended to be used independently, but rather as
+     * the base object of concrete actions.
+     *
+     * @param economy The economy of {@code this} action.
+     */
+    ActionImpl(@NonNull Economy economy) {
+        economy_ = economy;
+    }
+
+    // Methods
+
+    @Pure
+    @Override
+    public @NonNull Economy getEconomy(@ReadOnly ActionImpl this) {
+        return economy_;
+    }
 
     @Override
     public ActionType getType() {

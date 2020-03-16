@@ -1,6 +1,10 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertSame;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
@@ -11,10 +15,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link StateChangeBase} class.
@@ -28,9 +28,10 @@ public class StateChangeBaseTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new MoveBase({0},{1})")
-    public final void testStateChangeBase(@NonNull Trader target, @NonNull Market sourceMarket) {
-        @NonNull StateChangeBase scb = new StateChangeBase(target, sourceMarket);
+    @TestCaseName("Test #{index}: new MoveBase({0},{1},{2})")
+    public final void testStateChangeBase(@NonNull Economy economy, @NonNull Trader target,
+                                          @NonNull Market sourceMarket) {
+        @NonNull StateChangeBase scb = new StateChangeBase(economy, target, sourceMarket);
 
         assertSame(target, scb.getTarget());
         assertSame(sourceMarket, scb.getSourceMarket());
@@ -42,7 +43,7 @@ public class StateChangeBaseTest {
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 
-        return new Object[][]{{t1,e1.getMarket(EMPTY)},{t2,e1.getMarket(EMPTY)}};
+        return new Object[][]{{e1, t1, e1.getMarket(EMPTY)}, {e1, t2, e1.getMarket(EMPTY)}};
     }
 
 } // end StateChangeBaseTest class

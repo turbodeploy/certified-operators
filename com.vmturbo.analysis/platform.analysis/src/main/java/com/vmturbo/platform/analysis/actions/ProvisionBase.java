@@ -16,8 +16,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 public abstract class ProvisionBase extends ActionImpl {
 
-    // Economy
-    private final @NonNull Economy economy_;
     // Trader which is cloned to provision new trader
     private final @NonNull Trader modelSeller_;
     // New Trader created after provision action is taken
@@ -31,16 +29,8 @@ public abstract class ProvisionBase extends ActionImpl {
      * @param modelSeller
      */
     public ProvisionBase(@NonNull Economy economy, @NonNull Trader modelSeller) {
-        economy_ = economy;
+        super(economy);
         modelSeller_ = modelSeller;
-    }
-
-    /**
-     * Returns the economy in which the new seller will be added.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly ProvisionBase this) {
-        return economy_;
     }
 
     /**

@@ -4,6 +4,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -21,10 +22,13 @@ class StateChangeBase extends ActionImpl {
      * Constructs a new StateChangeBase object. It's not intended to be used independently, but
      * rather as the base object of {@link Activate} and {@link Deactivate}.
      *
+     * @param economy The economy of {@code this} activation or deactivation.
      * @param target The target of {@code this} activation or deactivation.
      * @param sourceMarket The source market of {@code this} activation or deactivation.
      */
-    public StateChangeBase(@NonNull Trader target, Market sourceMarket) {
+    public StateChangeBase(@NonNull Economy economy, @NonNull Trader target,
+                           @NonNull Market sourceMarket) {
+        super(economy);
         target_ = target;
         sourceMarket_ = sourceMarket;
     }

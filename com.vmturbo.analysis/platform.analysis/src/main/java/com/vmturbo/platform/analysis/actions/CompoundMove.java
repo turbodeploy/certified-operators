@@ -13,6 +13,9 @@ import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -20,7 +23,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -76,6 +78,8 @@ public class CompoundMove extends ActionImpl {
      */
     private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
             @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
+        super(economy);
+
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
                     + shoppingLists.size() + ", destinations.size() = " + destinations.size());
         checkArgument(shoppingLists.size() == sources.size(), "shoppingLists.size() = "

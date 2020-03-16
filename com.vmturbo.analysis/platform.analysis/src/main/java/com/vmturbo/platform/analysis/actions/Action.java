@@ -47,12 +47,21 @@ public interface Action {
     @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid);
 
     /**
+     * Returns the economy of {@code this} action. i.e. the economy containing the action target.
+     *
+     * @see #getActionTarget()
+     */
+    @Pure
+    @NonNull Economy getEconomy(@ReadOnly Action this);
+
+    /**
      * Returns the {@link Trader} that this action operates on. If the action has a getTrader
      * method then usually it will return the value of that method.
+     *
      * @return the {@link Trader} that this action operates on
      */
     @Pure
-    @NonNull Trader getActionTarget();
+    @NonNull Trader getActionTarget(@ReadOnly Action this);
 
     /**
      * Takes {@code this} action on a specified {@link Economy}.

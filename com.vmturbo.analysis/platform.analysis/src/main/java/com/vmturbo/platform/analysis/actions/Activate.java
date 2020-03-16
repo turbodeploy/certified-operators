@@ -7,12 +7,13 @@ import java.util.function.IntFunction;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+import com.google.common.hash.Hashing;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.base.Preconditions;
-import com.google.common.hash.Hashing;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -25,7 +26,6 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class Activate extends StateChangeBase { // inheritance for code reuse
 
     private final @NonNull Trader modelSeller_;
-    private final @NonNull Economy economy_;
     private @Nullable CommoditySpecification reasonCommodity;
     // Constructors
 
@@ -40,9 +40,8 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket,
                     @NonNull Trader modelSeller,
                     @Nullable CommoditySpecification commCausingActivation) {
-        super(target, sourceMarket);
+        super(economy, target, sourceMarket);
         modelSeller_ = modelSeller;
-        economy_ = economy;
         reasonCommodity = commCausingActivation;
     }
 
@@ -54,14 +53,6 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
    @Pure
    public @NonNull Trader getModelSeller(@ReadOnly Activate this) {
        return modelSeller_;
-   }
-
-    /**
-    * Returns the economy in which the trader will be added.
-    */
-   @Pure
-   public @NonNull Economy getEconomy(@ReadOnly Activate this) {
-       return economy_;
    }
 
    @Override

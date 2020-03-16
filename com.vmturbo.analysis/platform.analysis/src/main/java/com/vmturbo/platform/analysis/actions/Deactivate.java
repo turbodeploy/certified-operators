@@ -10,14 +10,14 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.hash.Hashing;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -31,7 +31,6 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
     private static final Logger logger = LogManager.getLogger();
-    private final @NonNull Economy economy_;
     // Actions triggered by chaining Deactivate actions triggering by providerMustClone
     private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     private List<ShoppingList> removedShoppingLists = new ArrayList<>();
@@ -46,20 +45,10 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      *                     The sourceMarket can be NULL when the target doesn't sell in any market
      */
     public Deactivate(@NonNull Economy economy, @NonNull Trader target, @Nullable Market sourceMarket) {
-        super(target,sourceMarket);
-        economy_ = economy;
-
+        super(economy, target, sourceMarket);
     }
 
     // Methods
-
-    /**
-     * Returns the economy in which the new seller will be added.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly Deactivate this) {
-        return economy_;
-    }
 
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
@@ -83,7 +72,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                 .map(ShoppingList::getBuyer)
             .filter(trader -> trader.getSettings().isResizeThroughSupplier())
             .forEach(trader -> {
-                    economy_.getMarketsAsBuyer(trader).keySet().stream()
+                    getEconomy().getMarketsAsBuyer(trader).keySet().stream()
                         .filter(shoppingList -> shoppingList.getSupplier() == target)
                         .forEach(sl -> {
                             // Generate the resize actions for matching commodities between
@@ -92,7 +81,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                                                                                     getEconomy(),
                                                                                     target,
                                                                                     sl, false));
-                });
+                        });
             });
         } catch (Exception e) {
             logger.error("Error in Deactivate for resizeThroughSupplier Trader Capacity "
