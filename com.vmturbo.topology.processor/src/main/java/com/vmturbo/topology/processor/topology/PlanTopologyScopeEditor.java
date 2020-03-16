@@ -293,6 +293,8 @@ public class PlanTopologyScopeEditor {
                 }
             }
 
+
+
             // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
             // that doesnt buy/sell commodities
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -327,12 +329,8 @@ public class PlanTopologyScopeEditor {
             providersExpanded.add(traderOid);
             TopologyEntity thisTrader = topology.getEntity(traderOid).get();
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
-            // also omit traders of the type pulled in as seed members
-            Set<TopologyEntity> potentialSellers = getPotentialSellers(index, thisTrader.getTopologyEntityDtoBuilder()
-                            .getCommoditiesBoughtFromProvidersList().stream()
-                            .filter(cbp -> !allSeed.containsKey(EntityType.forNumber(cbp.getProviderEntityType()))));
+            Set<TopologyEntity> potentialSellers = getPotentialSellers(index, thisTrader);
             List<Long> sellersAndConnectionsOids = potentialSellers.stream()
-                    .filter(trader -> !allSeed.containsKey(EntityType.forNumber(trader.getEntityType())))
                     .map(trader -> trader.getOid())
                     .filter(buyerOid -> !providersExpanded.contains(buyerOid))
                     .collect(Collectors.toList());
@@ -408,16 +406,16 @@ public class PlanTopologyScopeEditor {
      * Returns a set of potential providers.
      *
      * @param index contains the mapping of commodity to sellers.
-     * @param commBoughtFromProviders list of {@link CommoditiesBoughtFromProvider}
      * @return list of potential sellers selling the list of commoditiesBought.
      */
     public Set<TopologyEntity> getPotentialSellers(@Nonnull final InvertedIndex<TopologyEntity,
             TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
-                       @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
+                               @Nonnull final TopologyEntity entity) {
         Set<TopologyEntity> potentialSellers = new HashSet<>();
-        // vCenter PMs buy latency and iops with active=false from underlying DSs.
-        // Bring in only providers for baskets with atleast 1 active commodity
-        commBoughtFromProviders.filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(c -> c.getActive() == true))
+        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                // vCenter PMs buy latency and iops with active=false from underlying DSs.
+                // Bring in only providers for baskets with atleast 1 active commodity
+                .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(c -> c.getActive() == true))
                 .forEach(cbp -> potentialSellers.addAll(index.getSatisfyingSellers(cbp).collect(Collectors.toList())));
         return potentialSellers;
     }
