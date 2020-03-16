@@ -9,7 +9,9 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
-env: {}
+env:
+  - name: DB_MEM_PCT_FOR_BUFFER_POOL
+    value: "80"
 
 livenessFailureThreshold: 1440
 
