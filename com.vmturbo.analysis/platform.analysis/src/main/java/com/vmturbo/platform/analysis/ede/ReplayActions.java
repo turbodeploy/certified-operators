@@ -8,13 +8,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -54,26 +55,32 @@ public class ReplayActions {
     public List<Action> getActions() {
         return actions_;
     }
+
     public void setActions(List<Action> actions) {
         actions_ = actions;
     }
+
     public Set<Trader> getRolledBackSuspensionCandidates() {
         return rolledBackSuspensionCandidates_;
     }
+
     public void setRolledBackSuspensionCandidates(Set<Trader> rolledBackSuspensionCandidates) {
         rolledBackSuspensionCandidates_ = rolledBackSuspensionCandidates;
     }
+
     public BiMap<Trader, Long> getTraderOids() {
         return traderOids_;
     }
+
     public void setTraderOids(BiMap<Trader, Long> traderOids) {
         traderOids_ = traderOids;
     }
 
     /**
-     * Replay Actions from earlier run on the new {@link Economy}
+     * Replay Actions from earlier run on the new {@link Economy}.
      *
      * @param economy The {@link Economy} in which actions are to be replayed
+     * @param ledger current ledger
      */
     public void replayActions(Economy economy, Ledger ledger) {
         Topology topology = economy.getTopology();
@@ -228,7 +235,7 @@ public class ReplayActions {
         // that force utilization to exceed maxDesiredUtil*utilTh.
         suspensionInstance.adjustUtilThreshold(economy, true);
         for (Action deactivateAction : deactivateActions) {
-            Deactivate oldAction = (Deactivate) deactivateAction;
+            Deactivate oldAction = (Deactivate)deactivateAction;
             Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
             if (isEligibleforSuspensionReplay(newTrader, economy)) {
                 if (Suspension.getSuspensionsthrottlingconfig() == SuspensionsThrottlingConfig.CLUSTER) {
@@ -236,7 +243,7 @@ public class ReplayActions {
                 }
                 if (newTrader.getSettings().isControllable()) {
                     suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
-                                    ledger, true));
+                        ledger, true));
                 } else {
                     // If controllable is false, deactivate the trader without checking criteria
                     // as entities may not be able to move out of the trader with controllable false.
@@ -244,6 +251,10 @@ public class ReplayActions {
                     Deactivate replayedSuspension = new Deactivate(economy, newTrader,
                                     !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0) : null);
                     suspendActions.add(replayedSuspension.take());
+                    // Any orphan suspensions generated will be added to the replayed suspension's
+                    // subsequent actions list.
+                    suspensionInstance
+                        .suspendOrphanedCustomers(economy, replayedSuspension);
                     suspendActions.addAll(replayedSuspension.getSubsequentActions());
                 }
             }
@@ -273,7 +284,7 @@ public class ReplayActions {
     }
 
     /**
-     * Translate the list of rolled-back suspension candidate traders to the given {@link Economy}
+     * Translate the list of rolled-back suspension candidate traders to the given {@link Economy}.
      *
      * @param newEconomy The {@link Economy} in which actions are to be replayed
      * @param newTopology The {@link Topology} for the given {@link Economy}
@@ -290,7 +301,7 @@ public class ReplayActions {
     }
 
     /**
-     * Translate the given trader to the one in new {@link Economy}
+     * Translate the given trader to the one in new {@link Economy}.
      *
      * @param trader The trader for which we want to find the corresponding trader
      *               in new {@link Economy}
@@ -311,7 +322,7 @@ public class ReplayActions {
     }
 
     /**
-     * Translate the given ShoppingList to the new Economy
+     * Translate the given ShoppingList to the new Economy.
      *
      * @param oldTarget The ShoppingList in the old Economy
      * @param newEconomy The {@link Economy} in which actions are to be replayed
@@ -341,7 +352,7 @@ public class ReplayActions {
     }
 
     /**
-     * Translate the CommoditySold to the one in new Economy
+     * Translate the CommoditySold to the one in new Economy.
      *
      * @param newSellingTrader The Trader in the new Economy
      * @param oldResizedCommoditySpec The CommoditySpecification for the Trader in old Economy

@@ -891,6 +891,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
         cloneContext(trader, cloneTrader);
         cloneTrader.getSettings().setCostFunction(trader.getSettings().getCostFunction());
+        cloneTrader.getSettings().setDaemon(trader.getSettings().isDaemon());
         cloneCommoditiesSold(trader, cloneTrader);
         cloneShoppingLists(trader, cloneTrader);
     }

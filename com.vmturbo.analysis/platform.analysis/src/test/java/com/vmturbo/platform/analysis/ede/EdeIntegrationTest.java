@@ -153,7 +153,7 @@ public class EdeIntegrationTest {
 
         // assert absence of suspension
         Suspension suspension = new Suspension();
-        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger, engine);
+        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
 
@@ -190,7 +190,7 @@ public class EdeIntegrationTest {
 
         // assert absence of 1 suspension
         Suspension suspension = new Suspension();
-        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger, engine);
+        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
 }

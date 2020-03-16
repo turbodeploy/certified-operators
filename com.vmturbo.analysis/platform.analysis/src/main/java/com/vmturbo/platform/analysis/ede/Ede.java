@@ -327,7 +327,7 @@ public final class Ede {
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
-            actions.addAll(suspension.suspensionDecisions(economy, ledger, this));
+            actions.addAll(suspension.suspensionDecisions(economy, ledger));
             if (getReplayActions() != null) {
                 getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             }
