@@ -231,7 +231,7 @@ public class CompoundMove extends ActionImpl {
     @Override
     @Pure
     public boolean equals(@ReadOnly CompoundMove this, @ReadOnly Object other) {
-        if(other == null || !(other instanceof CompoundMove))
+        if(!(other instanceof CompoundMove))
             return false;
         return moves_.equals(((CompoundMove)other).moves_);
     }

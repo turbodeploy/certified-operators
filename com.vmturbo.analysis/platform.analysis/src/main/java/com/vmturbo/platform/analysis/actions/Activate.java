@@ -123,7 +123,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     @Pure
     public boolean equals(@ReadOnly Activate this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Activate)) {
+        if (!(other instanceof Activate)) {
             return false;
         }
         Activate otherActivate = (Activate)other;

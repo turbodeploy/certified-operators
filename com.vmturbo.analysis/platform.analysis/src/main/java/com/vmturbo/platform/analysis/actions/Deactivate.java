@@ -155,7 +155,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     @Override
     @Pure
     public boolean equals(@ReadOnly Deactivate this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Deactivate)) {
+        if (!(other instanceof Deactivate)) {
             return false;
         }
         Deactivate otherDeactivate = (Deactivate)other;

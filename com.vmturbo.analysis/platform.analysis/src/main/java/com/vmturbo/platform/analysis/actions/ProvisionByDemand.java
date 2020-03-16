@@ -10,13 +10,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.hash.Hashing;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.BuyerInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -293,7 +293,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     @Override
     @Pure
     public boolean equals(@ReadOnly ProvisionByDemand this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof ProvisionByDemand)) {
+        if (!(other instanceof ProvisionByDemand)) {
             return false;
         }
         ProvisionByDemand otherProvisionByDemand = (ProvisionByDemand)other;

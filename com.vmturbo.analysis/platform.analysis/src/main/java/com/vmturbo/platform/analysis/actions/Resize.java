@@ -285,7 +285,7 @@ public class Resize extends ActionImpl {
     @Override
     @Pure
     public boolean equals(@ReadOnly Resize this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Resize)) {
+        if (!(other instanceof Resize)) {
             return false;
         }
         Resize otherResize = (Resize)other;

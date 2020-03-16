@@ -154,7 +154,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     @Override
     @Pure
     public boolean equals(@ReadOnly Reconfigure this, @ReadOnly Object other) {
-        if (other == null || !(other instanceof Reconfigure)) {
+        if (!(other instanceof Reconfigure)) {
             return false;
         }
         Reconfigure otherReconfigure = (Reconfigure)other;

@@ -480,7 +480,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Override
     @Pure
     public boolean equals(@ReadOnly Move this, @ReadOnly Object other) {
-        if (other == null || !(other instanceof Move)) {
+        if (!(other instanceof Move)) {
             return false;
         }
         Move otherMove = (Move)other;

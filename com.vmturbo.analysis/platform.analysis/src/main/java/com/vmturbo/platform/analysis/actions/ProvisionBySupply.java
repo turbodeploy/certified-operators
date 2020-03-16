@@ -11,14 +11,14 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.hash.Hashing;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.BuyerInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -346,7 +346,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
     @Override
     @Pure
     public boolean equals(@ReadOnly ProvisionBySupply this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof ProvisionBySupply)) {
+        if (!(other instanceof ProvisionBySupply)) {
             return false;
         }
         ProvisionBySupply otherProvisionBySupply = (ProvisionBySupply)other;
