@@ -350,7 +350,7 @@ public class GroupScopeResolver {
                     .setTraversalFilter(TraversalFilter.newBuilder()
                         .setTraversalDirection(TraversalDirection.PRODUCES)
                         .setStoppingCondition(StoppingCondition.newBuilder()
-                            .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION.getNumber())))
+                            .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION_COMPONENT.getNumber())))
                     )));
         try {
             return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
