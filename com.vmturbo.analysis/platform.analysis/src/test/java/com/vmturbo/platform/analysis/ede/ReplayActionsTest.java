@@ -1,24 +1,25 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -30,23 +31,22 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 public class ReplayActionsTest {
 
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final Basket PMtoVM = new Basket(CPU,
+    private static final Basket VMtoPM = new Basket(CPU,
                                 new CommoditySpecification(1), // MEM
                                 new CommoditySpecification(2), // Datastore commodity with key 1
                                 new CommoditySpecification(3));// Datastore commodity with key 2
-    private static final Basket STtoVM = new Basket(
+    private static final Basket VMtoST = new Basket(
                                 new CommoditySpecification(4), // Storage Amount (no key)
                                 new CommoditySpecification(5));// DSPM access commodity with key A
 
     private @NonNull Economy first;
     private @NonNull Economy second;
-    private @NonNull Topology firstTopology;
     private @NonNull Trader vm;
     private @NonNull Trader pm1;
     private @NonNull Trader pm2;
@@ -55,24 +55,26 @@ public class ReplayActionsTest {
 
     @Before
     public void setUp() throws Exception {
-        first = new Economy();
-        vm = first.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
-        pm1 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        pm2 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        Trader st1 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
-        Trader st2 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
-        traderOids.put(vm, 1L);
-        traderOids.put(pm1, 2L);
-        traderOids.put(pm2, 3L);
-        traderOids.put(st1, 4L);
-        traderOids.put(st2, 5L);
+        final @NonNull Topology firstTopology = new Topology();
+        first = firstTopology.getEconomyForTesting();
+
+        vm = firstTopology.addTrader(0, 0, TraderState.ACTIVE, new Basket(), Collections.emptyList());
+        ShoppingList[] shoppingLists = {
+            firstTopology.addBasketBought(100, vm, VMtoPM),
+            firstTopology.addBasketBought(101, vm, VMtoST),
+            firstTopology.addBasketBought(102, vm, VMtoST)
+        };
+        pm1 = firstTopology.addTrader(1, 1, TraderState.ACTIVE, VMtoPM, Collections.singletonList(0L));
+        pm2 = firstTopology.addTrader(2, 1, TraderState.ACTIVE, VMtoPM, Collections.singletonList(0L));
+        Trader st1 = firstTopology.addTrader(3, 2, TraderState.ACTIVE, VMtoST, Collections.singletonList(0L));
+        Trader st2 = firstTopology.addTrader(4, 2, TraderState.ACTIVE, VMtoST, Collections.singletonList(0L));
+
         vm.setDebugInfoNeverUseInCode("VirtualMachine|1");
         pm1.setDebugInfoNeverUseInCode("PhysicalMachine|2");
         pm2.setDebugInfoNeverUseInCode("PhysicalMachine|3");
         st1.setDebugInfoNeverUseInCode("Storage|4");
         st2.setDebugInfoNeverUseInCode("Storage|5");
-        ShoppingList[] shoppingLists = first.getMarketsAsBuyer(vm)
-                                            .keySet().toArray(new ShoppingList[3]);
+
         shoppingLists[0].move(pm1);
         shoppingLists[0].setQuantity(0, 42);
         shoppingLists[0].setPeakQuantity(0, 42);
@@ -82,11 +84,13 @@ public class ReplayActionsTest {
         shoppingLists[0].setPeakQuantity(2, 1);
         shoppingLists[0].setQuantity(3, 1);
         shoppingLists[0].setPeakQuantity(3, 1);
+
         shoppingLists[1].move(st1);
         shoppingLists[1].setQuantity(0, 1000);
         shoppingLists[1].setPeakQuantity(0, 1000);
         shoppingLists[1].setQuantity(0, 1);
         shoppingLists[1].setPeakQuantity(0, 1);
+
         shoppingLists[2].move(st2);
         shoppingLists[2].setQuantity(0, 1000);
         shoppingLists[2].setPeakQuantity(0, 1000);
@@ -106,16 +110,7 @@ public class ReplayActionsTest {
         st1.getSettings().setCanAcceptNewCustomers(true);
         st2.getSettings().setCanAcceptNewCustomers(true);
 
-        firstTopology = new Topology();
-        first.setTopology(firstTopology);
-        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
-        traderOidField.setAccessible(true);
-        traderOidField.set(firstTopology, traderOids);
-        Field unmodifiableTraderOidField = Topology.class
-                                                   .getDeclaredField("unmodifiableTraderOids_");
-        unmodifiableTraderOidField.setAccessible(true);
-        unmodifiableTraderOidField.set(firstTopology, traderOids);
-
+        traderOids = firstTopology.getTraderOids();
         second = cloneEconomy(first);
     }
 
@@ -145,8 +140,9 @@ public class ReplayActionsTest {
         replayActions.setTraderOids(traderOids);
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         for (ShoppingList sl : buying.keySet()) {
-            ShoppingList newSl = replayActions.translateShoppingList(sl, second, second.getTopology());
-            assertEquals(true, sl.getBasket().equals(newSl.getBasket()));
+            ShoppingList newSl =
+                replayActions.translateShoppingList(sl, second, second.getTopology());
+            assertEquals(sl.getBasket(), newSl.getBasket());
         }
     }
 
@@ -179,12 +175,9 @@ public class ReplayActionsTest {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
         replayActions.setActions(actions);
-        Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
-        ShoppingList pmShoppingList = null;
-        for (ShoppingList sl : buying.keySet()) {
-            pmShoppingList = sl;
-            break;
-        }
+        ShoppingList pmShoppingList =
+            first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
+
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
@@ -199,12 +192,9 @@ public class ReplayActionsTest {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
         replayActions.setActions(actions);
-        Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
-        ShoppingList pmShoppingList = null;
-        for (ShoppingList sl : buying.keySet()) {
-            pmShoppingList = sl;
-            break;
-        }
+        ShoppingList pmShoppingList =
+            first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
+
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
         replayActions.replayActions(second, new Ledger(second));
@@ -219,7 +209,7 @@ public class ReplayActionsTest {
             replayActionsSecond.replayActions(third, new Ledger(third));
             assertEquals(0, replayActionsSecond.getActions().size());
         } catch (ClassNotFoundException | IOException e) {
-            assertTrue(false);
+            fail();
         }
     }
 
