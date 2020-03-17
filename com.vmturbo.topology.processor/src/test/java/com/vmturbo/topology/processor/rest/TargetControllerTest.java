@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -50,8 +53,6 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.NestedServletException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
@@ -84,9 +85,10 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
@@ -110,6 +112,11 @@ public class TargetControllerTest {
         @Bean
         public KeyValueStore keyValueStore() {
             return Mockito.mock(KeyValueStore.class);
+        }
+
+        @Bean
+        public TargetDao targetDao() {
+            return Mockito.mock(TargetDao.class);
         }
 
         @Bean
@@ -147,7 +154,7 @@ public class TargetControllerTest {
             GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
             Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
                     .then(AdditionalAnswers.returnsSecondArg());
-            return new KVBackedTargetStore(keyValueStore(), probeStore(),
+            return new CachingTargetStore(targetDao(), probeStore(),
                     targetIdentityStore());
         }
 

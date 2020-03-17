@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.targets;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -16,12 +15,6 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
-import com.google.protobuf.util.JsonFormat;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
@@ -75,15 +68,16 @@ public class Target {
     private boolean hasGroupScope = false;
 
     /**
-     * Create a target from a string as returned by {@link Target#toJsonString()}.
+     * Create a target from an existing {@link InternalTargetInfo}.
      *
-     * @param serializedTarget The string representing the serialized target.
+     * @param internalTargetInfo The {@link InternalTargetInfo}.
      * @param probeStore The probe store instance.
      * @throws TargetDeserializationException If failed to de-serialize the target.
      * @throws InvalidTargetException if probe not found in probe store
      */
-    public Target(@Nonnull final String serializedTarget, @Nonnull final ProbeStore probeStore) throws TargetDeserializationException, InvalidTargetException {
-        this.info = InternalTargetInfo.fromJsonString(serializedTarget);
+    public Target(@Nonnull final InternalTargetInfo internalTargetInfo,
+                  @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
+        this.info = internalTargetInfo;
         this.id = info.targetInfo.getId();
         this.probeId = info.targetInfo.getSpec().getProbeId();
         this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
@@ -522,12 +516,12 @@ public class Target {
     }
 
     /**
-     * Serializes the target to a JSON string that's compatible with {@link Target#Target(String, ProbeStore)}.
+     * Get the {@link InternalTargetInfo} containing information about secret fields.
      *
-     * @return The JSON string representing the target.
+     * @return The {@link InternalTargetInfo}.
      */
-    public String toJsonString() {
-        return info.toJsonString();
+    InternalTargetInfo getInternalTargetInfo() {
+        return info;
     }
 
     /**
@@ -535,12 +529,7 @@ public class Target {
      * of {@link AccountValue}s that are supposed to be secret.
      */
     @Immutable
-    private static class InternalTargetInfo {
-        private static final Gson GSON = new GsonBuilder()
-            // Need to be able to serialize AccountValue protos.
-            .registerTypeAdapter(InternalTargetInfo.class, new InternalTargetInfoAdapter())
-            .create();
-
+    static class InternalTargetInfo {
         final TargetInfo targetInfo;
 
         final Set<String> secretFields;
@@ -609,67 +598,8 @@ public class Target {
             }
             return targetInfoBuilder.build();
         }
-
-        @Nonnull
-        String toJsonString() {
-            return GSON.toJson(this);
-        }
-
-        @Nonnull
-        static InternalTargetInfo fromJsonString(@Nonnull final String serializedString) throws TargetDeserializationException {
-            try {
-                return GSON.fromJson(serializedString, InternalTargetInfo.class);
-            } catch (Exception e) {
-                throw new TargetDeserializationException(e);
-            }
-        }
     }
 
-    /**
-     * GSON adapter to serialize {@link InternalTargetInfo}.
-     */
-    private static class InternalTargetInfoAdapter extends TypeAdapter<InternalTargetInfo> {
-        @Override
-        public void write(JsonWriter out, InternalTargetInfo value) throws IOException {
-            out.beginObject();
-            out.name("secretFields");
-            out.beginArray();
-            for (final String field : value.secretFields) {
-                out.value(CryptoFacility.encrypt(field));
-            }
-            out.endArray();
-            out.endObject();
-
-            out.beginObject();
-            out.name("targetInfo");
-            out.value(JsonFormat.printer().print(value.encrypt()));
-            out.endObject();
-        }
-
-        @Override
-        public InternalTargetInfo read(JsonReader in) throws IOException {
-            final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
-            in.beginObject();
-            in.nextName();
-            in.beginArray();
-            while (in.hasNext()) {
-                secretFieldBuilder.add(CryptoFacility.decrypt(in.nextString()));
-            }
-            in.endArray();
-            in.endObject();
-
-            in.beginObject();
-            in.nextName();
-            final String serializedTarget = in.nextString();
-            final TargetInfo.Builder builder = TargetInfo.newBuilder();
-            JsonFormat.parser().merge(serializedTarget, builder);
-            in.endObject();
-            final Set<String> sf = secretFieldBuilder.build();
-            final InternalTargetInfo itf = new InternalTargetInfo(builder.build(), secretFieldBuilder.build());
-
-            return new InternalTargetInfo(itf.decrypt(sf), sf);
-        }
-    }
 
     @Override
     public String toString() {

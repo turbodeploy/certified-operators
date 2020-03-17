@@ -17,7 +17,6 @@ import org.junit.Test;
 
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
@@ -40,11 +39,11 @@ public class DerivedTargetParserTest {
 
     @Before
     public void setup() throws Exception {
-        KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        TargetDao targetDao = mock(TargetDao.class);
         ProbeStore probeStore = mock(ProbeStore.class);
         IdentityStore<TargetSpec> identityStore =
             new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, identityStore);
+        targetStore = new CachingTargetStore(targetDao, probeStore, identityStore);
         derivedTargetParser = new DerivedTargetParser(probeStore, targetStore);
         when(probeStore.getProbe(probeID1)).thenReturn(Optional.of(probeInfo1));
         when(probeStore.getProbeIdForType(probeType1)).thenReturn(Optional.of(probeID1));

@@ -5,46 +5,35 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
-import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.rules.TemporaryFolder;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
-import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -63,9 +52,9 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
- * Test the {@link KVBackedTargetStore}.
+ * Test the {@link CachingTargetStore}.
  */
-public class KVBackedTargetStoreTest {
+public class CachingTargetStoreTest {
 
     private static final String FIELD_NAME = "targetIdentifier";
 
@@ -101,7 +90,7 @@ public class KVBackedTargetStoreTest {
         NAME_ACCT_DEF.getCustomDefinition().getName(),
         ImmutableList.of(NAME_ACCT_DEF, PLAIN_ACCT_DEF));
 
-    private KeyValueStore keyValueStore;
+    private TargetDao targetDao;
 
     private ProbeStore probeStore;
 
@@ -109,31 +98,27 @@ public class KVBackedTargetStoreTest {
 
     private IdentityStore<TargetSpec> targetIdentityStore;
 
-    private KVBackedTargetStore targetStore;
+    private CachingTargetStore targetStore;
 
     private ProbeInfo probeInfo;
 
-    final TopologyHandler topologyHandler = Mockito.mock(TopologyHandler.class);
+    private final TopologyHandler topologyHandler = mock(TopologyHandler.class);
 
-    final Scheduler scheduler = Mockito.mock(Scheduler.class);
+    private final Scheduler scheduler = mock(Scheduler.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Rule
-    public TemporaryFolder testFolder = new TemporaryFolder();
-
     @Before
     public void setup() throws Exception{
-        System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
         probeInfo = Probes.emptyProbe;
-        keyValueStore = Mockito.mock(KeyValueStore.class);
-        probeStore = Mockito.mock(ProbeStore.class);
-        groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+        targetDao = mock(TargetDao.class);
+        probeStore = mock(ProbeStore.class);
+        groupScopeResolver = mock(GroupScopeResolver.class);
+        when(groupScopeResolver.processGroupScope(any(), any(), any()))
                 .then(AdditionalAnswers.returnsSecondArg());
         targetIdentityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
+        targetStore = new CachingTargetStore(targetDao, probeStore, targetIdentityStore);
     }
 
     /**
@@ -143,15 +128,54 @@ public class KVBackedTargetStoreTest {
      */
     @Test
     public void testCreateTarget() throws Exception {
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.emptyList());
 
         final Target target = targetStore.createTarget(spec.toDto());
 
-        verify(keyValueStore).put(Mockito.eq("targets/" + target.getId()), any());
+        verify(targetDao).store(target);
 
         targetStore.getTarget(target.getId()).get();
+    }
+
+    /**
+     * Test that creating a target with the same identifying values as an existing target throws
+     * an exception.
+     *
+     * @throws Exception If something goes wrong.
+     */
+    @Test(expected = DuplicateTargetException.class)
+    public void testCreateTargetExists() throws Exception {
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.emptyList());
+
+        final Target target = targetStore.createTarget(spec.toDto());
+
+        verify(targetDao).store(target);
+
+        targetStore.createTarget(spec.toDto());
+    }
+
+    /**
+     * Test that creating a target with the same identifying values as a previously existing target
+     * assigns the same OID.
+     *
+     * @throws Exception If something goes wrong.
+     */
+    @Test
+    public void testRecreateTargetWithStableId() throws Exception {
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.emptyList());
+
+        final Target target = targetStore.createTarget(spec.toDto());
+
+        targetStore.removeAllTargets();
+
+        final Target newTarget = targetStore.createTarget(spec.toDto());
+        assertEquals(target.getId(), newTarget.getId());
     }
 
     /**
@@ -160,12 +184,12 @@ public class KVBackedTargetStoreTest {
      *
      * @throws Exception when something goes wrong.
      */
-    @Test
+    @Test(expected = InvalidTargetException.class)
     public void testCreateTargetWrongAccountValues() throws Exception {
         ProbeInfo pi = createProbeInfo("test", "vc",
             PredefinedAccountDefinition.Address.name().toLowerCase(),
             Collections.emptyList());
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L,
             Collections.singletonList(new InputField(
@@ -174,14 +198,7 @@ public class KVBackedTargetStoreTest {
                 Optional.empty())));
         // we expect the create target to fail since the account values don't match the account
         // definition of the probe.
-        try {
-            final Target target = targetStore.createTarget(spec.toDto());
-        } catch (InvalidTargetException e) {
-        }
-        // now we make sure that the target spec does not exist in the identity store
-        final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = targetIdentityStore
-            .fetchOrAssignItemOids(Arrays.asList(spec.toDto()));
-        assertTrue(identityStoreUpdate.getOldItems().isEmpty());
+        targetStore.createTarget(spec.toDto());
     }
 
     private static ProbeInfo createProbeInfo(@Nonnull String category,
@@ -195,13 +212,14 @@ public class KVBackedTargetStoreTest {
             .addAllAccountDefinition(accountDefs)
             .build();
     }
+
     @Test
     public void testGetProbeName() throws Exception {
         ProbeInfo pi = createProbeInfo("test", "vc",
             PredefinedAccountDefinition.Address.name().toLowerCase(),
             Collections.singletonList(PLAIN_ACCT_DEF));
 
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty())));
@@ -216,7 +234,7 @@ public class KVBackedTargetStoreTest {
             PredefinedAccountDefinition.Address.name().toLowerCase(),
             ImmutableList.of(PLAIN_ACCT_DEF, NAME_ACCT_DEF));
 
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
                 new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
@@ -228,8 +246,8 @@ public class KVBackedTargetStoreTest {
 
     @Test
     public void testCreateTargetNotifiesListeners() throws Exception {
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
-        TargetStoreListener listener = Mockito.mock(TargetStoreListener.class);
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        TargetStoreListener listener = mock(TargetStoreListener.class);
         targetStore.addListener(listener);
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.emptyList());
@@ -239,175 +257,30 @@ public class KVBackedTargetStoreTest {
     }
 
     /**
-     * Test that constructing a {@link KVBackedTargetStore} retrieves saved targets from
+     * Test that constructing a {@link CachingTargetStore} retrieves saved targets from
      * the associated {@link KeyValueStore}.
      *
      * @throws Exception If something goes wrong.
      */
     @Test
     public void testInitialization() throws Exception {
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         final long targetId = 0L;
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(targetId, Arrays.asList(
                 new InputField("name", "foo", Optional.empty())));
 
         final Target target = new Target(targetId, probeStore, spec.toDto(), false);
 
-        final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
-
-        Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(
-                Collections.singletonMap(String.valueOf(targetId), target.toJsonString()));
-        final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, probeStore,
+        final TargetDao targetDao = mock(TargetDao.class);
+        when(targetDao.getAll()).thenReturn(Collections.singletonList(target));
+        final CachingTargetStore newTargetStore = new CachingTargetStore(targetDao, probeStore,
                 targetIdentityStore);
-        verify(kvStore).getByPrefix(Mockito.eq("targets/"));
         newTargetStore.getTarget(0L).get();
-    }
-
-    /**
-     * Test that constructing a {@link KVBackedTargetStore} retrieves saved targets from
-     * the associated {@link KeyValueStore}, while making sure that encrypted fields are in fact encrypted.
-     *
-     * @throws Exception If something goes wrong.
-     */
-    @Test
-    public void testEncryptedFields() throws Exception {
-        AccountDefEntry secret = AccountDefEntry.newBuilder()
-                                                .setCustomDefinition(
-                                                        CustomAccountDefEntry.newBuilder()
-                                                                             .setName("password")
-                                                                             .setDisplayName(
-                                                                                 "Password")
-                                                                             .setDescription("The user password")
-                                                                             .setIsSecret(true))
-                                                .setMandatory(true)
-                                                .build();
-        AccountDefEntry plain = AccountDefEntry.newBuilder()
-                                               .setCustomDefinition(
-                                                       CustomAccountDefEntry.newBuilder()
-                                                                            .setName("user")
-                                                                            .setDisplayName(
-                                                                                "userName")
-                                                                            .setDescription("The user name")
-                                                                            .setIsSecret(false))
-                                               .setMandatory(true)
-                                               .build();
-        ProbeInfo pi = createProbeInfo("test", "vc",
-            "name", ImmutableList.of(secret, plain));
-
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
-
-        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
-                new InputField("password", "ThePassValue", Optional.empty()),
-                new InputField("user", "theUserName", Optional.empty())));
-        final Target target = new Target(0L, probeStore, spec.toDto(), true);
-        final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
-
-        Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(
-                Collections.singletonMap("0", target.toJsonString()));
-        String value = kvStore.getByPrefix("targets/").get("0");
-        Gson gson = new GsonBuilder()
-                .registerTypeAdapter(InternalTargetInfo.class, new InternalTargetInfoAdapter())
-                .create();
-        InternalTargetInfo itf = gson.fromJson(value, InternalTargetInfo.class);
-        // The secret fields are encrypted
-        Assert.assertFalse("password".equals(itf.secretFields.iterator().next()));
-        String decryptedSecretField = CryptoFacility.decrypt(itf.secretFields.iterator().next());
-        Assert.assertEquals("password", decryptedSecretField);
-
-        for (TopologyProcessorDTO.AccountValue av : itf.targetInfo.getSpec().getAccountValueList()) {
-            if (av.getKey().equals(decryptedSecretField)) {
-                // The password field is encrypted
-                Assert.assertFalse("ThePassValue".equals(av.getStringValue()));
-                Assert.assertEquals("ThePassValue", CryptoFacility.decrypt(av.getStringValue()));
-            } else {
-                // The user name field is not encrypted.
-                Assert.assertEquals("theUserName", av.getStringValue());
-            }
-        }
-    }
-
-    private static class InternalTargetInfo {
-        final TopologyProcessorDTO.TargetInfo targetInfo;
-
-        final Set<String> secretFields;
-
-        InternalTargetInfo(@Nonnull final TopologyProcessorDTO.TargetInfo targetInfo,
-                           @Nonnull final Set<String> secretFields) {
-            this.targetInfo = targetInfo;
-            this.secretFields = secretFields;
-        }
-    }
-
-    /**
-     * GSON adapter to serialize {@link Target.InternalTargetInfo}.
-     */
-    private static class InternalTargetInfoAdapter extends TypeAdapter<InternalTargetInfo> {
-        @Override
-        public void write(JsonWriter out, InternalTargetInfo value) throws IOException {
-        }
-
-        @Override
-        public InternalTargetInfo read(JsonReader in) throws IOException {
-            final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
-            in.beginObject();
-            in.nextName();
-            in.beginArray();
-            while (in.hasNext()) {
-                secretFieldBuilder.add(in.nextString());
-            }
-            in.endArray();
-            in.endObject();
-
-            in.beginObject();
-            in.nextName();
-            final String serializedTarget = in.nextString();
-            final TopologyProcessorDTO.TargetInfo.Builder builder = TopologyProcessorDTO.TargetInfo
-                    .newBuilder();
-            JsonFormat.parser().merge(serializedTarget, builder);
-            in.endObject();
-            return new InternalTargetInfo(builder.build(), secretFieldBuilder.build());
-        }
-    }
-
-    /**
-     * Test that constructing a {@link KVBackedTargetStore} works even when there are
-     * targets with serialized {@link AccountValue} fields.
-     *
-     * @throws Exception If something goes wrong.
-     */
-    @Test
-    public void testInitializationWithAccountVals() throws Exception {
-        final Target target = prepareTestTarget();
-        final KeyValueStore kvStore = prepareKvStoreWithTarget(target);
-
-        final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, probeStore,
-                targetIdentityStore);
-        verify(kvStore).getByPrefix(Mockito.eq("targets/"));
-
-        final Target retTarget = newTargetStore.getTarget(0L).get();
-        Assert.assertEquals(target.getId(), retTarget.getId());
-        Assert.assertEquals(target.getProbeId(), retTarget.getProbeId());
-        Assert.assertEquals(1, target.getMediationAccountVals(groupScopeResolver).size());
-
-        final AccountValue accountVal = target.getMediationAccountVals(groupScopeResolver).get(0);
-        Assert.assertEquals("name", accountVal.getKey());
-        Assert.assertEquals("value", accountVal.getStringValue());
-        Assert.assertEquals(1, accountVal.getGroupScopePropertyValuesCount());
-        Assert.assertEquals("test", accountVal.getGroupScopePropertyValues(0).getValue(0));
-    }
-
-    @Test
-    public void testInvalidSerializedTarget() throws Exception {
-        Mockito.when(keyValueStore.getByPrefix(Mockito.eq("targets/")))
-                .thenReturn(Collections.singletonMap("targets/0", "aoishtioa"));
-
-        // Instantiating a KVBackedStore should work.
-        new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
     }
 
     @Test
     public void testRemoveListenerWhenPresent() throws Exception {
-        final TargetStoreListener listener = Mockito.mock(TargetStoreListener.class);
+        final TargetStoreListener listener = mock(TargetStoreListener.class);
 
         targetStore.addListener(listener);
         assertTrue(targetStore.removeListener(listener));
@@ -415,33 +288,7 @@ public class KVBackedTargetStoreTest {
 
     @Test
     public void testRemoveListenerWhenAbsent() throws Exception {
-        assertFalse(targetStore.removeListener(Mockito.mock(TargetStoreListener.class)));
-    }
-
-    private Target prepareTestTarget() throws Exception {
-        final ProbeInfo probeInfo = ProbeInfo.newBuilder(this.probeInfo)
-            .addAccountDefinition(AccountDefEntry.newBuilder().setCustomDefinition(
-                 CustomAccountDefEntry.newBuilder()
-                     .setName("name")
-                     .setDisplayName("displayName")
-                     .setDescription("desc"))
-                .setMandatory(true))
-            .build();
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
-
-        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L,
-            Collections.singletonList(
-                new InputField("name",
-                    "value",
-                    Optional.of(Collections.singletonList(Collections.singletonList("test"))))));
-        return new Target(0L, probeStore, spec.toDto(), true);
-    }
-
-    private KeyValueStore prepareKvStoreWithTarget(Target target) throws Exception {
-        final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
-        Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(Collections.singletonMap("0", target.toJsonString()));
-
-        return kvStore;
+        assertFalse(targetStore.removeListener(mock(TargetStoreListener.class)));
     }
 
     private void prepareInitialProbe() {
@@ -453,7 +300,7 @@ public class KVBackedTargetStoreTest {
                                                         .setDescription("desc"))
                                         .setMandatory(true))
                         .build();
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
     }
 
     private TargetSpec createTargetSpec(long probeId, int fieldValue) {
@@ -493,7 +340,7 @@ public class KVBackedTargetStoreTest {
         prepareInitialProbe();
         final TargetSpec targetSpec = createTargetSpec(0, 1);
         Target target = targetStore.createTarget(targetSpec);
-        TargetStoreListener listener = Mockito.mock(TargetStoreListener.class);
+        TargetStoreListener listener = mock(TargetStoreListener.class);
         targetStore.addListener(listener);
         Assert.assertEquals("1",
                         target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
@@ -604,10 +451,6 @@ public class KVBackedTargetStoreTest {
         // match the probe's account definition
         targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
             parent.getId());
-        // now we make sure that the target spec does not exist in the identity store
-        final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = targetIdentityStore
-            .fetchOrAssignItemOids(Arrays.asList(derivedTargetSpec1));
-        assertTrue(identityStoreUpdate.getOldItems().isEmpty());
     }
 
         @Test
@@ -636,7 +479,7 @@ public class KVBackedTargetStoreTest {
                     .setDescription("bar-desc"))
                 .setMandatory(false))
             .build();
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(0)
             .addAllAccountValue(Arrays.asList(fooAccountValue, barAccountValue)).build();
@@ -700,7 +543,7 @@ public class KVBackedTargetStoreTest {
                     .setPrimitiveValue(PrimitiveValue.STRING))
                 .setMandatory(false))
             .build();
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(0)
             .addAllAccountValue(Arrays.asList(fooAccountValue, barAccountValue)).build();
@@ -756,7 +599,7 @@ public class KVBackedTargetStoreTest {
     @Test
     public void testRemoveTargetAndBroadcastTopology() throws Exception {
         prepareInitialProbe();
-        final TargetStoreListener targetListener = Mockito.mock(TargetStoreListener.class);
+        final TargetStoreListener targetListener = mock(TargetStoreListener.class);
         final TargetSpec targetSpec = createTargetSpec(0, 1);
         final Target target = targetStore.createTarget(targetSpec);
         targetStore.addListener(targetListener);
@@ -847,7 +690,7 @@ public class KVBackedTargetStoreTest {
             PredefinedAccountDefinition.Address.name().toLowerCase(),
             Collections.singletonList(PLAIN_ACCT_DEF));
 
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), FIELD_NAME, Optional.empty())));
@@ -905,8 +748,8 @@ public class KVBackedTargetStoreTest {
         final String derivedTargetAddress1 = "Address1";
         final String derivedTargetAddress2 = "Address2";
 
-        Mockito.when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
-        Mockito.when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
+        when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
+        when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
 
         final Target parentTarget1 = targetStore.createTarget(createTargetSpec(parentProbeId,
             PredefinedAccountDefinition.Address.name().toLowerCase(),
@@ -1018,8 +861,8 @@ public class KVBackedTargetStoreTest {
         final String secondNameValue = "bar";
         final String derivedTargetAddress = "Address1";
 
-        Mockito.when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
-        Mockito.when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
+        when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
+        when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
 
         final Target parentTarget = targetStore.createTarget(createTargetSpec(parentProbeId,
             PredefinedAccountDefinition.Address.name().toLowerCase(),

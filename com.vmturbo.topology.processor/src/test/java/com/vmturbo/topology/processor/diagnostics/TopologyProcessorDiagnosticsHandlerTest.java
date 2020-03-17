@@ -135,8 +135,9 @@ import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
 import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
@@ -553,7 +554,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testRestore() throws Exception {
-        TargetStore simpleTargetStore = new KVBackedTargetStore(new MapKeyValueStore(), probeStore,
+        TargetStore simpleTargetStore = new CachingTargetStore(new KvTargetDao(new MapKeyValueStore(), probeStore), probeStore,
                 new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
         TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,

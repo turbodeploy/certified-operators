@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -39,7 +38,6 @@ import org.mockito.Mockito;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -86,10 +84,12 @@ import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
@@ -123,7 +123,7 @@ public class OperationManagerTest {
     private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
             new TargetSpecAttributeExtractor(probeStore));
 
-    private final KeyValueStore kvStore = new MapKeyValueStore();
+    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore);
 
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
@@ -131,7 +131,7 @@ public class OperationManagerTest {
 
     private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
 
-    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
+    private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
             targetIdentityStore);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);

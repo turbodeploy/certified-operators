@@ -4,14 +4,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -22,22 +21,17 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
-import com.vmturbo.kvstore.KeyValueStore;
-import com.vmturbo.kvstore.KeyValueStoreOperationException;
-import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -50,25 +44,23 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
- * The consul-backed target store uses consul purely as a
- * backup for consistency across restarts.
+ * The {@link CachingTargetStore} caches targets in-memory for easy access, and contains logic
+ * related to registering and deregistering derived targets.
  */
 @ThreadSafe
-public class KVBackedTargetStore implements TargetStore {
+public class CachingTargetStore implements TargetStore {
 
     private final Logger logger = LogManager.getLogger();
 
-    @GuardedBy("storeLock")
-    private final KeyValueStore keyValueStore;
     private final ProbeStore probeStore;
     private final IdentityStore<TargetSpec> identityStore;
 
     /**
-     * A map of targets by id
+     * A map of targets by id.
      *
-     * This is the primary source of truth for target data.
+     * <p/>This is the primary source of truth for target data.
      *
-     * This map is guarded--for write operations only--by the storeLock. For read operations,
+     * <p/>This map is guarded--for write operations only--by the storeLock. For read operations,
      * we rely on the concurrency capabilities of the ConcurrentMap. Acquiring the storeLock
      * during read operations would likely cause a lot of contention for this lock.
      */
@@ -99,63 +91,45 @@ public class KVBackedTargetStore implements TargetStore {
 
     private final List<TargetStoreListener> listeners = Collections.synchronizedList(new ArrayList<>());
 
-    public KVBackedTargetStore(@Nonnull final KeyValueStore keyValueStore,
-                               @Nonnull final ProbeStore probeStore,
-                               @Nonnull final IdentityStore<TargetSpec> identityStore) {
+    /**
+     * The DAO used to store the target information to a backend store.
+     * We cache all targets in memory, and only use the {@link TargetDao} to restore targets after
+     * restarts.
+     */
+    private final TargetDao targetDao;
 
-        this.keyValueStore = Objects.requireNonNull(keyValueStore);
+    /**
+     * Create a new {@link CachingTargetStore} instance.
+     *
+     * @param targetDao The {@link TargetDao} to actually persist targets.
+     * @param probeStore The {@link ProbeStore} containing information about registered probes.
+     * @param identityStore The {@link IdentityStore} used to assign ids to targets.
+     */
+    public CachingTargetStore(@Nonnull final TargetDao targetDao,
+                       @Nonnull final ProbeStore probeStore,
+                       @Nonnull final IdentityStore<TargetSpec> identityStore) {
+        this.targetDao = targetDao;
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityStore = Objects.requireNonNull(identityStore);
 
         this.derivedTargetIdsByParentId = new ConcurrentHashMap<>();
         this.parentTargetIdsByDerivedTargetId = new ConcurrentHashMap<>();
         this.targetSpecByParentTargetIdDerivedTargetId = HashBasedTable.create();
+
         // Check the key-value store for targets backed up
-        // by previous incarnations of a KVBackedTargetStore.
-        final Map<String, String> persistedTargets = this.keyValueStore.getByPrefix(TARGET_KV_STORE_PREFIX);
-
-        this.targetsById = persistedTargets.entrySet().stream()
-            .map(entry -> {
-                try {
-                    final Target newTarget = new Target(entry.getValue(), probeStore);
-                    // update data structures with parent - derived target relationship
-                    newTarget.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
-                        addDerivedTargetParent(newTarget.getId(), derivedTargetId,
-                            Optional.empty()));
-                    addAccountDefEntryList(newTarget);
-                    logger.info("Restored existing target '{}' ({}) for probe {}.", newTarget.getDisplayName(),
-                            newTarget.getId(), newTarget.getProbeId());
-                    return newTarget;
-                } catch (TargetDeserializationException e) {
-                    // It may make sense to delete the offending key here,
-                    // but choosing not to do that for now to keep
-                    // the constructor read-only w.r.t. the keyValueStore.
-                    logger.warn("Failed to deserialize target: {}. Attempting to remove it.",
-                        entry.getKey());
-                    return null;
-                } catch (TargetStoreException e) {
-                    logger.error("Failed to deserialize target: " + entry.getKey(), e);
-                    return null;
-                }
+        // by previous incarnations of the store.
+        final List<Target> persistedTargets = this.targetDao.getAll();
+        this.targetsById = persistedTargets.stream()
+            .map(target -> {
+                // update data structures with parent - derived target relationship
+                target.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
+                    addDerivedTargetParent(target.getId(), derivedTargetId,
+                        Optional.empty()));
+                logger.info("Restored existing target '{}' ({}) for probe {}.", target.getDisplayName(),
+                    target.getId(), target.getProbeId());
+                return target;
             })
-            .filter(Objects::nonNull)
             .collect(Collectors.toConcurrentMap(Target::getId, Function.identity()));
-    }
-
-    /**
-     * When deserializing a target, we need to add the {@link AccountDefEntry} from the related
-     * probe as this is need by the target to determine if group scope is needed when returning
-     * the list of {@link com.vmturbo.platform.common.dto.Discovery.AccountValue}s.
-     *
-     * @param newTarget the {@link Target} that we just deserialized.
-     * @throws TargetStoreException if the {@link ProbeInfo} is not in the probe store.
-     */
-    private void addAccountDefEntryList(final Target newTarget) throws TargetStoreException {
-        ProbeInfo probeInfo = probeStore.getProbe(newTarget.getProbeId())
-            .orElseThrow(() ->
-                new TargetStoreException("Probe information not found for target with id "
-                    + newTarget.getProbeId()));
-        newTarget.setAccountDefEntryList(probeInfo.getAccountDefinitionList());
     }
 
     /**
@@ -190,8 +164,8 @@ public class KVBackedTargetStore implements TargetStore {
      */
     @Nonnull
     @Override
-    public Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException,
-        DuplicateTargetException, IdentityStoreException {
+    public Target createTarget(@Nonnull final TargetSpec spec)
+        throws InvalidTargetException, IdentityStoreException, DuplicateTargetException {
         synchronized (storeLock) {
             final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = identityStore
                 .fetchOrAssignItemOids(Arrays.asList(spec));
@@ -199,19 +173,24 @@ public class KVBackedTargetStore implements TargetStore {
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
             if (!newItems.isEmpty()) {
                 final long newTargetId = newItems.values().iterator().next();
-                try {
-                    final Target retTarget = new Target(newTargetId, probeStore, spec, true);
-                    registerTarget(retTarget);
-                    return retTarget;
-                } catch (InvalidTargetException | KeyValueStoreOperationException e ) {
-                    // clean up identity store if we failed to create the Target
-                    identityStore.removeItemOids(Sets.newHashSet(newTargetId));
-                    throw e;
-                }
+                final Target retTarget = new Target(newTargetId, probeStore, spec, true);
+                registerTarget(retTarget);
+                return retTarget;
             } else if (!oldItems.isEmpty()) {
                 final long existingTargetId = oldItems.values().iterator().next();
-                throw new DuplicateTargetException(getTargetDisplayName(existingTargetId)
+                if (targetsById.containsKey(existingTargetId)) {
+                    // If the target already exists, throw an exception.
+                    // Note - we don't check the backend because we always keep the local cache
+                    // in sync with the backend.
+                    throw new DuplicateTargetException(getTargetDisplayName(existingTargetId)
                         .orElse(String.valueOf(existingTargetId)));
+                } else {
+                    // If the target does not exist, but the ID mapping exists, create a new
+                    // target with the same ID.
+                    final Target retTarget = new Target(existingTargetId, probeStore, spec, true);
+                    registerTarget(retTarget);
+                    return retTarget;
+                }
             }
             // Should never happen
             String targetDisplayName = Target.computeDisplayName(spec, probeStore);
@@ -253,37 +232,35 @@ public class KVBackedTargetStore implements TargetStore {
                     identityStore.fetchOrAssignItemOids(targetSpecs);
                 // Save the created or new assigned oids which the derived target specs have into item maps.
                 final Map<TargetSpec, Long> oldItems = identityStoreUpdate.getOldItems();
-                final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
-                // Iterate created oids and update the existing derived targets.
-                oldItems.forEach((key, value) -> {
-                    try {
-                        addDerivedTargetParent(parentTargetId, value, Optional.of(key));
-                        updateTarget(value, key.getAccountValueList());
-                        existingDerivedTargetIds.remove(value);
-                    } catch (InvalidTargetException | TargetNotFoundException |
-                        IdentityStoreException | IdentifierConflictException e) {
-                        logger.error(
-                            String.format("Update derived target %s failed!", value), e);
+                final Map<TargetSpec, Long> targetsToAdd =
+                    new HashMap<>(identityStoreUpdate.getNewItems());
+                oldItems.forEach((spec, oldId) -> {
+                    if (targetsById.containsKey(oldId)) {
+                        // If the target already exists, update it and the existing derived targets.
+                        try {
+                            addDerivedTargetParent(parentTargetId, oldId, Optional.of(spec));
+                            updateTarget(oldId, spec.getAccountValueList());
+                            existingDerivedTargetIds.remove(oldId);
+                        } catch (InvalidTargetException | TargetNotFoundException |
+                            IdentityStoreException | IdentifierConflictException e) {
+                            logger.error(
+                                String.format("Update derived target %s failed!", oldId), e);
+                        }
+                    } else {
+                        // If the target does not exist, but the ID mapping exists, create a new
+                        // target with the same ID.
+                        targetsToAdd.put(spec, oldId);
                     }
                 });
                 // Iterate new assigned oids and create new derived targets.
-                newItems.forEach((key, value) -> {
+                targetsToAdd.forEach((spec, oid) -> {
                     try {
-                        final Target retTarget = new Target(value, probeStore,
-                            Objects.requireNonNull(key), true);
-                        addDerivedTargetParent(parentTargetId, value, Optional.of(key));
+                        final Target retTarget = new Target(oid, probeStore,
+                            Objects.requireNonNull(spec), true);
+                        addDerivedTargetParent(parentTargetId, oid, Optional.of(spec));
                         registerTarget(retTarget);
                     } catch (InvalidTargetException e) {
-                        try {
-                            // clean up identityStore if we failed to create the target
-                            identityStore.removeItemOids(Sets.newHashSet(value));
-                        } catch (IdentityStoreException ex) {
-                            // should never happen
-                            logger.error(String.format(
-                                "Error cleaning up identity store after failed creation of target %s",
-                                value), ex);
-                        }
-                        logger.error(String.format("Create new derived target %s failed!", value), e);
+                        logger.error(String.format("Create new derived target %s failed!", oid), e);
                     }
                 });
             }
@@ -391,7 +368,7 @@ public class KVBackedTargetStore implements TargetStore {
 
     @GuardedBy("storeLock")
     private void registerTarget(Target target) {
-        keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(target.getId()), target.toJsonString());
+        targetDao.store(target);
         targetsById.put(target.getId(), target);
         // update data structures with parent - derived target relationship
         target.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
@@ -486,8 +463,7 @@ public class KVBackedTargetStore implements TargetStore {
                         probeStore);
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
-            keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
-                retTarget.toJsonString());
+            targetDao.store(retTarget);
         }
 
         logger.info("Updated target '{}' ({}) for probe {}", retTarget.getDisplayName(), targetId,
@@ -518,8 +494,7 @@ public class KVBackedTargetStore implements TargetStore {
                 probeStore);
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
-            keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
-                retTarget.toJsonString());
+            targetDao.store(retTarget);
         } catch (IdentityStoreException | IdentifierConflictException e) {
             logger.error(String.format(
                 "Remove identifiers of target %s from database failed.",
@@ -573,8 +548,8 @@ public class KVBackedTargetStore implements TargetStore {
                 throw new TargetNotFoundException(targetId);
             }
             targetName = oldTarget.getDisplayName();
-            keyValueStore.removeKeysWithPrefix(TARGET_KV_STORE_PREFIX + Long.toString(targetId));
-            identityStore.removeItemOids(ImmutableSet.of(targetId));
+            targetDao.remove(targetId);
+            // Note - we DON'T remove the identity information for the target.
         }
         // Recursively remove any derived targets that are children of the target being removed
         // NOTE: This *must* occur outside of the synchronized block. Otherwise, the onTargetRemoved
@@ -663,4 +638,5 @@ public class KVBackedTargetStore implements TargetStore {
             .flatMap(target -> probeStore.getProbe(target.getProbeId()))
             .flatMap(probeInfo -> Optional.ofNullable(ProbeCategory.create(probeInfo.getProbeCategory())));
     }
+
 }
