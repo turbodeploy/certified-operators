@@ -34,7 +34,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -90,7 +90,7 @@ public class GroupExpander {
      *                  empty.
      * @return The map from the type of the entites to entities of that type in that group.
      */
-    public Map<UIEntityType, Set<Long>> expandUuidToTypeToEntitiesMap(Long groupUuid) {
+    public Map<ApiEntityType, Set<Long>> expandUuidToTypeToEntitiesMap(Long groupUuid) {
 
         Optional<GroupAndMembers> groupAndMembers = getGroupWithMembers(String.valueOf(groupUuid));
         if (groupAndMembers.isPresent()) {
@@ -114,12 +114,12 @@ public class GroupExpander {
                     .getStaticGroupMembers()
                     .getMembersByTypeList()
                     .stream()
-                    .collect(Collectors.toMap(x -> UIEntityType.fromType(x.getType().getEntity()),
+                    .collect(Collectors.toMap(x -> ApiEntityType.fromType(x.getType().getEntity()),
                          x -> new HashSet<>(x.getMembersList())));
             } else if (group.hasEntityFilters()) {
                 if (group.getEntityFilters().getEntityFilterCount() == 1) {
-                    Map<UIEntityType, Set<Long>> result = new HashMap<>();
-                    result.put(UIEntityType.fromType(group.getEntityFilters()
+                    Map<ApiEntityType, Set<Long>> result = new HashMap<>();
+                    result.put(ApiEntityType.fromType(group.getEntityFilters()
                             .getEntityFilter(0).getEntityType()),
                         new HashSet<>(groupAndMembers.get().members()));
                     return result;

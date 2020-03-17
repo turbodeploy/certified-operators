@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -55,6 +56,10 @@ import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Routines;
 import com.vmturbo.history.schema.abstraction.routines.EntityStatsRollup;
 import com.vmturbo.history.schema.abstraction.routines.MarketAggregate;
+import com.vmturbo.history.schema.abstraction.tables.MarketStatsByDay;
+import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
+import com.vmturbo.history.schema.abstraction.tables.MarketStatsByMonth;
+import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.utils.MultiStageTimer;
 import com.vmturbo.history.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.history.utils.MultiStageTimer.Detail;
@@ -243,39 +248,25 @@ public class RollupProcessor {
     }
 
     private Set<Table> getTablesToRepartition() {
-        final ImmutableSet.Builder<Table> builder = ImmutableSet.<Table>builder()
-                .add(MARKET_STATS_LATEST)
-                .add(MARKET_STATS_BY_HOUR)
-                .add(MARKET_STATS_BY_DAY)
-                .add(MARKET_STATS_BY_MONTH);
-        EntityType.ROLLED_UP_ENTITIES.forEach(e -> {
-            List<String> missing = new ArrayList();
-            if (e.getLatestTable() != null) {
-                builder.add(e.getLatestTable());
-            } else {
-                missing.add("Latest");
-            }
-            if (e.getLatestTable() != null) {
-                builder.add(e.getHourTable());
-            } else {
-                missing.add("Hourly");
-            }
-            if (e.getLatestTable() != null) {
-                builder.add(e.getDayTable());
-            } else {
-                missing.add("Daily");
-            }
-            if (e.getLatestTable() != null) {
-                builder.add(e.getMonthTable());
-            } else {
-                missing.add("Monthly");
-            }
-            if (!missing.isEmpty()) {
-                logger.warn("Not rolling up entity type {}, which is missing tables {}",
-                        e.name(), missing);
-            }
-        });
-        return builder.build();
+        final Set<Table> tables = new HashSet<>();
+        tables.add(MarketStatsLatest.MARKET_STATS_LATEST);
+        tables.add(MarketStatsByHour.MARKET_STATS_BY_HOUR);
+        tables.add(MarketStatsByDay.MARKET_STATS_BY_DAY);
+        tables.add(MarketStatsByMonth.MARKET_STATS_BY_MONTH);
+        EntityType.allEntityTypes().stream()
+                .filter(EntityType::rollsUp)
+                .forEach(type -> {
+                    List<String> missing = new ArrayList();
+                    type.getLatestTable().map(tables::add).orElseGet(() -> missing.add("Latest"));
+                    type.getHourTable().map(tables::add).orElseGet(() -> missing.add("Hourly"));
+                    type.getDayTable().map(tables::add).orElseGet(() -> missing.add("Daily"));
+                    type.getMonthTable().map(tables::add).orElseGet(() -> missing.add("Monthly"));
+                    if (!missing.isEmpty()) {
+                        logger.warn("Not rolling up entity type {}, which is missing tables {}",
+                                type.getName(), missing);
+                    }
+                });
+        return tables;
     }
 
     private Future<Void> scheduleRepartition(Table<?> table) {
@@ -470,8 +461,7 @@ public class RollupProcessor {
                 // cluster stats stored proc handles all three types individually
                 return true;
             } else {
-                // as does entity stats stored proc
-                return EntityType.ROLLED_UP_ENTITIES.contains(EntityType.fromTable(table));
+                return EntityType.fromTable(table).map(EntityType::rollsUp).orElse(false);
             }
         }
 
@@ -490,9 +480,10 @@ public class RollupProcessor {
             } else if (table == CLUSTER_STATS_LATEST) {
                 return this == BY_HOUR ? table : CLUSTER_STATS_BY_HOUR;
             } else {
-                EntityType type = EntityType.fromTable(table);
+                EntityType type = EntityType.fromTable(table).orElse(null);
                 if (type != null) {
-                    return this == BY_HOUR ? type.getLatestTable() : type.getHourTable();
+                    return this == BY_HOUR ? type.getLatestTable().get()
+                            : type.getHourTable().get();
                 }
                 return null;
             }
@@ -517,9 +508,9 @@ public class RollupProcessor {
                         badValue();
                 }
             } else {
-                EntityType type = EntityType.fromTable(table);
+                EntityType type = EntityType.fromTable(table).orElse(null);
                 if (type != null) {
-                    return type.getTimeFrameTable(timeFrame);
+                    return type.getTimeFrameTable(timeFrame).orElse(null);
                 }
             }
             return null;
@@ -652,11 +643,11 @@ public class RollupProcessor {
      * @return its prefix, if it's subject to rollups
      */
     private Optional<String> getTablePrefix(@Nonnull Table<?> table) {
-        EntityType entityType = EntityType.fromTable(table);
-        if (entityType != null) {
+        Optional<EntityType> entityType = EntityType.fromTable(table);
+        if (entityType.isPresent()) {
             // it's an entity table - get its prefix from reference data map
-            return Optional.of(entityType.getTblPrfx());
-        } else if (table == MARKET_STATS_LATEST) {
+            return entityType.get().getTablePrefix();
+        } else if (table == MarketStatsLatest.MARKET_STATS_LATEST) {
             // market stats uses 'market'
             return Optional.of(MARKET_TABLE_PREFIX);
         } else if (table == CLUSTER_STATS_LATEST) {

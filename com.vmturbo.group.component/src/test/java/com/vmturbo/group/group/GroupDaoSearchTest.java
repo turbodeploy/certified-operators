@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbCleanupRule;

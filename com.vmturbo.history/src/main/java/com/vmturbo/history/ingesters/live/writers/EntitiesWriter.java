@@ -118,42 +118,43 @@ public class EntitiesWriter extends TopologyWriterBase {
 
         final Optional<EntityType> entityDBInfo =
             historydbIO.getEntityType(entityDTO.getEntityType());
-        if (!entityDBInfo.isPresent()) {
-            // entity type not found - some entity types are not persisted
+        if (entityDBInfo.map(EntityType::persistsEntity).orElse(false)) {
+            // entity type was found, and it has persistEntity use case
+            final String entityType = entityDBInfo.get().getName();
+            final long entityOid = entityDTO.getOid();
+
+            final EntitiesRecord record;
+            EntitiesRecord existingRecord = existingRecords.get(oid);
+            if (existingRecord == null) {
+                record = new EntitiesRecord();
+                record.setId(entityOid);
+            } else {
+                if (existingRecord.getDisplayName().equals(entityDTO.getDisplayName()) &&
+                        existingRecord.getCreationClass().equals(entityType)) {
+                    return Optional.empty();
+                }
+                logger.warn("Name or type for existing entity with oid {} has been changed: " +
+                                "displayName >{}< -> >{}<" +
+                                " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
+                        existingRecord.getDisplayName(), entityDTO.getDisplayName(),
+                        existingRecord.getCreationClass(), entityType);
+                record = existingRecord;
+            }
+            // in the Legacy OpsManager there is a "name" attribute different from the "displayName".
+            // I doubt it is used in the UX, but for backwards compatibility we will not leave this
+            // column null. This value is not provided in the input topology, so we will populate
+            // the "name" column with the following:
+            final String synthesizedEntityName = entityDTO.getDisplayName() + '-' + entityOid;
+            record.setName(synthesizedEntityName);
+            record.setDisplayName(entityDTO.getDisplayName());
+            record.setUuid(Long.toString(entityOid));
+            record.setCreationClass(entityType);
+            record.setCreatedAt(new Timestamp(snapshotTime));
+            return Optional.of(record);
+        } else {
+            // entity type not found, or found but not persisted
             return Optional.empty();
         }
-
-        final String entityType = entityDBInfo.get().getClsName();
-        final long entityOid = entityDTO.getOid();
-
-        final EntitiesRecord record;
-        EntitiesRecord existingRecord = existingRecords.get(oid);
-        if (existingRecord == null) {
-            record = new EntitiesRecord();
-            record.setId(entityOid);
-        } else {
-            if (existingRecord.getDisplayName().equals(entityDTO.getDisplayName()) &&
-                existingRecord.getCreationClass().equals(entityType)) {
-                return Optional.empty();
-            }
-            logger.warn("Name or type for existing entity with oid {} has been changed: " +
-                    "displayName >{}< -> >{}<" +
-                    " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
-                existingRecord.getDisplayName(), entityDTO.getDisplayName(),
-                existingRecord.getCreationClass(), entityType);
-            record = existingRecord;
-        }
-        // in the Legacy OpsManager there is a "name" attribute different from the "displayName".
-        // I doubt it is used in the UX, but for backwards compatibility we will not leave this
-        // column null. This value is not provided in the input topology, so we will populate
-        // the "name" column with the following:
-        final String synthesizedEntityName = entityDTO.getDisplayName() + '-' + entityOid;
-        record.setName(synthesizedEntityName);
-        record.setDisplayName(entityDTO.getDisplayName());
-        record.setUuid(Long.toString(entityOid));
-        record.setCreationClass(entityType);
-        record.setCreatedAt(new Timestamp(snapshotTime));
-        return Optional.of(record);
     }
 
     /**

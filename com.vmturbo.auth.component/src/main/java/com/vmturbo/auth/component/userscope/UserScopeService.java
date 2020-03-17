@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -118,12 +118,12 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             .register();
 
     static final PropertyFilter STATIC_CLOUD_ENTITY_TYPES = SearchProtoUtil.entityTypeFilter(ImmutableList.of(
-            UIEntityType.REGION.apiStr(),
-            UIEntityType.COMPUTE_TIER.apiStr(),
-            UIEntityType.STORAGE_TIER.apiStr(),
-            UIEntityType.DATABASE_SERVER_TIER.apiStr(),
-            UIEntityType.DATABASE_TIER.apiStr(),
-            UIEntityType.AVAILABILITY_ZONE.apiStr()));
+            ApiEntityType.REGION.apiStr(),
+            ApiEntityType.COMPUTE_TIER.apiStr(),
+            ApiEntityType.STORAGE_TIER.apiStr(),
+            ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
+            ApiEntityType.DATABASE_TIER.apiStr(),
+            ApiEntityType.AVAILABILITY_ZONE.apiStr()));
 
     private final GroupServiceBlockingStub groupServiceStub;
 

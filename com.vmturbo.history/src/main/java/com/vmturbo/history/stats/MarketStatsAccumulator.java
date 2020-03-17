@@ -4,7 +4,7 @@ import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_VCPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
 import java.math.BigDecimal;
@@ -44,7 +44,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -101,6 +100,7 @@ public class MarketStatsAccumulator {
     private final BulkLoader<Record> loader;
 
     private final BulkLoader<HistUtilizationRecord> historicalUtilizationLoader;
+    private final Set<String> longCommodityKeys;
 
     private int queuedRows = 0;
 
@@ -183,13 +183,15 @@ public class MarketStatsAccumulator {
      * @param commoditiesToExclude a list of commodity names used by the market but not necessary
      *                             to be persisted as stats in the db
      * @param loaders              {@link SimpleBulkLoaderFactory} from which needed {@link BulkInserter} objects
+     * @param longCommodityKeys    where to store commodity keys that had to be shortened, for consolidated logging
      */
     public MarketStatsAccumulator(@Nonnull final TopologyInfo topologyInfo,
-                                  @Nonnull final String entityType,
-                                  @Nonnull final EnvironmentType environmentType,
-                                  @Nonnull final HistorydbIO historydbIO,
-                                  @Nonnull final Set<String> commoditiesToExclude,
-                                  @Nonnull final SimpleBulkLoaderFactory loaders) {
+            @Nonnull final String entityType,
+            @Nonnull final EnvironmentType environmentType,
+            @Nonnull final HistorydbIO historydbIO,
+            @Nonnull final Set<String> commoditiesToExclude,
+            @Nonnull final SimpleBulkLoaderFactory loaders,
+            @Nonnull final Set<String> longCommodityKeys) {
         this.topologyInfo = topologyInfo;
         this.entityType = entityType;
         this.environmentType = environmentType;
@@ -203,13 +205,14 @@ public class MarketStatsAccumulator {
         this.commoditiesToExclude = builder.build();
 
         // the entity type determines which xxx_stats_yyy stats table these stats should go to
-        dbTable = (Table<Record>)EntityType.get(entityType).getLatestTable();
+        dbTable = (Table<Record>)EntityType.get(entityType).getLatestTable().get();
         if (dbTable == null) {
             // should only be called if this entity type is persisted to _latest table
             throw new RuntimeException("Cannot accumulate stats for entity type: " + entityType);
         }
         loader = loaders.getLoader(dbTable);
         historicalUtilizationLoader = loaders.getLoader(HistUtilization.HIST_UTILIZATION);
+        this.longCommodityKeys = longCommodityKeys;
     }
 
     /**
@@ -377,7 +380,7 @@ public class MarketStatsAccumulator {
             historydbIO.initializeCommodityRecord(mixedCaseCommodityName, snapshotTime,
                     entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
                     effectiveCapacity, key, record,
-                    dbTable);
+                    dbTable, longCommodityKeys);
             // set the values specific to used component of commodity and write
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
                             commoditySoldDTO.getPeak(), record, dbTable);
@@ -592,7 +595,7 @@ public class MarketStatsAccumulator {
         Record record = dbTable.newRecord();
         // initialize the common values for this row
         historydbIO.initializeCommodityRecord(mixedCaseCommodityName, topologyInfo.getCreationTime(),
-            entityId, RelationType.METRICS, null, null, null, null, record, dbTable);
+            entityId, RelationType.METRICS, null, null, null, null, record, dbTable, longCommodityKeys);
         // set the values specific to used component of commodity and write
         // since there is no peak value, that parameter is sent as 0
         historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, 0,
@@ -675,7 +678,7 @@ public class MarketStatsAccumulator {
             Record record = dbTable.newRecord();
             historydbIO.initializeCommodityRecord(mixedCaseCommodityName, snapshotTime,
                 entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
-                key, record, dbTable);
+                key, record, dbTable, longCommodityKeys);
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
                     used, peak, record, dbTable);
             // mark the end of this row to be inserted

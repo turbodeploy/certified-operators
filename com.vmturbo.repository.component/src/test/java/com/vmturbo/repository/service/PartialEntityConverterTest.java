@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 public class PartialEntityConverterTest {
@@ -47,31 +47,31 @@ public class PartialEntityConverterTest {
         .build();
 
     private static final TopologyEntityDTO CONSUMER = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.APPLICATION.typeNumber())
+        .setEntityType(ApiEntityType.APPLICATION.typeNumber())
         .setDisplayName("consumer")
         .setOid(666L)
         .build();
 
     private static final TopologyEntityDTO PROVIDER = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("provider")
         .setOid(888L)
         .build();
 
     private static final TopologyEntityDTO CONNECTED_TO = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.VIRTUAL_DATACENTER.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())
         .setDisplayName("connection")
         .setOid(1777L)
         .build();
 
     private static final TopologyEntityDTO OWNS = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
         .setDisplayName("owns")
         .setOid(17777L)
         .build();
 
     private static final TopologyEntityDTO ENTITY = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
         .setDisplayName("foo")
         .setOid(7L)
         .setEnvironmentType(EnvironmentType.CLOUD)
@@ -212,7 +212,7 @@ public class PartialEntityConverterTest {
             .setCapacity(3)
             .build();
         final TopologyEntityDTO pmEntityDTO = TopologyEntityDTO.newBuilder()
-            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
             .setOid(7L)
             .setEntityState(EntityState.POWERED_OFF)
             .addCommoditySoldList(memSold)

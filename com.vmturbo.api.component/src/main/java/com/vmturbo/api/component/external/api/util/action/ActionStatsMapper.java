@@ -32,7 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Maps action count stats from XL format to API {@link StatSnapshotApiDTO}s.

@@ -59,7 +59,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.HeadroomPlanPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;

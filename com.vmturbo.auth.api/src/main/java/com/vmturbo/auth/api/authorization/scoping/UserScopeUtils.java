@@ -23,7 +23,7 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScope
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
 import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
@@ -47,7 +47,7 @@ public class UserScopeUtils {
     // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
     // ScopedUserUtil.java.
     public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
-            UIEntityType.APPLICATION.apiStr(), UIEntityType.VIRTUAL_MACHINE.apiStr());
+            ApiEntityType.APPLICATION.apiStr(), ApiEntityType.VIRTUAL_MACHINE.apiStr());
 
     public static boolean isUserScoped() {
         // first check if there is a security context user

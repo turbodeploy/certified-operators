@@ -1,5 +1,8 @@
 package com.vmturbo.history.stats.priceindex;
 
+import static com.vmturbo.history.db.HistorydbIO.GENERIC_STATS_TABLE;
+
+import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,8 +15,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
@@ -21,8 +22,7 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkLoader;
@@ -68,36 +68,39 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
                final EnvironmentType environmentType,
                final Map<Long, Double> priceIdxByEntityId) throws InterruptedException {
         final Optional<EntityType> dbEntityTypeOpt = historydbIO.getEntityType(entityType);
-        if (dbEntityTypeOpt.isPresent()) {
+        if (dbEntityTypeOpt.isPresent() && dbEntityTypeOpt.get().persistsPriceIndex()) {
             final Map<EnvironmentType, MarketStatsData> mktStatsByEnv =
                 mktStatsByEntityTypeAndEnv.computeIfAbsent(dbEntityTypeOpt.get(), k -> new HashMap<>(3));
             final MarketStatsData marketDataForType =
                 mktStatsByEnv.computeIfAbsent(environmentType, k ->
-                    new MarketStatsData(dbEntityTypeOpt.get().getClsName(),
+                    new MarketStatsData(dbEntityTypeOpt.get().getName(),
                         environmentType,
                         StringConstants.PRICE_INDEX,
                         StringConstants.PRICE_INDEX,
                         RelationType.METRICS));
-            final Table<Record> dbTable = (Table<Record>)dbEntityTypeOpt.get().getLatestTable();
+            final Table<Record> dbTable = (Table<Record>)dbEntityTypeOpt.get().getLatestTable().get();
             for (final Entry<Long, Double> priceIndexEntry : priceIdxByEntityId.entrySet()) {
                 final Long oid = priceIndexEntry.getKey();
                 final Double priceIndex = priceIndexEntry.getValue();
                 marketDataForType.accumulate(priceIndex, priceIndex, priceIndex, priceIndex);
 
                 Record record = dbTable.newRecord();
-                historydbIO.initializeCommodityRecord(StringConstants.PRICE_INDEX,
-                    topologyInfo.getCreationTime(),
-                    oid, RelationType.METRICS, null, null, null,
-                    null, record, dbTable);
-                // set the values specific to used component of commodity and write
-                historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, priceIndex, 0,
-                    record, dbTable);
+                record.set(GENERIC_STATS_TABLE.SNAPSHOT_TIME, new Timestamp(topologyInfo.getCreationTime()));
+                record.set(GENERIC_STATS_TABLE.UUID, Long.toString(oid));
+                record.set(GENERIC_STATS_TABLE.PROPERTY_TYPE, StringConstants.PRICE_INDEX);
+                record.set(GENERIC_STATS_TABLE.PROPERTY_SUBTYPE, StringConstants.PRICE_INDEX);
+                record.set(GENERIC_STATS_TABLE.RELATION, RelationType.METRICS);
+                double clipped = historydbIO.clipValue(priceIndex);
+                record.set(GENERIC_STATS_TABLE.AVG_VALUE, clipped);
+                record.set(GENERIC_STATS_TABLE.MIN_VALUE, clipped);
+                record.set(GENERIC_STATS_TABLE.MAX_VALUE, clipped);
                 @SuppressWarnings("unchecked")
                 final BulkLoader<Record> loader = loaders.getLoader(dbTable);
                 loader.insert(record);
 
             }
-        } else {
+        } else if (!dbEntityTypeOpt.isPresent()) {
+            // keep track of entity types we couldn't map to DB entity types
             notFoundEntityTypes.add(entityType);
         }
     }
@@ -119,22 +122,9 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
             loader.insert(marketStatsRecord);
         }
 
-        // log not-found types for which we expect to save prices at error level...
-        Set<Integer> unexpectedNotFoundTypes = notFoundEntityTypes.stream()
-                .filter(type -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(type))
-                .collect(Collectors.toSet());
-        if (!unexpectedNotFoundTypes.isEmpty()) {
+        if (!notFoundEntityTypes.isEmpty()) {
             logger.error("History DB Entity Types not found for entity types: {}",
-                    unexpectedNotFoundTypes);
-        }
-        // ... and others others at trace level...
-        if (logger.isTraceEnabled()) {
-            Set<Integer> expectedNotFoundTypes = Sets.difference(
-                    notFoundEntityTypes, unexpectedNotFoundTypes);
-            if (!expectedNotFoundTypes.isEmpty()) {
-                logger.trace("History DB Entity Types not found for entity types (expected): {}",
-                        expectedNotFoundTypes);
-            }
+                    notFoundEntityTypes);
         }
     }
 

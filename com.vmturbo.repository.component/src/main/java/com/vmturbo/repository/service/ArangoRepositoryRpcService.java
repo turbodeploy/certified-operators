@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -483,7 +483,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
      */
     private static Predicate<TopologyEntityDTO> matchEntityType(String relatedEntityType) {
         return (entity) ->
-            UIEntityType.fromString(relatedEntityType) == UIEntityType.fromEntity(entity);
+            ApiEntityType.fromString(relatedEntityType) == ApiEntityType.fromEntity(entity);
     }
 
     private static Predicate<TopologyEntityDTO> noFilterPredicate() {

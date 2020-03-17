@@ -46,7 +46,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -230,10 +230,10 @@ public class StatsQueryExecutor {
             if (!cachedGroupInfo.isPresent()) {
                 return false;
             }
-            Set<UIEntityType> entityTypes = cachedGroupInfo.get().getEntityTypes();
+            Set<ApiEntityType> entityTypes = cachedGroupInfo.get().getEntityTypes();
             // if no host or DC in this group, then do not show
-            if (!entityTypes.contains(UIEntityType.PHYSICAL_MACHINE) &&
-                    !entityTypes.contains(UIEntityType.DATACENTER)) {
+            if (!entityTypes.contains(ApiEntityType.PHYSICAL_MACHINE) &&
+                    !entityTypes.contains(ApiEntityType.DATACENTER)) {
                 return false;
             }
             // only show if all entities have fabric in their discovery target ids
@@ -267,7 +267,7 @@ public class StatsQueryExecutor {
      */
     public static boolean scopeHasBusinessAccounts(@Nonnull final ApiId scope) {
         return scope.getScopeTypes().isPresent()
-                && scope.getScopeTypes().get().contains(UIEntityType.BUSINESS_ACCOUNT);
+                && scope.getScopeTypes().get().contains(ApiEntityType.BUSINESS_ACCOUNT);
     }
 
     /**

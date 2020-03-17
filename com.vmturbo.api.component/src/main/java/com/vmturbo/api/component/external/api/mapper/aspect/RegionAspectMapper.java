@@ -10,7 +10,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.RegionInfo;
-import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * RegionAspectMapper to map region to its aspects.

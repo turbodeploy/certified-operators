@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.topology.graph.TestGraphEntity;
@@ -75,8 +75,8 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE).build();
         assertTrue(propertyFilter.test(entity1));
         assertFalse(propertyFilter.test(entity2));
     }
@@ -95,9 +95,9 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, UIEntityType.VIRTUAL_MACHINE).build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE).build();
         assertTrue(propertyFilter.test(entity1));
         assertTrue(propertyFilter.test(entity2));
         assertFalse(propertyFilter.test(entity3));
@@ -116,8 +116,8 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE).build();
         assertTrue(propertyFilter.test(entity1));
         assertFalse(propertyFilter.test(entity2));
     }
@@ -133,8 +133,8 @@ public class TopologyFilterFactoryTest {
                 ))
             .build();
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.PHYSICAL_MACHINE).build();
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.PHYSICAL_MACHINE).build();
 
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
         assertTrue(filter instanceof PropertyFilter);
@@ -158,10 +158,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("foo")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("bar")
             .build();
 
@@ -184,10 +184,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("MyEntity")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("myentity")
             .build();
 
@@ -211,10 +211,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("MyEntity")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("myentity")
             .build();
 
@@ -236,10 +236,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("foo")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("bar")
             .build();
 
@@ -263,10 +263,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("foo")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("bar")
             .build();
 
@@ -290,13 +290,13 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_ON)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_OFF)
             .build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.FAILOVER)
             .build();
 
@@ -320,10 +320,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_ON)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_OFF)
             .build();
 
@@ -347,13 +347,13 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_ON)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_OFF)
             .build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(5678L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(5678L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.FAILOVER)
             .build();
 
@@ -378,10 +378,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
                 .setState(EntityState.POWERED_ON)
                 .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
                 .setState(EntityState.POWERED_OFF)
                 .build();
 
@@ -415,16 +415,16 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(3456L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(3456L, ApiEntityType.VIRTUAL_MACHINE)
                 .setEnvironmentType(EnvironmentType.HYBRID)
                 .build();
-        final TestGraphEntity entity4 = TestGraphEntity.newBuilder(4567L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity4 = TestGraphEntity.newBuilder(4567L, ApiEntityType.VIRTUAL_MACHINE)
                 .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
                 .build();
 
@@ -440,16 +440,16 @@ public class TopologyFilterFactoryTest {
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setNumericFilter(NumericFilter.newBuilder()
-                    .setValue(UIEntityType.VIRTUAL_MACHINE.typeNumber())))
+                    .setValue(ApiEntityType.VIRTUAL_MACHINE.typeNumber())))
             .build();
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
 
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
         assertTrue(propertyFilter.test(entity1));
@@ -463,16 +463,16 @@ public class TopologyFilterFactoryTest {
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setNumericFilter(NumericFilter.newBuilder()
                     .setComparisonOperator(ComparisonOperator.NE)
-                    .setValue(UIEntityType.VIRTUAL_MACHINE.typeNumber())))
+                    .setValue(ApiEntityType.VIRTUAL_MACHINE.typeNumber())))
             .build();
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
 
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
         assertFalse(propertyFilter.test(entity1));
@@ -485,16 +485,16 @@ public class TopologyFilterFactoryTest {
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setStringFilter(StringFilter.newBuilder()
-                    .setStringPropertyRegex(UIEntityType.VIRTUAL_MACHINE.apiStr())))
+                    .setStringPropertyRegex(ApiEntityType.VIRTUAL_MACHINE.apiStr())))
             .build();
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
 
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
         assertTrue(propertyFilter.test(entity1));
@@ -507,7 +507,7 @@ public class TopologyFilterFactoryTest {
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setStringFilter(StringFilter.newBuilder()
-                    .setStringPropertyRegex(UIEntityType.VIRTUAL_MACHINE.apiStr())
+                    .setStringPropertyRegex(ApiEntityType.VIRTUAL_MACHINE.apiStr())
                     .setPositiveMatch(false)))
             .build();
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
@@ -515,9 +515,9 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
         assertFalse(propertyFilter.test(entity1));
@@ -530,19 +530,19 @@ public class TopologyFilterFactoryTest {
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setStringFilter(StringFilter.newBuilder()
-                    .addOptions(UIEntityType.VIRTUAL_MACHINE.apiStr())
-                    .addOptions(UIEntityType.PHYSICAL_MACHINE.apiStr())))
+                    .addOptions(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+                    .addOptions(ApiEntityType.PHYSICAL_MACHINE.apiStr())))
             .build();
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
 
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.PHYSICAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
-        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, UIEntityType.STORAGE)
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, ApiEntityType.STORAGE)
             .build();
 
         assertTrue(propertyFilter.test(entity1));
@@ -572,7 +572,7 @@ public class TopologyFilterFactoryTest {
                     )
             ).build();
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();;
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();;
 
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
         assertThat(
@@ -591,7 +591,7 @@ public class TopologyFilterFactoryTest {
                     )
             ).build();
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();;
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();;
 
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
         assertTrue(filter.apply(Stream.of(entity), graph).collect(Collectors.toList()).isEmpty());
@@ -740,7 +740,7 @@ public class TopologyFilterFactoryTest {
                 ).build());
 
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("entity-in-group-1")
             .build();
 
@@ -758,7 +758,7 @@ public class TopologyFilterFactoryTest {
                         .setStringPropertyRegex("^entity")
                 ).build());
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("entity-in-group-1")
             .build();
 
@@ -776,7 +776,7 @@ public class TopologyFilterFactoryTest {
                         .setStringPropertyRegex(".*group.+")
                 ).build());
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .setName("entity-in-group-1")
             .build();
 
@@ -795,7 +795,7 @@ public class TopologyFilterFactoryTest {
                     .addOptions("ACTIVE")
                 ).build());
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .setState(EntityState.POWERED_ON)
             .build();
 
@@ -840,14 +840,14 @@ public class TopologyFilterFactoryTest {
                 filterFactory.filterFor(searchFilterWithRegex);
 
         // entity has no tags
-        final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
         assertFalse(positiveFilter.test(noTagsEntity));
         assertTrue(negativeFilter.test(noTagsEntity));
         assertFalse(filterWithRegex.test(noTagsEntity));
 
         // entity does not have the key
-        final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Collections.singletonList("VALUE1"))
             .build();
         assertFalse(positiveFilter.test(noKeyEntity));
@@ -855,7 +855,7 @@ public class TopologyFilterFactoryTest {
         assertTrue(filterWithRegex.test(noKeyEntity));
 
         // entity has the key, but not one of the values
-        final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Arrays.asList("VALUE1"))
             .addTag("KEY", Arrays.asList("VALUE3", "VALUE4"))
             .build();
@@ -864,7 +864,7 @@ public class TopologyFilterFactoryTest {
         assertTrue(filterWithRegex.test(wrongValueEntity));
 
         // entity has the key, and one of the values
-        final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("KEY", Arrays.asList("VALUE2", "VALUE4"))
             .build();
         assertTrue(positiveFilter.test(rightValueEntity));
@@ -896,14 +896,14 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .addCommSold(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(UICommodityType.VMEM.typeNumber()))
                 .setCapacity(10)
                 .build())
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .addCommSold(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(UICommodityType.VMEM.typeNumber()))
@@ -939,14 +939,14 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .addCommSold(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(UICommodityType.MEM.typeNumber()))
                 .setCapacity(10)
                 .build())
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
             .addCommSold(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(UICommodityType.MEM.typeNumber()))
@@ -960,7 +960,7 @@ public class TopologyFilterFactoryTest {
 
     @Test
     public void testDiscoveringTargetFilter() {
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(1L, UIEntityType.APPLICATION)
+        final TestGraphEntity entity = TestGraphEntity.newBuilder(1L, ApiEntityType.APPLICATION)
                                            .addTargetIdentity(1L, "")
                                            .build();
         final PropertyFilter<TestGraphEntity> filter1 =
@@ -1036,17 +1036,17 @@ public class TopologyFilterFactoryTest {
             .build();
 
         final TestGraphEntity vmEntity =
-            TestGraphEntity.newBuilder(1234L, UIEntityType.VIRTUAL_MACHINE).build();
+            TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity pmEntity =
-            TestGraphEntity.newBuilder(2345L, UIEntityType.PHYSICAL_MACHINE).build();
+            TestGraphEntity.newBuilder(2345L, ApiEntityType.PHYSICAL_MACHINE).build();
         final TestGraphEntity storageEntityMatching =
-            TestGraphEntity.newBuilder(3456L, UIEntityType.STORAGE)
+            TestGraphEntity.newBuilder(3456L, ApiEntityType.STORAGE)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setStorage(StorageInfo.newBuilder().setIsLocal(true))
                     .build())
                 .build();
         final TestGraphEntity storageEntityNotMatching =
-            TestGraphEntity.newBuilder(4567L, UIEntityType.STORAGE)
+            TestGraphEntity.newBuilder(4567L, ApiEntityType.STORAGE)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setStorage(StorageInfo.newBuilder().setIsLocal(false))
                     .build())
@@ -1079,25 +1079,25 @@ public class TopologyFilterFactoryTest {
             .build();
 
         final TestGraphEntity vmEntity =
-            TestGraphEntity.newBuilder(11111L, UIEntityType.VIRTUAL_MACHINE).build();
+            TestGraphEntity.newBuilder(11111L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity pmEntity =
-            TestGraphEntity.newBuilder(22222L, UIEntityType.PHYSICAL_MACHINE).build();
+            TestGraphEntity.newBuilder(22222L, ApiEntityType.PHYSICAL_MACHINE).build();
         final TestGraphEntity businessEntityMatching =
-            TestGraphEntity.newBuilder(33333L, UIEntityType.BUSINESS_ACCOUNT)
+            TestGraphEntity.newBuilder(33333L, ApiEntityType.BUSINESS_ACCOUNT)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setBusinessAccount(BusinessAccountInfo.newBuilder()
                         .setAccountId(subscriptionId))
                     .build())
                 .build();
         final TestGraphEntity businessEntityNotMatching =
-            TestGraphEntity.newBuilder(44444L, UIEntityType.BUSINESS_ACCOUNT)
+            TestGraphEntity.newBuilder(44444L, ApiEntityType.BUSINESS_ACCOUNT)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setBusinessAccount(BusinessAccountInfo.newBuilder().setAccountId("Id22"))
                     .build())
                 .build();
 
         final TestGraphEntity businessEntityNoAccountId =
-            TestGraphEntity.newBuilder(44444L, UIEntityType.BUSINESS_ACCOUNT)
+            TestGraphEntity.newBuilder(44444L, ApiEntityType.BUSINESS_ACCOUNT)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setBusinessAccount(BusinessAccountInfo.newBuilder())
                     .build())
@@ -1162,19 +1162,19 @@ public class TopologyFilterFactoryTest {
                 )
             ).build();
         final TestGraphEntity vmEntity =
-            TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_MACHINE).build();
+            TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity pmEntity =
-            TestGraphEntity.newBuilder(2L, UIEntityType.PHYSICAL_MACHINE).build();
+            TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE).build();
 
         final TestGraphEntity volumeEntityMatching =
-            TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_VOLUME)
+            TestGraphEntity.newBuilder(3L, ApiEntityType.VIRTUAL_VOLUME)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                         .setAttachmentState(AttachmentState.UNATTACHED))
                     .build())
                 .build();
         final TestGraphEntity volumeEntityNotMatching =
-            TestGraphEntity.newBuilder(4L, UIEntityType.VIRTUAL_VOLUME)
+            TestGraphEntity.newBuilder(4L, ApiEntityType.VIRTUAL_VOLUME)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                         .setAttachmentState(AttachmentState.ATTACHED))
@@ -1204,20 +1204,20 @@ public class TopologyFilterFactoryTest {
                 ).build());
 
         final TestGraphEntity entityWithMatchingId =
-            TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_VOLUME)
+            TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_VOLUME)
                 .addTargetIdentity(333L, "id-123")
                 .build();
         final TestGraphEntity entityNotMatching =
-            TestGraphEntity.newBuilder(2L, UIEntityType.VIRTUAL_VOLUME)
+            TestGraphEntity.newBuilder(2L, ApiEntityType.VIRTUAL_VOLUME)
                 .addTargetIdentity(333L, "id-456")
                 .build();
         final TestGraphEntity entityWithOneMatchingOneUnmatching =
-            TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_VOLUME)
+            TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_VOLUME)
                 .addTargetIdentity(333L, "id-789")
                 .addTargetIdentity(444L, "id-100")
                 .build();
         final TestGraphEntity entityNoVendorId =
-            TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_VOLUME).build();
+            TestGraphEntity.newBuilder(3L, ApiEntityType.VIRTUAL_VOLUME).build();
 
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(vendorIdFilter);
         assertTrue(filter instanceof PropertyFilter);
@@ -1248,7 +1248,7 @@ public class TopologyFilterFactoryTest {
                         .build());
 
         final TestGraphEntity account1 =
-                TestGraphEntity.newBuilder(account1Id, UIEntityType.BUSINESS_ACCOUNT)
+                TestGraphEntity.newBuilder(account1Id, ApiEntityType.BUSINESS_ACCOUNT)
                         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                 .setBusinessAccount(BusinessAccountInfo.newBuilder()
                                         .setAssociatedTargetId(target1Id)
@@ -1256,7 +1256,7 @@ public class TopologyFilterFactoryTest {
                                 .build())
                         .build();
         final TestGraphEntity account2 =
-                TestGraphEntity.newBuilder(account2Id, UIEntityType.BUSINESS_ACCOUNT)
+                TestGraphEntity.newBuilder(account2Id, ApiEntityType.BUSINESS_ACCOUNT)
                         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                 .setBusinessAccount(BusinessAccountInfo.newBuilder()
                                         .setAssociatedTargetId(target2Id)
@@ -1264,13 +1264,13 @@ public class TopologyFilterFactoryTest {
                                 .build())
                         .build();
         final TestGraphEntity account3 =
-                TestGraphEntity.newBuilder(account3Id, UIEntityType.BUSINESS_ACCOUNT)
+                TestGraphEntity.newBuilder(account3Id, ApiEntityType.BUSINESS_ACCOUNT)
                         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                 .setBusinessAccount(BusinessAccountInfo.getDefaultInstance())
                                 .build())
                         .build();
         final TestGraphEntity account4 =
-                TestGraphEntity.newBuilder(account4Id, UIEntityType.BUSINESS_ACCOUNT).build();
+                TestGraphEntity.newBuilder(account4Id, ApiEntityType.BUSINESS_ACCOUNT).build();
 
         assertThat(associatedTargetFilter.apply(Stream.of(account1, account2, account3, account4),
                 graph).collect(Collectors.toList()), contains(account1, account2));
@@ -1289,7 +1289,7 @@ public class TopologyFilterFactoryTest {
                         .build());
 
         final TestGraphEntity notSupportedEntity =
-                TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_MACHINE)
+                TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE)
                         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                 .setVirtualMachine(VirtualMachineInfo.getDefaultInstance())
                                 .build())
@@ -1303,7 +1303,7 @@ public class TopologyFilterFactoryTest {
         final VirtualMachineInfo vmInfo = VirtualMachineInfo.newBuilder()
                                               .addAllConnectedNetworks(Arrays.asList(connectedNetworks))
                                               .build();
-        return TestGraphEntity.newBuilder(id, UIEntityType.VIRTUAL_MACHINE)
+        return TestGraphEntity.newBuilder(id, ApiEntityType.VIRTUAL_MACHINE)
                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                             .setVirtualMachine(vmInfo)
                                             .build())

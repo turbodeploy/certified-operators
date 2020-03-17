@@ -114,7 +114,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
@@ -467,7 +467,7 @@ public class ScenarioMapper {
 
             if (maxUtilization.getSelectedEntityType() != null) {
                 settingBuilder.setEntityType(
-                    UIEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
+                    ApiEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
             }
             // We need to map from the UI general max utilization setting to the more specific
             // max utilization settings contained in MAX_UTILIZATION_SETTING_SPECS.
@@ -762,7 +762,7 @@ public class ScenarioMapper {
 
                     if (maxUtilizationLevel.hasSelectedEntityType()) {
                         maxUtilization.setSelectedEntityType(
-                                UIEntityType.fromSdkTypeToEntityTypeString(maxUtilizationLevel.getSelectedEntityType()));
+                                ApiEntityType.fromSdkTypeToEntityTypeString(maxUtilizationLevel.getSelectedEntityType()));
                     }
 
                     return maxUtilization;
@@ -826,7 +826,7 @@ public class ScenarioMapper {
                     .setSetting(protoSetting);
                 if (apiDto.getEntityType() != null) {
                     settingOverride.setEntityType(
-                            UIEntityType.fromStringToSdkType(apiDto.getEntityType()));
+                            ApiEntityType.fromStringToSdkType(apiDto.getEntityType()));
                 }
 
                 if (apiDto.getSourceGroupUuid() != null) {
@@ -1049,7 +1049,7 @@ public class ScenarioMapper {
             ignoreConstraint.setIgnoreAllEntities(true);
         } else if (isIgnoreAllConstraintsForEntityType(constraint)) {
             final String uiEntityType = constraint.getTargetEntityType();
-            final EntityType targetEntityType = UIEntityType.fromString(uiEntityType).sdkType();
+            final EntityType targetEntityType = ApiEntityType.fromString(uiEntityType).sdkType();
             final GlobalIgnoreEntityType globalIgnoreEntityType = GlobalIgnoreEntityType.newBuilder()
                     .setEntityType(targetEntityType)
                     .build();
@@ -1086,7 +1086,7 @@ public class ScenarioMapper {
             List<SettingApiDTO<String>> automationSettingList = dto.getConfigChanges().getAutomationSettingList();
             for(SettingApiDTO setting : automationSettingList) {
                 if (setting.getEntityType() != null && setting.getUuid() != null
-                                && UIEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
+                                && ApiEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
                                 && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName())) {
                     hasPMProvisionSetting = true;
                 }
@@ -1181,7 +1181,7 @@ public class ScenarioMapper {
 
         if (change.getTargetEntityType() != null) {
             additionBuilder.setTargetEntityType(
-                    UIEntityType.fromStringToSdkType(change.getTargetEntityType()));
+                    ApiEntityType.fromStringToSdkType(change.getTargetEntityType()));
         }
 
         if (templateIds.contains(uuid)) {
@@ -1216,7 +1216,7 @@ public class ScenarioMapper {
                     .setChangeApplicationDay(projectionDay(change.getProjectionDay()));
 
         if (change.getTargetEntityType() != null) {
-            removalBuilder.setTargetEntityType(UIEntityType.fromString(change.getTargetEntityType()).typeNumber());
+            removalBuilder.setTargetEntityType(ApiEntityType.fromString(change.getTargetEntityType()).typeNumber());
         }
 
         if (groupResponse.hasGroup()) {
@@ -1247,7 +1247,7 @@ public class ScenarioMapper {
 
         if (change.getTargetEntityType() != null) {
             replaceBuilder.setTargetEntityType(
-                    UIEntityType.fromStringToSdkType(change.getTargetEntityType()));
+                    ApiEntityType.fromStringToSdkType(change.getTargetEntityType()));
         }
 
         if (groupResponse.hasGroup()) {
@@ -1474,7 +1474,7 @@ public class ScenarioMapper {
         } else if (constraint.hasGlobalIgnoreEntityType()) {
             EntityType entityType = constraint.getGlobalIgnoreEntityType().getEntityType();
             constraintApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(entityType.getNumber()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(entityType.getNumber()));
             constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
         } else if (constraint.hasIgnoreGroup()) { // Per Group Settings
             ConstraintGroup constraintGroup = constraint.getIgnoreGroup();
@@ -1505,7 +1505,7 @@ public class ScenarioMapper {
             return possibilities.getAll();
         }
 
-        final String entityType = UIEntityType.fromType(settingOverride.getEntityType()).apiStr();
+        final String entityType = ApiEntityType.fromType(settingOverride.getEntityType()).apiStr();
 
         SettingApiDTO<String> settingSpec = possibilities.getSettingForEntityType(entityType)
                 .orElseThrow(() -> new IllegalStateException("Entity type " + entityType +
@@ -1565,7 +1565,7 @@ public class ScenarioMapper {
         changeApiDTO.setProjectionDays(addition.getChangeApplicationDaysList());
         if (addition.hasTargetEntityType()) {
             changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(addition.getTargetEntityType()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(addition.getTargetEntityType()));
         }
 
         final List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
@@ -1596,7 +1596,7 @@ public class ScenarioMapper {
         changeApiDTOs.add(changeApiDTO);
         if (removal.hasTargetEntityType()) {
             changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(removal.getTargetEntityType()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(removal.getTargetEntityType()));
         }
         outputChanges.setRemoveList(changeApiDTOs);
     }
@@ -1621,7 +1621,7 @@ public class ScenarioMapper {
 
         if (replace.hasTargetEntityType()) {
             changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(replace.getTargetEntityType()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(replace.getTargetEntityType()));
         }
 
         List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
@@ -1721,7 +1721,7 @@ public class ScenarioMapper {
                     id);
                 final BaseApiDTO entity = new BaseApiDTO();
                 entity.setUuid(Long.toString(id));
-                entity.setDisplayName(UIEntityType.UNKNOWN.apiStr());
+                entity.setDisplayName(ApiEntityType.UNKNOWN.apiStr());
                 return entity;
             }
         }

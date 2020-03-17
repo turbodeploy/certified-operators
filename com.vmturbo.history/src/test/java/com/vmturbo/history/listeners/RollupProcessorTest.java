@@ -131,11 +131,11 @@ public class RollupProcessorTest {
         loaders.close(null);
         for (Table<?> t : loaders.getStats().getOutTables()) {
             truncateTable(t);
-            EntityType type = EntityType.fromTable(t);
-            if (type != null) {
-                truncateTable(type.getHourTable());
-                truncateTable(type.getDayTable());
-                truncateTable(type.getMonthTable());
+            final Optional<EntityType> type = EntityType.fromTable(t);
+            if (type.isPresent()) {
+                truncateTable(type.get().getHourTable().get());
+                truncateTable(type.get().getDayTable().get());
+                truncateTable(type.get().getMonthTable().get());
             }
         }
     }
@@ -241,7 +241,7 @@ public class RollupProcessorTest {
             @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype)
             throws VmtDbException, SQLException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
-        Table<?> rollupTable = getRollupTable(EntityType.fromTable(table), timeFrame);
+        Table<?> rollupTable = getRollupTable(EntityType.fromTable(table).get(), timeFrame);
         Record rollup = retrieveRecord(rollupTable, snapshot, uuid, propertyType, propertySubtype);
         checkField(template, rollup, UUID_FIELD, String.class);
         checkField(template, rollup, PRODUCER_UUID_FIELD, String.class);
@@ -358,11 +358,11 @@ public class RollupProcessorTest {
     private Table<?> getRollupTable(EntityType entityType, TimeFrame timeFrame) {
         switch (timeFrame) {
             case HOUR:
-                return entityType.getHourTable();
+                return entityType.getHourTable().get();
             case DAY:
-                return entityType.getDayTable();
+                return entityType.getDayTable().get();
             case MONTH:
-                return entityType.getMonthTable();
+                return entityType.getMonthTable().get();
             default:
                 throw new IllegalArgumentException();
         }

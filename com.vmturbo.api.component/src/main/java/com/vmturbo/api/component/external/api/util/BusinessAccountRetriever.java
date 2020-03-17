@@ -42,8 +42,8 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -141,7 +141,7 @@ public class BusinessAccountRetriever {
 
             final SearchParameters.Builder builder = SearchParameters.newBuilder();
             builder.setStartingFilter(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT));
+                    SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT));
             if (!targetIds.isEmpty()) {
                 // The search will only return business accounts discovered by the specific targets.
                 builder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
@@ -170,13 +170,13 @@ public class BusinessAccountRetriever {
         if ((!CollectionUtils.isEmpty(criterias)) || searchParameters.isEmpty()) {
             searchParameters.addAll(
                     entityFilterMapper.convertToSearchParameters(ListUtils.emptyIfNull(criterias),
-                            UIEntityType.BUSINESS_ACCOUNT.apiStr(), null));
+                            ApiEntityType.BUSINESS_ACCOUNT.apiStr(), null));
         }
         // for target scope we need to display all accounts (even not discovered)
         if (targetIds.isEmpty()) {
             //this parameter used for searching only monitored accounts which have associated target
             searchParameters.add(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                    SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
                     .addSearchFilter(SearchFilter.newBuilder()
                             .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
                             .build())
@@ -237,11 +237,11 @@ public class BusinessAccountRetriever {
         final long oid = Long.parseLong(uuid);
         final EntityWithConnections accountWithConnections = repositoryApi.entityRequest(oid)
             .getEntityWithConnections()
-            .filter(entity -> entity.getEntityType() == UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .filter(entity -> entity.getEntityType() == ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
             .orElseThrow(() -> new UnknownObjectException("Cannot find Business Unit with OID: " + oid));
 
         return getBusinessAccounts(accountWithConnections.getConnectedEntitiesList().stream()
-            .filter(connection -> connection.getConnectedEntityType() == UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .filter(connection -> connection.getConnectedEntityType() == ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
             .map(ConnectedEntity::getConnectedEntityId)
             .collect(Collectors.toSet()));
     }

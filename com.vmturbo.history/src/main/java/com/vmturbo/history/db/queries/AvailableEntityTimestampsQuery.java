@@ -18,7 +18,7 @@ import org.jooq.SortOrder;
 import org.jooq.Table;
 
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.QueryBase;
 
@@ -57,7 +57,7 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
             boolean excludeProperties,
             String... propertyTypes) {
         Table<? extends Record> entityTable = entityType != null
-                ? entityType.getTimeFrameTable(timeFrame)
+                ? entityType.getTimeFrameTable(timeFrame).get()
                 // This is a little goofy because market stats tables are not entity tables.
                 // It's like this now to support existing usage, but this deserves some later redesign
                 : getMarketStatsTimeFrameTable(timeFrame);

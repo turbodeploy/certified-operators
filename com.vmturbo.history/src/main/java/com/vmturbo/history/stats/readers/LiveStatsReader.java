@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats.readers;
 
-import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 
@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
@@ -320,7 +320,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         final ListMultimap<EntityType, String> entityTypeToIdsMap = ArrayListMultimap.create();
         final ListMultimap<String, String> missingTypeNameToIdsMap = ArrayListMultimap.create();
         entityIdToTypeMap.forEach((id, className) -> {
-            final Optional<EntityType> entityType = EntityType.getEntityTypeByClsName(className);
+            final Optional<EntityType> entityType = EntityType.named(className);
             // add this id to the list from the found or missing map, as appropriate
             entityType.map(entityTypeToIdsMap::get)
                     .orElse(missingTypeNameToIdsMap.get(className))
@@ -356,8 +356,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             final Instant start = Instant.now();
 
             for (List<String> entityIdChunk : Lists.partition(entityIdsForType, entitiesPerChunk)) {
+                final Optional<Table<?>> table = entityType.getTimeFrameTable(timeRange.getTimeFrame());
+                if (!table.isPresent()) {
+                    continue;
+                }
                 final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(
-                        entityIdChunk, entityType.getTimeFrameTable(timeRange.getTimeFrame()),
+                        entityIdChunk, table.get(),
                         commodityRequests, timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
@@ -527,7 +531,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         requestedMetrics.forEach(metric -> {
             final EntityType entityType = metric.getCountedEntityType();
             StatsRecordsProcessor recordsProcessor =
-                    new StatsRecordsProcessor(entityType.getLatestTable());
+                    new StatsRecordsProcessor(entityType.getLatestTable().get());
             metricRecords.add(recordsProcessor.createRecord(snapshotTimestamp, metric,
                     entityTypeToIdsMap.containsKey(entityType)
                             ? entityTypeToIdsMap.get(entityType).size()

@@ -1,66 +1,180 @@
 package com.vmturbo.history.db;
 
-import org.assertj.core.api.SoftAssertions;
-import org.hamcrest.CoreMatchers;
+import static com.github.npathai.hamcrestopt.OptionalMatchers.isEmpty;
+import static com.github.npathai.hamcrestopt.OptionalMatchers.isPresent;
+import static com.vmturbo.common.protobuf.utils.StringConstants.APPLICATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.DATA_CENTER;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NETWORK;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
+import static com.vmturbo.history.db.EntityType.UseCase.PersistEntity;
+import static com.vmturbo.history.db.EntityType.UseCase.PersistStats;
+import static com.vmturbo.history.db.EntityType.UseCase.RollUp;
+import static com.vmturbo.history.db.EntityType.UseCase.Spend;
+import static com.vmturbo.history.db.EntityTypeDefinitions.APPLICATION_SPEND_ENITTY_TYPE;
+import static com.vmturbo.history.db.EntityTypeDefinitions.ENTITY_TYPE_DEFINITIONS;
+import static com.vmturbo.history.db.EntityTypeDefinitions.NAME_TO_ENTITY_TYPE_MAP;
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
+
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
+
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.history.schema.abstraction.tables.Entities;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByDay;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByMonth;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Tests to sanity-check information in the EntityType enum.
  */
 public class EntityTypeTest extends Assert {
 
+    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(VIRTUAL_MACHINE);
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(PHYSICAL_MACHINE);
+    private static final EntityType DATA_CENTER_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(DATA_CENTER);
+    private static final EntityType APPLICATION_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(APPLICATION);
+    private static final EntityType NETWORK_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(NETWORK);
+
     /**
-     * Tables appearing in {@link EntityType#ROLLED_UP_ENTITIES} must be declared with all four
-     * varieties of entity stats table: latest, hourly, daily, monthly.
+     * Set up for tests that are expected to throw exceptions.
+     */
+    @Rule
+    public ExpectedException exceptionGrabber = ExpectedException.none();
+
+    /**
+     * Make sure that entity types know their names, with or without aliases.
      */
     @Test
-    public void rolledUpTablesAreComplete() {
-        // report all violations in this test, not just the first one encountered
-        final SoftAssertions softly = new SoftAssertions();
-        EntityType.ROLLED_UP_ENTITIES.forEach(type -> {
-            softly.assertThat(type.getLatestTable())
-                .as(rollupTableDescription(type, "latest"))
-                .isNotNull();
-            softly.assertThat(type.getHourTable())
-                .as(rollupTableDescription(type, "hourly"))
-                .isNotNull();
-            softly.assertThat(type.getDayTable())
-                .as(rollupTableDescription(type, "daily"))
-                .isNotNull();
-            softly.assertThat(type.getMonthTable())
-                .as(rollupTableDescription(type, "monthly"))
-                .isNotNull();
-        });
-        softly.assertAll();
-    }
-
-    private String rollupTableDescription(final EntityType type, final String variant) {
-        return String.format("Entity type %s in ROLLED_UP_ENTITIES has a %s table",
-            type, variant);
+    public void testThatGetNameWorks() {
+        assertEquals(StringConstants.PHYSICAL_MACHINE, PHYSICAL_MACHINE_ENTITY_TYPE.getName());
+        assertEquals(StringConstants.DATA_CENTER, DATA_CENTER_ENTITY_TYPE.getName());
     }
 
     /**
-     * Checks that special mapping case {@link com.vmturbo.components.common.utils.StringConstants#DATA_CENTER}
-     * is correctly mapping to {@link EntityType#PHYSICAL_MACHINE}.
+     * Make sure that aliasing works.
      */
     @Test
-    public void checkThatDataCenterEntityTypeMappedToPhysicalMachineTables() {
-        Assert.assertThat(EntityType.get(EntityType.DATA_CENTER.getClsName()),
-                CoreMatchers.is(EntityType.PHYSICAL_MACHINE));
+    public void testThatAliasingWorks() {
+        assertThat(DATA_CENTER_ENTITY_TYPE.resolve(), is(PHYSICAL_MACHINE_ENTITY_TYPE));
+        assertThat(PHYSICAL_MACHINE_ENTITY_TYPE.getName(), is(StringConstants.PHYSICAL_MACHINE));
+        assertThat(DATA_CENTER_ENTITY_TYPE.getName(), is(StringConstants.DATA_CENTER));
+    }
+
+
+    /**
+     * Make sure that instance sharing works.
+     */
+    @Test
+    public void testThatEntityTypesAreSingletonPerName() {
+        assertThat(EntityType.get(VIRTUAL_MACHINE), sameInstance(EntityType.named(VIRTUAL_MACHINE).get()));
     }
 
     /**
-     * Checks that spend tables do not participate in table to entity type mapping.
+     * Make sure that an attempt to get an entity type for an unkown name throws an exception.
      */
     @Test
-    public void checkAbsenceOfSpendTables() {
-        EntityType.TABLE_TO_SPEND_ENTITY_MAP.keySet().forEach(table -> {
-            final EntityType entityType = EntityType.fromTable(table);
-            Assert.assertTrue(
-                    String.format("Table '%s' was associated with non-spend entity type '%s'",
-                            table.toString(), entityType),
-                    entityType.isSpendEntity());
-        });
+    public void testThatGetThrowsOnUnknownTypeName() {
+        exceptionGrabber.expect(IllegalArgumentException.class);
+        EntityType.get("foobar");
+    }
+
+    /**
+     * Make sure that we get the correct tables associated with entity types, and vice-versa.
+     */
+    @Test
+    public void testThatTableDeliveryWorks() {
+
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getTablePrefix().get(), is("vm_stats"));
+
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getLatestTable().get(), is(VmStatsLatest.VM_STATS_LATEST));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getHourTable().get(), is(VmStatsByHour.VM_STATS_BY_HOUR));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getDayTable().get(), is(VmStatsByDay.VM_STATS_BY_DAY));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getMonthTable().get(), is(VmStatsByMonth.VM_STATS_BY_MONTH));
+
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.LATEST).get(), is(VmStatsLatest.VM_STATS_LATEST));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.HOUR).get(), is(VmStatsByHour.VM_STATS_BY_HOUR));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.DAY).get(), is(VmStatsByDay.VM_STATS_BY_DAY));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.MONTH).get(), is(VmStatsByMonth.VM_STATS_BY_MONTH));
+
+        assertThat(EntityType.fromTable(VmStatsLatest.VM_STATS_LATEST).get(), is(VIRTUAL_MACHINE_ENTITY_TYPE));
+        assertThat(EntityType.fromTable(VmStatsByHour.VM_STATS_BY_HOUR).get(), is(VIRTUAL_MACHINE_ENTITY_TYPE));
+        assertThat(EntityType.fromTable(VmStatsByDay.VM_STATS_BY_DAY).get(), is(VIRTUAL_MACHINE_ENTITY_TYPE));
+        assertThat(EntityType.fromTable(VmStatsByMonth.VM_STATS_BY_MONTH).get(), is(VIRTUAL_MACHINE_ENTITY_TYPE));
+        assertThat(EntityType.fromTable(Entities.ENTITIES), isEmpty());
+    }
+
+    /**
+     * Make sure that when we provide an unsupported time frame asking for tables, the method
+     * throws an exception.
+     */
+    @Test
+    public void testThatBogusTimeFrameThrows() {
+        exceptionGrabber.expect(IllegalArgumentException.class);
+        VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.YEAR);
+    }
+
+    /**
+     * Make sure that we get the correct SDK entity types from entity types, and vice-versa.
+     */
+    @Test
+    public void testThatSdkAssociationsWork() {
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.getSdkEntityType(), isPresent());
+        assertThat(EntityDTO.EntityType.VIRTUAL_MACHINE, sameInstance(VIRTUAL_MACHINE_ENTITY_TYPE.getSdkEntityType().get()));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE, sameInstance(EntityType.fromSdkEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE).get()));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE, sameInstance(EntityType.fromSdkEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber()).get()));
+        // special cases
+        assertThat(EntityType.fromSdkEntityType(EntityDTO.EntityType.APPLICATION).get(), is(APPLICATION_ENTITY_TYPE));
+    }
+
+    /**
+     * Make sure that use-case queries and related convenience methods work correctly.
+     */
+    @Test
+    public void testThatUseCasesWork() {
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.hasUseCase(PersistEntity), is(true));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.hasUseCase(PersistStats), is(true));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.hasUseCase(RollUp), is(true));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.hasUseCase(Spend), is(false));
+
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.persistsEntity(), is(true));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.persistsStats(), is(true));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.rollsUp(), is(true));
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.isSpend(), is(false));
+    }
+
+    /**
+     * Make sure we properly report whether entity types persist price index data.
+     */
+    @Test
+    public void testThatPersistsPriceIndexWorks() {
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.persistsPriceIndex(), is(true));
+        assertThat(NETWORK_ENTITY_TYPE.persistsPriceIndex(), is(false));
+        assertThat(APPLICATION_SPEND_ENITTY_TYPE.persistsPriceIndex(), is(false));
+    }
+
+    /**
+     * Make sure that all our configured entity definitions appear in the
+     * {@link EntityType#allEntityTypes()} method, and no others.
+     */
+    @Test
+    public void testThatEnumeratorsWork() {
+        final EntityType[] configured = ENTITY_TYPE_DEFINITIONS.toArray(new EntityType[0]);
+        assertThat(EntityType.allEntityTypes(), hasItems(configured));
+    }
+
+    /**
+     * Make sure that our {@link Object#toString()} override works.
+     */
+    @Test
+    public void testThatToStringWorks() {
+        assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.toString(), is("EntityType[VirtualMachine]"));
     }
 }

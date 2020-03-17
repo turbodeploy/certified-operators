@@ -20,8 +20,8 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
@@ -95,7 +95,7 @@ public class BusinessAccountMapper {
         businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
         businessUnitApiDTO.setUuid(Long.toString(businessAccountOid));
         businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
-        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
+        businessUnitApiDTO.setClassName(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
         businessUnitApiDTO.setBudget(new StatApiDTO());
 
         supplementaryData.getCostPrice(businessAccountOid)
@@ -110,11 +110,11 @@ public class BusinessAccountMapper {
         final MutableInt workloadMemberCount = new MutableInt(0);
         final Set<String> childAccountIds = new HashSet<>();
         businessAccount.getConnectedEntityListList().forEach(connectedEntity -> {
-            UIEntityType type = UIEntityType.fromType(connectedEntity.getConnectedEntityType());
-            if (UIEntityType.WORKLOAD_ENTITY_TYPES.contains(type)) {
+            ApiEntityType type = ApiEntityType.fromType(connectedEntity.getConnectedEntityType());
+            if (ApiEntityType.WORKLOAD_ENTITY_TYPES.contains(type)) {
                 workloadMemberCount.increment();
             }
-            if (type == UIEntityType.BUSINESS_ACCOUNT) {
+            if (type == ApiEntityType.BUSINESS_ACCOUNT) {
                 childAccountIds.add(Long.toString(connectedEntity.getConnectedEntityId()));
             }
         });

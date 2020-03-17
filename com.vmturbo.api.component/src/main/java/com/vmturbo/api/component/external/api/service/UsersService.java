@@ -67,7 +67,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Users management service implementation.
@@ -166,9 +166,9 @@ public class UsersService implements IUsersService {
         this.groupsService = groupsService;
         this.widgetsetsService = widgetsetsService;
         // users cannot be created with the following group scopes
-        this.invalidScopes.add(UIEntityType.BUSINESS_ACCOUNT.displayName());
-        this.invalidScopes.add(UIEntityType.REGION.displayName());
-        this.invalidScopes.add(UIEntityType.AVAILABILITY_ZONE.displayName());
+        this.invalidScopes.add(ApiEntityType.BUSINESS_ACCOUNT.displayName());
+        this.invalidScopes.add(ApiEntityType.REGION.displayName());
+        this.invalidScopes.add(ApiEntityType.AVAILABILITY_ZONE.displayName());
         this.invalidScopes.add("ResourceGroup");
     }
 
