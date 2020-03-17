@@ -8,15 +8,15 @@ data:
       "communicationConfig": {
         "serverMeta": {
         {{- if .Values.global }}
+          {{- if .Values.serverMeta.proxy }}
+          "proxy": "{{ .Values.serverMeta.proxy }}",
+          {{- end }}
           {{- if and .Values.global.tag .Values.global.externalIP }}
           "version": "{{ .Values.global.tag }}",
           "turboServer": "https://{{ .Values.global.externalIP }}"
           {{- else }}
           "version": "{{ .Values.serverMeta.version }}",
           "turboServer": "{{ .Values.serverMeta.turboServer }}"
-          {{- end }}
-          {{- if .Values.serverMeta.proxy }}
-          "proxy": "{{ .Values.serverMeta.proxy }}"
           {{- end }}
         {{- end }}
         },
