@@ -58,16 +58,21 @@ public class ReplayActionsTest {
         final @NonNull Topology firstTopology = new Topology();
         first = firstTopology.getEconomyForTesting();
 
-        vm = firstTopology.addTrader(0, 0, TraderState.ACTIVE, new Basket(), Collections.emptyList());
-        ShoppingList[] shoppingLists = {
+        vm = firstTopology.addTrader(0, 0, TraderState.ACTIVE, new Basket(),
+                                        Collections.emptyList());
+        final ShoppingList[] shoppingLists = {
             firstTopology.addBasketBought(100, vm, VMtoPM),
             firstTopology.addBasketBought(101, vm, VMtoST),
             firstTopology.addBasketBought(102, vm, VMtoST)
         };
-        pm1 = firstTopology.addTrader(1, 1, TraderState.ACTIVE, VMtoPM, Collections.singletonList(0L));
-        pm2 = firstTopology.addTrader(2, 1, TraderState.ACTIVE, VMtoPM, Collections.singletonList(0L));
-        Trader st1 = firstTopology.addTrader(3, 2, TraderState.ACTIVE, VMtoST, Collections.singletonList(0L));
-        Trader st2 = firstTopology.addTrader(4, 2, TraderState.ACTIVE, VMtoST, Collections.singletonList(0L));
+        pm1 = firstTopology.addTrader(1, 1, TraderState.ACTIVE, VMtoPM,
+                                        Collections.singletonList(0L));
+        pm2 = firstTopology.addTrader(2, 1, TraderState.ACTIVE, VMtoPM,
+                                        Collections.singletonList(0L));
+        final Trader st1 = firstTopology.addTrader(3, 2, TraderState.ACTIVE, VMtoST,
+                                                    Collections.singletonList(0L));
+        final Trader st2 = firstTopology.addTrader(4, 2, TraderState.ACTIVE, VMtoST,
+                                                    Collections.singletonList(0L));
 
         vm.setDebugInfoNeverUseInCode("VirtualMachine|1");
         pm1.setDebugInfoNeverUseInCode("PhysicalMachine|2");
