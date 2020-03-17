@@ -24,6 +24,7 @@ import org.jooq.exception.DataAccessException;
 import org.mariadb.jdbc.MariaDbDataSource;
 
 import com.vmturbo.history.flyway.V1_27_Callback;
+import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 
 public class SchemaUtil {
     protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
@@ -111,7 +112,7 @@ public class SchemaUtil {
             .orElseGet(SchemaUtil::locations);
 
         fway.setLocations(locations.toArray(new String[]{}));
-        fway.setCallbacks(new V1_27_Callback());
+        fway.setCallbacks(new V1_27_Callback(), new V1_28_1_And_V1_35_1_Callback());
         return fway;
     }
 

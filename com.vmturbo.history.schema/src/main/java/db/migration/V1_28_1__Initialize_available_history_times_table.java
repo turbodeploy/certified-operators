@@ -10,29 +10,23 @@ import static com.vmturbo.history.schema.TimeFrame.DAY;
 import static com.vmturbo.history.schema.TimeFrame.HOUR;
 import static com.vmturbo.history.schema.TimeFrame.LATEST;
 import static com.vmturbo.history.schema.TimeFrame.MONTH;
-import static com.vmturbo.history.schema.abstraction.tables.VmStatsByMonth.VM_STATS_BY_MONTH;
 
-import java.lang.reflect.Method;
-import java.security.MessageDigest;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.stream.IntStream;
 
-import org.apache.commons.lang.builder.HashCodeBuilder;
-import org.flywaydb.core.api.migration.MigrationChecksumProvider;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.migration.jdbc.BaseJdbcMigration;
-import org.jooq.DSLContext;
-import org.jooq.Field;
 import org.jooq.Record;
-import org.jooq.Record1;
-import org.jooq.Record2;
-import org.jooq.Result;
-import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.history.schema.HistoryVariety;
@@ -40,213 +34,164 @@ import com.vmturbo.history.schema.RetentionUtil;
 import com.vmturbo.history.schema.TimeFrame;
 
 /**
- * Migration to populate newly-created (by migration V1.27) available_timestamps table, with existing timestamps
- * found in the corresponding stats tables.
+ * Migration to populate newly-created (by migration V1.27) available_timestamps table, with existing
+ * timestamps found in the corresponding stats tables.
  *
  * <p>This will will permit much more efficient execution of some frequently used queries.</p>
- *
- * <p>Note that this migration is in the <code>com.vmturbo.history</code> module, not the
- * <code>com.vmturbo.history.schema</code> module that houses the SQL migrations for history component.
- * This means we can use not only jOOq (including the classes generated for our new table), but also other classes and
- * resources of the <code>com.vmturbo.history</code> component, which are not available to code in the schema
- * component. (And making those resources available would be difficult and perhaps impossible, because
- * it would require a circular dependency between the two modules.)</p>
  */
-public class V1_28_1__Initialize_available_history_times_table extends BaseJdbcMigration
-        implements MigrationChecksumProvider {
+public class V1_28_1__Initialize_available_history_times_table extends BaseJdbcMigration {
+    private final Logger logger;
 
-    // Tables we'll be using, without reference to generated jOOQ code.
-    // This is important because future changes to these tables could cause generated code to be
-    // incompatible with the database schema upon which this migration will always operate.
-    // This way we can use jOOQ API but without being vulnerable to future schema evolution.
-    private static final Table<Record> T_VM_STATS_LATEST = DSL.table("vm_stats_latest");
-    private static final Table<Record> T_VM_STATS_BY_HOUR = DSL.table("vm_stats_by_hour");
-    private static final Table<Record> T_VM_STATS_BY_DAY = DSL.table("vm_stats_by_day");
-    private static final Table<Record> T_VM_STATS_BY_MONTH = DSL.table("vm_stats_by_month");
-    private static final Table<Record> T_RETENTION_POLICIES = DSL.table("retention_policies");
-    private static final Table<Record> T_AVAILABLE_TIMESTAMPS = DSL.table("available_timestamps");
+    /**
+     * Create a new callback instance, using a logger that will reflect this migration's name.
+     */
+    public V1_28_1__Initialize_available_history_times_table() {
+        this.logger = LogManager.getLogger();
+    }
 
-    // fields needed from above tables
-    private static final Field<Timestamp> F_SNAPSHOT_TIME = DSL.field("snapshot_time", Timestamp.class);
-    private static final Field<String> F_POLICY_NAME = DSL.field("policy_name", String.class);
-    private static final Field<String> F_UNIT = DSL.field("unit", String.class);
-    private static final Field<Integer> F_RETENTION_PERIOD = DSL.field("retention_period", Integer.class);
-    private static final Field<Timestamp> F_TIME_STAMP = DSL.field("time_stamp", Timestamp.class);
-    private static final Field<String> F_TIME_FRAME = DSL.field("time_frame", String.class);
-    private static final Field<String> F_HISTORY_VARIETY = DSL.field("history_variety", String.class);
-    private static final Field<Timestamp> F_EXPIRES_AT = DSL.field("expires_at", Timestamp.class);
-
+    /**
+     * Create a new callback instance to be used as a delegate for the V1.35.1 migration, and
+     * use that migration's logger, so as to reflect its identity in log messages.
+     *
+     * @param logger logger to use
+     */
+    V1_28_1__Initialize_available_history_times_table(Logger logger) {
+        this.logger = logger != null ? logger : LogManager.getLogger();
+    }
 
     @Override
     public void migrate(Connection connection) {
-        DSLContext context = DSL.using(connection);
-        context.settings().setRenderSchema(false);
-
-        // For ENTITY_STATS we assume the topology has VMs, and load snapshot times from the VM stats tables.
-        loadTimes(context,
-                T_VM_STATS_LATEST,
-                F_SNAPSHOT_TIME,
-                LATEST,
-                ENTITY_STATS,
-                LATEST_STATS_RETENTION_POLICY_NAME);
-        loadTimes(context,
-                T_VM_STATS_BY_HOUR,
-                F_SNAPSHOT_TIME,
-                HOUR,
-                ENTITY_STATS,
-                HOURLY_STATS_RETENTION_POLICY_NAME);
-        loadTimes(context,
-                T_VM_STATS_BY_DAY,
-                F_SNAPSHOT_TIME,
-                DAY,
-                ENTITY_STATS,
-                DAILY_STATS_RETENTION_POLICY_NAME);
-        loadTimes(context,
-                T_VM_STATS_BY_MONTH,
-                VM_STATS_BY_MONTH.SNAPSHOT_TIME,
-                MONTH,
-                ENTITY_STATS,
-                MONTHLY_STATS_RETENTION_POLICY_NAME);
-        // We'll use the same timestamps for price data since the data to exract more accurate data from existing
-        // tables would make the upgrade process prohibitively expensive.
-        loadTimes(context,
-                T_VM_STATS_LATEST,
-                F_SNAPSHOT_TIME,
-                LATEST,
-                PRICE_DATA,
-                LATEST_STATS_RETENTION_POLICY_NAME);
-        loadTimes(context,
-                T_VM_STATS_BY_HOUR,
-                F_SNAPSHOT_TIME,
-                HOUR,
-                PRICE_DATA,
-                HOURLY_STATS_RETENTION_POLICY_NAME);
-        loadTimes(context,
-                T_VM_STATS_BY_DAY,
-                F_SNAPSHOT_TIME,
-                DAY,
-                PRICE_DATA,
-                DAILY_STATS_RETENTION_POLICY_NAME);
-        loadTimes(context,
-                T_VM_STATS_BY_MONTH,
-                F_SNAPSHOT_TIME,
-                MONTH,
-                PRICE_DATA,
-                MONTHLY_STATS_RETENTION_POLICY_NAME);
+        // be idempotent
+        if (availableTimestampsIsEmpty(connection)) {
+            loadAvaiableTimestamps(connection);
+        }
     }
 
-    /**
-     * Retrieve timestamps from the given table and copy them into new available_timestamps records.
-     *
-     * @param ctx            jOOQ DSL context for DB operations
-     * @param table          table from which to retrieve timestamps
-     * @param timestampField field in that table containing the timestamps we want
-     * @param timeFrame      timeframe to use in new available_timestamps records
-     * @param historyVariety history variety to use in new available_timestamps records
-     * @param policyName     name of a policy in the retention table
-     */
-    private void loadTimes(DSLContext ctx, Table<?> table, Field<Timestamp> timestampField,
-            TimeFrame timeFrame, HistoryVariety historyVariety, String policyName) {
-        Result<Record1<Timestamp>> timestamps = ctx.selectDistinct(timestampField).from(table).fetch();
-        Record2<String, Integer> retentionRecord =
-                ctx.select(F_UNIT, F_RETENTION_PERIOD)
-                        .from(T_RETENTION_POLICIES)
-                        .where(F_POLICY_NAME.eq(policyName))
-                        .fetchOne();
-        ChronoUnit unit = ChronoUnit.valueOf(retentionRecord.getValue(F_UNIT));
-        int period = retentionRecord.getValue(F_RETENTION_PERIOD);
-        timestamps.forEach(record -> {
-            Timestamp timestamp = record.value1();
-            Instant expiration = RetentionUtil.getExpiration(Instant.ofEpochMilli(
-                    timestamp.getTime()), unit, period);
-            ctx.insertInto(T_AVAILABLE_TIMESTAMPS)
-                    .set(F_TIME_STAMP, timestamp)
-                    .set(F_TIME_FRAME, timeFrame.name())
-                    .set(F_HISTORY_VARIETY, historyVariety.name())
-                    .set(F_EXPIRES_AT, Timestamp.from(expiration))
-                    .execute();
-        });
+    private boolean availableTimestampsIsEmpty(Connection connection) {
+        String sql = "SELECT time_stamp FROM available_timestamps LIMIT 1";
+        final Record record = DSL.using(connection).fetchOne(sql);
+        return record == null;
     }
 
-
-    /**
-     * By default, flyway JDBC migrations do not provide chekcpoints, but we do so here.
-     *
-     * <p>The goal is to prevent any change to this migration from ever being made after it goes into release.
-     * We do that by gathering some information that would, if it were to change, signal that this class definition
-     * has been changed, and then computing a checksum value from that information. It's not as fool-proof as a
-     * checksum on the source code, but there's no way to reliably obtain the exact source code at runtime.</p>
-     *
-     * @return checksum for this migration
-     */
-    @Override
-    public Integer getChecksum() {
-        try {
-            MessageDigest md5 = MessageDigest.getInstance("MD5");
-            // include this class's fully qualified name
-            md5.update(getClass().getName().getBytes());
-            // and the closest I know how to get to a source line count
-            md5.update(getLineCountEstimate().toString().getBytes());
-            // add in the method signatures of all the
-            md5.update(getMethodSignature("migrate").getBytes());
-            md5.update(getMethodSignature("loadTimes").getBytes());
-            md5.update(getMethodSignature("getChecksum").getBytes());
-            md5.update(getMethodSignature("getMethodSignature").getBytes());
-            md5.update(getMethodSignature("getLineCountEstimate").getBytes());
-            return new HashCodeBuilder().append(md5.digest()).hashCode();
-        } catch (Exception e) {
-            if (!(e instanceof IllegalStateException)) {
-                e = new IllegalStateException(e);
+    private void loadAvaiableTimestamps(Connection connection) {
+        String originalTimeZone = setTimeZone(connection, "UTC");
+        final String sql = String.format("INSERT INTO %s (%s, %s, %s, %s) values (?, ?, ?, ?)",
+                "available_timestamps", "time_stamp", "time_frame", "history_variety", "expires_at");
+        int toLoad = 0;
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            // For ENTITY_STATS we assume the topology has VMs, and load snapshot times from the VM stats tables.
+            toLoad += loadTimes(connection, ps, "vm_stats_latest", "snapshot_time",
+                    LATEST, ENTITY_STATS, LATEST_STATS_RETENTION_POLICY_NAME);
+            toLoad += loadTimes(connection, ps, "vm_stats_by_hour", "snapshot_time",
+                    HOUR, ENTITY_STATS, HOURLY_STATS_RETENTION_POLICY_NAME);
+            toLoad += loadTimes(connection, ps, "vm_stats_by_day", "snapshot_time",
+                    DAY, ENTITY_STATS, DAILY_STATS_RETENTION_POLICY_NAME);
+            toLoad += loadTimes(connection, ps, "vm_stats_by_month", "snapshot_time",
+                    MONTH, ENTITY_STATS, MONTHLY_STATS_RETENTION_POLICY_NAME);
+            // We'll use the same timestamps for price data since the data to exract more accurate data from existing
+            // tables would make the upgrade process prohibitively expensive.
+            toLoad += loadTimes(connection, ps, "vm_stats_latest", "snapshot_time",
+                    LATEST, PRICE_DATA, LATEST_STATS_RETENTION_POLICY_NAME);
+            toLoad += loadTimes(connection, ps, "vm_stats_by_hour", "snapshot_time",
+                    HOUR, PRICE_DATA, HOURLY_STATS_RETENTION_POLICY_NAME);
+            toLoad += loadTimes(connection, ps, "vm_stats_by_day", "snapshot_time",
+                    DAY, PRICE_DATA, DAILY_STATS_RETENTION_POLICY_NAME);
+            toLoad += loadTimes(connection, ps, "vm_stats_by_month", "snapshot_time",
+                    MONTH, PRICE_DATA, MONTHLY_STATS_RETENTION_POLICY_NAME);
+            final int[] results = ps.executeBatch();
+            int loaded = IntStream.of(results).sum();
+            logger.info("Loaded {} discovered timestamps to available_timestamps table", loaded);
+            if (toLoad != loaded) {
+                logger.warn("Expected to load {} discovered timestamps, not {}", toLoad, loaded);
             }
-            throw (IllegalStateException)e;
+        } catch (SQLException e) {
+            logger.warn("Failed to save {} discovered timestamps to available_timestamps table", toLoad, e);
+        } finally {
+            setTimeZone(connection, originalTimeZone);
+            try {
+                connection.commit();
+            } catch (SQLException e) {
+                logger.error("Failed to commit", e);
+            }
         }
     }
 
-    /**
-     * Get a rendering of a named method's signature.
-     *
-     * <p>We combine the method's name with a list of the fully-qualified class names of all its parameters.</p>
-     *
-     * <p>This works only when the method is declared by this class, and it is the only method with that name
-     * declared by the class.</p>
-     *
-     * @param name name of method
-     * @return method's signature (e.g. "getMethodSignature(java.lang.String name)"
-     */
-    private String getMethodSignature(String name) {
-        List<Method> candidates = Stream.of(getClass().getDeclaredMethods())
-                .filter(m -> m.getName().equals(name))
-                .collect(Collectors.toList());
-        if (candidates.size() == 1) {
-            String parms = Stream.of(candidates.get(0).getParameters())
-                    .map(p -> p.getType().getName() + " " + p.getName())
-                    .collect(Collectors.joining(","));
-            return candidates.get(0).getName() + "(" + parms + ")";
+    private String setTimeZone(Connection connection, String timeZone) {
+        if (timeZone != null) {
+            try {
+                String originalTimeZone = getTimeZone(connection);
+                final String sql = String.format("SET SESSION time_zone = '%s'", timeZone);
+                connection.createStatement().execute(sql);
+                return originalTimeZone;
+            } catch (SQLException e) {
+                logger.error("Failed to change session timezone for migration operations", e);
+                return null;
+            }
         } else {
-            throw new IllegalStateException(
-                    String.format("Failed to obtain method signature for method '%s': %d methods found",
-                            name, candidates.size()));
+            return null;
         }
     }
 
-    /**
-     * Get something close to the number of lines in this class's source file.
-     *
-     * <p>To get the closest estimate possible, this method should appear at the end of the class. We obtain the
-     * line number from our entry on a stack trace.</p>
-     *
-     * @return approximate line count
-     */
-    private Integer getLineCountEstimate() {
-        // code to get our stack frame
-        Supplier<StackTraceElement> getFrame = () -> Thread.currentThread().getStackTrace()[1];
-        // Do a quick check to make sure our method is getting the stack frame we intend it to. (It could put us
-        // in quite a pickle if we inadvertently incorporated information from some other class's stack frame!)
-        if (!getFrame.get().getClassName().equals(getClass().getName())) {
-            throw new IllegalStateException(
-                    "Attempt to read our stack trace frame failed - found unexpected class " + getFrame.get().getClassName());
+    private String getTimeZone(Connection connection) {
+        ResultSet result = null;
+        try {
+            String sql = "SELECT @@SESSION.time_zone";
+            result = connection.createStatement().executeQuery(sql);
+            return result.next() ? result.getString(1) : null;
+        } catch (SQLException e) {
+            logger.error("Failed to retrieve current timezone setting from database", e);
+            return null;
+        } finally {
+            if (result != null) {
+                try {
+                    result.close();
+                } catch (SQLException e) {
+                    logger.warn("Failed to close result set", e);
+                }
+            }
         }
-        // re-fetch our stack frame using same method, so we're as close as possible to end of source
-        return getFrame.get().getLineNumber();
+    }
+
+    private int loadTimes(Connection connection, PreparedStatement ps,
+            String tableName, String timestampFieldName,
+            TimeFrame timeFrame, HistoryVariety historyVariety, String policyName) {
+        final List<Timestamp> timestamps = getTimestamps(connection, tableName, timestampFieldName);
+        Pair<ChronoUnit, Integer> retention = getRetention(connection, timeFrame, policyName);
+        for (Timestamp timestamp : timestamps) {
+            Instant expiration = RetentionUtil.getExpiration(Instant.ofEpochMilli(
+                    timestamp.getTime()), retention.getLeft(), retention.getRight());
+            addToBatch(ps, timestamp, timeFrame, historyVariety, expiration);
+        }
+        return timestamps.size();
+    }
+
+    private void addToBatch(final PreparedStatement ps, final Timestamp timestamp,
+            final TimeFrame timeFrame, final HistoryVariety historyVariety, final Instant expiration) {
+        try {
+            ps.setTimestamp(1, timestamp);
+            ps.setString(2, timeFrame.name());
+            ps.setString(3, historyVariety.name());
+            ps.setTimestamp(4, Timestamp.from(expiration));
+            ps.addBatch();
+        } catch (SQLException e) {
+            logger.warn("Failed to insert available_stats record[{}, {}, {}, {}]",
+                    timestamp, timeFrame, historyVariety, expiration, e);
+        }
+    }
+
+    private List<Timestamp> getTimestamps(final Connection connection, final String tableName, final String timestampFieldName) {
+        final String sql = String.format("SELECT DISTINCT %s FROM %s", timestampFieldName, tableName);
+        return DSL.using(connection).fetch(sql).stream()
+                .map(r -> r.get(0, Timestamp.class))
+                .collect(Collectors.toList());
+    }
+
+    private Pair<ChronoUnit, Integer> getRetention(Connection connection, TimeFrame timeFrame, String policyName) {
+        String sql = String.format(
+                "SELECT unit, retention_period " +
+                        "FROM retention_policies " +
+                        "WHERE policy_name = '%s'", policyName);
+        final Record record = DSL.using(connection).fetchOne(sql);
+        return Pair.of(ChronoUnit.valueOf(record.get(0, String.class)), record.get(1, Integer.class));
     }
 }
