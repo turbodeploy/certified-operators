@@ -24,7 +24,7 @@ import javaslang.control.Option;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;
 import com.vmturbo.repository.search.Filter.Type;
@@ -149,7 +149,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
                 .put("comparisonOperator", Filter.getAqlForComparisonOperator(
                         verticesCondition.getNumConnectedVertices().getComparisonOperator()))
                 .put("numConnectedVertices", verticesCondition.getNumConnectedVertices().getValue())
-                .put("entityType", ApiEntityType.fromType(verticesCondition.getEntityType()))
+                .put("entityType", UIEntityType.fromType(verticesCondition.getEntityType()))
                 .put("pagination", pagination.map(AQLPagination::toAQLString).orElse(""))
                 .build();
         return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);

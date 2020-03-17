@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -274,12 +274,12 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     final String targetTypeStr = regex ?
                         SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()) :
                         stringCriteria.getOptions(0);
-                    final ApiEntityType entityType = ApiEntityType.fromString(targetTypeStr);
+                    final UIEntityType entityType = UIEntityType.fromString(targetTypeStr);
 
                     // If the target entity type resolves to "UNKNOWN" but "UNKNOWN" wasn't what the
                     // user explicitly wanted, throw an exception to get an early exit.
-                    if (entityType == ApiEntityType.UNKNOWN &&
-                        !StringUtils.equalsIgnoreCase(ApiEntityType.UNKNOWN.apiStr(),
+                    if (entityType == UIEntityType.UNKNOWN &&
+                        !StringUtils.equalsIgnoreCase(UIEntityType.UNKNOWN.apiStr(),
                             SearchProtoUtil.stripFullRegex(stringCriteria.getStringPropertyRegex()))) {
                         throw new IllegalArgumentException("Desired entity type type: " +
                             stringCriteria.getStringPropertyRegex() +
@@ -294,7 +294,7 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     // TODO (roman, May 16 2019): Should be able to convert to numeric.
                     return new PropertyFilter<>(stringOptionsPredicate(
                         stringCriteria.getOptionsList(),
-                        entity -> ApiEntityType.fromType(entity.getEntityType()).apiStr(),
+                        entity -> UIEntityType.fromType(entity.getEntityType()).apiStr(),
                         !stringCriteria.getPositiveMatch(),
                         stringCriteria.getCaseSensitive()
                     ));

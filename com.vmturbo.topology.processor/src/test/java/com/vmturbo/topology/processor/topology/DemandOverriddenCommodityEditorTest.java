@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -179,12 +179,12 @@ public class DemandOverriddenCommodityEditorTest {
         final List<Grouping> groups = new ArrayList<>();
         Grouping g = Grouping.newBuilder()
                 .setId(groupOid)
-                .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .setDefinition(GroupDefinition.newBuilder()
                         .setStaticGroupMembers(StaticMembers.newBuilder()
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder()
-                                .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .addMembers(vm1.getOid())
                     )))
             .build();

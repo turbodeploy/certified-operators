@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.service.TransactionProvider;

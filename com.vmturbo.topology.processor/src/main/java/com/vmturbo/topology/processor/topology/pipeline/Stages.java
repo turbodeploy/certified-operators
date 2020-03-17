@@ -37,13 +37,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.chunking.OversizedElementException;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -690,7 +690,7 @@ public class Stages {
             String scopeClassName = planScopeEntries.get(0).getClassName();
             int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
                     ? CommonDTO.EntityDTO.EntityType.UNKNOWN_VALUE
-                    : ApiEntityType.fromString(scopeClassName).typeNumber();
+                    : UIEntityType.fromString(scopeClassName).typeNumber();
             // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
@@ -1220,7 +1220,7 @@ public class Stages {
 
         private final List<TopoBroadcastManager> broadcastManagers;
 
-        private final Map<ApiEntityType, MutableInt> counts = new HashMap<>();
+        private final Map<UIEntityType, MutableInt> counts = new HashMap<>();
 
         private final MatrixInterface matrix;
 
@@ -1329,7 +1329,7 @@ public class Stages {
                                 entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
 
                 if (includeEntityInBroadcast) {
-                    counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
+                    counts.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
                             k -> new MutableInt(0)).increment();
                     for (TopologyBroadcast broadcast : broadcasts) {
                         try {

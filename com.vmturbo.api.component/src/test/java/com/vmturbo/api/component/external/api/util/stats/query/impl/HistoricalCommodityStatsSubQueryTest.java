@@ -48,7 +48,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class HistoricalCommodityStatsSubQueryTest {
@@ -113,7 +113,7 @@ public class HistoricalCommodityStatsSubQueryTest {
 
         when(context.newPeriodInputDto(any())).thenReturn(NEW_PERIOD_INPUT_DTO);
 
-        when(vmGroupScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE)));
+        when(vmGroupScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
     }
 
     @Test
@@ -188,15 +188,15 @@ public class HistoricalCommodityStatsSubQueryTest {
         // These entities in the scope.
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getGlobalScope()).thenReturn(Optional.of(ImmutableGlobalScope.builder()
-            .addEntityTypes(ApiEntityType.VIRTUAL_MACHINE)
+            .addEntityTypes(UIEntityType.VIRTUAL_MACHINE)
             .environmentType(EnvironmentType.CLOUD)
             .build()));
         when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // normalize vm to vm
-        when(statsMapper.normalizeRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr())).thenReturn(
-            ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        when(statsMapper.normalizeRelatedType(UIEntityType.VIRTUAL_MACHINE.apiStr())).thenReturn(
+            UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         // ACT
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
@@ -211,7 +211,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         // No entities, because it's a global temp group.
         assertThat(req.getEntitiesList(), is(Collections.emptyList()));
         // The type of the scope group.
-        assertThat(req.getGlobalFilter().getRelatedEntityTypeList(), containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(req.getGlobalFilter().getRelatedEntityTypeList(), containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(req.getGlobalFilter().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
         assertEquals(1, results.size());

@@ -48,8 +48,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A shared utility class to execute action stats queries, meant to be used by whichever
@@ -277,8 +277,8 @@ public class ActionStatsQueryExecutor {
                     CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(relatedEntityType)
                         ? CompositeEntityTypesSpec.WORKLOAD_TYPE_PRIMITIVES.stream()
                         : Stream.of(relatedEntityType))
-                .map(ApiEntityType::fromString)
-                .map(ApiEntityType::typeNumber)
+                .map(UIEntityType::fromString)
+                .map(UIEntityType::typeNumber)
                 .forEach(types::add);
             entityType().ifPresent(types::add);
             return types;

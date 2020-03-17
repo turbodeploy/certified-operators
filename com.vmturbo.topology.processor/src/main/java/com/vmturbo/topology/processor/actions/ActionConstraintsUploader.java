@@ -25,7 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintIn
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintType;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.UploadActionConstraintInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.entity.EntityStore;

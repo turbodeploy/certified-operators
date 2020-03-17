@@ -8,7 +8,7 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Tests for {@link CoreQuotaStore}.

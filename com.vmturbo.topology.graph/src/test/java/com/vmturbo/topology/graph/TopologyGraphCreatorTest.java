@@ -10,7 +10,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Tests {@link TopologyGraphCreator}.
@@ -30,11 +30,11 @@ public class TopologyGraphCreatorTest {
         final long dbId = 4L;
 
         final TestGraphEntity.Builder vmBuilder =
-                TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE);
+                TestGraphEntity.newBuilder(vmId, UIEntityType.VIRTUAL_MACHINE);
         final TestGraphEntity.Builder azBuilder =
-                TestGraphEntity.newBuilder(azId, ApiEntityType.AVAILABILITY_ZONE);
-        final TestGraphEntity.Builder rgBuilder = TestGraphEntity.newBuilder(rgId, ApiEntityType.REGION);
-        final TestGraphEntity.Builder dbBuilder = TestGraphEntity.newBuilder(dbId, ApiEntityType.DATABASE);
+                TestGraphEntity.newBuilder(azId, UIEntityType.AVAILABILITY_ZONE);
+        final TestGraphEntity.Builder rgBuilder = TestGraphEntity.newBuilder(rgId, UIEntityType.REGION);
+        final TestGraphEntity.Builder dbBuilder = TestGraphEntity.newBuilder(dbId, UIEntityType.DATABASE);
 
         rgBuilder.addConnectedEntity(azId, ConnectionType.OWNS_CONNECTION);
         vmBuilder.addConnectedEntity(azId, ConnectionType.AGGREGATED_BY_CONNECTION);

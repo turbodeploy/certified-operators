@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.CREATE_TIME;
-import static com.vmturbo.common.protobuf.utils.StringConstants.DATA;
-import static com.vmturbo.common.protobuf.utils.StringConstants.TEMPLATE_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.CREATE_TIME;
+import static com.vmturbo.components.common.utils.StringConstants.DATA;
+import static com.vmturbo.components.common.utils.StringConstants.TEMPLATE_TYPE;
 import static com.vmturbo.cost.component.db.Tables.ACTION_CONTEXT_RI_BUY;
 
 import java.sql.Timestamp;

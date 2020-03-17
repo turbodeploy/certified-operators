@@ -65,7 +65,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
@@ -132,13 +132,13 @@ public class SupplyChainStatisticianTest {
 
     private static final SupplyChain SUPPLY_CHAIN = SupplyChain.newBuilder()
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.COMPUTE_TIER.apiStr())
+            .setEntityType(UIEntityType.COMPUTE_TIER.apiStr())
             .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                 .addMemberOids(TIER_1_OID)
                 .addMemberOids(TIER_2_OID)
                 .build()))
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
             .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                 .addMemberOids(VM_OID)
                 .addMemberOids(DISABLED_VM_OID)
@@ -147,18 +147,18 @@ public class SupplyChainStatisticianTest {
 
     private static final SupplyChain SUPPLY_CHAIN_VM_N_DB = SupplyChain.newBuilder()
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
             .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                 .addMemberOids(VM_OID)
                 .addMemberOids(DISABLED_VM_OID)
                 .build()))
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.DATABASE.apiStr())
+            .setEntityType(UIEntityType.DATABASE.apiStr())
             .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                 .addMemberOids(DB_OID)
                 .build()))
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.COMPUTE_TIER.apiStr())
+            .setEntityType(UIEntityType.COMPUTE_TIER.apiStr())
             .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                 .addMemberOids(TIER_1_OID)
                 .addMemberOids(TIER_2_OID)
@@ -188,7 +188,7 @@ public class SupplyChainStatisticianTest {
     private TopologyEntityLookup entityLookup;
 
     private RepoGraphEntity mockEntity(final long oid,
-                                       @Nonnull final ApiEntityType type,
+                                       @Nonnull final UIEntityType type,
                                        @Nonnull final EntityState state,
                                        @Nonnull final Set<Long> discoveringTargetIds,
                                        @Nonnull final String displayName) {
@@ -208,26 +208,26 @@ public class SupplyChainStatisticianTest {
      */
     @Before
     public void setup() {
-        final RepoGraphEntity ba1 = mockEntity(BUSINESS_ACCOUNT_1_OID, ApiEntityType.BUSINESS_ACCOUNT,
+        final RepoGraphEntity ba1 = mockEntity(BUSINESS_ACCOUNT_1_OID, UIEntityType.BUSINESS_ACCOUNT,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID, TARGET_2_OID), BA1_DISPLAY_NAME);
-        final RepoGraphEntity ba2 = mockEntity(BUSINESS_ACCOUNT_2_OID, ApiEntityType.BUSINESS_ACCOUNT,
+        final RepoGraphEntity ba2 = mockEntity(BUSINESS_ACCOUNT_2_OID, UIEntityType.BUSINESS_ACCOUNT,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_2_OID), BA2_DISPLAY_NAME);
 
-        final RepoGraphEntity tier1 = mockEntity(TIER_1_OID, ApiEntityType.COMPUTE_TIER,
+        final RepoGraphEntity tier1 = mockEntity(TIER_1_OID, UIEntityType.COMPUTE_TIER,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID, TARGET_2_OID),
             TIER1_DISPLAY_NAME);
 
-        final RepoGraphEntity tier2 = mockEntity(TIER_2_OID, ApiEntityType.COMPUTE_TIER,
+        final RepoGraphEntity tier2 = mockEntity(TIER_2_OID, UIEntityType.COMPUTE_TIER,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_2_OID), TIER2_DISPLAY_NAME);
 
-        final RepoGraphEntity vm = mockEntity(VM_OID, ApiEntityType.VIRTUAL_MACHINE,
+        final RepoGraphEntity vm = mockEntity(VM_OID, UIEntityType.VIRTUAL_MACHINE,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID, TARGET_2_OID), VM_DISPLAY_NAME);
         when(vm.getOwner()).thenReturn(Optional.of(ba1));
-        final RepoGraphEntity poweredOffVm = mockEntity(DISABLED_VM_OID, ApiEntityType.VIRTUAL_MACHINE,
+        final RepoGraphEntity poweredOffVm = mockEntity(DISABLED_VM_OID, UIEntityType.VIRTUAL_MACHINE,
             EntityState.POWERED_OFF, Sets.newHashSet(TARGET_2_OID), DISABLED_VM_DISPLAY_NAME);
         when(poweredOffVm.getOwner()).thenReturn(Optional.of(ba2));
 
-        final RepoGraphEntity db = mockEntity(DB_OID, ApiEntityType.DATABASE,
+        final RepoGraphEntity db = mockEntity(DB_OID, UIEntityType.DATABASE,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID), DB_DISPLAY_NAME);
 
         final Map<Long, RepoGraphEntity> entityMap = Stream.of(tier1, tier2, vm, poweredOffVm, db)
@@ -363,12 +363,12 @@ public class SupplyChainStatisticianTest {
         assertThat(stats, containsInAnyOrder(
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .setNumEntities(2)
                 .build(),
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setEntityType(ApiEntityType.COMPUTE_TIER.typeNumber()))
+                    .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber()))
                 .setNumEntities(2)
                 .build()));
     }
@@ -466,7 +466,7 @@ public class SupplyChainStatisticianTest {
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
                     .setTargetId(TARGET_1_OID)
-                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                     .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE))
                 .setNumEntities(1)
                 .build(),
@@ -474,7 +474,7 @@ public class SupplyChainStatisticianTest {
                 .setStatGroup(StatGroup.newBuilder()
                     .setTargetId(TARGET_2_OID)
                     // 1 VM with no action category
-                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .setNumEntities(1)
                 .build(),
             SupplyChainStat.newBuilder()
@@ -482,19 +482,19 @@ public class SupplyChainStatisticianTest {
                     .setTargetId(TARGET_2_OID)
                     // 1 VM with PERFORMANCE_ASSURANCE
                     .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
-                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .setNumEntities(1)
                 .build(),
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
                     .setTargetId(TARGET_1_OID)
-                    .setEntityType(ApiEntityType.COMPUTE_TIER.typeNumber()))
+                    .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber()))
                 .setNumEntities(1)
                 .build(),
             SupplyChainStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
                     .setTargetId(TARGET_2_OID)
-                    .setEntityType(ApiEntityType.COMPUTE_TIER.typeNumber()))
+                    .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber()))
                 .setNumEntities(2)
                 .build()));
     }
@@ -509,9 +509,9 @@ public class SupplyChainStatisticianTest {
         final RepoGraphEntity vm2 = entityLookup.getEntity(DISABLED_VM_OID).get();
         final RepoGraphEntity db = entityLookup.getEntity(DB_OID).get();
         final RepoGraphEntity tier = entityLookup.getEntity(TIER_1_OID).get();
-        final RepoGraphEntity storageTier = mockEntity(11L, ApiEntityType.STORAGE_TIER,
+        final RepoGraphEntity storageTier = mockEntity(11L, UIEntityType.STORAGE_TIER,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_2_OID), "SMALL");
-        final RepoGraphEntity dbTier = mockEntity(15L, ApiEntityType.DATABASE_TIER,
+        final RepoGraphEntity dbTier = mockEntity(15L, UIEntityType.DATABASE_TIER,
             EntityState.POWERED_ON, Sets.newHashSet(TARGET_2_OID), "db.t2.micro");
 
         when(vm1.getProviders()).thenReturn(ImmutableList.of(storageTier, tier));

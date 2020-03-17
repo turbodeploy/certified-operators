@@ -26,7 +26,7 @@ import com.vmturbo.api.pagination.NotificationPaginationRequest;
 import com.vmturbo.api.pagination.NotificationPaginationRequest.NotificationPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.INotificationService;
 import com.vmturbo.api.utils.UrlsHelp;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.notification.NotificationStore;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 

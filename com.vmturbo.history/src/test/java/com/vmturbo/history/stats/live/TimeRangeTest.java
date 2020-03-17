@@ -1,14 +1,11 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -23,7 +20,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -32,9 +28,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
@@ -43,8 +38,6 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 public class TimeRangeTest {
 
     private static final long LATEST_TABLE_TIME_WINDOW_MS = 1;
-    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
-    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
 
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
 
@@ -335,43 +328,4 @@ public class TimeRangeTest {
         Assert.assertThat(timeRange.getTimeFrame(), is(TimeFrame.MONTH));
         Assert.assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));
     }
-
-    @Test
-    public void testResolveTimeRangeSpecificEntityType() throws VmtDbException {
-
-        final String specificEntityOid = "1";
-        final EntityType vmType = VIRTUAL_MACHINE_ENTITY_TYPE;
-        final Timestamp vmTimestamp = new Timestamp(9L);
-
-        when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);
-
-        // when there is no start/end date
-        final StatsFilter statsFilterNoDate = StatsFilter.newBuilder().build();
-
-        when(historydbIO.getClosestTimestampBefore(statsFilterNoDate,
-                Optional.empty(), Optional.empty())).thenReturn(Optional.of(vmTimestamp));
-
-        Optional<TimeRange> vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterNoDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty(), Optional.empty());
-
-        assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
-
-        // when we have start/end date
-        final long start = 5L;
-        final long end = 10L;
-        final StatsFilter statsFilterWithDate = StatsFilter.newBuilder()
-            .setStartDate(start)
-            .setEndDate(end)
-            .build();
-
-        when(historydbIO.getTimestampsInRange(TimeFrame.LATEST, start, end, Optional.of(vmType), Optional.of(specificEntityOid)))
-            .thenReturn(ImmutableList.of(vmTimestamp));
-
-        vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterWithDate,
-            Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty(), Optional.empty());
-
-
-        assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
-    }
-
 }

@@ -96,10 +96,10 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -207,14 +207,14 @@ public class StatsServiceTest {
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
         when(apiId1.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                        ApiEntityType.PHYSICAL_MACHINE)));
+                        UIEntityType.PHYSICAL_MACHINE)));
         when(apiId1.isGroup()).thenReturn(false);
 
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId2.uuid()).thenReturn(oid2);
         when(apiId2.oid()).thenReturn(Long.parseLong(oid2));
         when(apiId2.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                        ApiEntityType.PHYSICAL_MACHINE)));
+                        UIEntityType.PHYSICAL_MACHINE)));
         when(apiId2.isGroup()).thenReturn(false);
 
         when(uuidMapper.fromUuid(marketUuid)).thenReturn(marketApiId);
@@ -362,7 +362,7 @@ public class StatsServiceTest {
                                                         .newBuilder()
                                                         .setType(MemberType
                                                             .newBuilder()
-                                                            .setEntity(ApiEntityType.VIRTUAL_MACHINE
+                                                            .setEntity(UIEntityType.VIRTUAL_MACHINE
                                                                             .typeNumber()))
                                                         .addMembers(2L)
                                                         .addMembers(1L)
@@ -474,7 +474,7 @@ public class StatsServiceTest {
                                         .newBuilder()
                                         .setType(MemberType
                                                 .newBuilder()
-                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE
+                                                .setEntity(UIEntityType.PHYSICAL_MACHINE
                                                         .typeNumber())))))
                 .build();
 
@@ -498,7 +498,7 @@ public class StatsServiceTest {
                                         .newBuilder()
                                         .setType(MemberType
                                                 .newBuilder()
-                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE
+                                                .setEntity(UIEntityType.PHYSICAL_MACHINE
                                                         .typeNumber())))))
                 .build();
 

@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
@@ -318,7 +318,7 @@ public class SettingsService implements ISettingsService {
             return false;
         }
 
-        final int targetEntityType = ApiEntityType.fromString(entityType).typeNumber();
+        final int targetEntityType = UIEntityType.fromString(entityType).typeNumber();
         EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
 
         return scope.hasAllEntityType() ||

@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Responsible for expanding the {@link ApiId} that a stats query is scoped to into the list
@@ -74,7 +74,7 @@ public class StatsQueryScopeExpander {
         /**
          * If non-empty, restrict the query only to the specified entity types.
          */
-        Set<ApiEntityType> entityTypes();
+        Set<UIEntityType> entityTypes();
 
         /**
          * If set, restrict the query only to the specified environment type.
@@ -129,13 +129,13 @@ public class StatsQueryScopeExpander {
 
         private final StatsQueryScopeExpander expander;
         private final ApiId scope;
-        private final Set<ApiEntityType> relatedTypes;
+        private final Set<UIEntityType> relatedTypes;
 
         StatQueryScopeLazyLoader(@Nonnull final StatsQueryScopeExpander expander,
                                  @Nonnull final ApiId scope,
                                  @Nullable final GlobalScope globalScope,
                                  @Nullable final Set<Long> scopeOids,
-                                 @Nonnull final Set<ApiEntityType> relatedTypes,
+                                 @Nonnull final Set<UIEntityType> relatedTypes,
                                  @Nonnull final UserSessionContext userSessionContext) {
             this.expander = expander;
             this.scope = scope;
@@ -156,10 +156,10 @@ public class StatsQueryScopeExpander {
 
         private static Set<Long> fetchExpandedOids(
                 @Nonnull final UserSessionContext userSessionContext,
-                @Nonnull final Set<ApiEntityType> relatedTypes) {
+                @Nonnull final Set<UIEntityType> relatedTypes) {
             return (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) ?
                     userSessionContext.getUserAccessScope().getAccessibleOidsByEntityTypes(
-                            relatedTypes.stream().map(ApiEntityType::apiStr).collect(toSet())).toSet() :
+                            relatedTypes.stream().map(UIEntityType::apiStr).collect(toSet())).toSet() :
                     Collections.emptySet();
         }
 
@@ -205,7 +205,7 @@ public class StatsQueryScopeExpander {
      * @return if the scope is a global scope the {@link GlobalScope} object otherwise null.
      */
     @Nullable
-    private GlobalScope findGlobalScope(ApiId scope, Set<ApiEntityType> relatedTypes) {
+    private GlobalScope findGlobalScope(ApiId scope, Set<UIEntityType> relatedTypes) {
         // Full market.
         if (scope.isRealtimeMarket()) {
             if (!userSessionContext.isUserScoped()) {
@@ -219,7 +219,7 @@ public class StatsQueryScopeExpander {
 
         if (scope.isGlobalTempGroup()) {
             // If it's a global temp group group, we don't worry about fully expanding it.
-            List<ApiEntityType> entityTypes = relatedTypes.isEmpty() ?
+            List<UIEntityType> entityTypes = relatedTypes.isEmpty() ?
                 new ArrayList<>(scope.getCachedGroupInfo().get().getEntityTypes()) :
                 new ArrayList<>(relatedTypes);
             return ImmutableGlobalScope.builder()
@@ -258,7 +258,7 @@ public class StatsQueryScopeExpander {
     @Nonnull
     private Set<Long> findExpandedOids(@Nonnull final Set<Long> immediateOidsInScope,
                                        @Nonnull final ApiId scope,
-                                       @Nonnull final Set<ApiEntityType> relatedTypes) {
+                                       @Nonnull final Set<UIEntityType> relatedTypes) {
         if (immediateOidsInScope.size() == 0) {
             return immediateOidsInScope;
         }
@@ -277,13 +277,13 @@ public class StatsQueryScopeExpander {
             try {
                 expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
                     supplyChainFetcherFactory.expandScope(immediateOidsInScope, relatedTypes.stream()
-                        .map(ApiEntityType::apiStr)
+                        .map(UIEntityType::apiStr)
                         .collect(Collectors.toList())));
             } catch (OperationFailedException ex) {
                 logger.error("The operation to get the expanded entities associated with list of " +
                         "OIDs {}, with types {} failed. Going with unexpanded entities.",
                     immediateOidsInScope.stream().map(String::valueOf).collect(Collectors.joining(", ")),
-                    relatedTypes.stream().map(ApiEntityType::apiStr).collect(Collectors.joining(", ")), ex);
+                    relatedTypes.stream().map(UIEntityType::apiStr).collect(Collectors.joining(", ")), ex);
                 expandedOidsInScope = immediateOidsInScope;
             }
         } else {
@@ -313,10 +313,10 @@ public class StatsQueryScopeExpander {
     @Nonnull
     public StatsQueryScope expandScope(@Nonnull final ApiId scope,
                                        @Nonnull final List<StatApiInputDTO> statistics) {
-        final Set<ApiEntityType> relatedTypes = CollectionUtils.emptyIfNull(statistics).stream()
+        final Set<UIEntityType> relatedTypes = CollectionUtils.emptyIfNull(statistics).stream()
             .map(StatApiInputDTO::getRelatedEntityType)
             .filter(Objects::nonNull)
-            .map(ApiEntityType::fromString)
+            .map(UIEntityType::fromString)
             .collect(Collectors.toSet());
 
         final GlobalScope globalScope = findGlobalScope(scope, relatedTypes);
@@ -334,7 +334,7 @@ public class StatsQueryScopeExpander {
 
     private Set<Long> findConnectedVmOids(@Nonnull final Set<Long> volumeOids) {
         final TraversalFilter vmFrom = SearchProtoUtil.traverseToType(
-            TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE.apiStr());
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE.apiStr());
         final PropertyFilter startFilter = SearchProtoUtil.idFilter(volumeOids);
 
         final SearchParameters searchParams = SearchProtoUtil.makeSearchParameters(startFilter)
@@ -344,10 +344,10 @@ public class StatsQueryScopeExpander {
     }
 
     private boolean shouldConnectedVmBeSeparatelyAdded(@Nonnull final ApiId scope,
-                                                       @Nonnull final Set<ApiEntityType> relatedTypes) {
-        return relatedTypes.size() == 1 && relatedTypes.contains(ApiEntityType.VIRTUAL_MACHINE) &&
+                                                       @Nonnull final Set<UIEntityType> relatedTypes) {
+        return relatedTypes.size() == 1 && relatedTypes.contains(UIEntityType.VIRTUAL_MACHINE) &&
             scope.getScopeTypes()
-                .filter(set -> set.contains(ApiEntityType.VIRTUAL_VOLUME))
+                .filter(set -> set.contains(UIEntityType.VIRTUAL_VOLUME))
                 .isPresent();
     }
 }

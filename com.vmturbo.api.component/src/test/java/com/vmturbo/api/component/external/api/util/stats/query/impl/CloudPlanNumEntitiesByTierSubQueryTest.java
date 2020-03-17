@@ -39,8 +39,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -82,7 +82,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
 
     private static Map<String, Set<Long>> createRelatedEntitiesMap() {
         Map<String, Set<Long>> result = new HashMap<>();
-        result.put(ApiEntityType.VIRTUAL_VOLUME.apiStr(), VOLUMES_IDS);
+        result.put(UIEntityType.VIRTUAL_VOLUME.apiStr(), VOLUMES_IDS);
         return Collections.unmodifiableMap(result);
     }
 
@@ -147,7 +147,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         // Test that the assertions pass without exceptions whether the provider type is present or
         // not.  Test the lambda function that computes the number of entities by tier type.
         Map<Long, ApiPartialEntity> entities = new HashMap<>();
-        String volumeEntityType = ApiEntityType.VIRTUAL_VOLUME.apiStr();
+        String volumeEntityType = UIEntityType.VIRTUAL_VOLUME.apiStr();
         entities.put(7777777L, virtualVolume1);
         Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
                         .collect(Collectors.groupingBy(CloudPlanNumEntitiesByTierSubQuery.ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType), Collectors.counting()));

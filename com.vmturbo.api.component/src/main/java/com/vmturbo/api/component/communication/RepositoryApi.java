@@ -62,7 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -865,7 +865,7 @@ public class RepositoryApi {
          * @return The request, for chaining.
          */
         @Nonnull
-        public REQ restrictTypes(@Nonnull final Collection<ApiEntityType> types) {
+        public REQ restrictTypes(@Nonnull final Collection<UIEntityType> types) {
             types.forEach(type -> requestBuilder.addEntityType(type.typeNumber()));
             return clazz.cast(this);
         }

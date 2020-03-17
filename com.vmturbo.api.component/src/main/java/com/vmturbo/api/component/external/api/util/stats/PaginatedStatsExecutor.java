@@ -80,7 +80,7 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -184,8 +184,8 @@ public class PaginatedStatsExecutor {
          * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
          * in that DATACENTER.
          */
-        private final Map<ApiEntityType, ApiEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-                ApiEntityType.DATACENTER, ApiEntityType.PHYSICAL_MACHINE
+        private final Map<UIEntityType, UIEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+                UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
         );
 
         /**
@@ -437,12 +437,12 @@ public class PaginatedStatsExecutor {
                 }
                 // this is not a group, but an entity (or market, which doesn't have entity type).
                 // if the entity is a grouping entity, it should be handled by getAggregatedEntityStats
-                Optional<Set<ApiEntityType>> scopeTypes = apiId.getScopeTypes();
+                Optional<Set<UIEntityType>> scopeTypes = apiId.getScopeTypes();
 
                 if (scopeTypes.isPresent() &&
                         scopeTypes.get()
                                 .stream()
-                                .map(ApiEntityType::apiStr)
+                                .map(UIEntityType::apiStr)
                                 .anyMatch(statsMapper::shouldNormalize)) {
                     return true;
                 }
@@ -470,7 +470,7 @@ public class PaginatedStatsExecutor {
                 final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
             entityStatsApiDTO.setUuid(Long.toString(serviceEntity.getOid()));
-            entityStatsApiDTO.setClassName(ApiEntityType.fromType(serviceEntity.getEntityType()).apiStr());
+            entityStatsApiDTO.setClassName(UIEntityType.fromType(serviceEntity.getEntityType()).apiStr());
             entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
             entityStatsApiDTO.setStats(new ArrayList<>());
             if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
@@ -568,7 +568,7 @@ public class PaginatedStatsExecutor {
             final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
             final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                     // Treat unknown type as non-existent.
-                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN.apiStr()));
+                    .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
             // Market stats request must be the only uuid in the scopes list
             if (StatsService.isMarketScoped(this.inputDto)) {
                 // 'relatedType' is required for full market entity stats
@@ -586,13 +586,13 @@ public class PaginatedStatsExecutor {
                 } else {
                     // Otherwise, just set the entityType field on the stats scope.
                     entityStatsScope.setEntityType(
-                            ApiEntityType.fromString(relatedType.get()).typeNumber());
+                            UIEntityType.fromString(relatedType.get()).typeNumber());
                 }
             } else if (inputDto.getScopes().size() == 1) {
                 // Check if we can do the global entity type optimization.
                 final Optional<Integer> globalEntityType =
                         getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
-                final Optional<Integer> relatedTypeInt = relatedType.map(ApiEntityType::fromString).map(ApiEntityType::typeNumber);
+                final Optional<Integer> relatedTypeInt = relatedType.map(UIEntityType::fromString).map(UIEntityType::typeNumber);
                 if (globalEntityType.isPresent()
                         // We can only do the global entity type optimization if the related type
                         // is unset, or is the same as the global entity type. Why? Because the
@@ -608,7 +608,7 @@ public class PaginatedStatsExecutor {
                         entityStatsScope.setEntityList(EntityList.newBuilder()
                                 .addAllEntities(userSessionContext.getUserAccessScope()
                                         .getAccessibleOidsByEntityType(
-                                                ApiEntityType.fromType(globalEntityType.get()).apiStr()))
+                                                UIEntityType.fromType(globalEntityType.get()).apiStr()))
                                 .build());
                     } else {
                         entityStatsScope.setEntityType(globalEntityType.get());
@@ -680,9 +680,9 @@ public class PaginatedStatsExecutor {
 
             // if it is global temp group and need to expand, should return target expand entity type.
             if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                    ApiEntityType.fromType(entityType))) {
+                    UIEntityType.fromType(entityType))) {
                 return Optional.of(ENTITY_TYPES_TO_EXPAND.get(
-                        ApiEntityType.fromType(entityType)).typeNumber());
+                        UIEntityType.fromType(entityType)).typeNumber());
             } else if (isGlobalTempGroup) {
                 // if it is global temp group and not need to expand.
                 return Optional.of(entityType);
@@ -706,7 +706,7 @@ public class PaginatedStatsExecutor {
             final Set<Long> expandedUuids;
             final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                     // Treat unknown type as non-existent.
-                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN.apiStr()));
+                    .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
             // Market stats request must be the only uuid in the scopes list
             if (StatsService.isMarketScoped(inputDto)) {
                 // 'relatedType' is required for full market entity stats
@@ -908,7 +908,7 @@ public class PaginatedStatsExecutor {
             if (requestInputDto.getRelatedType() != null) {
                 EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
                         .addEntityTypeId(
-                                ApiEntityType.fromString(
+                                UIEntityType.fromString(
                                         requestInputDto.getRelatedType())
                                         .typeNumber())
                         .build();
@@ -1187,7 +1187,7 @@ public class PaginatedStatsExecutor {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
             MinimalEntity minimalEntity = minimalEntityMap.get(entityUuid);
             entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
-            entityStatsApiDTO.setClassName(ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+            entityStatsApiDTO.setClassName(UIEntityType.fromType(minimalEntity.getEntityType()).apiStr());
             entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
             return entityStatsApiDTO;
         }

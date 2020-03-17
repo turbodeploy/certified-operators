@@ -1,8 +1,8 @@
  package com.vmturbo.history.stats;
 
- import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE_AMOUNT;
- import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
- import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
+ import static com.vmturbo.components.common.utils.StringConstants.STORAGE_AMOUNT;
+ import static com.vmturbo.components.common.utils.StringConstants.USED;
+ import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
  import static com.vmturbo.history.schema.RelationType.COMMODITIES;
  import static com.vmturbo.history.stats.StatsTestUtils.newStatRecord;
  import static junit.framework.TestCase.assertTrue;
@@ -103,7 +103,7 @@
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
  import com.vmturbo.components.common.setting.SettingDTOUtil;
- import com.vmturbo.common.protobuf.utils.StringConstants;
+ import com.vmturbo.components.common.utils.StringConstants;
  import com.vmturbo.history.db.HistorydbIO;
  import com.vmturbo.history.db.VmtDbException;
  import com.vmturbo.history.db.bulk.BulkLoader;

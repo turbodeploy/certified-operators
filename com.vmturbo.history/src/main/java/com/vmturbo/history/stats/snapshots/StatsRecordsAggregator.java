@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.stats.PropertySubType;
 
 /**

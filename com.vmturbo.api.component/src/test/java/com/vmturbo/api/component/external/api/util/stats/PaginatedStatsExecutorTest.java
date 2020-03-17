@@ -77,12 +77,12 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  *  Test get paginated historical and projected stats.
@@ -124,7 +124,7 @@ public class PaginatedStatsExecutorTest {
     private static final MinimalEntity ENTITY_DESCRIPTOR = MinimalEntity.newBuilder()
             .setOid(1)
             .setDisplayName("hello japan")
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
             .build();
 
     private final String costCommodity = StringConstants.COST_PRICE;
@@ -463,7 +463,7 @@ public class PaginatedStatsExecutorTest {
         final EntityStatsApiDTO entityStatDto = paginatedStatsGatherSpy.getEntityStatsPaginationResponse().getRawResults().get(0);
         assertThat(entityStatDto.getUuid(), is(Long.toString(ENTITY_DESCRIPTOR.getOid())));
         assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
-        assertThat(entityStatDto.getClassName(), is(ApiEntityType.fromType(ENTITY_DESCRIPTOR.getEntityType()).apiStr()));
+        assertThat(entityStatDto.getClassName(), is(UIEntityType.fromType(ENTITY_DESCRIPTOR.getEntityType()).apiStr()));
     }
 
     /**
@@ -496,7 +496,7 @@ public class PaginatedStatsExecutorTest {
         //GIVEN
         StatScopesApiInputDTO inputDto = getInputDtoWithProjectionPeriod();
         inputDto.setScopes(Collections.singletonList("123"));
-        inputDto.setRelatedType(ApiEntityType.DATACENTER.apiStr());
+        inputDto.setRelatedType(UIEntityType.DATACENTER.apiStr());
         final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest("foo", 1, true, "order");
         PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(inputDto, paginationRequest);
 
@@ -855,9 +855,9 @@ public class PaginatedStatsExecutorTest {
         sortedNextPageEntityIds.add(3L);
 
         final Map<Long, MinimalEntity> minimalEntityMap = new HashMap<>();
-        minimalEntityMap.put(2L, buildMinimalEntity(2L, ApiEntityType.VIRTUAL_MACHINE));
-        minimalEntityMap.put(1L, buildMinimalEntity(1L, ApiEntityType.VIRTUAL_MACHINE));
-        minimalEntityMap.put(3L, buildMinimalEntity(3L, ApiEntityType.VIRTUAL_MACHINE));
+        minimalEntityMap.put(2L, buildMinimalEntity(2L, UIEntityType.VIRTUAL_MACHINE));
+        minimalEntityMap.put(1L, buildMinimalEntity(1L, UIEntityType.VIRTUAL_MACHINE));
+        minimalEntityMap.put(3L, buildMinimalEntity(3L, UIEntityType.VIRTUAL_MACHINE));
 
         final PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(
                 getInputDtoWithHistoricPeriod(), mock(EntityStatsPaginationRequest.class));
@@ -880,10 +880,10 @@ public class PaginatedStatsExecutorTest {
      * Builds a {@link MinimalEntity} with uuids and entityType.
      *
      * @param uuid the entityUuid to use
-     * @param entityType the {@link ApiEntityType} to set
+     * @param entityType the {@link UIEntityType} to set
      * @return throws OperationFailedException constructed from param data
      */
-    public MinimalEntity buildMinimalEntity(Long uuid, ApiEntityType entityType) {
+    public MinimalEntity buildMinimalEntity(Long uuid, UIEntityType entityType) {
         return MinimalEntity.newBuilder()
                 .setOid(uuid)
                 .setEntityType(entityType.typeNumber())
@@ -903,7 +903,7 @@ public class PaginatedStatsExecutorTest {
         final float statValue = 5;
 
         final MinimalEntity minimalEntity =
-                buildMinimalEntity(entityUuid, ApiEntityType.VIRTUAL_MACHINE);
+                buildMinimalEntity(entityUuid, UIEntityType.VIRTUAL_MACHINE);
         final Map<Long, MinimalEntity> minimalEntityMap = Maps.newHashMap();
         minimalEntityMap.put(entityUuid, minimalEntity);
 
@@ -950,7 +950,7 @@ public class PaginatedStatsExecutorTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Collections.singletonList("Market"));
         inputDto.setPeriod(statPeriodApiInputDTO);
-        inputDto.setRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        inputDto.setRelatedType(UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         return inputDto;
     }
@@ -1046,7 +1046,7 @@ public class PaginatedStatsExecutorTest {
     public Map<Long, MinimalEntity> getMinimalEntityResponse(Long entityUuid) {
         MinimalEntity minimalEntity = MinimalEntity.newBuilder().setOid(entityUuid)
                 .setDisplayName("minimalEntity")
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
         Map<Long, MinimalEntity> map = new HashMap<>();
         map.put(entityUuid, minimalEntity);

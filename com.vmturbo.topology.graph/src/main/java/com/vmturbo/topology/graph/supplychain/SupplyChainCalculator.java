@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 
@@ -93,7 +93,7 @@ public class SupplyChainCalculator {
             // add the entity to the result
             resultBuilder.computeIfAbsent(
                     entityTypeId,
-                    k -> new SupplyChainNodeBuilder(ApiEntityType.fromType(entityTypeId).apiStr(), depth))
+                    k -> new SupplyChainNodeBuilder(UIEntityType.fromType(entityTypeId).apiStr(), depth))
                     .addEntity(entity);
 
             // apply a traversal rule to add traversal states to the frontier
@@ -173,7 +173,7 @@ public class SupplyChainCalculator {
      */
     private static List<String> getEntityTypeNames(@Nonnull Collection<Integer> entityTypeIds) {
         return entityTypeIds.stream()
-                    .map(entityTypeId -> ApiEntityType.fromType(entityTypeId).apiStr())
+                    .map(entityTypeId -> UIEntityType.fromType(entityTypeId).apiStr())
                     .collect(Collectors.toList());
     }
 

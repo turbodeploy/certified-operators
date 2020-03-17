@@ -26,7 +26,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * An in-memory graph built from supply chain queries used for traversal in order to compute the actual
@@ -105,10 +105,10 @@ public class SupplyChainSubgraph {
      * This collection defines the pairs of entity types for which the edges are mandatory.
      * Pairs are represented as sets of size 2.
      */
-    private static final Set<Set<ApiEntityType>> mandatoryEdgeTypes =
+    private static final Set<Set<UIEntityType>> mandatoryEdgeTypes =
             ImmutableSet.of(
-                ImmutableSet.of(ApiEntityType.VIRTUAL_DATACENTER, ApiEntityType.VIRTUAL_DATACENTER),
-                ImmutableSet.of(ApiEntityType.STORAGE, ApiEntityType.LOGICALPOOL)
+                ImmutableSet.of(UIEntityType.VIRTUAL_DATACENTER, UIEntityType.VIRTUAL_DATACENTER),
+                ImmutableSet.of(UIEntityType.STORAGE, UIEntityType.LOGICALPOOL)
             );
 
     /**
@@ -375,8 +375,8 @@ public class SupplyChainSubgraph {
         public boolean mandatoryEdge() {
             return mandatoryEdgeTypes.contains(
                 ImmutableSet.of(
-                    ApiEntityType.fromString(vertex.getEntityType()),
-                    ApiEntityType.fromString(sourceNeighbor.getEntityType())
+                    UIEntityType.fromString(vertex.getEntityType()),
+                    UIEntityType.fromString(sourceNeighbor.getEntityType())
                 )
             );
         }

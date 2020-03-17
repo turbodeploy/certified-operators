@@ -18,7 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 @Ignore
 public class TopologyEntityTopologyGraphIT {
@@ -71,19 +71,19 @@ public class TopologyEntityTopologyGraphIT {
         long nextEdge = 0;
 
         for (int i = 0; i < DC_COUNT; i++, nextVertex++) {
-            map.put(nextVertex, TestGraphEntity.newBuilder(nextVertex, ApiEntityType.DATACENTER));
+            map.put(nextVertex, TestGraphEntity.newBuilder(nextVertex, UIEntityType.DATACENTER));
             datacenterArray.add(nextVertex);
         }
 
         for (int i = 0; i < HOST_COUNT; i++, nextVertex++, nextEdge++) {
             long pm = nextVertex;
             long dc = datacenterArray.get(random.nextInt(datacenterArray.size()));
-            map.put(pm, TestGraphEntity.newBuilder(pm, ApiEntityType.PHYSICAL_MACHINE).addProviderId(dc));
+            map.put(pm, TestGraphEntity.newBuilder(pm, UIEntityType.PHYSICAL_MACHINE).addProviderId(dc));
             hostArray.add(pm);
         }
 
         for (int i = 0; i < STORAGE_COUNT; i++, nextVertex++) {
-            map.put(nextVertex, TestGraphEntity.newBuilder(nextVertex, ApiEntityType.STORAGE));
+            map.put(nextVertex, TestGraphEntity.newBuilder(nextVertex, UIEntityType.STORAGE));
             storageArray.add(nextVertex);
         }
 
@@ -92,7 +92,7 @@ public class TopologyEntityTopologyGraphIT {
             long pm = hostArray.get(random.nextInt(hostArray.size()));
             long st = storageArray.get(random.nextInt(storageArray.size()));
 
-            map.put(vm, TestGraphEntity.newBuilder(vm, ApiEntityType.VIRTUAL_MACHINE)
+            map.put(vm, TestGraphEntity.newBuilder(vm, UIEntityType.VIRTUAL_MACHINE)
                 .addProviderId(pm)
                 .addProviderId(st));
             vmArray.add(vm);
@@ -102,7 +102,7 @@ public class TopologyEntityTopologyGraphIT {
             long app = nextVertex;
             long vm = vmArray.get(random.nextInt(vmArray.size()));
 
-            map.put(app, TestGraphEntity.newBuilder(app, ApiEntityType.APPLICATION)
+            map.put(app, TestGraphEntity.newBuilder(app, UIEntityType.APPLICATION)
                 .addProviderId(vm));
             appArray.add(app);
         }

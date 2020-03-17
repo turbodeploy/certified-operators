@@ -5,7 +5,7 @@ import java.util.Map;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.graph.TestGraphEntity.Builder;
 
 /**
@@ -48,22 +48,22 @@ public class SimpleCloudTopologyUtil {
      */
     public static TopologyGraph<TestGraphEntity> constructTopology() {
         final TestGraphEntity.Builder region =
-                TestGraphEntity.newBuilder(RG_ID, ApiEntityType.REGION)
+                TestGraphEntity.newBuilder(RG_ID, UIEntityType.REGION)
                         .addConnectedEntity(AZ_ID, ConnectionType.OWNS_CONNECTION);
         final TestGraphEntity.Builder zone =
-                TestGraphEntity.newBuilder(AZ_ID, ApiEntityType.AVAILABILITY_ZONE);
+                TestGraphEntity.newBuilder(AZ_ID, UIEntityType.AVAILABILITY_ZONE);
         final TestGraphEntity.Builder db =
-                TestGraphEntity.newBuilder(DB_ID, ApiEntityType.DATABASE).addProviderId(VM_ID)
+                TestGraphEntity.newBuilder(DB_ID, UIEntityType.DATABASE).addProviderId(VM_ID)
                         .addConnectedEntity(AZ_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
         final TestGraphEntity.Builder vm =
-                TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE).addProviderId(CT_ID)
+                TestGraphEntity.newBuilder(VM_ID, UIEntityType.VIRTUAL_MACHINE).addProviderId(CT_ID)
                         .addConnectedEntity(AZ_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
         final TestGraphEntity.Builder computeTier =
-                TestGraphEntity.newBuilder(CT_ID, ApiEntityType.COMPUTE_TIER)
+                TestGraphEntity.newBuilder(CT_ID, UIEntityType.COMPUTE_TIER)
                         .addConnectedEntity(ST_ID, ConnectionType.NORMAL_CONNECTION)
                         .addConnectedEntity(RG_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
         final TestGraphEntity.Builder storageTier =
-                TestGraphEntity.newBuilder(6L, ApiEntityType.STORAGE_TIER)
+                TestGraphEntity.newBuilder(6L, UIEntityType.STORAGE_TIER)
                         .addConnectedEntity(RG_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
         final Map<Long, Builder> cloudTopologyMap =
                 ImmutableMap.<Long, TestGraphEntity.Builder>builder()

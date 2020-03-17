@@ -109,7 +109,7 @@ import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -200,7 +200,7 @@ public class ScenarioMapperTest {
         dto.setProjectionDays(Collections.singletonList(2));
         dto.setTarget(entity(1));
         dto.setCount(6);
-        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         final List<ScenarioChange> changes = scenarioMapper.mapTopologyAddition(dto, new HashSet<>());
@@ -211,7 +211,7 @@ public class ScenarioMapperTest {
         assertEquals(6, addition.getAdditionCount());
         assertEquals(1, addition.getEntityId());
         assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), addition.getTargetEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), addition.getTargetEntityType());
     }
 
     /**
@@ -246,7 +246,7 @@ public class ScenarioMapperTest {
         RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
         dto.setProjectionDay(2);
         dto.setTarget(entity(1));
-        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         final ScenarioChange change = scenarioMapper.mapTopologyRemoval(dto);
@@ -254,7 +254,7 @@ public class ScenarioMapperTest {
         //THEN;
         TopologyRemoval removal = change.getTopologyRemoval();
         assertEquals(1, removal.getEntityId());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), removal.getTargetEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), removal.getTargetEntityType());
         assertEquals(2, removal.getChangeApplicationDay());
     }
 
@@ -289,7 +289,7 @@ public class ScenarioMapperTest {
         dto.setProjectionDay(5);
         dto.setTarget(entity(1));
         dto.setTemplate(template(2));
-        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         final ScenarioChange change = scenarioMapper.mapTopologyReplace(dto);
@@ -299,7 +299,7 @@ public class ScenarioMapperTest {
         assertEquals(5, replace.getChangeApplicationDay());
         assertEquals(1, replace.getRemoveEntityId());
         assertEquals(2, replace.getAddTemplateId());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), replace.getTargetEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), replace.getTargetEntityType());
     }
 
     /**
@@ -830,7 +830,7 @@ public class ScenarioMapperTest {
                 .addChangeApplicationDays(3)
                 .setEntityId(1234)
                 .setAdditionCount(44)
-                .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -843,7 +843,7 @@ public class ScenarioMapperTest {
         assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
         assertEquals(new Integer(44), changeDto.getCount());
         assertEquals("1234", changeDto.getTarget().getUuid());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
     }
 
     /**
@@ -901,7 +901,7 @@ public class ScenarioMapperTest {
                 .setTopologyRemoval(TopologyRemoval.newBuilder()
                         .setChangeApplicationDay(3)
                         .setEntityId(1234)
-                        .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -911,7 +911,7 @@ public class ScenarioMapperTest {
         RemoveObjectApiDTO changeDto = dto.getTopologyChanges().getRemoveList().get(0);
         assertEquals("1234", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
     }
 
     /**
@@ -960,7 +960,7 @@ public class ScenarioMapperTest {
                 .setChangeApplicationDay(3)
                 .setAddTemplateId(1234)
                 .setRemoveEntityId(5678)
-                .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             ).build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -971,7 +971,7 @@ public class ScenarioMapperTest {
         assertEquals("1234", changeDto.getTemplate().getUuid());
         assertEquals("5678", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
     }
 
     /**
@@ -1006,7 +1006,7 @@ public class ScenarioMapperTest {
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .setAdditionCount(1)
                 .setEntityId(1)
-                .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
 
         ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();
@@ -1060,7 +1060,7 @@ public class ScenarioMapperTest {
         AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
         BaseApiDTO target = changeDto.getTarget();
         assertNull(target.getClassName());
-        assertEquals(ApiEntityType.UNKNOWN.apiStr(), target.getDisplayName());
+        assertEquals(UIEntityType.UNKNOWN.apiStr(), target.getDisplayName());
     }
 
     @Nonnull
@@ -1247,7 +1247,7 @@ public class ScenarioMapperTest {
         final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
                 .setPercentage(100)
                 .setGroupOid(12)
-                .setSelectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
         changes.add(ScenarioChange.newBuilder()
@@ -1265,7 +1265,7 @@ public class ScenarioMapperTest {
         //THEN
         assertEquals(1, dtos.size());
         assertEquals(baseApiDto, dtos.get(0).getTarget());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
         assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
     }
 
@@ -1278,7 +1278,7 @@ public class ScenarioMapperTest {
         //GIVEN
         final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
                 .setPercentage(100)
-                .setSelectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
         changes.add(ScenarioChange.newBuilder()
@@ -1296,7 +1296,7 @@ public class ScenarioMapperTest {
         //THEN
         assertEquals(1, dtos.size());
         assertNull(dtos.get(0).getTarget());
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
         assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
     }
 
@@ -1342,7 +1342,7 @@ public class ScenarioMapperTest {
 
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
         maxUtil.setMaxPercentage(100);
-        maxUtil.setSelectedEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        maxUtil.setSelectedEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         maxUtil.setTarget(baseApiDTO);
 
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
@@ -1354,11 +1354,11 @@ public class ScenarioMapperTest {
 
         //THEN
         int numberUtilizationSettings =
-            calculateNumberOfConvertedSettings(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
+            calculateNumberOfConvertedSettings(UIEntityType.PHYSICAL_MACHINE.typeNumber());
         assertEquals(numberUtilizationSettings, scenarioChanges.size());
         NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
         assertEquals(100, (int)mLevel.getValue());
-        assertEquals(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
+        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(),
             scenarioChanges.get(0).getSettingOverride().getEntityType());
         assertEquals(23, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
@@ -1372,7 +1372,7 @@ public class ScenarioMapperTest {
         //GIVEN
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
         maxUtil.setMaxPercentage(100);
-        maxUtil.setSelectedEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        maxUtil.setSelectedEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
             add(maxUtil);
         }};
@@ -1381,12 +1381,12 @@ public class ScenarioMapperTest {
         List<ScenarioChange> scenarioChanges = scenarioMapper.convertMaxUtilizationToSettingOverride(maxUtilizations);
 
         //THEN
-        int numberUtilizationSettings = calculateNumberOfConvertedSettings(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
+        int numberUtilizationSettings = calculateNumberOfConvertedSettings(UIEntityType.PHYSICAL_MACHINE.typeNumber());
         assertEquals(numberUtilizationSettings, scenarioChanges.size());
         assertEquals(numberUtilizationSettings, scenarioChanges.size());
         NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
         assertEquals(100, (int)mLevel.getValue());
-        assertEquals(ApiEntityType.PHYSICAL_MACHINE.typeNumber(), scenarioChanges.get(0).getSettingOverride().getEntityType());
+        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(), scenarioChanges.get(0).getSettingOverride().getEntityType());
         assertEquals(0, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
 
@@ -1588,7 +1588,7 @@ public class ScenarioMapperTest {
     public void testCreateApiSettingFromOverrideGlobalSetting() {
         //GIVEN
         SettingOverride.Builder settingOverride = buildSettingOverrideStringValue("foo", "value")
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber());
 
         final SettingApiDTO<String> settingApiDTO = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
@@ -1624,7 +1624,7 @@ public class ScenarioMapperTest {
         when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
 
         SettingOverride.Builder settingOverride = buildSettingOverrideStringValue("foo", "value")
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber());
         //WHEN
         Collection<SettingApiDTO<String>> apiDtolist =
                 scenarioMapper.createApiSettingFromOverride(settingOverride.build(), contextMock);
@@ -1744,7 +1744,7 @@ public class ScenarioMapperTest {
         //GIVEN
         RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
         dto.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
-        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
@@ -1843,7 +1843,7 @@ public class ScenarioMapperTest {
 
         //THEN
         assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
-        assertThat(removeConstraintApiDTO.getTargetEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(removeConstraintApiDTO.getTargetEntityType(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertNull(removeConstraintApiDTO.getTarget());
     }
 
@@ -1855,7 +1855,7 @@ public class ScenarioMapperTest {
         //GIVEN
         long groupId = 1234;
         GroupApiDTO groupApiDTO = new GroupApiDTO();
-        groupApiDTO.setGroupType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        groupApiDTO.setGroupType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         when(contextMock.dtoForId(groupId)).thenReturn(groupApiDTO);
 
         IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder()
@@ -1871,7 +1871,7 @@ public class ScenarioMapperTest {
         //THEN
         assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
         assertThat(removeConstraintApiDTO.getTarget(), is(groupApiDTO));
-        assertTrue(removeConstraintApiDTO.getTargetEntityType() == ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        assertTrue(removeConstraintApiDTO.getTargetEntityType() == UIEntityType.VIRTUAL_MACHINE.apiStr());
     }
 
     @Test

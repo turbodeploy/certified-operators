@@ -16,7 +16,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -48,7 +48,7 @@ public class GlobalSupplyChainCalculator {
      *         grouped by entity type
      */
     @Nonnull
-    public <E extends TopologyGraphEntity<E>> Map<ApiEntityType, SupplyChainNode> getSupplyChainNodes(
+    public <E extends TopologyGraphEntity<E>> Map<UIEntityType, SupplyChainNode> getSupplyChainNodes(
             @Nonnull TopologyGraph<E> topology, @Nonnull EnvironmentType environmentType,
             @Nonnull Predicate<Integer> entityTypesToSkip) {
         final Predicate<EnvironmentType> environmentTypePredicate =
@@ -71,10 +71,10 @@ public class GlobalSupplyChainCalculator {
      *         grouped by entity type
      */
     @Nonnull
-    public <E extends TopologyGraphEntity<E>> Map<ApiEntityType, SupplyChainNode> getSupplyChainNodes(
+    public <E extends TopologyGraphEntity<E>> Map<UIEntityType, SupplyChainNode> getSupplyChainNodes(
             @Nonnull TopologyGraph<E> topology, @Nonnull Predicate<E> entityFilter,
             @Nonnull final Predicate<Integer> entityTypesToSkip) {
-        final Map<ApiEntityType, SupplyChainNode> result = new HashMap<>(topology.entityTypes().size());
+        final Map<UIEntityType, SupplyChainNode> result = new HashMap<>(topology.entityTypes().size());
 
         for (Integer entityTypeId : topology.entityTypes()) {
             // filter out unwanted types
@@ -104,18 +104,18 @@ public class GlobalSupplyChainCalculator {
             connectedConsumerTypes.removeIf(entityTypesToSkip::test);
             connectedProviderTypes.removeIf(entityTypesToSkip::test);
 
-            final ApiEntityType entityType = ApiEntityType.fromType(entityTypeId);
+            final UIEntityType entityType = UIEntityType.fromType(entityTypeId);
 
             // construct the supply chain node and add it to the result
             final SupplyChainNode.Builder supplyChainNodeBuilder =
                 SupplyChainNode.newBuilder().setEntityType(entityType.apiStr());
             for (Integer consumerType : connectedConsumerTypes) {
                 supplyChainNodeBuilder.addConnectedConsumerTypes(
-                        ApiEntityType.fromType(consumerType).apiStr());
+                        UIEntityType.fromType(consumerType).apiStr());
             }
             for (Integer providerType : connectedProviderTypes) {
                 supplyChainNodeBuilder.addConnectedProviderTypes(
-                        ApiEntityType.fromType(providerType).apiStr());
+                        UIEntityType.fromType(providerType).apiStr());
             }
             for (Entry<EntityState, Set<Long>> stateAndMembers : membersByState.entrySet()) {
                 supplyChainNodeBuilder.putMembersByState(

@@ -56,7 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -99,7 +99,7 @@ public class RepositoryApiTest {
         return MinimalEntity.newBuilder()
             .setOid(id)
             .setDisplayName("foo")
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .build();
     }
 
@@ -107,7 +107,7 @@ public class RepositoryApiTest {
         return ApiPartialEntity.newBuilder()
             .setOid(id)
             .setDisplayName("foo")
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .build();
     }
 
@@ -115,7 +115,7 @@ public class RepositoryApiTest {
         return TopologyEntityDTO.newBuilder()
             .setOid(id)
             .setDisplayName("foo")
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .build();
     }
 

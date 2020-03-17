@@ -18,12 +18,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     private final long oid;
 
-    private final ApiEntityType entityType;
+    private final UIEntityType entityType;
 
     private EntityState state = EntityState.POWERED_ON;
 
@@ -51,7 +51,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     private final List<TestGraphEntity> ownedEntities = new ArrayList<>();
     private final AtomicReference<TestGraphEntity> owner = new AtomicReference<>();
 
-    private TestGraphEntity(final long oid, final ApiEntityType type) {
+    private TestGraphEntity(final long oid, final UIEntityType type) {
         this.oid = oid;
         this.entityType = type;
         this.displayName = Long.toString(oid);
@@ -176,7 +176,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
      * @return the new entity builder
      */
     @Nonnull
-    public static Builder newBuilder(final long oid, final ApiEntityType entityType) {
+    public static Builder newBuilder(final long oid, final UIEntityType entityType) {
         return new Builder(oid, entityType);
     }
 
@@ -217,7 +217,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         private final Set<ConnectedEntity> connectedEntities = new HashSet<>();
         private final Set<Long> providerIds = new HashSet<>();
 
-        private Builder(final long oid, final ApiEntityType entityType) {
+        private Builder(final long oid, final UIEntityType entityType) {
             this.entity = new TestGraphEntity(oid, entityType);
         }
 

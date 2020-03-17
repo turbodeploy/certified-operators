@@ -37,8 +37,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Scop
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.GlobalScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Utility class responsible for mapping {@link ActionStatsQuery}s to
@@ -221,8 +221,8 @@ class CurrentQueryMapper {
                 final SupplyChainNodeFetcherBuilder builder =
                     supplyChainFetcherFactory.newNodeFetcher()
                         .entityTypes(relatedEntityTypes.stream()
-                            .map(ApiEntityType::fromType)
-                            .map(ApiEntityType::apiStr)
+                            .map(UIEntityType::fromType)
+                            .map(UIEntityType::apiStr)
                             .collect(Collectors.toList()));
                 oids.stream()
                     .map(Object::toString)
@@ -324,7 +324,7 @@ class CurrentQueryMapper {
                         // The .get() is safe because we know it's a group (or else we wouldn't be
                         // in this block.
                         scope.getScopeTypes().get().stream()
-                            .map(ApiEntityType::typeNumber)
+                            .map(UIEntityType::typeNumber)
                             .forEach(globalScope::addEntityType);
                     } else {
                         globalScope.addAllEntityType(relatedEntityTypes);

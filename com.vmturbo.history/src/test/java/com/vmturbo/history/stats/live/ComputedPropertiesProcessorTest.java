@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -25,7 +25,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.RecordsProcessor;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.StatsRecordsProcessor;

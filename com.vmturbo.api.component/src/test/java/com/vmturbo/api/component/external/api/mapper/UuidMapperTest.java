@@ -51,7 +51,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -261,14 +261,14 @@ public class UuidMapperTest {
             .setGroup(Grouping.newBuilder()
                         .setId(123)
                         .addExpectedTypes(MemberType.newBuilder()
-                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
                             .setType(GroupType.REGULAR)
                             .setDisplayName("foo")
                             .setStaticGroupMembers(StaticMembers.newBuilder()
                                 .addMembersByType(StaticMembersByType.newBuilder()
                                     .setType(MemberType.newBuilder()
-                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))))
+                                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))))
                             )
                 .build())
             .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
@@ -283,10 +283,10 @@ public class UuidMapperTest {
         assertTrue(id.isGroup());
         verify(groupServiceBackend, times(1)).getGroup(any());
 
-        assertThat(id.getCachedGroupInfo().get().getEntityTypes(), contains(ApiEntityType.VIRTUAL_MACHINE));
+        assertThat(id.getCachedGroupInfo().get().getEntityTypes(), contains(UIEntityType.VIRTUAL_MACHINE));
         assertThat(id.getCachedGroupInfo().get().isGlobalTempGroup(), is(false));
         assertThat(id.getDisplayName(), is("foo"));
-        assertThat(id.getScopeTypes().get(), contains(ApiEntityType.VIRTUAL_MACHINE));
+        assertThat(id.getScopeTypes().get(), contains(UIEntityType.VIRTUAL_MACHINE));
 
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());
@@ -309,7 +309,7 @@ public class UuidMapperTest {
             .setGroup(Grouping.newBuilder()
                 .setId(123)
                 .addExpectedTypes(MemberType.newBuilder()
-                    .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                    .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
                 .setDefinition(GroupDefinition.newBuilder()
                     .setIsTemporary(true)
                     .setDisplayName("foo")
@@ -373,7 +373,7 @@ public class UuidMapperTest {
             .setGroup(Grouping.newBuilder()
                 .setId(789)
                 .addExpectedTypes(MemberType.newBuilder()
-                    .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                    .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
                 .setDefinition(GroupDefinition.newBuilder()
                     .setIsTemporary(true)
                     .setDisplayName("foo")
@@ -394,7 +394,7 @@ public class UuidMapperTest {
             .setGroup(Grouping.newBuilder()
                     .setId(13579)
                     .addExpectedTypes(MemberType.newBuilder()
-                        .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                        .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
                     .setDefinition(GroupDefinition.newBuilder()
                         .setDisplayName("bar")
                         .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
@@ -458,14 +458,14 @@ public class UuidMapperTest {
             .setGroup(Grouping.newBuilder()
                             .setId(123)
                             .addExpectedTypes(MemberType.newBuilder()
-                                            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                             .setDefinition(GroupDefinition.newBuilder()
                                 .setType(GroupType.REGULAR)
                                 .setDisplayName("foo")
                                 .setStaticGroupMembers(StaticMembers.newBuilder()
                                     .addMembersByType(StaticMembersByType.newBuilder()
                                         .setType(MemberType.newBuilder()
-                                            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))))
+                                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))))
                                 )
                     .build())
             .build()).when(groupServiceBackend).getGroup(groupID);
@@ -474,7 +474,7 @@ public class UuidMapperTest {
         assertTrue(id.isGroup());
         verify(groupServiceBackend, times(2)).getGroup(any(), any());
 
-        assertThat(id.getCachedGroupInfo().get().getEntityTypes(), contains(ApiEntityType.VIRTUAL_MACHINE));
+        assertThat(id.getCachedGroupInfo().get().getEntityTypes(), contains(UIEntityType.VIRTUAL_MACHINE));
         assertThat(id.getCachedGroupInfo().get().isGlobalTempGroup(), is(false));
         assertThat(id.getDisplayName(), is("foo"));
 

@@ -1,12 +1,13 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
+import static com.vmturbo.components.common.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -128,9 +129,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGro
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -146,8 +147,8 @@ public class GroupsService implements IGroupsService {
      * grouping entity in classic.
      */
     private static final Map<Integer, List<String>> GROUPING_ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        EntityType.DATACENTER_VALUE, ImmutableList.of(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
-        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(ApiEntityType.VIRTUAL_DATACENTER.apiStr())
+        EntityType.DATACENTER_VALUE, ImmutableList.of(UIEntityType.PHYSICAL_MACHINE.apiStr()),
+        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(UIEntityType.VIRTUAL_DATACENTER.apiStr())
     );
 
     private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
@@ -717,7 +718,7 @@ public class GroupsService implements IGroupsService {
                 inputDto.setRelatedEntityTypes(
                     // all types. cannot make it empty because extractMgmtUnitSubgroupFilter will
                     // replace it with the groups entity types.
-                    Arrays.stream(ApiEntityType.values()).map(ApiEntityType::apiStr).collect(Collectors.toList()));
+                    Arrays.stream(UIEntityType.values()).map(UIEntityType::apiStr).collect(Collectors.toList()));
 
                 final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
                     actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
@@ -756,9 +757,9 @@ public class GroupsService implements IGroupsService {
             return false;
         }
         CachedGroupInfo groupInfo = opt.get();
-        Set<ApiEntityType> entityTypes = groupInfo.getEntityTypes();
+        Set<UIEntityType> entityTypes = groupInfo.getEntityTypes();
         return apiScopeId.isGlobalTempGroup()
-            && (entityTypes.contains(ApiEntityType.REGION) || entityTypes.contains(ApiEntityType.AVAILABILITY_ZONE));
+            && (entityTypes.contains(UIEntityType.REGION) || entityTypes.contains(UIEntityType.AVAILABILITY_ZONE));
     }
 
     @Override
@@ -1106,7 +1107,7 @@ public class GroupsService implements IGroupsService {
             } else {
                 // group of entities
                 groupMembersType = MemberType.newBuilder()
-                        .setEntity(ApiEntityType.fromString(groupType).typeNumber())
+                        .setEntity(UIEntityType.fromString(groupType).typeNumber())
                         .build();
             }
             final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
@@ -1567,8 +1568,8 @@ public class GroupsService implements IGroupsService {
             final Set<Integer> relatedEntityTypesInt = relatedEntityTypes == null
                 ? Collections.emptySet()
                 : relatedEntityTypes.stream()
-                    .map(ApiEntityType::fromString)
-                    .map(ApiEntityType::typeNumber)
+                    .map(UIEntityType::fromString)
+                    .map(UIEntityType::typeNumber)
                     .collect(Collectors.toSet());
             final Predicate<MinimalEntity> filterByType = relatedEntityTypesInt.isEmpty()
                 ? entity -> true

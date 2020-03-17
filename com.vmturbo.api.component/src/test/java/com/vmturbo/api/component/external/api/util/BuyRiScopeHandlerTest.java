@@ -24,7 +24,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -261,7 +261,7 @@ public class BuyRiScopeHandlerTest {
         when(apiId.oid()).thenReturn(OID_ACCOUNT_1);
         when(apiId.isRealtimeMarket()).thenReturn(false);
         when(apiId.isEntity()).thenReturn(true);
-        final Set<ApiEntityType> scopeTypes = ImmutableSet.of(ApiEntityType.BUSINESS_ACCOUNT);
+        final Set<UIEntityType> scopeTypes = ImmutableSet.of(UIEntityType.BUSINESS_ACCOUNT);
         when(apiId.getScopeTypes()).thenReturn(Optional.of(scopeTypes));
         when(apiId.isGroup()).thenReturn(false);
         return apiId;
@@ -272,7 +272,7 @@ public class BuyRiScopeHandlerTest {
         when(apiId.oid()).thenReturn(OID_REGION_1);
         when(apiId.isRealtimeMarket()).thenReturn(false);
         when(apiId.isEntity()).thenReturn(true);
-        final Set<ApiEntityType> scopeTypes = ImmutableSet.of(ApiEntityType.REGION);
+        final Set<UIEntityType> scopeTypes = ImmutableSet.of(UIEntityType.REGION);
         when(apiId.getScopeTypes()).thenReturn(Optional.of(scopeTypes));
         when(apiId.isGroup()).thenReturn(false);
         return apiId;
@@ -284,7 +284,7 @@ public class BuyRiScopeHandlerTest {
         when(apiId.isEntity()).thenReturn(false);
         when(apiId.isGroup()).thenReturn(true);
         final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
-        when(groupInfo.getEntityTypes()).thenReturn(ImmutableSet.of(ApiEntityType.REGION));
+        when(groupInfo.getEntityTypes()).thenReturn(ImmutableSet.of(UIEntityType.REGION));
         when(groupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
         when(groupInfo.getEntityIds()).thenReturn(ImmutableSet.of(OID_REGION_1, OID_REGION_2));
         when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));

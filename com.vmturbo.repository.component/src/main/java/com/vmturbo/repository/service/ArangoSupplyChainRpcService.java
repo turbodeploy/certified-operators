@@ -46,7 +46,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -292,18 +292,18 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
         final Map<Long, SingleSourceSupplyChain> zoneSupplyChainComplete = Maps.newHashMap();
 
         for (Long oid : startingVertexOids) {
-            Optional<ApiEntityType> startingVertexEntityTypeOpt = getUIEntityType(oid);
+            Optional<UIEntityType> startingVertexEntityTypeOpt = getUIEntityType(oid);
             if (!startingVertexEntityTypeOpt.isPresent()) {
                 continue;
             }
-            final ApiEntityType startingVertexEntityType = startingVertexEntityTypeOpt.get();
+            final UIEntityType startingVertexEntityType = startingVertexEntityTypeOpt.get();
             final SingleSourceSupplyChain singleSourceSupplyChain = getSingleSourceSupplyChain(oid,
                 contextId, envType, Collections.emptySet(),
                 filterForDisplay ? getExclusionEntityTypes(startingVertexEntityType) : Collections.emptySet());
 
             // remove BusinessAccount from supply chain nodes, since we don't want to show it
-            if (startingVertexEntityType == ApiEntityType.BUSINESS_ACCOUNT && filterForDisplay) {
-                singleSourceSupplyChain.removeSupplyChainNodes(Sets.newHashSet(ApiEntityType.BUSINESS_ACCOUNT));
+            if (startingVertexEntityType == UIEntityType.BUSINESS_ACCOUNT && filterForDisplay) {
+                singleSourceSupplyChain.removeSupplyChainNodes(Sets.newHashSet(UIEntityType.BUSINESS_ACCOUNT));
             }
 
             // add supply chain starting from original entity
@@ -335,7 +335,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     private void getAndAddSupplyChainFromZone(
                     @Nonnull SingleSourceSupplyChain singleSourceSupplyChain,
                     @Nonnull SupplyChainMerger supplyChainMerger,
-                    @Nonnull ApiEntityType startingVertexEntityType,
+                    @Nonnull UIEntityType startingVertexEntityType,
                     @Nonnull Optional<Long> contextId,
                     @Nonnull Optional<EnvironmentType> envType,
                     final boolean filterForDisplay,
@@ -343,11 +343,11 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion) {
         // collect all the availability zones' ids returned by the supply chain
         final Set<Long> zoneIds = singleSourceSupplyChain.getSupplyChainNodes().stream()
-            .filter(supplyChainNode -> ApiEntityType.fromString(supplyChainNode.getEntityType()) == ApiEntityType.AVAILABILITY_ZONE)
+            .filter(supplyChainNode -> UIEntityType.fromString(supplyChainNode.getEntityType()) == UIEntityType.AVAILABILITY_ZONE)
             .flatMap(supplyChainNode -> RepositoryDTOUtil.getAllMemberOids(supplyChainNode).stream())
             .collect(Collectors.toSet());
 
-        if (startingVertexEntityType == ApiEntityType.REGION) {
+        if (startingVertexEntityType == UIEntityType.REGION) {
             // if starting from region, we can only get all related zones, we need to
             // traverse all paths starting from zones to find other entities, so we set
             // inclusionEntityTypes to be empty
@@ -355,10 +355,10 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                 .map(zoneId -> zoneSupplyChainComplete.computeIfAbsent(zoneId,
                     k -> getSingleSourceSupplyChain(zoneId, contextId, envType, Collections.emptySet(),
                         filterForDisplay
-                                ? getExclusionEntityTypes(ApiEntityType.AVAILABILITY_ZONE)
+                                ? getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE)
                                 : Collections.emptySet())))
                 .forEach(supplyChainMerger::addSingleSourceSupplyChain);
-        } else if (startingVertexEntityType != ApiEntityType.AVAILABILITY_ZONE) {
+        } else if (startingVertexEntityType != UIEntityType.AVAILABILITY_ZONE) {
             // if starting from other entity types (not zone, since we can get all we need
             // starting from zone), it can not traverse to regions due to current
             // topology relationship, we need to traverse from zone and get the related
@@ -369,7 +369,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                     k -> getSingleSourceSupplyChain(zoneId, contextId, envType,
                         Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
                         filterForDisplay
-                            ? getExclusionEntityTypes(ApiEntityType.AVAILABILITY_ZONE)
+                            ? getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE)
                             : Collections.emptySet())))
                 .forEach(supplyChainMerger::addSingleSourceSupplyChain);
         }
@@ -379,14 +379,14 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      * Query ArangoDB and get the entity type for the given entity oid.
      *
      * @param oid oid of the entity to get entity type for
-     * @return entity type in the string value of {@link ApiEntityType}
+     * @return entity type in the string value of {@link UIEntityType}
      */
-    public Optional<ApiEntityType> getUIEntityType(@Nonnull Long oid) {
+    public Optional<UIEntityType> getUIEntityType(@Nonnull Long oid) {
         Either<String, Collection<ServiceEntityApiDTO>> result =
             graphDBService.searchServiceEntityById(Long.toString(oid));
         return Match(result).of(
             Case(Right($()), entity -> entity.size() == 1
-                ? Optional.of(ApiEntityType.fromString(entity.iterator().next().getClassName()))
+                ? Optional.of(UIEntityType.fromString(entity.iterator().next().getClassName()))
                 : Optional.empty()),
             Case(Left($()), err -> Optional.empty())
         );
@@ -395,8 +395,8 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     /**
      * Get the exclusion entity types for the given starting entity type.
      */
-    private Set<Integer> getExclusionEntityTypes(@Nonnull ApiEntityType startingVertexEntityType) {
-        return startingVertexEntityType == ApiEntityType.BUSINESS_ACCOUNT
+    private Set<Integer> getExclusionEntityTypes(@Nonnull UIEntityType startingVertexEntityType) {
+        return startingVertexEntityType == UIEntityType.BUSINESS_ACCOUNT
             ? IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN
             : IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
     }

@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf.utils;
+package com.vmturbo.components.common.utils;
 
 import java.util.Set;
 
@@ -179,8 +179,6 @@ public class StringConstants {
      * Group types set.
      */
     public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP);
-
-    // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";
@@ -213,29 +211,6 @@ public class StringConstants {
     public static final String DESKTOP_POOL = "DesktopPool";
     public static final String BUSINESS_USER = "BusinessUser";
     public static final String VIEW_POD = "ViewPod";
-    /** Processor PPool. */
-    public static final String PROCESSOR_POOL = "ProcessorPool";
-    /** Service Provider. */
-    public static final String SERVICE_PROVIDER = "ServiceProvider";
-    /** Compute Tier. */
-    public static final String COMPUTE_TIER = "ComputeTier";
-    /** Databaes Tier. */
-    public static final String DATABASE_TIER = "DatabaseTier";
-    /** Database Server Tier. */
-    public static final String DATABASE_SERVER_TIER = "DatabaseServerTier";
-    /** Storage Tier. */
-    public static final String STORAGE_TIER = "StorageTier";
-    /** Network. */
-    public static final String NETWORK = "Network";
-    /** Internet. */
-    public static final String INTERNET = "Internet";
-    /** Virutal Volume. */
-    public static final String VIRTUAL_VOLUME = "VirtualVolume";
-    /** Hypervisor Server. */
-    public static final String HYPERVISOR_SERVER = "HypervisorServer";
-    /** Availability Zone. */
-    public static final String AVAILABILITY_ZONE_ENTITY = "AvailabilityZone";
-
     /**
      * The class name used in UI for workloads.
      */

@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -397,7 +397,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                             // default behavior: exclude business accounts. Note that the "ignored
                             // "entity types for global supply chain" are also being excluded, inside
                             // the GlobalSupplyChainCalculator.getSupplyChainNodes(...) method.
-                            ? node -> !ApiEntityType.fromString(node.getEntityType()).equals(ApiEntityType.BUSINESS_ACCOUNT)
+                            ? node -> !UIEntityType.fromString(node.getEntityType()).equals(UIEntityType.BUSINESS_ACCOUNT)
                             // filterForDisplay is disabled -- don't filter anything
                             : node -> true;
 
@@ -449,7 +449,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
         private static Collection<Integer> translateTypeNamesToTypeIds(
                 @Nonnull Collection<String> includedTypesStrings) {
             return includedTypesStrings.stream()
-                    .map(entityType -> ApiEntityType.fromString(entityType).typeNumber())
+                    .map(entityType -> UIEntityType.fromString(entityType).typeNumber())
                     .collect(Collectors.toList());
         }
 

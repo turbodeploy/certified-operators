@@ -15,7 +15,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -25,8 +25,8 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class PropertyFilterTest {
 
     private final PropertyFilter<TestGraphEntity> oidFilter = new PropertyFilter<>(entity -> entity.getOid() == 1L);
-    private final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE).build();
-    private final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2L, ApiEntityType.VIRTUAL_MACHINE).build();
+    private final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_MACHINE).build();
+    private final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2L, UIEntityType.VIRTUAL_MACHINE).build();
     private final TopologyGraph<TestGraphEntity> graph = Mockito.mock(TopologyGraph.class);
 
     @Test

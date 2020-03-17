@@ -93,7 +93,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -210,7 +210,7 @@ public class SettingsMapper {
      */
     public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
         ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
             .build();
@@ -625,7 +625,7 @@ public class SettingsMapper {
 
         // If it's a plan we also need to return a UI setting for resize. This setting internally
         // corresponds to the resizes for vcpu and vmem.
-        if (isPlan && entityType.isPresent() && entityType.get().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr())) {
+        if (isPlan && entityType.isPresent() && entityType.get().equals(UIEntityType.VIRTUAL_MACHINE.apiStr())) {
             SettingApiDTO resizeSetting = createResizeSetting();
             settings.add(resizeSetting);
         }
@@ -747,7 +747,7 @@ public class SettingsMapper {
             // We need this check because some inject some fake setting policies without any entity
             // type to show in UI (like Global Action Mode Defaults.)
             if (info.hasEntityType()) {
-                apiDto.setEntityType(ApiEntityType.fromType(info.getEntityType()).apiStr());
+                apiDto.setEntityType(UIEntityType.fromType(info.getEntityType()).apiStr());
             }
             apiDto.setDisabled(!info.getEnabled());
             apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
@@ -974,7 +974,7 @@ public class SettingsMapper {
         String settingUUID();
 
         //SettingApiDto entityType mapped to UIEntityType
-        ApiEntityType entityType();
+        UIEntityType entityType();
 
         /**
          * {@link SettingApiDTO} value as string.
@@ -990,7 +990,7 @@ public class SettingsMapper {
      */
     public static SettingValueEntityTypeKey getSettingValueEntityTypeKey(SettingApiDTO dto) {
         return ImmutableSettingValueEntityTypeKey.builder()
-                .entityType(ApiEntityType.fromString(dto.getEntityType()))
+                .entityType(UIEntityType.fromString(dto.getEntityType()))
                 .settingUUID(dto.getUuid())
                 .settingValue(SettingsMapper.inputValueToString(dto).orElse(""))
                 .build();
@@ -1170,7 +1170,7 @@ public class SettingsMapper {
          * Get the {@link SettingApiDTO} associated with the entity setting for a particular entity
          * type represented by the input {@link SettingSpec}.
          *
-         * @param entityType The UI entity type (i.e. one of {@link ApiEntityType}) to search for.
+         * @param entityType The UI entity type (i.e. one of {@link UIEntityType}) to search for.
          * @return An {@link Optional} containing the {@link SettingApiDTO}. An empty optional if
          *         the input {@link SettingSpec} did not represent an entity setting, or if the
          *         input {@link SettingSpec} does not apply to the specified entity type.
@@ -1216,10 +1216,10 @@ public class SettingsMapper {
             switch (scope.getScopeCase()) {
                 case ENTITY_TYPE_SET:
                     scope.getEntityTypeSet().getEntityTypeList().forEach(entityType ->
-                            applicableTypes.add(ApiEntityType.fromType(entityType).apiStr()));
+                            applicableTypes.add(UIEntityType.fromType(entityType).apiStr()));
                     break;
                 case ALL_ENTITY_TYPE:
-                    for (ApiEntityType validType : ApiEntityType.values()) {
+                    for (UIEntityType validType : UIEntityType.values()) {
                         applicableTypes.add(validType.apiStr());
                     }
                     break;
@@ -1442,7 +1442,7 @@ public class SettingsMapper {
         settingApiDTO.setValue(Long.toString(template.getId()));
         settingApiDTO.setValueType(InputValueType.STRING);
         settingApiDTO.setValueDisplayName(templateName);
-        settingApiDTO.setEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        settingApiDTO.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         return settingApiDTO;
     }
 
@@ -1465,7 +1465,7 @@ public class SettingsMapper {
         resizeSetting.setOptions(labelList);
         resizeSetting.setDefaultValue("MANUAL");
         resizeSetting.setDisplayName("Resize");
-        resizeSetting.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        resizeSetting.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         resizeSetting.setUuid(EntitySettingSpecs.Resize.getSettingName());
         resizeSetting.setValueType(InputValueType.STRING);
         return resizeSetting;

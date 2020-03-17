@@ -32,9 +32,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Tests the tags service.
@@ -85,10 +85,10 @@ public class TagsServiceTest {
     @Test
     public void testGetTagsWithAllParameters() throws Exception {
         final SearchTagsRequest requestMade =
-                callGetTags(SOME_SCOPE, ApiEntityType.VIRTUAL_MACHINE.apiStr(), EnvironmentType.ONPREM);
+                callGetTags(SOME_SCOPE, UIEntityType.VIRTUAL_MACHINE.apiStr(), EnvironmentType.ONPREM);
         Assert.assertEquals(EXPANDED_SCOPE,
                             requestMade.getEntitiesList().stream().collect(Collectors.toSet()));
-        Assert.assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), requestMade.getEntityType());
+        Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), requestMade.getEntityType());
         Assert.assertEquals(EnvironmentTypeEnum.EnvironmentType.ON_PREM, requestMade.getEnvironmentType());
     }
 

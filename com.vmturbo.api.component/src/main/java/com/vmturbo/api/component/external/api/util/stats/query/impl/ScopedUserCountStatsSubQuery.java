@@ -26,9 +26,9 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Sub-query responsible for getting the counts of entities for a scoped user.
@@ -111,7 +111,7 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
     @Nonnull
     private void setCurrentEntityCount(@Nonnull List<StatSnapshotApiDTO> statSnapShots,
                                         @Nonnull final StatsQueryContext context) {
-        final List<ApiEntityType> entityTypes = statSnapShots.stream()
+        final List<UIEntityType> entityTypes = statSnapShots.stream()
             .map(statSnapshotApiDTO -> statSnapshotApiDTO.getStatistics())
             .flatMap(List::stream)
             .map(dto -> StatsUtils.COUNT_ENTITY_METRIC_NAMES.get(dto.getName()))

@@ -29,7 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -75,7 +75,7 @@ public class BusinessAccountActionAggregator extends ActionAggregator {
             if (involvedEntity.getEnvironmentType() == EnvironmentType.CLOUD || involvedEntity.getEnvironmentType() == EnvironmentType.HYBRID) {
                 // Find the most immediate business account owner.
                 final Optional<EntityWithConnections> owner = ownershipGraph.getOwners(involvedEntity.getId()).stream()
-                    .filter(e -> e.getEntityType() == ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+                    .filter(e -> e.getEntityType() == UIEntityType.BUSINESS_ACCOUNT.typeNumber())
                     .findFirst();
                 if (owner.isPresent()) {
                     // The first time we encounter an involved entity with an owner we can actually
@@ -121,7 +121,7 @@ public class BusinessAccountActionAggregator extends ActionAggregator {
 
         final RetrieveTopologyEntitiesRequest.Builder entitiesReqBldr = RetrieveTopologyEntitiesRequest.newBuilder()
             .setReturnType(Type.WITH_CONNECTIONS)
-            .addEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
+            .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
 
 
         // Get all the business accounts and add them to the ownership graph.

@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTO.UploadActionConstr
 import com.vmturbo.common.protobuf.action.ActionConstraintDTOMoles.ActionConstraintsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

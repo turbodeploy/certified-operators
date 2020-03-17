@@ -108,7 +108,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -590,7 +590,7 @@ public class SettingsMapperTest {
 
         settingsPolicyApiDTO.setDisplayName("A Setting Policy is neither a Setting, not a Policy." +
                 " Like a pineapple.");
-        settingsPolicyApiDTO.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        settingsPolicyApiDTO.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         settingsPolicyApiDTO.setDisabled(false);
 
         return settingsPolicyApiDTO;
@@ -1432,7 +1432,7 @@ public class SettingsMapperTest {
     @Test
     public void testToProtoSettingsHandlesDuplicateSettingApiDtoKey() {
         //GIVEN
-        String entityType = ApiEntityType.PHYSICAL_MACHINE.apiStr();
+        String entityType = UIEntityType.PHYSICAL_MACHINE.apiStr();
         String uuid = "provision";
 
         SettingApiDTO settingApiDTO1 = new SettingApiDTO();
@@ -1471,7 +1471,7 @@ public class SettingsMapperTest {
     @Test
     public void testToProtoSettingsHandlesDuplicateSettingsButWithDifferentSetValues() {
         //GIVEN
-        String entityType = ApiEntityType.PHYSICAL_MACHINE.apiStr();
+        String entityType = UIEntityType.PHYSICAL_MACHINE.apiStr();
         String uuid = "provision";
 
         SettingApiDTO<String> settingApiDTO1 = new SettingApiDTO();

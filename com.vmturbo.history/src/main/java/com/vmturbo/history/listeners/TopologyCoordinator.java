@@ -3,7 +3,6 @@ package com.vmturbo.history.listeners;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.None;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Live;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Projected;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -257,10 +256,10 @@ public class TopologyCoordinator extends TopologyListenerBase
                     // For reservation plans we don't care about saving stats, because we just need
                     // the raw projected topology for processing in the Plan Orchestrator.
                     logger.info("Ignoring projected topology for reservation plan {}",
-                            info.getTopologyContextId());
+                        info.getTopologyContextId());
                 } else {
                     final Pair<Integer, BulkInserterFactoryStats> result
-                            = projectedPlanTopologyIngester.processBroadcast(info, topology);
+                        = projectedPlanTopologyIngester.processBroadcast(info, topology);
                     SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                         .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL,
                             SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
@@ -520,7 +519,6 @@ public class TopologyCoordinator extends TopologyListenerBase
         processingStatus.startHourRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTables(snapshot)
                 .distinct()
-                .filter(t -> t == MARKET_STATS_LATEST || isRolledUpTable(t))
                 .collect(Collectors.toList());
         // nothing to do if there are no stats
         if (!tables.isEmpty()) {
@@ -549,7 +547,6 @@ public class TopologyCoordinator extends TopologyListenerBase
         processingStatus.startDayMonthRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTablesForHour(snapshot)
                 .distinct()
-                .filter(this::isRolledUpTable)
                 .collect(Collectors.toList());
         if (!tables.isEmpty()) {
             rollupLock.lock();
@@ -576,8 +573,9 @@ public class TopologyCoordinator extends TopologyListenerBase
         }
     }
 
-    private boolean isRolledUpTable(Table<?> table) {
-        return EntityType.fromTable(table).map(EntityType::rollsUp).orElse(false);
+    private boolean isEntityStatsTable(Table<?> table) {
+        final EntityType type = EntityType.fromTable(table);
+        return type != null && EntityType.ROLLED_UP_ENTITIES.contains(type);
     }
 
     /**

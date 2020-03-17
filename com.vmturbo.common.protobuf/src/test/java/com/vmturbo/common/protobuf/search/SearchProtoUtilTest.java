@@ -17,14 +17,14 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 public class SearchProtoUtilTest {
 
     private static final String FOO = "foo";
     private static final String BAR = "bar";
     private static final String VM = "VirtualMachine";
-    private static final ApiEntityType VM_TYPE = ApiEntityType.fromString(VM);
+    private static final UIEntityType VM_TYPE = UIEntityType.fromString(VM);
 
     /**
      * Check the value of {@link SearchProtoUtil#SEARCH_ALL_TYPES}.

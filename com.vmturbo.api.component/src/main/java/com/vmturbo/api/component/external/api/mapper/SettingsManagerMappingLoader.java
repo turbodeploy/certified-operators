@@ -34,7 +34,7 @@ import com.google.gson.Gson;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -263,7 +263,7 @@ public class SettingsManagerMappingLoader {
                 .stream().map(EntitySettingSpecs::getSettingName).collect(Collectors.toSet());
             for (SettingApiDTO realtimeSetting : realtimeSettings) {
                 if (virtualMachineResizeSettingNames.contains(realtimeSetting.getUuid())
-                    && realtimeSetting.getEntityType().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr())) {
+                    && realtimeSetting.getEntityType().equals(UIEntityType.VIRTUAL_MACHINE.apiStr())) {
                     resizeConvertedValue = realtimeSetting.getValue().toString();
                 } else {
                     convertedSettings.add(realtimeSetting);
@@ -312,7 +312,7 @@ public class SettingsManagerMappingLoader {
                 if (mgr.getPlanSettingInfo().isPresent()) {
                     final SettingApiDTO resizeDto = new SettingApiDTO();
                     resizeDto.setUuid(EntitySettingSpecs.Resize.getSettingName());
-                    resizeDto.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+                    resizeDto.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
                     resizeDto.setDisplayName(EntitySettingSpecs.Resize.getDisplayName());
                     resizeDto.setValue(resizeConvertedValue);
                     retBuilder.add(resizeDto);
@@ -369,7 +369,7 @@ public class SettingsManagerMappingLoader {
 
             final String convertedValue = planSetting.getValue().toString();
             List<SettingApiDTO> newDtos = new ArrayList<>();
-            if (ApiEntityType.fromString(planSetting.getEntityType()).equals(ApiEntityType.VIRTUAL_MACHINE)
+            if (UIEntityType.fromString(planSetting.getEntityType()).equals(UIEntityType.VIRTUAL_MACHINE)
                 && planSetting.getUuid().equals(EntitySettingSpecs.Resize.getSettingName())) {
                 virtualMachineResizeSettings.forEach(resizeSetting -> {
                     final SettingApiDTO newResizeDto = new SettingApiDTO();

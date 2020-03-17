@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 
 import org.apache.logging.log4j.LogManager;
@@ -37,13 +36,9 @@ import com.vmturbo.history.stats.live.LiveStatsAggregator;
 public class EntityStatsWriter extends TopologyWriterBase {
     private static Logger logger = LogManager.getLogger(EntityStatsWriter.class);
 
-    private final TopologyInfo topologyInfo;
-    private final Set<String> commoditiesToExclude;
-    private final HistorydbIO historydbIO;
+    private final LiveStatsAggregator aggregator;
     private final SimpleBulkLoaderFactory loaders;
-
-    private LiveStatsAggregator aggregator;
-
+    private final TopologyInfo topologyInfo;
 
     /**
      * Create a new writer instance.
@@ -57,18 +52,12 @@ public class EntityStatsWriter extends TopologyWriterBase {
             Set<String> commoditiesToExclude,
             HistorydbIO historydbIO,
             SimpleBulkLoaderFactory loaders) {
-        this.topologyInfo = topologyInfo;
-        this.commoditiesToExclude = commoditiesToExclude;
-        this.historydbIO = historydbIO;
         this.loaders = loaders;
-    }
-
-    @VisibleForTesting
-    LiveStatsAggregator getAggregator() {
-        if (aggregator == null) {
-            this.aggregator = new LiveStatsAggregator(historydbIO, topologyInfo, commoditiesToExclude, loaders);
-        }
-        return aggregator;
+        this.topologyInfo = topologyInfo;
+        // create an aggregator to do all the real work of matching buyers and sellers and
+        // recording stats
+        this.aggregator = new LiveStatsAggregator(
+                historydbIO, topologyInfo, commoditiesToExclude, loaders);
     }
 
     @Override
@@ -79,10 +68,7 @@ public class EntityStatsWriter extends TopologyWriterBase {
         final Map<Long, TopologyEntityDTO> entityByOid = entities.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity()));
         for (TopologyEntityDTO entity : entities) {
-            if (EntityType.fromSdkEntityType(entity.getEntityType())
-                    .map(EntityType::persistsStats).orElse(false)) {
-                getAggregator().aggregateEntity(entity, entityByOid);
-            }
+            aggregator.aggregateEntity(entity, entityByOid);
         }
         return ChunkDisposition.SUCCESS;
     }
@@ -93,8 +79,7 @@ public class EntityStatsWriter extends TopologyWriterBase {
 
         if (!expedite) {
             try {
-                getAggregator().writeFinalStats();
-                getAggregator().logShortenedCommodityKeys();
+                aggregator.writeFinalStats();
             } catch (VmtDbException e) {
                 logger.warn("EntityStatsWriter failed to record final stats for topology {}",
                         infoSummary);

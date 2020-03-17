@@ -122,10 +122,10 @@ import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -165,19 +165,19 @@ public class ActionSpecMapper {
     // END - Strings representing action categories in the API.
 
     private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
-            ApiEntityType.COMPUTE_TIER.apiStr(), ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
-            ApiEntityType.DATABASE_TIER.apiStr());
+            UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
+            UIEntityType.DATABASE_TIER.apiStr());
 
     private static final Set<String> CLOUD_ACTIONS_TIER_VALUES = new ImmutableSet.Builder<String>()
                     .addAll(SCALE_TIER_VALUES)
-                    .add(ApiEntityType.STORAGE_TIER.apiStr())
+                    .add(UIEntityType.STORAGE_TIER.apiStr())
                     .build();
 
     /**
      * Map of entity types to shortened versions for action descriptions.
      */
     private static final Map<String, String> SHORTENED_ENTITY_TYPES = ImmutableMap.of(
-        ApiEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
+        UIEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
     );
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
@@ -640,7 +640,7 @@ public class ActionSpecMapper {
              * target entity after converting to the ActionApiDTO. SO we need get VM ID from action info.
              */
             final boolean isVirtualVolumeTarget = targetEntity.getClassName()
-                            .equals(ApiEntityType.VIRTUAL_VOLUME.apiStr());
+                            .equals(UIEntityType.VIRTUAL_VOLUME.apiStr());
             final Long vmId = isVirtualVolumeTarget
                             ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
                             : targetEntityId;
@@ -1155,7 +1155,7 @@ public class ActionSpecMapper {
                 allocateActionSpec.getRecommendation().getExplanation().getAllocate().getInstanceSizeFamily();
         ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
         serviceEntityApiDTO.setDisplayName(templateFamily);
-        serviceEntityApiDTO.setClassName(ApiEntityType.COMPUTE_TIER.apiStr());
+        serviceEntityApiDTO.setClassName(UIEntityType.COMPUTE_TIER.apiStr());
         actionApiDTO.setCurrentEntity(serviceEntityApiDTO);
 
         // Set action current and new locations (should be the same for Allocate)
@@ -1547,8 +1547,8 @@ public class ActionSpecMapper {
 
             if (CollectionUtils.isNotEmpty(inputDto.getRelatedEntityTypes())) {
                 inputDto.getRelatedEntityTypes().stream()
-                    .map(ApiEntityType::fromString)
-                    .map(ApiEntityType::typeNumber)
+                    .map(UIEntityType::fromString)
+                    .map(UIEntityType::typeNumber)
                     .forEach(queryBuilder::addEntityType);
             }
         } else {

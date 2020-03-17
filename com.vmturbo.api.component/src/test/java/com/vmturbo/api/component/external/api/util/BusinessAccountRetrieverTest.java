@@ -80,9 +80,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
@@ -104,7 +104,7 @@ public class BusinessAccountRetrieverTest {
     private static final TopologyEntityDTO ACCOUNT = TopologyEntityDTO.newBuilder()
         .setOid(ACCOUNT_OID)
         .setDisplayName("monitored account")
-        .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setBusinessAccount(BusinessAccountInfo.newBuilder()
                 .setAssociatedTargetId(123L)
@@ -175,7 +175,7 @@ public class BusinessAccountRetrieverTest {
 
         // ASSERT
         final SearchParameters searchParametersForAllAccounts = SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT)).build();
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)).build();
         final SearchParameters searchParametersForFilteringMonitoredAccounts =
                 getFilterForMonitoredAccounts();
         verify(repositoryApi).newSearchRequestMulti(
@@ -233,7 +233,7 @@ public class BusinessAccountRetrieverTest {
         Mockito.verify(repositoryApi)
                 .newSearchRequestMulti(Collections.singletonList(
                         SearchProtoUtil.makeSearchParameters(
-                                SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
+                                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
                                 .addSearchFilter(SearchProtoUtil.searchFilterProperty(
                                         SearchProtoUtil.discoveredBy(targetId)))
                                 .build()));
@@ -278,7 +278,7 @@ public class BusinessAccountRetrieverTest {
 
         // ASSERT
         final SearchParameters searchParametersForGroupScope = SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
                 .addSearchFilter(SearchProtoUtil.searchFilterProperty(
                         SearchProtoUtil.idFilter(expandedOids)))
                 .build();
@@ -379,9 +379,9 @@ public class BusinessAccountRetrieverTest {
         final TopologyEntityDTO parentAccount = TopologyEntityDTO.newBuilder()
             .setOid(ACCOUNT_OID + 1)
             .setDisplayName("bar")
-            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
             .addConnectedEntityList(ConnectedEntity.newBuilder()
-                .setConnectedEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+                .setConnectedEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
                 .setConnectedEntityId(ACCOUNT_OID)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .build();
@@ -441,14 +441,14 @@ public class BusinessAccountRetrieverTest {
         final EntityWithConnections parentAccount = EntityWithConnections.newBuilder()
             .setOid(ACCOUNT_OID + 1)
             .setDisplayName("bar")
-            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
             // Owns a VM, and a child account.
             .addConnectedEntities(ConnectedEntity.newBuilder()
-                .setConnectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setConnectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setConnectedEntityId(121212)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .addConnectedEntities(ConnectedEntity.newBuilder()
-                .setConnectedEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+                .setConnectedEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
                 .setConnectedEntityId(ACCOUNT_OID)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .build();
@@ -593,12 +593,12 @@ public class BusinessAccountRetrieverTest {
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(123123)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                .setConnectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setConnectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             // Add a sub-account
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(subaccountId)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                .setConnectedEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber()))
+                .setConnectedEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber()))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
                 BusinessAccountInfo.newBuilder()
                     .setAssociatedTargetId(discoveringTarget)
@@ -647,7 +647,7 @@ public class BusinessAccountRetrieverTest {
         assertThat(businessUnitDTO.getBusinessUnitType(), is(BusinessUnitType.DISCOVERED));
         assertThat(businessUnitDTO.getUuid(), is(Long.toString(entity.getOid())));
         assertThat(businessUnitDTO.getEnvironmentType(), is(EnvironmentType.CLOUD));
-        assertThat(businessUnitDTO.getClassName(), is(ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+        assertThat(businessUnitDTO.getClassName(), is(UIEntityType.BUSINESS_ACCOUNT.apiStr()));
         assertThat(businessUnitDTO.getCostPrice(), is(costPrice));
         assertThat(businessUnitDTO.getMemberType(), is(StringConstants.WORKLOAD));
 
@@ -715,7 +715,7 @@ public class BusinessAccountRetrieverTest {
 
     private SearchParameters getFilterForMonitoredAccounts() {
         return SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
                 .addSearchFilter(SearchFilter.newBuilder()
                         .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
                         .build())

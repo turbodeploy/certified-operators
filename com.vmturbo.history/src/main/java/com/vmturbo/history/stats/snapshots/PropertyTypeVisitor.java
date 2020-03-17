@@ -16,7 +16,7 @@ import org.jooq.Record;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * {@link PropertyTypeVisitor} visits property type field in the DB record and populates name, units

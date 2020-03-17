@@ -88,8 +88,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -263,7 +263,7 @@ public class GroupMapper {
 
             groupBuilder.setEntityFilters(EntityFilters.newBuilder()
                 .addEntityFilter(EntityFilter.newBuilder()
-                    .setEntityType(ApiEntityType.fromString(groupDto.getGroupType()).typeNumber())
+                    .setEntityType(UIEntityType.fromString(groupDto.getGroupType()).typeNumber())
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addAllSearchParameters(searchParameters)))
             );
@@ -532,7 +532,7 @@ public class GroupMapper {
                 .stream()
                 .filter(membersByType -> membersByType.getType().hasEntity()
                     && WORKLOAD_ENTITY_TYPES.contains(
-                        ApiEntityType.fromType(membersByType.getType().getEntity())))
+                        UIEntityType.fromType(membersByType.getType().getEntity())))
                 .map(StaticMembersByType::getMembersCount)
                 .mapToInt(Integer::intValue)
                 .sum();
@@ -617,7 +617,7 @@ public class GroupMapper {
                  outputDTO.setGroupType(String.join(",", directMemberTypes));
              }
          } else {
-             outputDTO.setGroupType(ApiEntityType.UNKNOWN.apiStr());
+             outputDTO.setGroupType(UIEntityType.UNKNOWN.apiStr());
          }
 
          outputDTO.setMemberTypes(directMemberTypes);
@@ -625,8 +625,8 @@ public class GroupMapper {
                         .stream()
                         .filter(MemberType::hasEntity)
                         .map(MemberType::getEntity)
-                        .map(ApiEntityType::fromType)
-                        .map(ApiEntityType::apiStr)
+                        .map(UIEntityType::fromType)
+                        .map(UIEntityType::apiStr)
                         .collect(Collectors.toList()));
 
          outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
@@ -768,7 +768,7 @@ public class GroupMapper {
         } else {
             // otherwise it is assumed this a group of entities
             memberType = MemberType.newBuilder().setEntity(
-                            ApiEntityType.fromString(groupDto.getGroupType()).typeNumber()
+                            UIEntityType.fromString(groupDto.getGroupType()).typeNumber()
                         ).build();
         }
 
@@ -831,7 +831,7 @@ public class GroupMapper {
                     return Collections.emptyList();
                 }
                 // currently API only supports homogeneous dynamic groups
-                return Collections.singletonList(ApiEntityType.fromType(groupDefinition
+                return Collections.singletonList(UIEntityType.fromType(groupDefinition
                                     .getEntityFilters()
                                     .getEntityFilter(0)
                                     .getEntityType()
@@ -861,7 +861,7 @@ public class GroupMapper {
     private static String convertMemberTypeToApiType(@Nonnull MemberType memberType) {
         switch (memberType.getTypeCase()) {
             case ENTITY:
-                return ApiEntityType.fromType(memberType.getEntity()).apiStr();
+                return UIEntityType.fromType(memberType.getEntity()).apiStr();
             case GROUP:
                 return convertGroupTypeToApiType(memberType.getGroup());
             default:

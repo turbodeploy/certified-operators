@@ -49,7 +49,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -119,13 +119,13 @@ public class GroupResolverTest {
     @Test
     public void testResolveCluster() throws Exception {
         Grouping cluster = Grouping.newBuilder()
-                        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
                         .setType(GroupType.COMPUTE_HOST_CLUSTER)
                         .setStaticGroupMembers(StaticMembers.newBuilder()
                                         .addMembersByType(StaticMembersByType.newBuilder()
                                                         .setType(MemberType.newBuilder()
-                                                                        .setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                                                        .setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                                                         .addAllMembers(Arrays.asList(1L, 2L)))))
                         .setId(1234L).build();
 

@@ -1,8 +1,8 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.INTERNAL_NAME;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.RECORDED_ON;
+import static com.vmturbo.components.common.utils.StringConstants.INTERNAL_NAME;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.RECORDED_ON;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.stats.StatsHistoryRpcService.HEADROOM_STATS;

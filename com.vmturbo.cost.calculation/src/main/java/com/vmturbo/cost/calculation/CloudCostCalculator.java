@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForG
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
@@ -155,7 +155,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             return CostJournal.empty(entity, entityInfoExtractor);
         }
 
-        final String entityTypeName = ApiEntityType.fromSdkTypeToEntityTypeString(entityType);
+        final String entityTypeName = UIEntityType.fromSdkTypeToEntityTypeString(entityType);
         final String entityName = entityInfoExtractor.getName(entity);
         try (TraxContext traxContext = Trax.track(entityTypeName, entityName, Long.toString(entityId), "COST")) {
             final Optional<ENTITY_CLASS> regionOpt = cloudTopology.getConnectedRegion(entityId);

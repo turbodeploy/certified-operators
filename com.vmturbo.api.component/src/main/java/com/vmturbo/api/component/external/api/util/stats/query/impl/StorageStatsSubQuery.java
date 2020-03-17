@@ -45,8 +45,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 
@@ -110,7 +110,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
         // Only support attachment OR storage tier for now
         Predicate<StatApiInputDTO> supportedGroupBy = dto -> dto.getGroupBy() != null && dto.getGroupBy().size() == 1 &&
-            (dto.getGroupBy().contains(StringConstants.ATTACHMENT) || dto.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()));
+            (dto.getGroupBy().contains(StringConstants.ATTACHMENT) || dto.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()));
 
         Predicate<StatApiInputDTO> onPremOnly = dto -> dto.getFilters() != null && dto.getFilters().stream()
                 .anyMatch(statFilterApiDto -> statFilterApiDto.getType().equals(StringConstants.ENVIRONMENT_TYPE) &&
@@ -145,12 +145,12 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             if (requestedStat.getName().equals(NUM_VOL) &&
                 requestedStat.getGroupBy() != null &&
                 requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
-                requestedStat.getRelatedEntityType().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())) {
+                requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
 
                 final SearchParameters searchVvInScope = getSearchScopeBuilder(context, requestedStat, userSessionContext)
                     .addSearchFilter(
                         SearchFilter.newBuilder()
-                            .setPropertyFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME))
+                            .setPropertyFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME))
                             .build())
                     .build();
 
@@ -193,8 +193,8 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 // when request for stat group by storage tier of Virtual volume
             } else if (requestedStat.getName().equals(NUM_VOL) &&
                 requestedStat.getGroupBy() != null &&
-                requestedStat.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()) &&
-                requestedStat.getRelatedEntityType().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())) {
+                requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
+                requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
                 // Get all the storage tier in the scope
                 // Storage tier is for Cloud only
 
@@ -250,7 +250,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                         e -> new Long(e.getValue().size())
                     ));
 
-                List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, ApiEntityType.STORAGE_TIER.apiStr(), storageTierCountMap);
+                List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, UIEntityType.STORAGE_TIER.apiStr(), storageTierCountMap);
 
                 results.addAll(stats);
 
@@ -287,7 +287,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .makeSearchParameters(SearchProtoUtil.idFilter(context.getQueryScope().getScopeOids()))
                     .addSearchFilter(
                             SearchFilter.newBuilder()
-                                    .setPropertyFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME))
+                                    .setPropertyFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME))
                                     .build());
         } else if (context.isGlobalScope()) {
             SearchParameters.Builder builder = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(
@@ -321,14 +321,14 @@ public class StorageStatsSubQuery implements StatsSubQuery {
      * Helper method to create SearchFilter with a SearchTraversalFilter.
      *
      * @param direction {@link TraversalDirection}
-     * @param apiEntityType {@link ApiEntityType}
+     * @param uiEntityType {@link UIEntityType}
      * @return {@link SearchFilter.Builder}
      */
     @Nonnull
     private static SearchFilter.Builder createSearchTraversalFilter(@Nonnull final TraversalDirection direction,
-                                                                    @Nonnull final ApiEntityType apiEntityType) {
+                                                                    @Nonnull final UIEntityType uiEntityType) {
         return SearchFilter.newBuilder()
-            .setTraversalFilter(SearchProtoUtil.traverseToType(direction, apiEntityType.apiStr()));
+            .setTraversalFilter(SearchProtoUtil.traverseToType(direction, uiEntityType.apiStr()));
     }
 
     /**

@@ -61,8 +61,8 @@ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -157,8 +157,8 @@ public class StatsService implements IStatsService {
      * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
      * in that DATACENTER.
      */
-    private static final Map<ApiEntityType, ApiEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-            ApiEntityType.DATACENTER, ApiEntityType.PHYSICAL_MACHINE
+    private static final Map<UIEntityType, UIEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+            UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
     );
 
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
@@ -632,9 +632,9 @@ public class StatsService implements IStatsService {
 
         // if it is global temp group and need to expand, should return target expand entity type.
         if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                ApiEntityType.fromType(entityType))) {
+                UIEntityType.fromType(entityType))) {
             return Optional.of(ENTITY_TYPES_TO_EXPAND.get(
-                ApiEntityType.fromType(entityType)).typeNumber());
+                UIEntityType.fromType(entityType)).typeNumber());
         } else if (isGlobalTempGroup) {
             // if it is global temp group and not need to expand.
             return Optional.of(entityType);

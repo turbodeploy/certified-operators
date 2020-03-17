@@ -39,8 +39,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -61,22 +61,22 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
     // for the stats of the number of entities by tier type
     @VisibleForTesting
     static final Map<String, Function<ApiPartialEntity, Optional<Long>>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
-          ApiEntityType.VIRTUAL_MACHINE.apiStr(), topologyEntityDTO ->
+          UIEntityType.VIRTUAL_MACHINE.apiStr(), topologyEntityDTO ->
               topologyEntityDTO.getProvidersList().stream()
               .filter(provider -> provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
               .map(RelatedEntity::getOid)
               .findAny(),
-          ApiEntityType.DATABASE.apiStr(), topologyEntityDTO ->
+          UIEntityType.DATABASE.apiStr(), topologyEntityDTO ->
               topologyEntityDTO.getProvidersList().stream()
               .filter(provider -> provider.getEntityType() == EntityType.DATABASE_TIER_VALUE)
               .map(RelatedEntity::getOid)
               .findAny(),
-          ApiEntityType.DATABASE_SERVER.apiStr(), topologyEntityDTO ->
+          UIEntityType.DATABASE_SERVER.apiStr(), topologyEntityDTO ->
               topologyEntityDTO.getProvidersList().stream()
               .filter(provider -> provider.getEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
               .map(RelatedEntity::getOid)
               .findAny(),
-          ApiEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
+          UIEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
               topologyEntityDTO.getConnectedToList().stream()
               .filter(provider -> provider.getEntityType() == EntityType.STORAGE_TIER_VALUE)
               .map(RelatedEntity::getOid)
@@ -161,7 +161,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes,
                                                      long contextId, boolean projectedTopology) throws OperationFailedException {
-        String volumeEntityType = ApiEntityType.VIRTUAL_VOLUME.apiStr();
+        String volumeEntityType = UIEntityType.VIRTUAL_VOLUME.apiStr();
         // get all volumes ids in the plan scope, using supply chain fetcher
         // get all VMs ids in the plan scope, using supply chain fetcher
         Set<Long> volumeIds = getRelatedEntities(scopes, Collections.singletonList(volumeEntityType))

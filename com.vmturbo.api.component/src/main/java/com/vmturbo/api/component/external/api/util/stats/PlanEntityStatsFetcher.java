@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRes
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Retrieve plan entity stats from the repository.
@@ -189,7 +189,7 @@ public class PlanEntityStatsFetcher {
                                 serviceEntityMapper.toServiceEntityApiDTO(planEntity);
                             entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                             entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                            entityStatsApiDTO.setClassName(ApiEntityType.fromType(planEntity.getEntityType()).apiStr());
+                            entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                             final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
                                 .getStatSnapshotsList()
@@ -268,7 +268,7 @@ public class PlanEntityStatsFetcher {
                             entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                             entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                             entityStatsApiDTO.setClassName(
-                                ApiEntityType.fromType(planEntity.getEntityType()).apiStr());
+                                UIEntityType.fromType(planEntity.getEntityType()).apiStr());
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                             final List<StatSnapshotApiDTO> statSnapshotsList = entityAndCombinedStats
                                 .getPlanCombinedStats()

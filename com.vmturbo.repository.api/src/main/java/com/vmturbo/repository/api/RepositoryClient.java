@@ -52,7 +52,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
@@ -447,7 +447,7 @@ public class RepositoryClient {
                 final Map<Integer, SupplyChainNode.MemberList> relatedEntitiesByType = node
                                 .getMembersByStateMap();
                 final String entityTypeName = node.getEntityType();
-                final EntityType entityType = ApiEntityType.fromString(entityTypeName).sdkType();
+                final EntityType entityType = UIEntityType.fromString(entityTypeName).sdkType();
                 for (SupplyChainNode.MemberList members : relatedEntitiesByType.values()) {
                     final List<Long> memberOids = members.getMemberOidsList();
                     entitiesMap.computeIfAbsent(entityType, (key) -> new HashSet<>())

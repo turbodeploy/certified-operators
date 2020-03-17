@@ -29,7 +29,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -198,7 +198,7 @@ public class SettingOverrides {
 
     // does the setting spec apply to the entity type? Yes, if the entity type is in the scope of
     // setting spec.
-    private boolean isSettingSpecForEntityType(SettingSpec settingSpec, Collection<ApiEntityType> entityTypes) {
+    private boolean isSettingSpecForEntityType(SettingSpec settingSpec, Collection<UIEntityType> entityTypes) {
         EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
         // if scope is "all entity type" then we are true
         if (scope.hasAllEntityType()) return true;
@@ -207,7 +207,7 @@ public class SettingOverrides {
         if (scope.hasEntityTypeSet()) {
             // return true if the entity type is in the entity type set.
             return scope.getEntityTypeSet().getEntityTypeList().stream()
-                            .map(ApiEntityType::fromType)
+                            .map(UIEntityType::fromType)
                             .anyMatch(entityTypes::contains);
         }
         // default = no

@@ -19,7 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
@@ -75,7 +75,7 @@ class TopologyEntityDTOConverter {
         ServiceEntityRepoDTO se = new ServiceEntityRepoDTO();
         se.setOid(seOid);
         se.setDisplayName(t.getDisplayName());
-        se.setEntityType(ApiEntityType.fromEntity(t).apiStr());
+        se.setEntityType(UIEntityType.fromEntity(t).apiStr());
         se.setEnvironmentType(EnvironmentTypeUtil.toApiString(t.getEnvironmentType()));
         se.setUuid(String.valueOf(t.getOid()));
         se.setState(UIEntityState.fromEntityState(t.getEntityState()).apiStr());

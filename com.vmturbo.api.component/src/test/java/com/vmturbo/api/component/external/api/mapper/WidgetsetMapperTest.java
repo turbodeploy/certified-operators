@@ -44,11 +44,11 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Test conversion between WidgetsetApiDTO (external) and Widgetset (internal protobuf)
@@ -324,7 +324,7 @@ public class WidgetsetMapperTest {
         final MinimalEntity vm1 = MinimalEntity.newBuilder()
                 .setOid(77)
                 .setDisplayName("vm1")
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(vm1));
@@ -348,7 +348,7 @@ public class WidgetsetMapperTest {
         assertThat(widgets.get(1), is(widget2));
         ServiceEntityApiDTO entityApiDTO = (ServiceEntityApiDTO)widgets.get(1).getScope();
         assertThat(entityApiDTO.getUuid(), is("77"));
-        assertThat(entityApiDTO.getClassName(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(entityApiDTO.getClassName(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(entityApiDTO.getEnvironmentType(), is(EnvironmentType.CLOUD));
     }
 

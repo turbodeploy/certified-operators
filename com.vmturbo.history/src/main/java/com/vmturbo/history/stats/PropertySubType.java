@@ -7,7 +7,7 @@ package com.vmturbo.history.stats;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * {@link PropertySubType} describes supported property subtypes. {@link Enum#ordinal()} is used to

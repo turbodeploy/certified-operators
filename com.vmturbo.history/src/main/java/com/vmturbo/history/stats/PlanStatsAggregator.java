@@ -1,15 +1,15 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CONTAINERPODS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CPUS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_HOST;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_STORAGE;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CONTAINERPODS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CONTAINERS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CPUS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_STORAGES;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_STORAGE;
 
 import java.sql.Timestamp;
 import java.util.Collection;
@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;

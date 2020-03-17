@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats.readers;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
+import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static org.jooq.impl.DSL.field;
 import static org.jooq.impl.DSL.name;
 import static org.mockito.Matchers.any;
@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;

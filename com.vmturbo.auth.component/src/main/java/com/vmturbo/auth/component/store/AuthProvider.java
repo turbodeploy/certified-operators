@@ -66,7 +66,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -684,10 +684,10 @@ public class AuthProvider {
                             .build());
 
             while (groups.hasNext()) {
-                Collection<ApiEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
+                Collection<UIEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
                 final Set<String> groupEntityTypes = entityTypes
                                 .stream()
-                                .map(ApiEntityType::apiStr)
+                                .map(UIEntityType::apiStr)
                                 .collect(Collectors.toSet());
                 if (entityTypes.size() == 0 || !UserScopeUtils.SHARED_USER_ENTITY_TYPES.containsAll(groupEntityTypes)) {
                     // invalid group assignment

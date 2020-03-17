@@ -48,7 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Archite
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -165,18 +165,18 @@ public class CloudAspectMapperTest {
                 .thenReturn(templateAndRegion);
         Mockito.when(repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(ZONE_OID, TraversalDirection.CONNECTED_FROM,
-                        ApiEntityType.REGION))).thenReturn(regionSearchRequest);
+                        UIEntityType.REGION))).thenReturn(regionSearchRequest);
         Mockito.when(repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(VIRTUAL_MACHINE_OID,
-                        TraversalDirection.CONNECTED_FROM, ApiEntityType.BUSINESS_ACCOUNT)))
+                        TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT)))
                 .thenReturn(businessAccountSearchRequest);
         Mockito.when(repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(VIRTUAL_MACHINE_NO_RG_OID,
-                        TraversalDirection.CONNECTED_FROM, ApiEntityType.BUSINESS_ACCOUNT)))
+                        TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT)))
                 .thenReturn(businessAccountSearchRequest);
         Mockito.when(repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID,
-                        TraversalDirection.CONNECTED_FROM, ApiEntityType.BUSINESS_ACCOUNT)))
+                        TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT)))
                 .thenReturn(businessAccountSearchRequest);
 
         GroupDTO.GetGroupsForEntitiesRequest.Builder request = GroupDTO.GetGroupsForEntitiesRequest.newBuilder()
@@ -213,9 +213,9 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(VIRTUALIZATION_TYPE, aspect.getVirtualizationType());
         Assert.assertEquals(String.valueOf(COMPUTE_TIER_OID), aspect.getTemplate().getUuid());
         Assert.assertEquals(TEMPLATE_NAME, aspect.getTemplate().getDisplayName());
-        Assert.assertEquals(ApiEntityType.COMPUTE_TIER.apiStr(),
+        Assert.assertEquals(UIEntityType.COMPUTE_TIER.apiStr(),
                 aspect.getTemplate().getClassName());
-        Assert.assertEquals(ApiEntityType.BUSINESS_ACCOUNT.apiStr(),
+        Assert.assertEquals(UIEntityType.BUSINESS_ACCOUNT.apiStr(),
                 aspect.getBusinessAccount().getClassName());
         Assert.assertEquals(String.valueOf(BUSINESS_ACCOUNT_OID),
                 aspect.getBusinessAccount().getUuid());
@@ -343,10 +343,10 @@ public class CloudAspectMapperTest {
         // Assert
         Assert.assertEquals(String.valueOf(REGION_OID), aspect.getRegion().getUuid());
         Assert.assertEquals(REGION_NAME, aspect.getRegion().getDisplayName());
-        Assert.assertEquals(ApiEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
+        Assert.assertEquals(UIEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
         Assert.assertEquals(String.valueOf(ZONE_OID), aspect.getZone().getUuid());
         Assert.assertEquals(ZONE_NAME, aspect.getZone().getDisplayName());
-        Assert.assertEquals(ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+        Assert.assertEquals(UIEntityType.AVAILABILITY_ZONE.apiStr(),
                 aspect.getZone().getClassName());
     }
 
@@ -367,7 +367,7 @@ public class CloudAspectMapperTest {
         // Assert
         Assert.assertEquals(String.valueOf(REGION_OID), aspect.getRegion().getUuid());
         Assert.assertEquals(REGION_NAME, aspect.getRegion().getDisplayName());
-        Assert.assertEquals(ApiEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
+        Assert.assertEquals(UIEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
         Assert.assertNull(aspect.getZone());
     }
 

@@ -24,7 +24,7 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
@@ -93,7 +93,7 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
      */
     private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
         final String entityTypesAQL = entityTypes.stream()
-                .map(ApiEntityType::fromType)
+                .map(UIEntityType::fromType)
                 .map(entityType -> "\"" + entityType + "\"")
                 .collect(Collectors.joining(","));
         return "[" + entityTypesAQL + "]";

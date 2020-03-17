@@ -60,7 +60,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -189,7 +189,7 @@ public class CompoundMoveTest {
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
         return SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.DATACENTER.apiStr())
+            .setEntityType(UIEntityType.DATACENTER.apiStr())
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();
@@ -206,7 +206,7 @@ public class CompoundMoveTest {
         final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
         mappedE.setDisplayName(displayName);
         mappedE.setUuid(Long.toString(oid));
-        mappedE.setClassName(ApiEntityType.fromType(entityType).apiStr());
+        mappedE.setClassName(UIEntityType.fromType(entityType).apiStr());
         when(serviceEntityMapper.toServiceEntityApiDTO(api)).thenReturn(mappedE);
 
         return api;

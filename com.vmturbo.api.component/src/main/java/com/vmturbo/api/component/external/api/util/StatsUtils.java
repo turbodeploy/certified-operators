@@ -20,7 +20,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsSt
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -39,9 +39,9 @@ public class StatsUtils {
         CommodityType.IO_THROUGHPUT_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.SWAPPING_VALUE, new Pair<>(BIT_SEC, 8));
 
-    private static final Set<ApiEntityType> SUPPORTED_RI_FILTER_TYPES =
-            Sets.immutableEnumSet(ApiEntityType.AVAILABILITY_ZONE, ApiEntityType.BUSINESS_ACCOUNT,
-                    ApiEntityType.REGION, ApiEntityType.SERVICE_PROVIDER);
+    private static final Set<UIEntityType> SUPPORTED_RI_FILTER_TYPES =
+            Sets.immutableEnumSet(UIEntityType.AVAILABILITY_ZONE, UIEntityType.BUSINESS_ACCOUNT,
+                    UIEntityType.REGION, UIEntityType.SERVICE_PROVIDER);
 
     /**
      * Convert the default commodity units into converted units with multiplier that we need to

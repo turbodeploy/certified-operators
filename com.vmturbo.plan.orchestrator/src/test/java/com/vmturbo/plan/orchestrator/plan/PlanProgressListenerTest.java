@@ -56,7 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable.UpdateFailure;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;

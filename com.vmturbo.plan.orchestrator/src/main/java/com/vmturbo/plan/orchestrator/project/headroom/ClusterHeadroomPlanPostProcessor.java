@@ -59,9 +59,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.HeadroomPlanPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -333,7 +333,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         .flatMap(memberList -> memberList.getMemberOidsList().stream())
                         .filter(oidToEntities::containsKey)
                         .forEach(oid ->
-                            entitiesByType.get(ApiEntityType.fromString(node.getEntityType()).typeNumber())
+                            entitiesByType.get(UIEntityType.fromString(node.getEntityType()).typeNumber())
                                 .add(oidToEntities.get(oid))));
 
                 entitiesByClusterAndType.put(clusterId, entitiesByType);

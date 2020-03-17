@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Unit tests for the {@link DiscountMapper}.
@@ -185,7 +185,7 @@ public class DiscountMapperTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
         SearchRequest req = ApiTestUtils.mockSearchReq(Collections.singletonList(
             ApiPartialEntity.newBuilder()
-                .setEntityType(ApiEntityType.CLOUD_SERVICE.typeNumber())
+                .setEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
                 .setOid(1000L)
                 .setDisplayName("Cloud Service")
                 .build()

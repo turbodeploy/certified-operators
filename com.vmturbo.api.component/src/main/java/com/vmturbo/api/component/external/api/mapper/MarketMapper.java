@@ -23,7 +23,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Converts {@link PlanInstance} objects to the plan-related API objects - namely
@@ -146,15 +146,15 @@ public class MarketMapper {
      * @param planInstance the PlanInstance to get scope ids from
      * @return set of plan scope types
      */
-    public static Set<ApiEntityType> getPlanScopeTypes(@Nonnull PlanInstance planInstance) {
+    public static Set<UIEntityType> getPlanScopeTypes(@Nonnull PlanInstance planInstance) {
         final ScenarioOuterClass.PlanScope planScope = planInstance
                 .getScenario().getScenarioInfo().getScope();
-        final Set<ApiEntityType> planScopeTypes = planScope
+        final Set<UIEntityType> planScopeTypes = planScope
                 .getScopeEntriesList()
                 .stream()
                 .map(PlanScopeEntry::getClassName)
                 .filter(Objects::nonNull)
-                .map(ApiEntityType::fromString)
+                .map(UIEntityType::fromString)
                 .collect(Collectors.toSet());
         return planScopeTypes;
     }

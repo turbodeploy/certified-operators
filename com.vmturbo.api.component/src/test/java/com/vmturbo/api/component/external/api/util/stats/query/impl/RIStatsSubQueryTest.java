@@ -51,9 +51,9 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -113,7 +113,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
         Mockito.when(context.getInputScope()).thenReturn(scope);
         Mockito.when(context.getInputScope().getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
     }
 
     @Test
@@ -236,7 +236,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
 
         final GetReservedInstanceUtilizationStatsRequest req =
                 riStatsSubQuery.createUtilizationRequest(context);
@@ -255,7 +255,7 @@ public class RIStatsSubQueryTest {
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.AVAILABILITY_ZONE)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
 
         final GetReservedInstanceUtilizationStatsRequest req =
                 riStatsSubQuery.createUtilizationRequest(context);
@@ -275,7 +275,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
 
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
 
         final GetReservedInstanceUtilizationStatsRequest req =
                 riStatsSubQuery.createUtilizationRequest(context);
@@ -309,7 +309,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestRegionScope() throws OperationFailedException {
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
@@ -328,7 +328,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestAzScope() throws OperationFailedException {
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.AVAILABILITY_ZONE)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
@@ -347,7 +347,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCoverageOtherEntityType() throws OperationFailedException {
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         Mockito.when(context.isGlobalScope()).thenReturn(false);
 
         final GetReservedInstanceCoverageStatsRequest req =
@@ -362,7 +362,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestBaScope() throws OperationFailedException {
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
@@ -397,7 +397,7 @@ public class RIStatsSubQueryTest {
                                 .build()));
         Mockito.when(repositoryApi.entitiesRequest(SCOPE_ENTITIES)).thenReturn(multiEntityRequest);
         Mockito.when(scope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.SERVICE_PROVIDER)));
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.SERVICE_PROVIDER)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())

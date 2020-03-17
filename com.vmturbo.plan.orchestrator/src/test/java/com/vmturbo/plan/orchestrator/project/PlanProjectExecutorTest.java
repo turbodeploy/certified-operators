@@ -54,10 +54,10 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -111,13 +111,13 @@ public class PlanProjectExecutorTest {
         List<Grouping> groupList = new ArrayList<>();
         groupList.add(Grouping.newBuilder()
                 .setId(100)
-                .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                 .setDefinition(GroupDefinition.newBuilder()
                                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
                 .build());
         groupList.add(Grouping.newBuilder()
                         .setId(101)
-                        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
                                         .setType(GroupType.COMPUTE_HOST_CLUSTER))
                         .build());
@@ -163,7 +163,7 @@ public class PlanProjectExecutorTest {
         Arrays.asList(1, 2, 3).forEach(i -> groupList.add(
                         Grouping.newBuilder()
                         .setId(i)
-                        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
                                         .setType(GroupType.COMPUTE_HOST_CLUSTER))
                         .build()
@@ -209,7 +209,7 @@ public class PlanProjectExecutorTest {
         long selectedTemplateId = 3333;
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
         .setId(12345)
-        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
         .setDefinition(GroupDefinition.newBuilder()
                         .setType(GroupType.COMPUTE_HOST_CLUSTER))
         .build();
@@ -249,7 +249,7 @@ public class PlanProjectExecutorTest {
         long averageTemplateId = 3333;
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
             .setId(12345L)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                             .setDisplayName("TestCluster")
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
@@ -289,7 +289,7 @@ public class PlanProjectExecutorTest {
     public void testCreatePlanInstanceWithoutClusterInfo() throws Exception {
         Grouping groupWithoutHeadroomClusterInfo = Grouping.newBuilder()
             .setId(12345)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                             .setDisplayName("TestCluster")
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
@@ -320,7 +320,7 @@ public class PlanProjectExecutorTest {
 
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
             .setId(12345)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
@@ -461,7 +461,7 @@ public class PlanProjectExecutorTest {
                 .setName("AVG:test_cluster for last 10 days")).build();
 
         final Grouping cluster = Grouping.newBuilder().setId(123)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                 .setDisplayName("test_cluster")
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
@@ -556,7 +556,7 @@ public class PlanProjectExecutorTest {
                     .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)).build());
 
         final Grouping cluster = Grouping.newBuilder().setId(123)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
@@ -613,7 +613,7 @@ public class PlanProjectExecutorTest {
         when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
 
         final Grouping cluster = Grouping.newBuilder().setId(123)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();

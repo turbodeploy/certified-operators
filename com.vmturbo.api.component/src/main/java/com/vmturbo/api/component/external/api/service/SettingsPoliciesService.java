@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingReque
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 
@@ -90,8 +90,8 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty()
                 ? Collections.emptySet()
                 : entityTypes.stream()
-                    .map(ApiEntityType::fromString)
-                    .map(ApiEntityType::typeNumber)
+                    .map(UIEntityType::fromString)
+                    .map(UIEntityType::typeNumber)
                     .collect(Collectors.toSet());
         return getSettingsPolicies(onlyDefaults, acceptableEntityTypes, Collections.emptySet());
     }

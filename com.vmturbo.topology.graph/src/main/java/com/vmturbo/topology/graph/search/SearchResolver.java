@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
@@ -114,7 +114,7 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
             } else if (startingFilter.hasStringFilter()) {
                 StringFilter strFilter = startingFilter.getStringFilter();
                 if (!StringUtils.isEmpty(strFilter.getStringPropertyRegex())) {
-                    final ApiEntityType entityType = ApiEntityType.fromString(
+                    final UIEntityType entityType = UIEntityType.fromString(
                         startingFilter.getStringFilter().getStringPropertyRegex());
                     if (startingFilter.getStringFilter().getPositiveMatch()) {
                         return graph.entitiesOfType(entityType.typeNumber());
@@ -126,7 +126,7 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
                     } else {
                         // Use the indices for the types.
                         return strFilter.getOptionsList().stream()
-                            .map(ApiEntityType::fromString)
+                            .map(UIEntityType::fromString)
                             .flatMap(type -> graph.entitiesOfType(type.typeNumber()));
                     }
                 }

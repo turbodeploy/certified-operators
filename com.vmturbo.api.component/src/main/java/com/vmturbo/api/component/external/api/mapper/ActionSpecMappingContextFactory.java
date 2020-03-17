@@ -64,9 +64,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -241,12 +241,12 @@ public class ActionSpecMappingContextFactory {
 
         // fetch all vm aspects
         final Map<Long, EntityAspect> vmAspects = getEntityToAspectMapping(entitiesById.values(),
-            Sets.newHashSet(ApiEntityType.VIRTUAL_MACHINE), Sets.newHashSet(EnvironmentType.CLOUD),
+            Sets.newHashSet(UIEntityType.VIRTUAL_MACHINE), Sets.newHashSet(EnvironmentType.CLOUD),
             AspectName.VIRTUAL_MACHINE);
 
         // fetch all db aspects
         final Map<Long, EntityAspect> dbAspects = getEntityToAspectMapping(entitiesById.values(),
-            Sets.newHashSet(ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER),
+            Sets.newHashSet(UIEntityType.DATABASE, UIEntityType.DATABASE_SERVER),
             Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
 
         return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
@@ -281,7 +281,7 @@ public class ActionSpecMappingContextFactory {
     @Nonnull
     private Map<Long, EntityAspect> getEntityToAspectMapping(
             @Nonnull Collection<ApiPartialEntity> entities,
-            @Nonnull Set<ApiEntityType> entityTypes,
+            @Nonnull Set<UIEntityType> entityTypes,
             @Nonnull Set<EnvironmentType> envTypes,
             @Nonnull AspectName aspectName)
             throws InterruptedException, ConversionException {
@@ -294,7 +294,7 @@ public class ActionSpecMappingContextFactory {
         if (aspectName == AspectName.CLOUD) {
             for (ApiPartialEntity entity : entities) {
                 if (entity.getEnvironmentType() == EnvironmentType.ON_PREM ||
-                    (allEntityTypes && entityTypes.contains(ApiEntityType.fromType(entity.getEntityType())))) {
+                    (allEntityTypes && entityTypes.contains(UIEntityType.fromType(entity.getEntityType())))) {
                     continue;
                 }
                 final EntityAspect cloudAspect =
@@ -310,7 +310,7 @@ public class ActionSpecMappingContextFactory {
         // For other Aspect types, we need to get the full API DTO so that it can be extracted.
         // Get the OIDs of the partial entities we need full entities of
         final Set<Long> entityIds = entities.stream()
-            .filter(e -> allEntityTypes || entityTypes.contains(ApiEntityType.fromType(e.getEntityType())))
+            .filter(e -> allEntityTypes || entityTypes.contains(UIEntityType.fromType(e.getEntityType())))
             .filter(e -> envTypes.contains(e.getEnvironmentType()))
             .map(ApiPartialEntity::getOid)
             .collect(Collectors.toSet());
@@ -349,7 +349,7 @@ public class ActionSpecMappingContextFactory {
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(ApiEntityType.DATACENTER.apiStr())));
+                    .addEntityTypesToInclude(UIEntityType.DATACENTER.apiStr())));
         });
         final Map<Long, Long> dcOidMap = Maps.newHashMap();
         supplyChainServiceClient.getMultiSupplyChains(requestBuilder.build())

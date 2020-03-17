@@ -60,7 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
@@ -75,7 +75,7 @@ import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
  */
 public class TopologyGraphSearchRpcServiceTest {
 
-    private static final SearchParameters SEARCH_PARAMS = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_MACHINE)).build();
+    private static final SearchParameters SEARCH_PARAMS = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_MACHINE)).build();
 
     private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
     private SearchResolver<RepoGraphEntity> mockSearchResolver = mock(SearchResolver.class);
@@ -332,7 +332,7 @@ public class TopologyGraphSearchRpcServiceTest {
     private RepoGraphEntity createEntity(long oid, EnvironmentType environmentType) {
         final RepoGraphEntity e1 = mock(RepoGraphEntity.class);
         when(e1.getOid()).thenReturn(oid);
-        when(e1.getEntityType()).thenReturn(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        when(e1.getEntityType()).thenReturn(UIEntityType.VIRTUAL_MACHINE.typeNumber());
         when(e1.getDisplayName()).thenReturn(Long.toString(oid));
         when(e1.getEnvironmentType()).thenReturn(environmentType);
         when(e1.getTags()).thenReturn(ImmutableMap.of(String.valueOf(oid), Collections.singletonList(String.valueOf(oid))));
@@ -365,7 +365,7 @@ public class TopologyGraphSearchRpcServiceTest {
                         .setPropertyName(SearchableProperties.ENTITY_TYPE)
                         .setNumericFilter(NumericFilter.newBuilder()
                                                 .setComparisonOperator(ComparisonOperator.EQ)
-                                                .setValue(ApiEntityType.VIRTUAL_MACHINE.typeNumber())))
+                                                .setValue(UIEntityType.VIRTUAL_MACHINE.typeNumber())))
                 .addSearchFilter(
                     SearchFilter.newBuilder()
                         .setPropertyFilter(
@@ -395,7 +395,7 @@ public class TopologyGraphSearchRpcServiceTest {
                         .setPropertyName(SearchableProperties.ENTITY_TYPE)
                         .setNumericFilter(NumericFilter.newBuilder()
                                             .setComparisonOperator(ComparisonOperator.EQ)
-                                            .setValue(ApiEntityType.VIRTUAL_MACHINE.typeNumber())))
+                                            .setValue(UIEntityType.VIRTUAL_MACHINE.typeNumber())))
                 .addSearchFilter(
                     SearchFilter.newBuilder()
                         .setPropertyFilter(
@@ -448,7 +448,7 @@ public class TopologyGraphSearchRpcServiceTest {
         when(graph.getEntity(4L)).thenReturn(Optional.of(e4));
         when(graph.entities()).thenReturn(Stream.of(e1, e2, e3, e4));
         when(topology.entityGraph()).thenReturn(graph);
-        when(graph.entitiesOfType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+        when(graph.entitiesOfType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .thenReturn(Stream.of(e1, e2, e3, e4));
 
         Assert.assertEquals(expectedAnswers.get(environmentType),

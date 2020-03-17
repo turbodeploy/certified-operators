@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -44,8 +45,8 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -97,7 +98,7 @@ public class DiscountMapper {
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setUuid(String.valueOf(discount.getAssociatedAccountId()));
         businessUnitApiDTO.setDisplayName(discount.getDiscountInfo().getDisplayName());
-        businessUnitApiDTO.setClassName(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
+        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
         businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
         businessUnitApiDTO.setDiscount((float) discount.getDiscountInfo()
                 .getAccountLevelDiscount()
@@ -270,7 +271,7 @@ public class DiscountMapper {
      */
     private List<CloudServicePriceAdjustmentApiDTO> getCloudServicePriceAdjustmentApiDTOs() {
         return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(ApiEntityType.CLOUD_SERVICE)).build())
+            SearchProtoUtil.entityTypeFilter(UIEntityType.CLOUD_SERVICE)).build())
                 .getEntities()
                 .map(this::buildCloudServicePriceAdjustmentApiDTO)
             .filter(Optional::isPresent)

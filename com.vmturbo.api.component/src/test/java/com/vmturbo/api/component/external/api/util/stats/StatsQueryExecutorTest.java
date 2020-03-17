@@ -43,7 +43,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -345,13 +345,13 @@ public class StatsQueryExecutorTest {
 
         final MinimalEntity host1 = MinimalEntity.newBuilder()
             .setOid(201L)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
             .addDiscoveringTargetIds(1L)
             .addDiscoveringTargetIds(2L)
             .build();
         final MinimalEntity host2 = MinimalEntity.newBuilder()
             .setOid(202L)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
             .addDiscoveringTargetIds(1L)
             .build();
 
@@ -363,7 +363,7 @@ public class StatsQueryExecutorTest {
         when(scope.isGroup()).thenReturn(true);
         when(scope.isEntity()).thenReturn(false);
         final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
-        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE));
+        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(UIEntityType.PHYSICAL_MACHINE));
         when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
         // If not all entities in group were discovered by fabric, then don't show cooling and power.
         when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(host1.getOid(), host2.getOid()));
@@ -388,7 +388,7 @@ public class StatsQueryExecutorTest {
         when(scope.isGroup()).thenReturn(false);
         when(scope.isEntity()).thenReturn(true);
         when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
-            ApiEntityType.PHYSICAL_MACHINE)));
+            UIEntityType.PHYSICAL_MACHINE)));
         // if host is not stitched, then don't show cooling and power.
         when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
         stats = executor.getAggregateStats(scope, period);

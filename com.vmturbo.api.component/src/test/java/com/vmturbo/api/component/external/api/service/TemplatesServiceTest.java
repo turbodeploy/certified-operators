@@ -52,7 +52,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateSpecServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -153,11 +153,11 @@ public class TemplatesServiceTest {
         TemplateApiDTO templateApiDTO = new TemplateApiDTO();
         when(templatesUtils.getTemplates(any()))
             .thenReturn(Stream.of(templateApiDTO));
-        final List<TemplateApiDTO> result = templatesService.getTemplate(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        final List<TemplateApiDTO> result = templatesService.getTemplate(UIEntityType.VIRTUAL_MACHINE.apiStr());
         assertThat(result, containsInAnyOrder(templateApiDTO));
         verify(templatesUtils).getTemplates(GetTemplatesRequest.newBuilder()
             .setFilter(TemplatesFilter.newBuilder()
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
     }
 
@@ -217,11 +217,11 @@ public class TemplatesServiceTest {
 
         doReturn(TEMPLATE_SPEC).when(templateSpecService)
             .getTemplateSpecByEntityType(GetTemplateSpecByEntityTypeRequest.newBuilder()
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build());
 
         doReturn(TEMPLATE_INFO).when(templateMapper)
-            .mapToTemplateInfo(templateApiInputDTO, TEMPLATE_SPEC, ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+            .mapToTemplateInfo(templateApiInputDTO, TEMPLATE_SPEC, UIEntityType.VIRTUAL_MACHINE.typeNumber());
 
         doReturn(TEMPLATE).when(templateService).createTemplate(CreateTemplateRequest.newBuilder()
             .setTemplateInfo(TEMPLATE_INFO)
@@ -267,7 +267,7 @@ public class TemplatesServiceTest {
                 .build());
 
         doReturn(TEMPLATE_INFO).when(templateMapper)
-            .mapToTemplateInfo(templateApiInputDTO, TEMPLATE_SPEC, ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+            .mapToTemplateInfo(templateApiInputDTO, TEMPLATE_SPEC, UIEntityType.VIRTUAL_MACHINE.typeNumber());
 
         doReturn(TEMPLATE).when(templateService).editTemplate(EditTemplateRequest.newBuilder()
             .setTemplateId(TEMPLATE.getId())

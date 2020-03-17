@@ -56,7 +56,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Service Layer to implement Actions.
@@ -232,7 +232,7 @@ public class ActionsService implements IActionsService {
                 .currentTimeStamp(currentTimeStamp)
                 .actionInput(actionScopesApiInputDTO.getActionInput());
             if (actionScopesApiInputDTO.getRelatedType() != null) {
-                queryBuilder.entityType(ApiEntityType.fromString(
+                queryBuilder.entityType(UIEntityType.fromString(
                     actionScopesApiInputDTO.getRelatedType()).typeNumber());
             }
             final Map<ApiId, List<StatSnapshotApiDTO>> actionStatsByScope =
@@ -251,7 +251,7 @@ public class ActionsService implements IActionsService {
                     .forEach(minEntity -> {
                         final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(Long.toString(minEntity.getOid()));
                         entityStatsApiDTO.setDisplayName(minEntity.getDisplayName());
-                        entityStatsApiDTO.setClassName(ApiEntityType.fromType(minEntity.getEntityType()).apiStr());
+                        entityStatsApiDTO.setClassName(UIEntityType.fromType(minEntity.getEntityType()).apiStr());
                     });
             }
 

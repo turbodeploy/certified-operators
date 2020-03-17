@@ -22,7 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
@@ -35,7 +35,7 @@ public class ProjectedRealtimeTopologyTest {
         .setProjectedPriceIndex(2)
         .setEntity(TopologyEntityDTO.newBuilder()
             .setOid(1)
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .setDisplayName("vm"))
         .build();
 
@@ -44,7 +44,7 @@ public class ProjectedRealtimeTopologyTest {
         .setProjectedPriceIndex(2)
         .setEntity(TopologyEntityDTO.newBuilder()
             .setOid(2)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
             .setDisplayName("pm"))
         .build();
 
@@ -53,7 +53,7 @@ public class ProjectedRealtimeTopologyTest {
         .setProjectedPriceIndex(2)
         .setEntity(TopologyEntityDTO.newBuilder()
             .setOid(3)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
             .setDisplayName("pm"))
         .build();
 
@@ -81,12 +81,12 @@ public class ProjectedRealtimeTopologyTest {
 
         // Test get specific entities, restrict by type
         assertThat(topology.getEntities(Sets.newHashSet(projectedVm.getEntity().getOid(), projectedHost1.getEntity().getOid()),
-            Collections.singleton(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+            Collections.singleton(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
             .collect(Collectors.toList()), containsInAnyOrder(projectedVm.getEntity()));
 
         // Test get all entities of type.
         assertThat(topology.getEntities(Collections.emptySet(),
-            Collections.singleton(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            Collections.singleton(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .collect(Collectors.toList()),
                 containsInAnyOrder(projectedHost1.getEntity(), projectedHost2.getEntity()));
     }

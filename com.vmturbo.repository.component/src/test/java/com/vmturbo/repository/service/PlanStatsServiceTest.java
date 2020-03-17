@@ -54,12 +54,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.service.PlanStatsService.EntityAndStats;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
@@ -476,7 +476,7 @@ public class PlanStatsServiceTest {
         final StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
         final long snapshotDate = Instant.now().toEpochMilli() + 100000;
 
-        final String relatedEntityType = ApiEntityType.PHYSICAL_MACHINE.apiStr();
+        final String relatedEntityType = UIEntityType.PHYSICAL_MACHINE.apiStr();
 
 
         PlanStatsService spyPlanStatServiceService = spy(planStatsService);
@@ -527,7 +527,7 @@ public class PlanStatsServiceTest {
         final StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
         final long snapshotDate = Instant.now().toEpochMilli() + 100000;
 
-        final String relatedEntityType = ApiEntityType.STORAGE.apiStr();
+        final String relatedEntityType = UIEntityType.STORAGE.apiStr();
 
 
         PlanStatsService spyPlanStatServiceService = spy(planStatsService);

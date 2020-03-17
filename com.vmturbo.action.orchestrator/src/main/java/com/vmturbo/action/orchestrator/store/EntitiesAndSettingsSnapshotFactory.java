@@ -44,7 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -287,7 +287,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             .setReturnType(Type.WITH_CONNECTIONS)
             .setTopologyContextId(topologyContextId)
             .setTopologyType(topologyType)
-            .addEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
+            .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
         // Set the topologyId if its non null. Else it defaults to real time.
         if (topologyId != null) {
             entitiesReqBldr.setTopologyId(topologyId);

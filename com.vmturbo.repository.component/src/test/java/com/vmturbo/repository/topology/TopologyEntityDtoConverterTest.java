@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Desktop
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
@@ -80,7 +80,7 @@ public class TopologyEntityDtoConverterTest {
         vmServiceEntity.setDisplayName("test-vm");
         vmServiceEntity.setOid("111");
         vmServiceEntity.setUuid("111");
-        vmServiceEntity.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        vmServiceEntity.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
         vmServiceEntity.setState(UIEntityState.ACTIVE.apiStr());
         final Map<String, List<String>> tagsMap = new HashMap<>();
         tagsMap.put("key1", Arrays.asList("value1", "value2"));
@@ -263,7 +263,7 @@ public class TopologyEntityDtoConverterTest {
                                  @Nonnull final ServiceEntityRepoDTO seRepoDTO) {
         final String expectedState = UIEntityState.fromEntityState(seTopoDTO.getEntityState())
                 .apiStr();
-        final String expectedType = ApiEntityType.fromEntity(seTopoDTO).apiStr();
+        final String expectedType = UIEntityType.fromEntity(seTopoDTO).apiStr();
 
         assertEquals(Long.toString(seTopoDTO.getOid()), seRepoDTO.getOid());
         assertEquals(seTopoDTO.getDisplayName(), seRepoDTO.getDisplayName());

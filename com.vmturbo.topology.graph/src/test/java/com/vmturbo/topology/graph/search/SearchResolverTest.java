@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.filter.PropertyFilter;
@@ -38,15 +38,15 @@ public class SearchResolverTest {
     @Test
     public void testStartingFilterEntityTypeNumeric() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(SearchParameters.newBuilder()
                 .setStartingFilter(Search.PropertyFilter.newBuilder()
                     .setPropertyName(SearchableProperties.ENTITY_TYPE)
                     .setNumericFilter(NumericFilter.newBuilder()
-                        .setValue(ApiEntityType.DISKARRAY.typeNumber())))
+                        .setValue(UIEntityType.DISKARRAY.typeNumber())))
                 .build(), graph)
             .map(TestGraphEntity::getOid)
             .collect(Collectors.toList()), containsInAnyOrder(44L));
@@ -55,15 +55,15 @@ public class SearchResolverTest {
     @Test
     public void testStartingFilterEntityTypeRegex() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(SearchParameters.newBuilder()
             .setStartingFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setStringFilter(StringFilter.newBuilder()
-                    .setStringPropertyRegex(ApiEntityType.DISKARRAY.apiStr())
+                    .setStringPropertyRegex(UIEntityType.DISKARRAY.apiStr())
                     .setPositiveMatch(true)))
             .build(), graph)
             .map(TestGraphEntity::getOid)
@@ -73,15 +73,15 @@ public class SearchResolverTest {
     @Test
     public void testStartingFilterEntityTypeOption() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(SearchParameters.newBuilder()
             .setStartingFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.ENTITY_TYPE)
                 .setStringFilter(StringFilter.newBuilder()
-                    .addOptions(ApiEntityType.DISKARRAY.apiStr())
+                    .addOptions(UIEntityType.DISKARRAY.apiStr())
                     .setPositiveMatch(true)))
             .build(), graph)
             .map(TestGraphEntity::getOid)
@@ -91,8 +91,8 @@ public class SearchResolverTest {
     @Test
     public void testStartingFilterOidNumeric() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(SearchParameters.newBuilder()
@@ -108,8 +108,8 @@ public class SearchResolverTest {
     @Test
     public void testStartingFilterOidRegex() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(SearchParameters.newBuilder()
@@ -126,8 +126,8 @@ public class SearchResolverTest {
     @Test
     public void testStartingFilterOidOption() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(SearchParameters.newBuilder()
@@ -153,8 +153,8 @@ public class SearchResolverTest {
         when(filterFactory.filterFor(startingFilter)).thenReturn(propFilter);
 
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         when(propFilter.apply(any(), eq(graph))).thenReturn(Stream.of(graph.getEntity(44L).get()));
@@ -174,8 +174,8 @@ public class SearchResolverTest {
     public void testSearchNoParameters() {
 
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(Collections.emptyList(), graph).count(), is(0L));
@@ -184,8 +184,8 @@ public class SearchResolverTest {
     @Test
     public void testSearchSingleParameter() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE)
         );
 
         assertThat(searchResolver.search(Collections.singletonList(
@@ -199,19 +199,19 @@ public class SearchResolverTest {
     @Test
     public void testSearchTwoParametersIntersection() {
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(44L, ApiEntityType.DISKARRAY),
-            TestGraphEntity.newBuilder(22L, ApiEntityType.STORAGE),
-            TestGraphEntity.newBuilder(11L, ApiEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(44L, UIEntityType.DISKARRAY),
+            TestGraphEntity.newBuilder(22L, UIEntityType.STORAGE),
+            TestGraphEntity.newBuilder(11L, UIEntityType.VIRTUAL_MACHINE)
         );
 
         assertThat(searchResolver.search(Arrays.asList(
             SearchProtoUtil.makeSearchParameters(
                 SearchProtoUtil.entityTypeFilter(Arrays.asList(
-                    ApiEntityType.DISKARRAY.apiStr(), ApiEntityType.STORAGE.apiStr())))
+                    UIEntityType.DISKARRAY.apiStr(), UIEntityType.STORAGE.apiStr())))
                 .build(),
             SearchProtoUtil.makeSearchParameters(
                 SearchProtoUtil.entityTypeFilter(Arrays.asList(
-                    ApiEntityType.DISKARRAY.apiStr(), ApiEntityType.VIRTUAL_MACHINE.apiStr())))
+                    UIEntityType.DISKARRAY.apiStr(), UIEntityType.VIRTUAL_MACHINE.apiStr())))
                 .build()), graph)
             .map(TestGraphEntity::getOid)
             .collect(Collectors.toList()), containsInAnyOrder(44L));

@@ -66,8 +66,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 
 /**
@@ -138,8 +138,8 @@ public class StatsMapper {
      * The related type in the api request which should be normalized to another type.
      */
     private static final Map<String, String> RELATED_TYPES_TO_NORMALIZE = ImmutableMap.of(
-        ApiEntityType.DATACENTER.apiStr(), ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-        StringConstants.CLUSTER, ApiEntityType.PHYSICAL_MACHINE.apiStr()
+        UIEntityType.DATACENTER.apiStr(), UIEntityType.PHYSICAL_MACHINE.apiStr(),
+        StringConstants.CLUSTER, UIEntityType.PHYSICAL_MACHINE.apiStr()
     );
 
     private final PaginationMapper paginationMapper;
@@ -406,8 +406,8 @@ public class StatsMapper {
         }
         if (convertedStatRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-            resultsTypeFilter.setType(StringConstants.RESULTS_TYPE);
-            resultsTypeFilter.setValue(StringConstants.BEFORE_PLAN);
+            resultsTypeFilter.setType(com.vmturbo.components.common.utils.StringConstants.RESULTS_TYPE);
+            resultsTypeFilter.setValue(com.vmturbo.components.common.utils.StringConstants.BEFORE_PLAN);
             filters.add(resultsTypeFilter);
         }
 
@@ -936,7 +936,7 @@ public class StatsMapper {
                     }
                     // set related entity type
                     if (statRecord.hasAssociatedEntityType()) {
-                        statApiDTO.setRelatedEntityType(ApiEntityType.fromType(
+                        statApiDTO.setRelatedEntityType(UIEntityType.fromType(
                             statRecord.getAssociatedEntityType()).apiStr());
                     }
                     return statApiDTO;

@@ -1,10 +1,10 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CPUS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_SOCKETS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CPUS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_SOCKETS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_STORAGES;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;

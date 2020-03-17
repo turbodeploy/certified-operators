@@ -1,9 +1,9 @@
 package com.vmturbo.history.stats.readers;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
+import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static org.jooq.impl.DSL.field;
 
 import java.sql.Timestamp;
@@ -78,13 +78,13 @@ public class MostRecentLiveStatReader {
         final List<Supplier<Optional<GetMostRecentStatResponse.Builder>>> orderedQueries = Arrays
                 .asList(
                 // 1. hourly table query
-                () -> retrieveMostRecentStat(createQuery(entityType.getHourTable().get(),
+                () -> retrieveMostRecentStat(createQuery(entityType.getHourTable(),
                                 commodityType, commodityKey), StatHistoricalEpoch.HOUR),
                 // 2. daily table query
-                () -> retrieveMostRecentStat(createQuery(entityType.getDayTable().get(), commodityType,
+                () -> retrieveMostRecentStat(createQuery(entityType.getDayTable(), commodityType,
                         commodityKey), StatHistoricalEpoch.DAY),
                 // 3. monthly table query
-                () -> retrieveMostRecentStat(createQuery(entityType.getMonthTable().get(),
+                () -> retrieveMostRecentStat(createQuery(entityType.getMonthTable(),
                         commodityType, commodityKey), StatHistoricalEpoch.MONTH)
         );
 

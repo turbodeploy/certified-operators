@@ -1,23 +1,18 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.CONTAINER;
-import static com.vmturbo.common.protobuf.utils.StringConstants.CPU_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MEM_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VDCS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.TOTAL_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.VDC;
-import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
+import static com.vmturbo.components.common.utils.StringConstants.CPU_HEADROOM;
+import static com.vmturbo.components.common.utils.StringConstants.MEM_HEADROOM;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_HOST;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_STORAGE;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_CONTAINERS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_STORAGES;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VDCS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.components.common.utils.StringConstants.STORAGE_HEADROOM;
+import static com.vmturbo.components.common.utils.StringConstants.TOTAL_HEADROOM;
 import static com.vmturbo.history.stats.live.PropertyType.Category.Headroom;
 import static java.util.stream.Collectors.toSet;
 
@@ -47,19 +42,19 @@ public class ConfiguredPropertyType extends PropertyType {
 
     /** count metric for VMs. */
     private static final ConfiguredPropertyType numVMs =
-            new ConfiguredPropertyType(NUM_VMS, counted(EntityType.get(VIRTUAL_MACHINE)));
+            new ConfiguredPropertyType(NUM_VMS, counted(EntityType.VIRTUAL_MACHINE));
     /** count metric for hosts. */
     private static final ConfiguredPropertyType numHosts =
-            new ConfiguredPropertyType(NUM_HOSTS, counted(EntityType.get(PHYSICAL_MACHINE)));
+            new ConfiguredPropertyType(NUM_HOSTS, counted(EntityType.PHYSICAL_MACHINE));
     /** count metrics for storages. */
     private static final ConfiguredPropertyType numStorages =
-            new ConfiguredPropertyType(NUM_STORAGES, counted(EntityType.get(STORAGE)));
+            new ConfiguredPropertyType(NUM_STORAGES, counted(EntityType.STORAGE));
     /** count metrics for containers. */
     private static final ConfiguredPropertyType numContainers =
-            new ConfiguredPropertyType(NUM_CONTAINERS, counted(EntityType.get(CONTAINER)));
+            new ConfiguredPropertyType(NUM_CONTAINERS, counted(EntityType.CONTAINER));
     /** count metrics for vdcs. */
     private static final ConfiguredPropertyType numVdcs =
-            new ConfiguredPropertyType(NUM_VDCS, counted(EntityType.get(VDC)));
+            new ConfiguredPropertyType(NUM_VDCS, counted(EntityType.VDC));
     /** computed property for vms-to-host ratio. */
     private static final ConfiguredPropertyType numVMsPerHost =
             new ConfiguredPropertyType(NUM_VMS_PER_HOST, computed(ratio, numVMs, numHosts));

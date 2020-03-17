@@ -57,7 +57,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -93,51 +93,51 @@ public class ArangoSupplyChainRpcServiceTest {
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(11L)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedProviderTypes(UIEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
             .build();
 
     private final SupplyChainNode cloudVMNode2 = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(12L)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedProviderTypes(UIEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
             .build();
 
     private final SupplyChainNode cloudVolumeNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(21L)
                     .build())
-            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_MACHINE.apiStr())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
-            .setEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr())
+            .addConnectedConsumerTypes(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedProviderTypes(UIEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(UIEntityType.VIRTUAL_VOLUME.apiStr())
             .build();
 
     private final SupplyChainNode cloudZoneNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(31L)
                     .build())
-            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_MACHINE.apiStr())
-            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_VOLUME.apiStr())
-            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.apiStr())
+            .addConnectedConsumerTypes(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedConsumerTypes(UIEntityType.VIRTUAL_VOLUME.apiStr())
+            .setEntityType(UIEntityType.AVAILABILITY_ZONE.apiStr())
             .build();
 
     private final SupplyChainNode cloudRegionNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(41L)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
-            .setEntityType(ApiEntityType.REGION.apiStr())
+            .addConnectedProviderTypes(UIEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(UIEntityType.REGION.apiStr())
             .build();
 
     private final SupplyChainNode cloudAccountNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(51)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.VIRTUAL_MACHINE.apiStr())
-            .addConnectedProviderTypes(ApiEntityType.VIRTUAL_VOLUME.apiStr())
-            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.apiStr())
+            .addConnectedProviderTypes(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedProviderTypes(UIEntityType.VIRTUAL_VOLUME.apiStr())
+            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.apiStr())
             .build();
 
     @Rule
@@ -155,19 +155,19 @@ public class ArangoSupplyChainRpcServiceTest {
         Mockito.when(userSessionContext.getUserAccessScope())
                 .thenReturn(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE);
 
-        doReturn(Optional.of(ApiEntityType.VIRTUAL_MACHINE)).when(
+        doReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE)).when(
                 supplyChainBackend).getUIEntityType(5678L);
-        doReturn(Optional.of(ApiEntityType.VIRTUAL_MACHINE)).when(
+        doReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE)).when(
                 supplyChainBackend).getUIEntityType(91011L);
-        doReturn(Optional.of(ApiEntityType.VIRTUAL_MACHINE)).when(
+        doReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE)).when(
                 supplyChainBackend).getUIEntityType(11L);
-        doReturn(Optional.of(ApiEntityType.VIRTUAL_MACHINE)).when(
+        doReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE)).when(
                 supplyChainBackend).getUIEntityType(12L);
-        doReturn(Optional.of(ApiEntityType.AVAILABILITY_ZONE)).when(
+        doReturn(Optional.of(UIEntityType.AVAILABILITY_ZONE)).when(
                 supplyChainBackend).getUIEntityType(31L);
-        doReturn(Optional.of(ApiEntityType.REGION)).when(
+        doReturn(Optional.of(UIEntityType.REGION)).when(
                 supplyChainBackend).getUIEntityType(41L);
-        doReturn(Optional.of(ApiEntityType.BUSINESS_ACCOUNT)).when(
+        doReturn(Optional.of(UIEntityType.BUSINESS_ACCOUNT)).when(
                 supplyChainBackend).getUIEntityType(51L);
     }
 

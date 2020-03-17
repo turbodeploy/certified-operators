@@ -34,9 +34,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -130,7 +130,7 @@ public class HistoricalQueryMapperTest {
         when(mktScope.isRealtimeMarket()).thenReturn(true);
         ActionStatsQuery query = ImmutableActionStatsQuery.builder()
             .addScopes(mktScope)
-            .entityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .entityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
             .actionInput(new ActionApiInputDTO())
             .build();
         final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
@@ -138,21 +138,21 @@ public class HistoricalQueryMapperTest {
             .extractMgmtUnitSubgroupFilter(query);
         assertTrue(filters.get(mktScope).getMarket());
         assertThat(filters.get(mktScope).getEntityTypeList(),
-            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
     }
 
     @Test
     public void testExtractRealtimeGlobalGroupFilter() {
         final CachedGroupInfo globalVmGroup = mock(CachedGroupInfo.class);
         when(globalVmGroup.getEntityTypes()).thenReturn(Collections.singleton(
-                        ApiEntityType.VIRTUAL_MACHINE));
+                        UIEntityType.VIRTUAL_MACHINE));
         when(globalVmGroup.isGlobalTempGroup()).thenReturn(true);
 
         final ApiId mktScope = mock(ApiId.class);
         when(mktScope.isRealtimeMarket()).thenReturn(false);
         when(mktScope.isGlobalTempGroup()).thenReturn(true);
         when(mktScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                        ApiEntityType.VIRTUAL_MACHINE)));
+                        UIEntityType.VIRTUAL_MACHINE)));
 
         ActionStatsQuery query = ImmutableActionStatsQuery.builder()
             .addScopes(mktScope)
@@ -165,7 +165,7 @@ public class HistoricalQueryMapperTest {
 
         // By default, the entity type of the global group is used.
         assertThat(filters.get(mktScope).getEntityTypeList(),
-            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
     }
 
 }

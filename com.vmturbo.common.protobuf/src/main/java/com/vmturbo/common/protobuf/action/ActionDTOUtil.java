@@ -50,7 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -902,7 +902,7 @@ public class ActionDTOUtil {
      */
     public static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
         return new StringBuilder()
-                .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
+                .append(UIEntityType.fromType(entityDTO.getEntityType()).displayName())
                 .append(" ")
                 .append(entityDTO.getDisplayName())
                 .toString();

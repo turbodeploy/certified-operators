@@ -48,7 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -583,12 +583,12 @@ public class PlanTopologyScopeEditorTest {
     @Test
     public void testScopeOnpremTopologyOnCluster() throws PipelineStageException {
         Grouping g = Grouping.newBuilder()
-                        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
                         .setStaticGroupMembers(StaticMembers.newBuilder()
                                         .addMembersByType(StaticMembersByType.newBuilder()
                                                         .setType(MemberType.newBuilder()
-                                                                        .setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                                                        .setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
                                                         .addMembers(pm1InDc1.getOid())
                                                         .addMembers(pm2InDc1.getOid())
                                                         )))

@@ -2,14 +2,18 @@ package com.vmturbo.history.utils;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.vmturbo.common.protobuf.utils.StringConstants.CONTAINER;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
+import static com.vmturbo.history.db.EntityType.APPLICATION;
+import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
+import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
+import static com.vmturbo.history.db.EntityType.BUSINESS_USER;
+import static com.vmturbo.history.db.EntityType.CHASSIS;
+import static com.vmturbo.history.db.EntityType.DESKTOP_POOL;
+import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
+import static com.vmturbo.history.db.EntityType.IO_MODULE;
+import static com.vmturbo.history.db.EntityType.STORAGE_CONTROLLER;
+import static com.vmturbo.history.db.EntityType.SWITCH;
+import static com.vmturbo.history.db.EntityType.VDC;
+import static com.vmturbo.history.db.EntityType.VIEW_POD;
 
 import java.sql.Timestamp;
 import java.util.Calendar;
@@ -23,6 +27,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,18 +39,19 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.stats.live.ConfiguredPropertyType;
 import com.vmturbo.history.stats.live.PropertyType;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class HistoryStatsUtils {
+    private static final Logger logger = LogManager.getLogger();
 
     private HistoryStatsUtils() {
     }
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * The default price index value.
@@ -75,31 +81,78 @@ public class HistoryStatsUtils {
     public static final ImmutableBiMap<String, String> countSEsMetrics =
             ConfiguredPropertyType.getMetricPropertyTypes().stream()
                     .collect(ImmutableBiMap.toImmutableBiMap(
-                            prop -> prop.getCountedEntityType().getName(),
+                            prop -> prop.getCountedEntityType().getClsName(),
                             PropertyType::getName));
 
+
     /**
-     * Map from Database EntityType String name to SDK EntityType Enum numeric value for
-     * Entity Types to be counted.
+     * Map from SDK EntityType Enum to Database EntityType Enum.
+     *
+     * <p>note that CLUSTER database EntityType is internally generated and does not come from SDK
+     *
+     * <p>note that VPOD and DPOD EntityType Service Entities are created by the network control
+     * module, which has not been converted to SDK yet. When added to the
+     * CommonDTO.EntityDTO.EntityType Enum they will need to be included here.
      */
-    public static final ImmutableMap<String, Integer> SDK_ENTITY_TYPES_TO_COUNT =
-            new ImmutableMap.Builder<String, Integer>()
-                    .put(VIRTUAL_MACHINE, EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber())
-                    .put(PHYSICAL_MACHINE, EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber())
-                    .put(STORAGE, EntityDTO.EntityType.STORAGE.getNumber())
-                    .put(CONTAINER, EntityDTO.EntityType.CONTAINER.getNumber())
+    public static final ImmutableMap<CommonDTO.EntityDTO.EntityType, EntityType>
+            SDK_ENTITY_TYPE_TO_ENTITY_TYPE =
+            new ImmutableMap.Builder<CommonDTO.EntityDTO.EntityType, EntityType>()
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINERPOD)
+                    // DC's are intentionally mapped to PM's
+                    .put(CommonDTO.EntityDTO.EntityType.DATACENTER, EntityType.PHYSICAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.DISK_ARRAY, DISK_ARRAY)
+                    .put(CommonDTO.EntityDTO.EntityType.DPOD, EntityType.DPOD)
+                    .put(CommonDTO.EntityDTO.EntityType.IO_MODULE, IO_MODULE)
+                    .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.RESERVED_INSTANCE, EntityType.RESERVED_INSTANCE)
+                    .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
+                    .put(CommonDTO.EntityDTO.EntityType.STORAGE_CONTROLLER, STORAGE_CONTROLLER)
+                    .put(CommonDTO.EntityDTO.EntityType.SWITCH, SWITCH)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER, VDC)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.VPOD, EntityType.VPOD)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
+                    .put(CommonDTO.EntityDTO.EntityType.DESKTOP_POOL, DESKTOP_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, BUSINESS_USER)
+                    .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE, EntityType.DATABASE)
                     .build();
 
     /**
-     * Map from Database EntityType String name to SDK EntityType Enum numeric value for
-     * Entity Types to be counted.
+     * Map from SDK EntityType Enum to Database EntityType Enum without mapping DATACENTER to PM.
      */
-    public static final ImmutableMap<String, String> ENTITY_TYPE_COUNT_STAT_NAME =
-            new ImmutableMap.Builder<String, String>()
-                    .put(VIRTUAL_MACHINE, NUM_VMS)
-                    .put(PHYSICAL_MACHINE, NUM_HOSTS)
-                    .put(STORAGE, NUM_STORAGES)
-                    .put(CONTAINER, NUM_CONTAINERS)
+    public static final ImmutableMap<CommonDTO.EntityDTO.EntityType, EntityType>
+            SDK_ENTITY_TYPE_TO_ENTITY_TYPE_NO_ALIAS =
+            new ImmutableMap.Builder<CommonDTO.EntityDTO.EntityType, EntityType>()
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.DATACENTER, EntityType.DATACENTER)
+                    .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
+                    .put(CommonDTO.EntityDTO.EntityType.DISK_ARRAY, DISK_ARRAY)
+                    .put(CommonDTO.EntityDTO.EntityType.IO_MODULE, IO_MODULE)
+                    .put(CommonDTO.EntityDTO.EntityType.STORAGE_CONTROLLER, STORAGE_CONTROLLER)
+                    .put(CommonDTO.EntityDTO.EntityType.SWITCH, SWITCH)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER, VDC)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINERPOD)
+                    .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
+                    .put(CommonDTO.EntityDTO.EntityType.DESKTOP_POOL, DESKTOP_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_USER, BUSINESS_USER)
+                    .put(CommonDTO.EntityDTO.EntityType.VIEW_POD, VIEW_POD)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE, EntityType.DATABASE)
                     .build();
 
     /**
@@ -371,7 +424,7 @@ public class HistoryStatsUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Field<Timestamp> timestamp(Field<?> field) {
+    public static Field<Timestamp> timestamp(Field<?> field){
         checkNotNull(field);
         checkFieldType(field.getType(), Timestamp.class);
         return (Field<Timestamp>)field;
@@ -380,12 +433,12 @@ public class HistoryStatsUtils {
     /*
      * Type-safe wrappers for casting Fields to the required generic type.
      */
-    private static void checkFieldType(Class<?> given, Class<?> expected) {
+    private static void checkFieldType(Class<?> given, Class<?> expected){
         checkFieldType(given, expected, false);
     }
 
-    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK) {
-        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given == expected,
+    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK){
+        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given==expected,
                 "Incorrect field type %s (expected %s)",
                 given.getName(), expected.getName());
     }

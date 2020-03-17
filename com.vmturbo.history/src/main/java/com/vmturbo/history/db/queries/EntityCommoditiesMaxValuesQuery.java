@@ -1,11 +1,11 @@
 package com.vmturbo.history.db.queries;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MAX_VALUE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
-import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
+import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.RELATION;
+import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
