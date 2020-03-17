@@ -188,9 +188,9 @@ public class SMAInput {
                 cspFromRegion, smaContextToVMs, riBoughtIdToCouponsUsed, regionIdToOsTypeToContexts,
                 contextToBusinessAccountIds, contextToOSTypes);
         }
-        logger.info("created {} VMs from {} VirtualMachines in {} contexts {}ms",
-            numberVMsCreated, virtualMachines.size(), smaContextToVMs.keySet().size(),
-            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("{}ms to create {} VMs from {} VirtualMachines in {} contexts",
+            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), numberVMsCreated, virtualMachines.size(),
+            smaContextToVMs.keySet().size());
         dumpContextToVMs(smaContextToVMs);
         dumpRegionIdToOsTypeToContexts(regionIdToOsTypeToContexts);
         dumpContextToBusinessAccountsIds(contextToBusinessAccountIds);
@@ -206,9 +206,9 @@ public class SMAInput {
         int numberTemplatesCreated = processComputeTiers(computeTiers, cloudTopology, cloudCostData,
             regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes, cspFromRegion,
             computeTierOidToContextToTemplate, smaContextToTemplates, marketPriceTable);
-        logger.info("created {} templates from {} compute tiers in {} contexts {}ms",
-            () -> numberTemplatesCreated, () -> computeTiers.size(),
-            () -> smaContextToTemplates.keySet().size(), () -> stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("{}ms to create {} templates from {} compute tiers in {} contexts",
+            () -> stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), () -> numberTemplatesCreated,
+            () -> computeTiers.size(), () -> smaContextToTemplates.keySet().size());
         dumpSmaContextsToTemplates(smaContextToTemplates);
         dumpComputeTierOidToContextToTemplate(computeTierOidToContextToTemplate);
 
@@ -236,9 +236,9 @@ public class SMAInput {
                 numberRIsCreated++;
             }
         }
-        logger.info("created {} RIs from {} RI bought data in {} contexts {}ms",
-            numberRIsCreated, cloudCostData.getAllRiBought().size(),
-            smaContextToRIs.keySet().size(), stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("{}ms to create {} RIs from {} RI bought data in {} contexts",
+            stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), numberRIsCreated,
+            cloudCostData.getAllRiBought().size(), smaContextToRIs.keySet().size());
         dumpSmaContextsToRIs(smaContextToRIs);
 
         /*
@@ -255,7 +255,7 @@ public class SMAInput {
                     reservedInstanceKeyIDGenerator, cloudCostData);
         }
         dumpContextToVMsFinal(smaContextToVMs);
-        logger.info("time to update SMAVirtualMachines {}ms",
+        logger.info("{}ms to update SMAVirtualMachines",
             stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
 
         /*
@@ -264,12 +264,11 @@ public class SMAInput {
         stopWatchDetails.reset();
         stopWatchDetails.start();
         inputContexts = generateInputContexts(smaContextToVMs, smaContextToRIs, smaContextToTemplates);
-        logger.info("time to generate SMAInputContexts {}ms",
+        logger.info("{}ms to generate SMAInputContexts",
             stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
-        logger.info("time to convert to SMA data structures {}ms",
+        logger.info("total {}ms to convert to SMA data structures",
             stopWatch.elapsed(TimeUnit.MILLISECONDS));
     }
-
 
     /**
      * Generate the set of input contexts.
@@ -944,7 +943,9 @@ public class SMAInput {
             riBoughtId, usedCoupons, numberRIsUsed);
             count = count - numberRIsUsed;
             logger.info("processRI: RI bouught OID={} has count={} == 0", riBoughtId, count);
-            return false;
+            if (count <= 0) {
+                return false;
+            }
         }
 
         String templateName = template.getName();

@@ -65,7 +65,7 @@ public class ActionLogger {
     private static final Logger logger = LogManager.getLogger();
 
     // to easily find the data in the log
-    private static final String prefix = "loggedActions";
+    private static final String prefix = "actionLogger";
 
     private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
         "OSType,Tenancy,vmName,vmOid,vmGroupName,savingsPerHour," +

@@ -203,7 +203,7 @@ public class StableMarriagePerContext {
 
         final Stopwatch stopWatch_iteration = Stopwatch.createStarted();
         /*
-         * We run two rounds of iteration. In the first iteration we dont allow VMs to be partially
+         * We run two rounds of iteration. In the first iteration we don't allow VMs to be partially
          * covered. We then run another round of stable marriage. At this point all the RIs have
          * just enough coupons to partially cover one more vm.
          */
